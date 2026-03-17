@@ -92,13 +92,13 @@ def _build_map_mesh(bbox, resolution):
 
 
 def _make_hover(df_subset):
-    """Generate compact hover text strings from a DataFrame subset."""
+    """Generate descriptive hover text strings from a DataFrame subset."""
     return [
         f"Date: {t}<br>"
-        f"M: {m}<br>"
-        f"Lat: {la:.4f}<br>"
-        f"Lon: {lo:.4f}<br>"
-        f"D: {abs(d):.2f} km"
+        f"Magnitude: {m}<br>"
+        f"Latitude: {la:.4f}<br>"
+        f"Longitude: {lo:.4f}<br>"
+        f"Depth: {abs(d):.2f} km"
         for t, m, la, lo, d in zip(
             df_subset['time_str'], df_subset['mag'],
             df_subset['lat'], df_subset['lon'], df_subset['dep']
@@ -458,18 +458,25 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
                 const activeIdx = gd._fullLayout.sliders[0].active;
                 updateUI(activeIdx);
             });
-
-            gd.on('plotly_relayout', (ed) => {
-                // Handle Plotly's own events if needed, but we use our custom buttons
-            });
         });
         </script>
         """
     elif earthquake_data:
-        # Static View (2D or 3D) with filtering
+        # Static View (2D or 3D) with filtering and Color Toggle
         import json
         quakes_json = json.dumps(earthquake_data)
         extra_scripts += """
+        <div id="settings-bar" class="glass-panel">
+            <div class="settings-group">
+                <div class="label">Coloring</div>
+                <button class="settings-btn" id="color-toggle">Magnitude ▾</button>
+                <div class="glass-panel glass-menu" id="color-menu">
+                    <div class="menu-item active" data-mode="mag">Magnitude</div>
+                    <div class="menu-item" data-mode="date">Date</div>
+                </div>
+            </div>
+        </div>
+
         <div id="filter-bar" class="glass-panel">
             <span>Period:</span>
             <input type="date" id="filter-start">
@@ -477,12 +484,39 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
             <input type="date" id="filter-end">
         </div>
 
+        <style>
+        .settings-group { position: relative; }
+        .settings-btn {
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+            color: #fff; border-radius: 8px; padding: 8px 14px; cursor: pointer;
+            width: 140px; text-align: left; font-size: 13px; margin-top: 4px;
+            transition: all 0.2s; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .settings-btn:hover { background: rgba(255,255,255,0.15); }
+        .glass-menu {
+            position: absolute; left: calc(100% + 15px); top: 0;
+            display: none; flex-direction: column; gap: 2px; padding: 6px;
+            min-width: 140px; z-index: 100001;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+        }
+        .glass-menu.show { display: flex; }
+        .menu-item {
+            padding: 8px 12px; border-radius: 6px; cursor: pointer;
+            font-size: 13px; transition: background 0.2s; white-space: nowrap;
+        }
+        .menu-item:hover { background: rgba(255,255,255,0.12); }
+        .menu-item.active { background: rgba(255,255,255,0.22); font-weight: 600; }
+        </style>
+
         <script>
         const quakeData = """ + quakes_json + """;
         window.addEventListener('load', function() {
             const gd = document.querySelector('.plotly-graph-div');
             const startInput = document.getElementById('filter-start');
             const endInput = document.getElementById('filter-end');
+            const colorToggle = document.getElementById('color-toggle');
+            const colorMenu = document.getElementById('color-menu');
 
             const dates = quakeData.times.map(t => t.slice(0, 10));
             const uniqueDates = Array.from(new Set(dates)).sort();
@@ -491,6 +525,35 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
             startInput.max = endInput.max = uniqueDates[uniqueDates.length - 1];
             startInput.value = uniqueDates[0];
             endInput.value = uniqueDates[uniqueDates.length - 1];
+
+            // Global limits for consistent coloring
+            const magMin = Math.min(...quakeData.magnitude);
+            const magMax = Math.max(...quakeData.magnitude);
+            const dnumMin = Math.min(...quakeData.dates_num);
+            const dnumMax = Math.max(...quakeData.dates_num);
+
+            let currentColorMode = 'mag';
+
+            // Menu logic
+            colorToggle.onclick = (e) => {
+                e.stopPropagation();
+                colorMenu.classList.toggle('show');
+            };
+            document.onclick = () => colorMenu.classList.remove('show');
+
+            colorMenu.querySelectorAll('.menu-item').forEach(item => {
+                item.onclick = () => {
+                    const mode = item.dataset.mode;
+                    currentColorMode = mode;
+                    const isMag = (mode === 'mag');
+
+                    colorMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    colorToggle.textContent = item.textContent + ' ▾';
+                    
+                    applyFilter(); // Re-apply current filter with new color mode
+                };
+            });
 
             function applyFilter() {
                 const start = startInput.value;
@@ -508,20 +571,54 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
                         lat: indices.map(i => quakeData.latitude[i]),
                         mag: indices.map(i => quakeData.magnitude[i]),
                         dep: indices.map(i => quakeData.depth[i]),
-                        times: indices.map(i => quakeData.times[i])
+                        times: indices.map(i => quakeData.times[i]),
+                        dnum: indices.map(i => quakeData.dates_num[i])
                     };
 
-                    // Scatter trace is index 0 in 2D, index 1 in 3D
-                    let scatterIdx = (quakeData.depth.every(d => d === 0)) ? 0 : 1;
+                    const is3D = (gd.layout.scene !== undefined);
+                    const isMag = (currentColorMode === 'mag');
 
-                    Plotly.restyle(gd, {
-                        x: [filtered.lon],
-                        y: [filtered.lat],
-                        z: filtered.dep.length ? [filtered.dep] : undefined,
-                        'marker.size': [filtered.mag],
-                        'marker.color': [filtered.mag],
-                        hovertext: [filtered.times]
-                    }, [scatterIdx]);
+                    if (is3D) {
+                        // 3D Static: Toggle between Trace 1 (Mag) and Trace 2 (Date)
+                        Plotly.restyle(gd, {
+                            x: [filtered.lon],
+                            y: [filtered.lat],
+                            z: [filtered.dep],
+                            'marker.size': [filtered.mag],
+                            'marker.color': [isMag ? filtered.mag : filtered.dnum],
+                            'marker.cmin': [isMag ? magMin : dnumMin],
+                            'marker.cmax': [isMag ? magMax : dnumMax],
+                            hovertext: [filtered.times],
+                            hovertemplate: '%{hovertext}<extra></extra>',
+                            visible: isMag
+                        }, [1]);
+                        
+                        Plotly.restyle(gd, {
+                            x: [filtered.lon],
+                            y: [filtered.lat],
+                            z: [filtered.dep],
+                            'marker.size': [filtered.mag],
+                            'marker.color': [isMag ? filtered.mag : filtered.dnum],
+                            'marker.cmin': [isMag ? magMin : dnumMin],
+                            'marker.cmax': [isMag ? magMax : dnumMax],
+                            hovertext: [filtered.times],
+                            hovertemplate: '%{hovertext}<extra></extra>',
+                            visible: !isMag
+                        }, [2]);
+                    } else {
+                        // 2D Map: Update single trace (index 0)
+                        Plotly.restyle(gd, {
+                            lat: [filtered.lat],
+                            lon: [filtered.lon],
+                            'marker.size': [filtered.mag],
+                            'marker.color': [isMag ? filtered.mag : filtered.dnum],
+                            'marker.cmax': [isMag ? magMax : dnumMax],
+                            'marker.colorscale': isMag ? 'Plasma' : 'Turbo',
+                            'marker.colorbar.title': isMag ? 'Magnitude' : 'Days',
+                            hovertext: [filtered.times],
+                            hovertemplate: '%{hovertext}<extra></extra>'
+                        }, [0]);
+                    }
 
                     document.getElementById('loader').classList.remove('show');
                 }, 100);
@@ -540,16 +637,44 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
 
 # ─── View Functions ──────────────────────────────────────────────────
 
-def view_2d(longitude, latitude, magnitude, times):
+def view_2d(longitude, latitude, magnitude, times, dates_num=None):
     import plotly.express as px
+    import pandas as pd
+    
+    # Create hover text using the helper
+    hover_df = pd.DataFrame({
+        'lon': longitude, 'lat': latitude,
+        'mag': magnitude, 'dep': [0]*len(longitude), 
+        'time_str': times
+    })
+    all_hover = _make_hover(hover_df)
+
+    # Use px for its excellent bubble size scaling, but avoid using 'color' argument
+    # which forces global coloraxis. Instead, we'll set color at the trace level.
     fig = px.scatter_mapbox(
         lat=latitude, lon=longitude,
-        size=magnitude, color=magnitude,
-        hover_name=times,
-        color_continuous_scale="Plasma",
+        size=magnitude,
+        hover_name=all_hover,
         zoom=12,
         labels={"lat": "Latitude", "lon": "Longitude", "size": "Magnitude"},
     )
+    
+    # Configure coloring and colorbar at the trace level
+    fig.update_traces(
+        marker=dict(
+            color=magnitude,
+            colorscale='Plasma',
+            showscale=True,
+            colorbar=dict(title="Magnitude", x=1.02, thickness=15, len=0.5)
+        ),
+        hoverinfo='text',
+        hovertemplate='%{hovertext}<extra></extra>'
+    )
+    
+    # Add custom numerical date data for client-side restyling
+    if dates_num is not None:
+        fig.data[0].customdata = np.array(dates_num).reshape(-1, 1)
+
     fig.update_layout(
         mapbox_style="open-street-map",
         margin={"r": 0, "t": 0, "l": 0, "b": 0}
@@ -557,7 +682,7 @@ def view_2d(longitude, latitude, magnitude, times):
     return fig
 
 
-def view_3d(longitude, latitude, magnitude, depth, times):
+def view_3d(longitude, latitude, magnitude, depth, times, dates_num=None):
     min_lon, max_lon = min(longitude), max(longitude)
     min_lat, max_lat = min(latitude), max(latitude)
     min_depth = min(depth)
@@ -568,12 +693,54 @@ def view_3d(longitude, latitude, magnitude, depth, times):
         bbox, MESH_HD_SIZE
     )
 
+    # Prepare hover text
+    hover_df = pd.DataFrame({
+        'lon': longitude, 'lat': latitude,
+        'mag': magnitude, 'dep': depth, 
+        'time_str': times
+    })
+    all_hover = _make_hover(hover_df)
+
     fig = go.Figure()
+    # Trace 0: Map Surface
     fig.add_trace(go.Surface(
         x=x_grid, y=y_grid, z=z_grid,
         surfacecolor=surfacecolor, colorscale=colorscale,
         showscale=False, opacity=0.9, hoverinfo='skip'
     ))
+
+    # Trace 1: Earthquakes (Magnitude Coloring)
+    fig.add_trace(go.Scatter3d(
+        x=longitude, y=latitude, z=depth,
+        mode='markers', hovertext=all_hover,
+        marker=dict(
+            size=magnitude, sizemode='diameter', sizeref=0.2,
+            color=magnitude, colorscale='Plasma',
+            showscale=True,
+            colorbar=dict(title="Magnitude", x=1.02, thickness=15, len=0.5),
+            line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
+            opacity=0.8,
+        ),
+        name='Earthquakes (Mag)', visible=True,
+        hovertemplate='%{hovertext}<extra></extra>'
+    ))
+
+    # Trace 2: Earthquakes (Date Coloring)
+    if dates_num is not None:
+        fig.add_trace(go.Scatter3d(
+            x=longitude, y=latitude, z=depth,
+            mode='markers', hovertext=all_hover,
+            marker=dict(
+                size=magnitude, sizemode='diameter', sizeref=0.2,
+                color=dates_num, colorscale='Turbo',
+                showscale=True,
+                colorbar=dict(title="Days", x=1.02, thickness=15, len=0.5),
+                line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
+                opacity=0.8,
+            ),
+            name='Earthquakes (Date)', visible=False,
+            hovertemplate='%{hovertext}<extra></extra>'
+        ))
 
     fig.update_layout(
         scene=dict(
@@ -585,20 +752,6 @@ def view_3d(longitude, latitude, magnitude, depth, times):
         ),
         margin=dict(l=0, r=0, b=0, t=30),
     )
-
-    fig.add_trace(go.Scatter3d(
-        x=longitude, y=latitude, z=depth,
-        mode='markers', hovertext=times,
-        marker=dict(
-            size=magnitude, sizemode='diameter', sizeref=0.2,
-            color=magnitude, colorscale='Plasma',
-            showscale=True,
-            colorbar=dict(title="Magnitude", x=1.02, thickness=15, len=0.5),
-            line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
-            opacity=0.8,
-        ),
-        name='Earthquakes',
-    ))
     return fig
 
 
@@ -709,6 +862,7 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
             opacity=0.8,
         ),
         name='Color: Date', visible=False,
+        hovertemplate='%{hovertext}<extra></extra>'
     ))
 
     # ── Optimized frame generation ───────────────────────────────────
@@ -740,6 +894,7 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
                         size=arr_mag[:cum], color=arr_mag[:cum],
                         cmin=mag_min, cmax=mag_max,
                     ),
+                    hovertemplate='%{hovertext}<extra></extra>'
                 ),
                 go.Scatter3d(
                     x=arr_lon[:cum], y=arr_lat[:cum], z=arr_dep[:cum],
@@ -748,6 +903,7 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
                         size=arr_mag[:cum], color=arr_dnum[:cum],
                         cmin=date_n_min, cmax=date_n_max, colorscale='Turbo',
                     ),
+                    hovertemplate='%{hovertext}<extra></extra>'
                 ),
             ],
             traces=[2, 3], name=date,
@@ -811,19 +967,34 @@ def build_view_html(data, view_style, back_button=True, on_progress=None):
     dep = data['depth']
     times = data['times']
 
+    # Pre-calculate numerical dates for color scaling in static views
+    def _get_dates_num():
+        ts = [
+            datetime.strptime(t, "%Y-%m-%d %H:%M:%S.%f") if '.' in t
+            else datetime.strptime(t, "%Y-%m-%d %H:%M:%S")
+            for t in times
+        ]
+        min_t = min(ts)
+        return [(t - min_t).total_seconds() / 86400.0 for t in ts]
+
     if view_style == 0:
         _report("Generating 2D map…")
-        fig = view_2d(lon, lat, mag, times)
+        d_num = _get_dates_num()
+        fig = view_2d(lon, lat, mag, times, dates_num=d_num)
         _report("Rendering HTML…")
         # For 2D, we pass depth as 0s so the filtering JS knows it's 2D
         static_data = data.copy()
         static_data['depth'] = [0] * len(lon)
+        static_data['dates_num'] = d_num
         return generate_html(fig, back_button=back_button, earthquake_data=static_data)
     elif view_style == 1:
         _report("Preparing 3D static view…")
-        fig = view_3d(lon, lat, mag, dep, times)
+        d_num = _get_dates_num()
+        fig = view_3d(lon, lat, mag, dep, times, dates_num=d_num)
         _report("Rendering HTML…")
-        return generate_html(fig, back_button=back_button, earthquake_data=data)
+        static_data = data.copy()
+        static_data['dates_num'] = d_num
+        return generate_html(fig, back_button=back_button, earthquake_data=static_data)
     elif view_style == 2:
         fig = get_3d_animated_figure(
             lon, lat, mag, dep, times, on_progress=on_progress

@@ -52,7 +52,11 @@ def _start_http_server():
 def _stop_http_server():
     global _http_server
     if _http_server:
-        _http_server.shutdown()
+        try:
+            _http_server.shutdown()
+            _http_server.server_close()
+        except Exception:
+            pass
         _http_server = None
 
 
@@ -60,14 +64,15 @@ def _stop_http_server():
 
 def _cleanup():
     """Robust cleanup: stop server and remove temp files."""
+    print("Cleaning up resources...")
     try:
-        if _http_server:
-            _stop_http_server()
+        _stop_http_server()
         if os.path.exists(VIZ_TMP_DIR):
-            import shutil
+            # shutil.rmtree can fail if files are locked by the browser
+            # so we ignore errors but try our best
             shutil.rmtree(VIZ_TMP_DIR, ignore_errors=True)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Cleanup warning: {e}")
 
 
 atexit.register(_cleanup)
@@ -237,8 +242,7 @@ def main():
     _win_holder.append(window)
 
     def on_closing():
-        print("Closing in progress...")
-        _cleanup()
+        print("Window closing...")
         return True
 
     window.events.closing += on_closing
@@ -246,8 +250,8 @@ def main():
     print("Starting Seismic Viewer…")
     webview.start(debug=False)
     
-    # Force process termination to avoid zombie threads
-    import os
+    # Perform cleanup AFTER the main window has closed
+    _cleanup()
     print("Application closed correctly.")
     os._exit(0)
 
