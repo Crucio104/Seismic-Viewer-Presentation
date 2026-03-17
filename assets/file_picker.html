@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seismic Viewer — Select File</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #0f0c29 0%, #1a1a3e 40%, #24243e 100%);
+    color: #e0e0e0; overflow: hidden;
+  }
+  /* Animated background orbs */
+  .orb {
+    position: fixed; border-radius: 50%; filter: blur(80px); opacity: .25;
+    animation: float 12s ease-in-out infinite alternate;
+  }
+  .orb-1 { width: 500px; height: 500px; background: #6c63ff; top: -150px; left: -100px; }
+  .orb-2 { width: 400px; height: 400px; background: #ff6584; bottom: -120px; right: -80px; animation-delay: -4s; }
+  .orb-3 { width: 300px; height: 300px; background: #43e97b; top: 50%; left: 60%; animation-delay: -8s; }
+  @keyframes float {
+    to { transform: translate(40px, -30px) scale(1.1); }
+  }
+
+  .card {
+    position: relative; z-index: 1;
+    background: rgba(30, 30, 60, .6);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 20px; padding: 48px 52px; width: 520px;
+    text-align: center;
+    box-shadow: 0 24px 80px rgba(0,0,0,.4);
+  }
+  .card h1 {
+    font-size: 26px; font-weight: 800; letter-spacing: -.5px;
+    background: linear-gradient(135deg, #7f7fd5, #86a8e7, #91eac9);
+    background-clip: text;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .card p.sub { margin-top: 8px; font-size: 14px; color: #999; }
+
+  .seismo-icon {
+    margin: 28px auto 24px; width: 72px; height: 72px;
+    background: linear-gradient(135deg, #6c63ff 0%, #43e97b 100%);
+    border-radius: 18px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 30px rgba(108,99,255,.3);
+  }
+  .seismo-icon svg { width: 38px; height: 38px; fill: #fff; }
+
+  #pick-btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    margin-top: 8px; padding: 14px 32px;
+    background: linear-gradient(135deg, #6c63ff 0%, #5a54e0 100%);
+    color: #fff; font: 600 15px/1 'Inter', sans-serif;
+    border: none; border-radius: 12px; cursor: pointer;
+    transition: transform .15s, box-shadow .2s;
+    box-shadow: 0 4px 20px rgba(108,99,255,.35);
+  }
+  #pick-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(108,99,255,.45); }
+  #pick-btn:active { transform: translateY(0); }
+  #pick-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+  /* Loading spinner */
+  .spinner {
+    display: none; margin: 20px auto 0; width: 36px; height: 36px;
+    border: 3px solid rgba(255,255,255,.1);
+    border-top-color: #6c63ff; border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); }}
+
+  /* Status messages */
+  #status {
+    margin-top: 18px; font-size: 13px; min-height: 20px;
+    transition: color .3s;
+  }
+  #status.ok { color: #43e97b; }
+  #status.err { color: #ff6584; }
+
+  .file-info {
+    display: none; margin-top: 16px; padding: 12px 16px;
+    background: rgba(67, 233, 123, .08);
+    border: 1px solid rgba(67, 233, 123, .2);
+    border-radius: 10px; text-align: left; font-size: 13px;
+  }
+  .file-info .label { color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  .file-info .value { color: #e0e0e0; margin-top: 2px; }
+</style>
+</head>
+<body>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="card">
+    <h1>Seismic Viewer</h1>
+    <p class="sub">Analysis and visualization of seismic events</p>
+
+    <div class="seismo-icon">
+      <svg viewBox="0 0 24 24"><path d="M2 12h3l2-6 3 12 2.5-9L15 15l2-4h5"/></svg>
+    </div>
+
+    <button id="pick-btn" onclick="selectFile()">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11zm-5-7v4h-2v-4H9l3-3 3 3h-2z"/></svg>
+      Select CSV File
+    </button>
+
+    <div class="spinner" id="spinner"></div>
+    <div id="status"></div>
+
+    <div class="file-info" id="file-info">
+      <div><span class="label">File</span><div class="value" id="fi-name">—</div></div>
+      <div style="margin-top:8px"><span class="label">Events loaded</span><div class="value" id="fi-count">—</div></div>
+      <div style="margin-top:8px"><span class="label">Period</span><div class="value" id="fi-range">—</div></div>
+    </div>
+  </div>
+
+<script>
+  async function selectFile() {
+    var btn = document.getElementById('pick-btn');
+    var spinner = document.getElementById('spinner');
+    var status = document.getElementById('status');
+    var info = document.getElementById('file-info');
+
+    btn.disabled = true;
+    status.className = ''; status.textContent = '';
+    info.style.display = 'none';
+
+    try {
+      var result = await pywebview.api.select_csv();
+      if (!result) {
+        btn.disabled = false;
+        return; // user cancelled
+      }
+      if (result.error) {
+        status.className = 'err';
+        status.textContent = result.error;
+        btn.disabled = false;
+        return;
+      }
+
+      // Show file info
+      document.getElementById('fi-name').textContent = result.filename;
+      document.getElementById('fi-count').textContent = result.event_count + ' events (M ≥ 0.5)';
+      document.getElementById('fi-range').textContent = result.date_range;
+      info.style.display = 'block';
+      status.className = 'ok';
+      status.textContent = 'CSV valid! Loading hub...';
+      spinner.style.display = 'block';
+
+      // Transition to hub
+      setTimeout(async function() {
+        await pywebview.api.navigate_hub();
+      }, 800);
+
+    } catch(e) {
+      status.className = 'err';
+      status.textContent = 'Error: ' + e;
+      btn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>

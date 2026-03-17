@@ -1,0 +1,6 @@
+plotly
+numpy
+pandas
+smopy
+Pillow
+pywebview

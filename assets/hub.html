@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seismic Viewer — Hub</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #0f0c29 0%, #1a1a3e 40%, #24243e 100%);
+    color: #e0e0e0; padding: 32px;
+  }
+  .orb {
+    position: fixed; border-radius: 50%; filter: blur(80px); opacity: .2;
+    animation: float 14s ease-in-out infinite alternate; pointer-events: none;
+  }
+  .orb-1 { width: 400px; height: 400px; background: #6c63ff; top: -100px; right: -60px; }
+  .orb-2 { width: 350px; height: 350px; background: #ff6584; bottom: -80px; left: -60px; animation-delay: -5s; }
+  @keyframes float { to { transform: translate(30px, -25px) scale(1.08); } }
+
+  header {
+    position: relative; z-index: 1; text-align: center; margin-bottom: 36px;
+  }
+  header h1 {
+    font-size: 28px; font-weight: 800; letter-spacing: -.5px;
+    background: linear-gradient(135deg, #7f7fd5, #86a8e7, #91eac9);
+    background-clip: text;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .csv-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 10px; padding: 6px 14px;
+    background: rgba(67,233,123,.1); border: 1px solid rgba(67,233,123,.2);
+    border-radius: 8px; font-size: 12px; color: #43e97b;
+  }
+  .csv-badge svg { width: 14px; height: 14px; fill: currentColor; }
+
+  .cards {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    max-width: 780px; width: 100%;
+  }
+  .vcard {
+    background: rgba(30,30,60,.55);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 16px; padding: 32px 24px; text-align: center;
+    cursor: pointer; transition: transform .2s, box-shadow .25s, border-color .25s;
+    position: relative; overflow: hidden;
+  }
+  .vcard:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 40px rgba(0,0,0,.35);
+    border-color: rgba(255,255,255,.15);
+  }
+  .vcard .icon {
+    width: 56px; height: 56px; border-radius: 14px; margin: 0 auto 16px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 20px rgba(0,0,0,.2);
+  }
+  .vcard .icon svg { width: 28px; height: 28px; fill: #fff; }
+  .vcard h2 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .vcard p { font-size: 12px; color: #999; line-height: 1.5; }
+
+  .vcard.c2d .icon { background: linear-gradient(135deg, #43e97b, #38f9d7); }
+  .vcard.c3d .icon { background: linear-gradient(135deg, #6c63ff, #a78bfa); }
+  .vcard.canim .icon { background: linear-gradient(135deg, #ff6584, #ff9a9e); }
+
+  /* Subtle glow on hover */
+  .vcard.c2d:hover { border-color: rgba(67,233,123,.3); }
+  .vcard.c3d:hover { border-color: rgba(108,99,255,.4); }
+  .vcard.canim:hover { border-color: rgba(255,101,132,.35); }
+
+  /* Loading overlay */
+  #overlay {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(15,12,41,.85); backdrop-filter: blur(8px);
+    flex-direction: column; align-items: center; justify-content: center;
+  }
+  #overlay.show { display: flex; }
+  #overlay .spin {
+    width: 48px; height: 48px;
+    border: 4px solid rgba(255,255,255,.1);
+    border-top-color: #6c63ff; border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #overlay p { margin-top: 20px; font-size: 14px; color: #bbb; }
+
+  /* Change file link */
+  .change-file {
+    margin-top: 28px; font-size: 12px; color: #777;
+    cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+    transition: color .2s; position: relative; z-index: 1;
+  }
+  .change-file:hover { color: #bbb; }
+</style>
+</head>
+<body>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+
+  <header>
+    <h1>Choose Visualization</h1>
+    <div class="csv-badge" id="csv-badge">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>
+      <span id="badge-text">Loading…</span>
+    </div>
+  </header>
+
+  <div class="cards">
+    <!-- 2D Map -->
+    <div class="vcard c2d" onclick="loadView(0)">
+      <div class="icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1112 7a2.5 2.5 0 010 5z"/></svg>
+      </div>
+      <h2>2D Map</h2>
+      <p>Interactive visualization on OpenStreetMap with bubbles proportional to magnitude</p>
+    </div>
+
+    <!-- 3D Static -->
+    <div class="vcard c3d" onclick="loadView(1)">
+      <div class="icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <h2>3D Static View</h2>
+      <p>3D map with real depth of hypocenters and cartographic tiles</p>
+    </div>
+
+    <!-- 3D Animated -->
+    <div class="vcard canim" onclick="loadView(2)">
+      <div class="icon">
+        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+      <h2>3D Animation</h2>
+      <p>Temporal evolution of seismicity with playback and speed controls</p>
+    </div>
+  </div>
+
+  <div class="change-file" onclick="changeFile()">Change CSV file</div>
+
+  <!-- Overlay -->
+  <div id="overlay">
+    <div class="spin"></div>
+    <p id="overlay-msg">Generating visualization…</p>
+  </div>
+
+<script>
+  // Populate badge from API
+  window.addEventListener('pywebviewready', async function() {
+    try {
+      var info = await pywebview.api.get_csv_info();
+      if (info) {
+        document.getElementById('badge-text').textContent =
+          info.filename + ' — ' + info.event_count + ' events';
+      }
+    } catch(e) {}
+  });
+
+  var loading = false;
+
+  // Called by Python via evaluate_js to update progress
+  function updateProgress(msg) {
+    var el = document.getElementById('overlay-msg');
+    if (el) el.textContent = msg;
+  }
+
+  async function loadView(style) {
+    if (loading) return;
+    loading = true;
+
+    var overlay = document.getElementById('overlay');
+    var msg = document.getElementById('overlay-msg');
+
+    var labels = ['2D Map', '3D Static View', '3D Animation'];
+    msg.textContent = 'Starting ' + labels[style] + ' generation…';
+    overlay.classList.add('show');
+
+    try {
+      await pywebview.api.load_view(style);
+      // load_view returns immediately; generation runs in background
+      // Progress messages are pushed via updateProgress()
+    } catch(e) {
+      overlay.classList.remove('show');
+      loading = false;
+      alert('Error: ' + e);
+    }
+  }
+
+  async function changeFile() {
+    try {
+      await pywebview.api.change_file();
+    } catch(e) {}
+  }
+</script>
+</body>
+</html>
