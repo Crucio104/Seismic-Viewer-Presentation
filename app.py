@@ -12,7 +12,7 @@ import uuid
 
 import webview
 
-import main as engine  # our visualization library
+import engine  # our visualization library
 
 # ─── Paths ───────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
