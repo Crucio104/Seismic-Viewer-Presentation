@@ -248,10 +248,10 @@ def main():
     window.events.closing += on_closing
 
     print("Starting Seismic Viewer…")
-    webview.start(debug=False)
-    
-    # Perform cleanup AFTER the main window has closed
-    _cleanup()
+    try:
+        webview.start(debug=False)
+    except KeyboardInterrupt:
+        pass  # Expected when closing the window with the 'X' button in Windows
     print("Application closed correctly.")
     os._exit(0)
 
