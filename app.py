@@ -108,10 +108,10 @@ class Api:
     def _push_progress(self, msg):
         """Send a progress message to the hub overlay via JS."""
         try:
-            safe = msg.replace('\\', '\\\\').replace("'", "\\'")
+            safe_msg = msg.replace('\\', '\\\\').replace("'", "\\'")
             self._window().evaluate_js(
                 f"if(typeof updateProgress==='function')"
-                f"updateProgress('{safe}')"
+                f"updateProgress('{safe_msg}')"
             )
         except Exception:
             pass

@@ -26,8 +26,7 @@ def load_csv(source_file):
         
         earthquakes = []
         for row in reader:
-            if (len(row) > 5
-                and all(row[i].strip() != '' for i in [2, 3, 4, 5])):
+            if (len(row) > 5 and all(row[i].strip() != '' for i in [2, 3, 4, 5])):
                 try:
                     if float(row[5]) >= MIN_MAGNITUDE:
                         earthquakes.append(row)

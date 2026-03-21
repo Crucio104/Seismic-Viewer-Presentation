@@ -9,7 +9,7 @@ def _make_hover(df_subset):
         f"Magnitude: {m}<br>"
         f"Latitude: {la:.4f}<br>"
         f"Longitude: {lo:.4f}<br>"
-        f"Depth: {abs(d):.2f} km"
+        f"Depth: {abs(d):.4f} km"
         for t, m, la, lo, d in zip(
             df_subset['time_str'], df_subset['mag'],
             df_subset['lat'], df_subset['lon'], df_subset['dep']
