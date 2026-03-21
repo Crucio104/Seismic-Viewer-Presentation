@@ -252,8 +252,12 @@ def main():
         webview.start(debug=False)
     except KeyboardInterrupt:
         pass  # Expected when closing the window with the 'X' button in Windows
+    
+    # Perform cleanup explicitly because os._exit(0) bypasses atexit handlers
+    _cleanup()
     print("Application closed correctly.")
     os._exit(0)
+
 
 
 if __name__ == '__main__':
