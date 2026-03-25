@@ -67,8 +67,8 @@ def build_map_mesh(bbox, resolution):
     scale = max(1, max(original_w, original_h) / resolution)
     new_w, new_h = int(original_w / scale), int(original_h / scale)
 
-    img_rs = img.resize((new_w, new_h), resample=PIL.Image.BILINEAR)
-    img_p = img_rs.convert('P', palette=PIL.Image.ADAPTIVE, colors=PALETTE_COLORS)
+    img_rs = img.resize((new_w, new_h), resample=PIL.Image.Resampling.BILINEAR)
+    img_p = img_rs.convert('P', palette=PIL.Image.Palette.ADAPTIVE, colors=PALETTE_COLORS)
     matrix = np.array(img_p)
     palette = img_p.getpalette()
     cols = np.array(palette).reshape(-1, 3)[:PALETTE_COLORS]

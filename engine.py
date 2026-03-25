@@ -171,7 +171,7 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
     scale_ratio = MESH_HD_SIZE / MESH_LOW_SIZE
     new_w_low, new_h_low = int(original_w / (scale_hd * scale_ratio)), int(original_h / (scale_hd * scale_ratio))
     
-    mat_low = np.array(PIL.Image.fromarray(mat_high).resize((new_w_low, new_h_low), resample=PIL.Image.NEAREST))
+    mat_low = np.array(PIL.Image.fromarray(mat_high).resize((new_w_low, new_h_low), resample=PIL.Image.Resampling.NEAREST))
     
     from core.geo_utils import _compute_grid
     n = 2 ** map_data['z']

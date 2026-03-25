@@ -245,7 +245,8 @@ def main():
         print("Window closing...")
         return True
 
-    window.events.closing += on_closing
+    if window is not None:
+        window.events.closing += on_closing
 
     print("Starting Seismic Viewer…")
     try:
