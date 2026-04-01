@@ -9,9 +9,7 @@ import functools
 import socketserver
 import shutil
 import uuid
-
 import webview
-
 import engine  # our visualization library
 
 # ─── Paths ───────────────────────────────────────────────────────────
@@ -63,17 +61,13 @@ def _stop_http_server():
 # ─── Cleanup ────────────────────────────────────────────────────────
 
 def _cleanup():
-    """Robust cleanup: stop server and remove temp files."""
-    print("Cleaning up resources...")
+    """Fast cleanup: stop server. Temp files will be handled at startup or by OS."""
     try:
         _stop_http_server()
-        if os.path.exists(VIZ_TMP_DIR):
-            # shutil.rmtree can fail if files are locked by the browser
-            # so we ignore errors but try our best
-            shutil.rmtree(VIZ_TMP_DIR, ignore_errors=True)
-    except Exception as e:
-        print(f"Cleanup warning: {e}")
-
+        # Deleting many large files can be slow on exit. 
+        # We'll just let them be or clean up at next startup.
+    except Exception:
+        pass
 
 atexit.register(_cleanup)
 
@@ -160,21 +154,21 @@ class Api:
         """Return current CSV info for the hub badge."""
         return self._csv_info
 
-    def load_view(self, view_style):
+    def load_view(self, view_style, anim_mode='accumulation', window_days=5):
         """Start visualization generation in a background thread."""
         if self._data is None:
             return {'error': 'No CSV file loaded.'}
 
         threading.Thread(
             target=self._generate_and_navigate,
-            args=(view_style,),
+            args=(view_style, anim_mode, window_days),
             daemon=True,
         ).start()
 
-    def _generate_and_navigate(self, view_style):
+    def _generate_and_navigate(self, view_style, anim_mode, window_days):
         """Background worker: generate HTML (or use cache), then navigate."""
         try:
-            cache_key = (self._csv_path, view_style)
+            cache_key = (self._csv_path, view_style, anim_mode, window_days)
 
             # Check cache
             if cache_key in self._html_cache:
@@ -187,6 +181,8 @@ class Api:
             html = engine.build_view_html(
                 self._data, view_style,
                 on_progress=self._push_progress,
+                anim_mode=anim_mode, 
+                window_days=window_days,
             )
 
             # Write to temp file
@@ -252,10 +248,19 @@ def main():
     try:
         webview.start(debug=False)
     except KeyboardInterrupt:
-        pass  # Expected when closing the window with the 'X' button in Windows
+        pass
     
-    # Perform cleanup explicitly because os._exit(0) bypasses atexit handlers
-    _cleanup()
+    # GUI is now closed. Perform 'silent' heavy cleanup before process exit.
+    print("Window closed. Freeing terminal...")
+    try:
+        _stop_http_server()
+        if os.path.exists(VIZ_TMP_DIR):
+            # Launch background process to delete files so Python can exit NOW
+            import subprocess
+            subprocess.Popen(['rm', '-rf', VIZ_TMP_DIR])
+    except Exception:
+        pass
+        
     print("Application closed correctly.")
     os._exit(0)
 

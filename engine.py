@@ -11,6 +11,8 @@ from core.templates import generate_html, _make_hover, ANIMATION_BASE_DURATION_M
 
 # ─── View Functions ──────────────────────────────────────────────────
 
+N_CLUSTERS = 5
+
 def view_2d(longitude, latitude, magnitude, times, dates_num=None, depth=None):
     import plotly.express as px
     import pandas as pd
@@ -81,25 +83,88 @@ def view_3d(longitude, latitude, magnitude, depth, times, dates_num=None):
     all_hover = _make_hover(hover_df)
 
     fig = go.Figure()
+
+    from sklearn.cluster import MiniBatchKMeans
+    from sklearn.preprocessing import StandardScaler
+    import plotly.express as px
+    from scipy.spatial import ConvexHull
+    
+    # Calculate Clusters first to determine edges
+    X_orig = np.column_stack((longitude, latitude, depth))
+    if len(X_orig) >= N_CLUSTERS:
+        X_scaled = StandardScaler().fit_transform(X_orig)
+        kmeans = MiniBatchKMeans(n_clusters=N_CLUSTERS, random_state=42, n_init='auto', batch_size=1024).fit(X_scaled)
+        labels = kmeans.labels_
+    else:
+        labels = np.zeros(len(X_orig), dtype=int)
+        
+    cluster_colors = px.colors.qualitative.Plotly
+    
+    # 1. Surface (Index 0)
     fig.add_trace(go.Surface(
         x=x_grid, y=y_grid, z=z_grid,
         surfacecolor=surfacecolor, colorscale=colorscale,
         showscale=False, opacity=0.9, hoverinfo='skip'
     ))
 
+    # 2. Cluster Wireframes (Indices 1-5)
+    # Using mode='lines' ensures they don't block mouse hover for internal points!
+    for i in range(N_CLUSTERS):
+        idx = labels == i
+        pts = X_orig[idx]
+        
+        # We need at least 4 non-coplanar points for a 3D Hull
+        if len(pts) > 4:
+            try:
+                # Downsample complex hulls for speed
+                if len(pts) > 400:
+                    sample_idx = np.random.choice(len(pts), 400, replace=False)
+                    pts_hull = pts[sample_idx]
+                else:
+                    pts_hull = pts
+                
+                hull = ConvexHull(pts_hull)
+                
+                # Extract all edges from the simplices
+                lx, ly, lz = [], [], []
+                for s in hull.simplices:
+                    # Each simplex is a triangle, add its 3 edges
+                    for combo in [(0, 1), (1, 2), (2, 0)]:
+                        lx.extend([pts_hull[s[combo[0]], 0], pts_hull[s[combo[1]], 0], None])
+                        ly.extend([pts_hull[s[combo[0]], 1], pts_hull[s[combo[1]], 1], None])
+                        lz.extend([pts_hull[s[combo[0]], 2], pts_hull[s[combo[1]], 2], None])
+
+                fig.add_trace(go.Scatter3d(
+                    x=lx, y=ly, z=lz,
+                    mode='lines',
+                    line=dict(color=cluster_colors[i % len(cluster_colors)], width=2),
+                    opacity=0.4,
+                    name=f'Cluster {i} Wireframe',
+                    visible=False,
+                    showlegend=False,
+                    hoverinfo='skip'
+                ))
+            except Exception:
+                # Fallback for degenerate cases
+                fig.add_trace(go.Scatter3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
+        else:
+            fig.add_trace(go.Scatter3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
+
+    # 3. Scatter Points (Indices 6 and 7)
     fig.add_trace(go.Scatter3d(
         x=longitude, y=latitude, z=depth,
         mode='markers', hovertext=all_hover,
         marker=dict(
-            size=magnitude, sizemode='diameter', sizeref=0.2,
+            size=magnitude, sizemode='diameter', sizeref=0.12, # Slightly larger for easier hover
             color=magnitude, colorscale='Plasma',
             showscale=True,
             cmin=min(magnitude), cmax=max(magnitude),
-            colorbar=dict(title="Magnitude", x=1.02, thickness=15, len=0.5),
+            colorbar=dict(title="Magnitude", x=1.02, thickness=15, len=0.4),
             line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
-            opacity=0.8,
+            opacity=0.9,
         ),
         name='Earthquakes (Mag)', visible=True,
+        showlegend=False,
         hovertemplate='%{hovertext}<extra></extra>'
     ))
 
@@ -108,19 +173,62 @@ def view_3d(longitude, latitude, magnitude, depth, times, dates_num=None):
             x=longitude, y=latitude, z=depth,
             mode='markers', hovertext=all_hover,
             marker=dict(
-                size=magnitude, sizemode='diameter', sizeref=0.2,
+                size=magnitude, sizemode='diameter', sizeref=0.15,
                 color=dates_num, colorscale='Turbo',
                 showscale=True,
                 cmin=min(dates_num), cmax=max(dates_num),
-                colorbar=dict(title="Days", x=1.02, thickness=15, len=0.5),
+                colorbar=dict(title="Days", x=1.02, thickness=15, len=0.4),
                 line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
-                opacity=0.8,
+                opacity=0.9,
             ),
             name='Earthquakes (Date)', visible=False,
+            showlegend=False,
             hovertemplate='%{hovertext}<extra></extra>'
+        ))
+    else:
+        # Placeholder for trace 7 to maintain indexing
+        fig.add_trace(go.Scatter3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
+
+    # 4. Cluster Solid Volumes (Indices 8-12)
+    for i in range(N_CLUSTERS):
+        idx = labels == i
+        pts = X_orig[idx]
+        if len(pts) > 4:
+            try:
+                if len(pts) > 400:
+                    sample_idx = np.random.choice(len(pts), 400, replace=False)
+                    pts_sample = pts[sample_idx]
+                else:
+                    pts_sample = pts
+                
+                fig.add_trace(go.Mesh3d(
+                    x=pts_sample[:, 0], y=pts_sample[:, 1], z=pts_sample[:, 2],
+                    color=cluster_colors[i % len(cluster_colors)],
+                    opacity=0.15, alphahull=0,
+                    name=f"Cluster {i} (Solid)",
+                    visible=False,
+                    showlegend=False,
+                    hoverinfo='skip',
+                    hovertemplate=None
+                ))
+            except Exception:
+                fig.add_trace(go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip', showlegend=False))
+        else:
+            fig.add_trace(go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip', showlegend=False))
+
+    # 5. Legend Proxies (Indices 13-17)
+    for i in range(N_CLUSTERS):
+        fig.add_trace(go.Scatter3d(
+            x=[None], y=[None], z=[None],
+            mode='markers',
+            marker=dict(color=cluster_colors[i % len(cluster_colors)], size=10),
+            name=f"Cluster {i}",
+            visible=False,
+            showlegend=True
         ))
 
     fig.update_layout(
+        showlegend=False, # Toggled in JS
         scene=dict(
             xaxis=dict(title='Longitude', range=[x_grid[0], x_grid[-1]]),
             yaxis=dict(title='Latitude', range=[y_grid[-1], y_grid[0]]),
@@ -130,11 +238,11 @@ def view_3d(longitude, latitude, magnitude, depth, times, dates_num=None):
         ),
         margin=dict(l=0, r=0, b=0, t=30),
     )
-    return fig
+    return fig, labels
 
 
 def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
-                           on_progress=None):
+                           on_progress=None, anim_mode='accumulation', window_days=5):
     def _report(msg):
         print(msg)
         if on_progress:
@@ -236,23 +344,44 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
     date_counts = df.groupby('date').size()
 
     frames = []
+    
+    # Pre-calculate cumulative indices
     cum = 0
+    date_to_cum = {}
+    for d in unique_dates:
+        cum += date_counts[d]
+        date_to_cum[d] = cum
+
     n_dates = len(unique_dates)
 
     for i, date in enumerate(unique_dates):
-        cum += date_counts[date]
+        end_idx = date_to_cum[date]
+        
+        if anim_mode == 'window':
+            start_date_dt = pd.to_datetime(date) - pd.Timedelta(days=window_days-1)
+            start_date_str = start_date_dt.strftime('%Y-%m-%d')
+            
+            start_idx = 0
+            for d in unique_dates:
+                if d < start_date_str:
+                    start_idx = date_to_cum[d]
+                else:
+                    break
+        else:
+            start_idx = 0
+            
         frames.append(go.Frame(
             data=[
                 go.Scatter3d(
-                    x=arr_lon[:cum], y=arr_lat[:cum], z=arr_dep[:cum],
-                    hovertext=all_hover[:cum],
-                    marker=dict(size=arr_mag[:cum], color=arr_mag[:cum], cmin=mag_min, cmax=mag_max),
+                    x=arr_lon[start_idx:end_idx], y=arr_lat[start_idx:end_idx], z=arr_dep[start_idx:end_idx],
+                    hovertext=all_hover[start_idx:end_idx],
+                    marker=dict(size=arr_mag[start_idx:end_idx], color=arr_mag[start_idx:end_idx], cmin=mag_min, cmax=mag_max),
                     hovertemplate='%{hovertext}<extra></extra>'
                 ),
                 go.Scatter3d(
-                    x=arr_lon[:cum], y=arr_lat[:cum], z=arr_dep[:cum],
-                    hovertext=all_hover[:cum],
-                    marker=dict(size=arr_mag[:cum], color=arr_dnum[:cum], cmin=date_n_min, cmax=date_n_max, colorscale='Turbo'),
+                    x=arr_lon[start_idx:end_idx], y=arr_lat[start_idx:end_idx], z=arr_dep[start_idx:end_idx],
+                    hovertext=all_hover[start_idx:end_idx],
+                    marker=dict(size=arr_mag[start_idx:end_idx], color=arr_dnum[start_idx:end_idx], cmin=date_n_min, cmax=date_n_max, colorscale='Turbo'),
                     hovertemplate='%{hovertext}<extra></extra>'
                 ),
             ],
@@ -278,7 +407,7 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
     return fig
 
 
-def build_view_html(data, view_style, back_button=True, on_progress=None):
+def build_view_html(data, view_style, back_button=True, on_progress=None, anim_mode='accumulation', window_days=5):
     def _report(msg):
         if on_progress: on_progress(msg)
 
@@ -302,15 +431,16 @@ def build_view_html(data, view_style, back_button=True, on_progress=None):
     elif view_style == 1:
         _report("Preparing 3D static view…")
         d_num = _get_dates_num()
-        fig = view_3d(lon, lat, mag, dep, times, dates_num=d_num)
+        fig, labels = view_3d(lon, lat, mag, dep, times, dates_num=d_num)
         static_data = data.copy()
         static_data['dates_num'] = d_num
+        static_data['cluster'] = labels.tolist()
         static_data['hover'] = _make_hover(pd.DataFrame({'lon': lon, 'lat': lat, 'mag': mag, 'dep': dep, 'time_str': times}))
         static_data['mag_limit'] = [min(mag), max(mag)]
         static_data['date_limit'] = [min(d_num), max(d_num)]
         return generate_html(fig, back_button=back_button, earthquake_data=static_data)
     elif view_style == 2:
-        fig = get_3d_animated_figure(lon, lat, mag, dep, times, on_progress=on_progress)
+        fig = get_3d_animated_figure(lon, lat, mag, dep, times, on_progress=on_progress, anim_mode=anim_mode, window_days=window_days)
         return generate_html(fig, is_animated=True, back_button=back_button)
     else:
         raise ValueError(f"Invalid view style: {view_style}")

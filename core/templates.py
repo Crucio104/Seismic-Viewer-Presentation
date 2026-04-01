@@ -310,6 +310,8 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
                 <div class="glass-panel glass-menu" id="color-menu">
                     <div class="menu-item active" data-mode="mag">Magnitude</div>
                     <div class="menu-item" data-mode="date">Date</div>
+                    <div class="menu-item" id="cluster-wire-btn" data-mode="cluster_wire" style="display:none;">Cluster (Wireframe)</div>
+                    <div class="menu-item" id="cluster-solid-btn" data-mode="cluster_solid" style="display:none;">Cluster (Solid)</div>
                 </div>
             </div>
 
@@ -347,6 +349,7 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
 
         <script>
         const quakeData = {quakes_json};
+        const clusterColors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'];
         window.addEventListener('load', function() {{
             const gd = document.querySelector('.plotly-graph-div');
             const startInput = document.getElementById('filter-start');
@@ -381,6 +384,12 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
 
             const is3D = (gd.layout.scene !== undefined);
             if (!is3D && gd.data.length > 1) viewModeGroup.style.display = 'block';
+            if (is3D && quakeData.cluster) {{
+                const cwBtn = document.getElementById('cluster-wire-btn');
+                const csBtn = document.getElementById('cluster-solid-btn');
+                if (cwBtn) cwBtn.style.display = 'block';
+                if (csBtn) csBtn.style.display = 'block';
+            }}
 
             function setupMenu(btn, menu) {{
                 btn.onclick = (e) => {{
@@ -399,7 +408,7 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
                     colorMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
                     item.classList.add('active');
                     colorToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                    applyFilter();
+                    applyFilterWithLoader();
                 }};
             }});
 
@@ -410,7 +419,7 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
                         viewModeMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
                         item.classList.add('active');
                         viewModeToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                        applyFilter();
+                        applyFilterWithLoader();
                     }};
                 }});
             }}
@@ -418,32 +427,46 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
             const applyBtn = document.getElementById('apply-filters-btn');
             const filterLoader = document.getElementById('filter-loader');
 
+            function applyFilterWithLoader() {{
+                if (is3D) {{
+                    filterLoader.classList.add('show');
+                    setTimeout(() => {{
+                        try {{
+                            applyFilter();
+                        }} catch (e) {{
+                            console.error('Filter Error:', e);
+                        }}
+                        filterLoader.classList.remove('show');
+                    }}, 50);
+                }} else {{
+                    try {{
+                        applyFilter();
+                    }} catch (e) {{
+                        console.error('Filter Error:', e);
+                    }}
+                }}
+            }}
+
             function sanitizeInput(el, defVal) {{
                 let val = el.value.trim();
                 // Fix leading zeros: 05 -> 5, 0.5 -> 0.5
                 if (/^0[1-9]/.test(val)) val = val.replace(/^0+/, '');
                 if (!val) val = defVal;
                 el.value = val;
-                applyFilter();
+                applyFilterWithLoader();
             }}
 
             magInput.onblur = () => sanitizeInput(magInput, magInput.min);
             depInput.onblur = () => sanitizeInput(depInput, depInput.max);
 
             if (is3D) {{
-                applyBtn.onclick = () => {{
-                    filterLoader.classList.add('show');
-                    setTimeout(() => {{
-                        applyFilter();
-                        filterLoader.classList.remove('show');
-                    }}, 50);
-                }};
+                applyBtn.onclick = applyFilterWithLoader;
             }} else {{
                 applyBtn.style.display = 'none';
-                magInput.oninput = applyFilter;
-                depInput.oninput = applyFilter;
-                startInput.onchange = endInput.onchange = applyFilter;
-                applyFilter(); // Initial apply for 2D
+                magInput.oninput = applyFilterWithLoader;
+                depInput.oninput = applyFilterWithLoader;
+                startInput.onchange = endInput.onchange = applyFilterWithLoader;
+                applyFilterWithLoader(); // Initial apply for 2D
             }}
 
             function applyFilter() {{
@@ -464,24 +487,84 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
                     dep: indices.map(i => quakeData.depth[i]),
                     times: indices.map(i => quakeData.times[i]),
                     dnum: indices.map(i => quakeData.dates_num[i]),
+                    cluster: quakeData.cluster ? indices.map(i => quakeData.cluster[i]) : null,
                     hover: indices.map(i => quakeData.hover[i])
                 }};
 
                 const isMag = (currentColorMode === 'mag');
+                const isCluster = (currentColorMode === 'cluster');
                 const isHeatmap = (currentViewMode === 'heatmap');
 
                 if (is3D) {{
-                    const traceIdx = isMag ? 1 : 2;
-                    const limits = isMag ? quakeData.mag_limit : quakeData.date_limit;
-                    Plotly.restyle(gd, {{ visible: false }}, [1, 2]);
-                    Plotly.restyle(gd, {{
+                    const isClusterWire = (currentColorMode === 'cluster_wire');
+                    const isClusterSolid = (currentColorMode === 'cluster_solid');
+                    const isClusterAny = isClusterWire || isClusterSolid;
+                    
+                    const traceIdx = (isMag || isClusterAny) ? 6 : 7;
+                    let limits = isMag ? quakeData.mag_limit : quakeData.date_limit;
+                    let colorArr = isMag ? filtered.mag : filtered.dnum;
+                    let colorScale = isMag ? 'Plasma' : 'Turbo';
+                    let showScale = true;
+
+                    if (isClusterAny) {{
+                        colorArr = filtered.cluster.map(c => clusterColors[c % clusterColors.length]);
+                        colorScale = null;
+                        showScale = false;
+                        limits = [0, 1];
+                    }}
+
+                    Plotly.restyle(gd, {{ visible: false }}, [6, 7]);
+                    const restyleUpdate = {{
                         x: [filtered.lon], y: [filtered.lat], z: [filtered.dep],
                         'marker.size': [filtered.mag],
-                        'marker.color': [isMag ? filtered.mag : filtered.dnum],
+                        'marker.color': [colorArr],
                         'marker.cmin': [limits[0]],
                         'marker.cmax': [limits[1]],
                         hovertext: [filtered.hover], visible: true
-                    }}, [traceIdx]);
+                    }};
+                    
+                    if (isClusterAny) {{
+                        restyleUpdate['marker.colorscale'] = null;
+                        restyleUpdate['marker.showscale'] = false;
+                        restyleUpdate['marker.colorbar.visible'] = false;
+                    }} else {{
+                        restyleUpdate['marker.colorscale'] = colorScale;
+                        restyleUpdate['marker.showscale'] = true;
+                        restyleUpdate['marker.colorbar.visible'] = true;
+                        restyleUpdate['marker.colorbar.title'] = isMag ? 'Magnitude' : 'Days';
+                    }}
+                    
+                    Plotly.restyle(gd, restyleUpdate, [traceIdx]);
+                    
+                    // Toggle the Legend and its Proxy Traces (13-17)
+                    Plotly.relayout(gd, {{ showlegend: isClusterAny }});
+                    if (quakeData.cluster) {{
+                        const indices_proxies = [13, 14, 15, 16, 17];
+                        Plotly.restyle(gd, {{ visible: isClusterAny }}, indices_proxies);
+                    }}
+
+                    // Handle Cluster Wireframes (Indices 1-5) and Solid Volumes (Indices 8-12)
+                    if (quakeData.cluster) {{
+                        const maxCluster = Math.max(...quakeData.cluster);
+                        for (let c = 0; c <= maxCluster; c++) {{
+                            // Toggle Wireframes (1-5)
+                            if (gd.data.length > 1 + c) {{
+                                Plotly.restyle(gd, {{ 
+                                    visible: isClusterWire,
+                                    hoverinfo: 'skip'
+                                }}, [1 + c]);
+                            }}
+                            // Toggle Solid Volumes (8-12)
+                            if (gd.data.length > 8 + c) {{
+                                Plotly.restyle(gd, {{ 
+                                    visible: isClusterSolid,
+                                    hoverinfo: 'skip',
+                                    hovertemplate: null
+                                }}, [8 + c]);
+                            }}
+                        }}
+                    }}
+
                 }} else {{
                     if (isHeatmap) {{
                         Plotly.restyle(gd, {{ visible: false }}, [0]);

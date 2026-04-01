@@ -4,3 +4,4 @@ pandas
 smopy
 Pillow
 pywebview
+scikit-learn
