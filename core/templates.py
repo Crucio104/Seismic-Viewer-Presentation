@@ -117,7 +117,9 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
         border-radius: 3px; outline: none; margin-top: 8px;
     }
     .slider::-webkit-slider-thumb {
-        appearance: none; width: 14px; height: 14px; background: #fff; border-radius: 50%; cursor: pointer;
+        -webkit-appearance: none;
+        appearance: none;
+        width: 14px; height: 14px; background: #fff; border-radius: 50%; cursor: pointer;
     }
 
     .glass-input {
@@ -129,9 +131,16 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
     .glass-input:focus { border-color: #fff; background: rgba(255,255,255,0.12); }
     /* Hide arrows in Chrome, Safari, Edge, Opera */
     .glass-input::-webkit-outer-spin-button,
-    .glass-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .glass-input::-webkit-inner-spin-button { 
+        -webkit-appearance: none; 
+        appearance: none;
+        margin: 0; 
+    }
     /* Hide arrows in Firefox */
-    .glass-input[type=number] { -moz-appearance: textfield; }
+    .glass-input[type=number] { 
+        -moz-appearance: textfield;
+        appearance: textfield; 
+    }
 
     #playback-bar {
         position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 99999;
@@ -306,9 +315,9 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
         <div id="settings-bar" class="glass-panel">
             <div class="settings-group">
                 <div class="label">Color Mode</div>
-                <button class="settings-btn" id="color-toggle">Magnitude ▾</button>
+                <button class="settings-btn" id="color-toggle">Depth ▾</button>
                 <div class="glass-panel glass-menu" id="color-menu">
-                    <div class="menu-item active" data-mode="mag">Magnitude</div>
+                    <div class="menu-item active" data-mode="dep">Depth</div>
                     <div class="menu-item" data-mode="date">Date</div>
                     <div class="menu-item" id="cluster-wire-btn" data-mode="cluster_wire" style="display:none;">Cluster (Wireframe)</div>
                     <div class="menu-item" id="cluster-solid-btn" data-mode="cluster_solid" style="display:none;">Cluster (Solid)</div>
@@ -379,7 +388,7 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
             depInput.max = Math.ceil(Math.max(...absDeps));
             depInput.value = depInput.max;
 
-            let currentColorMode = 'mag';
+            let currentColorMode = 'dep';
             let currentViewMode = 'scatter';
 
             const is3D = (gd.layout.scene !== undefined);
@@ -496,14 +505,24 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
                 const isHeatmap = (currentViewMode === 'heatmap');
 
                 if (is3D) {{
+                    const isDep = (currentColorMode === 'dep');
+                    const isMag = (currentColorMode === 'mag');
                     const isClusterWire = (currentColorMode === 'cluster_wire');
                     const isClusterSolid = (currentColorMode === 'cluster_solid');
                     const isClusterAny = isClusterWire || isClusterSolid;
                     
-                    const traceIdx = (isMag || isClusterAny) ? 6 : 7;
-                    let limits = isMag ? quakeData.mag_limit : quakeData.date_limit;
-                    let colorArr = isMag ? filtered.mag : filtered.dnum;
-                    let colorScale = isMag ? 'Plasma' : 'Turbo';
+                    const traceIdx = (isMag || isDep || isClusterAny) ? 6 : 7;
+                    let limits;
+                    if (isDep) limits = quakeData.dep_limit;
+                    else if (isMag) limits = quakeData.mag_limit;
+                    else limits = quakeData.date_limit;
+
+                    let colorArr;
+                    if (isDep) colorArr = filtered.dep;
+                    else if (isMag) colorArr = filtered.mag;
+                    else colorArr = filtered.dnum;
+
+                    let colorScale = (isMag || isDep) ? 'Plasma' : 'Turbo';
                     let showScale = true;
 
                     if (isClusterAny) {{
@@ -531,7 +550,7 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
                         restyleUpdate['marker.colorscale'] = colorScale;
                         restyleUpdate['marker.showscale'] = true;
                         restyleUpdate['marker.colorbar.visible'] = true;
-                        restyleUpdate['marker.colorbar.title'] = isMag ? 'Magnitude' : 'Days';
+                        restyleUpdate['marker.colorbar.title'] = isDep ? 'Depth' : (isMag ? 'Magnitude' : 'Days');
                     }}
                     
                     Plotly.restyle(gd, restyleUpdate, [traceIdx]);

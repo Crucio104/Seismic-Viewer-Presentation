@@ -156,10 +156,10 @@ def view_3d(longitude, latitude, magnitude, depth, times, dates_num=None):
         mode='markers', hovertext=all_hover,
         marker=dict(
             size=magnitude, sizemode='diameter', sizeref=0.12, # Slightly larger for easier hover
-            color=magnitude, colorscale='Plasma',
+            color=depth, colorscale=[[0, 'red'], [1, 'blue']],
             showscale=True,
-            cmin=min(magnitude), cmax=max(magnitude),
-            colorbar=dict(title="Magnitude", x=1.02, thickness=15, len=0.4),
+            cmin=min(depth), cmax=max(depth),
+            colorbar=dict(title="Depth", x=1.02, thickness=15, len=0.4),
             line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
             opacity=0.9,
         ),
@@ -427,6 +427,7 @@ def build_view_html(data, view_style, back_button=True, on_progress=None, anim_m
         static_data['hover'] = _make_hover(pd.DataFrame({'lon': lon, 'lat': lat, 'mag': mag, 'dep': dep, 'time_str': times}))
         static_data['mag_limit'] = [min(mag), max(mag)]
         static_data['date_limit'] = [min(d_num), max(d_num)]
+        static_data['dep_limit'] = [min(dep), max(dep)]
         return generate_html(fig, back_button=back_button, earthquake_data=static_data)
     elif view_style == 1:
         _report("Preparing 3D static view…")
@@ -438,6 +439,7 @@ def build_view_html(data, view_style, back_button=True, on_progress=None, anim_m
         static_data['hover'] = _make_hover(pd.DataFrame({'lon': lon, 'lat': lat, 'mag': mag, 'dep': dep, 'time_str': times}))
         static_data['mag_limit'] = [min(mag), max(mag)]
         static_data['date_limit'] = [min(d_num), max(d_num)]
+        static_data['dep_limit'] = [min(dep), max(dep)]
         return generate_html(fig, back_button=back_button, earthquake_data=static_data)
     elif view_style == 2:
         fig = get_3d_animated_figure(lon, lat, mag, dep, times, on_progress=on_progress, anim_mode=anim_mode, window_days=window_days)
