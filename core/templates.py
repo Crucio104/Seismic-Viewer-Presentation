@@ -505,13 +505,20 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
                 const isHeatmap = (currentViewMode === 'heatmap');
 
                 if (is3D) {{
+                    const n = quakeData.n_clusters;
                     const isDep = (currentColorMode === 'dep');
                     const isMag = (currentColorMode === 'mag');
                     const isClusterWire = (currentColorMode === 'cluster_wire');
                     const isClusterSolid = (currentColorMode === 'cluster_solid');
                     const isClusterAny = isClusterWire || isClusterSolid;
                     
-                    const traceIdx = (isMag || isDep || isClusterAny) ? 6 : 7;
+                    // Trace Map: 0:Surface, 1..n:Wireframes, n+1:ScatterMag, n+2:ScatterDate, n+3..2n+2:Solids, 2n+3..3n+2:Proxies
+                    const scatterIdxM = 1 + n;
+                    const scatterIdxD = 2 + n;
+                    const solidStart = 3 + n;
+                    const proxyStart = 3 + 2 * n;
+
+                    const traceIdx = (isMag || isDep || isClusterAny) ? scatterIdxM : scatterIdxD;
                     let limits;
                     if (isDep) limits = quakeData.dep_limit;
                     else if (isMag) limits = quakeData.mag_limit;
@@ -532,7 +539,7 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
                         limits = [0, 1];
                     }}
 
-                    Plotly.restyle(gd, {{ visible: false }}, [6, 7]);
+                    Plotly.restyle(gd, {{ visible: false }}, [scatterIdxM, scatterIdxD]);
                     const restyleUpdate = {{
                         x: [filtered.lon], y: [filtered.lat], z: [filtered.dep],
                         'marker.size': [filtered.mag],
@@ -555,31 +562,31 @@ def generate_html(fig, is_animated=False, back_button=True, earthquake_data=None
                     
                     Plotly.restyle(gd, restyleUpdate, [traceIdx]);
                     
-                    // Toggle the Legend and its Proxy Traces (13-17)
+                    // Toggle the Legend and its Proxy Traces
                     Plotly.relayout(gd, {{ showlegend: isClusterAny }});
                     if (quakeData.cluster) {{
-                        const indices_proxies = [13, 14, 15, 16, 17];
-                        Plotly.restyle(gd, {{ visible: isClusterAny }}, indices_proxies);
+                        const proxyIndices = Array.from({{length: n}}, (_, i) => proxyStart + i);
+                        Plotly.restyle(gd, {{ visible: isClusterAny }}, proxyIndices);
                     }}
 
-                    // Handle Cluster Wireframes (Indices 1-5) and Solid Volumes (Indices 8-12)
+                    // Handle Cluster Wireframes and Solid Volumes
                     if (quakeData.cluster) {{
-                        const maxCluster = Math.max(...quakeData.cluster);
-                        for (let c = 0; c <= maxCluster; c++) {{
-                            // Toggle Wireframes (1-5)
+                        for (let c = 0; c < n; c++) {{
+                            // Toggle Wireframes (1 to n)
                             if (gd.data.length > 1 + c) {{
                                 Plotly.restyle(gd, {{ 
                                     visible: isClusterWire,
                                     hoverinfo: 'skip'
                                 }}, [1 + c]);
                             }}
-                            // Toggle Solid Volumes (8-12)
-                            if (gd.data.length > 8 + c) {{
+                            // Toggle Solid Volumes (solidStart to solidStart + n - 1)
+                            const sIdx = solidStart + c;
+                            if (gd.data.length > sIdx) {{
                                 Plotly.restyle(gd, {{ 
                                     visible: isClusterSolid,
                                     hoverinfo: 'skip',
                                     hovertemplate: null
-                                }}, [8 + c]);
+                                }}, [sIdx]);
                             }}
                         }}
                     }}

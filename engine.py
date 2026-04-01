@@ -11,7 +11,7 @@ from core.templates import generate_html, _make_hover, ANIMATION_BASE_DURATION_M
 
 # ─── View Functions ──────────────────────────────────────────────────
 
-N_CLUSTERS = 5
+N_CLUSTERS = 3
 
 def view_2d(longitude, latitude, magnitude, times, dates_num=None, depth=None):
     import plotly.express as px
@@ -428,6 +428,7 @@ def build_view_html(data, view_style, back_button=True, on_progress=None, anim_m
         static_data['mag_limit'] = [min(mag), max(mag)]
         static_data['date_limit'] = [min(d_num), max(d_num)]
         static_data['dep_limit'] = [min(dep), max(dep)]
+        static_data['n_clusters'] = N_CLUSTERS
         return generate_html(fig, back_button=back_button, earthquake_data=static_data)
     elif view_style == 1:
         _report("Preparing 3D static view…")
@@ -440,6 +441,7 @@ def build_view_html(data, view_style, back_button=True, on_progress=None, anim_m
         static_data['mag_limit'] = [min(mag), max(mag)]
         static_data['date_limit'] = [min(d_num), max(d_num)]
         static_data['dep_limit'] = [min(dep), max(dep)]
+        static_data['n_clusters'] = N_CLUSTERS
         return generate_html(fig, back_button=back_button, earthquake_data=static_data)
     elif view_style == 2:
         fig = get_3d_animated_figure(lon, lat, mag, dep, times, on_progress=on_progress, anim_mode=anim_mode, window_days=window_days)
