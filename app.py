@@ -7,7 +7,6 @@ import traceback
 import http.server
 import functools
 import socketserver
-import shutil
 import uuid
 import webview
 import engine  # our visualization library
