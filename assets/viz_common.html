@@ -1,0 +1,144 @@
+    <style>
+    :root { 
+        --glass: rgba(15, 12, 41, 0.4); 
+        --glass-border: rgba(255, 255, 255, 0.2); 
+    }
+    body { background: #0f0c29; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+    .glass-panel {
+        background: var(--glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--glass-border); border-radius: 12px;
+        color: #fff; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    }
+
+    #back-btn {
+        position: fixed; top: 16px; left: 16px; z-index: 100000;
+        padding: 10px 20px; font-weight: 600; cursor: pointer;
+        transition: all 0.2s;
+    }
+    #back-btn:hover { border-color: #fff; transform: translateY(-1px); }
+
+    #loader {
+        position: fixed; inset: 0; z-index: 200000;
+        background: rgba(15, 12, 41, 0.7); backdrop-filter: blur(8px);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        transition: opacity 0.4s; pointer-events: none; opacity: 0;
+    }
+    #loader.show { opacity: 1; pointer-events: auto; }
+    .spinner {
+        width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1);
+        border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #filter-bar {
+        position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 99999;
+        display: flex; align-items: center; gap: 12px; padding: 8px 20px;
+        font-size: 13px;
+    }
+    #filter-bar input {
+        background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.3);
+        color: #fff; border-radius: 6px; padding: 4px 8px; cursor: pointer;
+    }
+    #filter-bar input::-webkit-calendar-picker-indicator { filter: invert(1); }
+
+    #settings-bar {
+        position: fixed; top: 76px; left: 16px; z-index: 99999;
+        display: flex; flex-direction: column; gap: 10px; padding: 12px;
+        width: 180px;
+    }
+    .settings-group { position: relative; width: 100%; }
+    .label { 
+        font-size: 11px; color: #fff; text-transform: uppercase; letter-spacing: 0.5px; 
+        font-weight: 700; opacity: 0.9; margin-bottom: 4px;
+    }
+    .settings-btn {
+        background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+        color: #fff; border-radius: 8px; padding: 10px 14px; cursor: pointer;
+        width: 100%; text-align: left; font-size: 13px;
+        transition: all 0.2s; display: flex; justify-content: space-between; align-items: center;
+        font-family: inherit;
+    }
+    .settings-btn:hover { background: rgba(255,255,255,0.15); }
+    
+    .settings-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+    .settings-row .glass-input { margin-top: 0; flex: 1; }
+    .settings-row .settings-btn { width: auto; padding: 6px 10px; flex-shrink: 0; }
+    .glass-menu {
+        position: absolute; left: calc(100% + 15px); top: 0;
+        display: none; flex-direction: column; gap: 2px; padding: 6px;
+        min-width: 140px; z-index: 100001;
+        box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+        background: var(--glass); backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--glass-border); border-radius: 12px;
+    }
+    .glass-menu.show { display: flex; }
+    .menu-item {
+        padding: 8px 12px; border-radius: 6px; cursor: pointer;
+        font-size: 13px; transition: background 0.2s;
+    }
+    .menu-item:hover { background: rgba(255,255,255,0.12); }
+    .menu-item.active { background: rgba(255,255,255,0.22); font-weight: 600; }
+
+    .slider {
+        width: 100%; height: 6px; appearance: none; background: rgba(255,255,255,0.1);
+        border-radius: 3px; outline: none; margin-top: 8px;
+    }
+    .slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 14px; height: 14px; background: #fff; border-radius: 50%; cursor: pointer;
+    }
+
+    .glass-input {
+        background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+        color: #fff; border-radius: 6px; padding: 6px 10px; width: 100%;
+        font-size: 14px; outline: none; margin-top: 6px; font-family: inherit;
+        transition: border-color 0.2s;
+    }
+    .glass-input:focus { border-color: #fff; background: rgba(255,255,255,0.12); }
+    /* Hide arrows in Chrome, Safari, Edge, Opera */
+    .glass-input::-webkit-outer-spin-button,
+    .glass-input::-webkit-inner-spin-button { 
+        -webkit-appearance: none; 
+        appearance: none;
+        margin: 0; 
+    }
+    /* Hide arrows in Firefox */
+    .glass-input[type=number] { 
+        -moz-appearance: textfield;
+        appearance: textfield; 
+    }
+
+    #playback-bar {
+        position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 99999;
+        display: flex; align-items: center; gap: 20px; padding: 12px 24px;
+        width: 80%; max-width: 900px;
+    }
+    .play-controls { display: flex; gap: 10px; }
+    .play-controls button {
+        background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+        color: #fff; border-radius: 8px; width: 44px; height: 44px; cursor: pointer;
+        font-size: 18px; transition: all 0.2s;
+    }
+    .play-controls button.active { border-color: #fff; background: rgba(255,255,255,0.2); }
+
+    .slider-container { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; }
+    #time-slider { width: 100%; }
+    #current-date { font-size: 12px; color: #fff; text-align: center; }
+
+    #filter-loader {
+        position: fixed; inset: 0; z-index: 150000;
+        background: rgba(15, 12, 41, 0.4); backdrop-filter: blur(4px);
+        display: none; align-items: center; justify-content: center;
+        border-radius: 12px;
+    }
+    #filter-loader.show { display: flex; }
+
+    .modebar { display: none !important; }
+    </style>
+
+    <div id="loader"><div class="spinner"></div><p style="color:#fff;margin-top:15px;font-size:14px">Processing dataset...</p></div>
+    <button id="back-btn" class="glass-panel" onclick="pywebview.api.go_back()">← Hub</button>

@@ -1,0 +1,301 @@
+        <div id="settings-bar" class="glass-panel">
+            <div class="settings-group">
+                <div class="label">Color Mode</div>
+                <button class="settings-btn" id="color-toggle">Depth ▾</button>
+                <div class="glass-panel glass-menu" id="color-menu">
+                    <div class="menu-item active" data-mode="dep">Depth</div>
+                    <div class="menu-item" data-mode="date">Date</div>
+                    <div class="menu-item" id="cluster-wire-btn" data-mode="cluster_wire" style="display:none;">Cluster (Wireframe)</div>
+                    <div class="menu-item" id="cluster-solid-btn" data-mode="cluster_solid" style="display:none;">Cluster (Solid)</div>
+                </div>
+            </div>
+
+            <div class="settings-group" id="view-mode-group" style="margin-top:12px; display:none;">
+                <div class="label">View Type</div>
+                <button class="settings-btn" id="view-mode-toggle">Scatter ▾</button>
+                <div class="glass-panel glass-menu" id="view-mode-menu">
+                    <div class="menu-item active" data-mode="scatter">Scatter Plot</div>
+                    <div class="menu-item" data-mode="heatmap">Heatmap</div>
+                </div>
+            </div>
+
+            <div class="settings-group" style="margin-top:20px">
+                <div class="label">Min. Magnitude</div>
+                <input type="number" class="glass-input" id="mag-num" min="0.5" max="9" step="0.1" value="0.5">
+            </div>
+
+            <div class="settings-group" style="margin-top:12px">
+                <div class="label">Max. Depth (km)</div>
+                <input type="number" class="glass-input" id="dep-num" min="0" max="100" step="1" value="30">
+            </div>
+
+            <button class="settings-btn" id="apply-filters-btn" style="margin-top:20px; justify-content:center; background: rgba(165, 180, 252, 0.2); border-color: rgba(165, 180, 252, 0.4);">
+                Apply Filters
+            </button>
+        </div>
+
+        <div id="filter-loader" class="glass-panel"><div class="spinner" style="width:30px; height:30px"></div></div>
+
+        <div id="filter-bar" class="glass-panel">
+            <input type="date" id="filter-start">
+            <span style="opacity:0.6">to</span>
+            <input type="date" id="filter-end">
+        </div>
+
+        <script>
+        const quakeData = __QUAKES_JSON__;
+        const clusterColors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'];
+        window.addEventListener('load', function() {
+            const gd = document.querySelector('.plotly-graph-div');
+            const startInput = document.getElementById('filter-start');
+            const endInput = document.getElementById('filter-end');
+            const magInput = document.getElementById('mag-num');
+            const depInput = document.getElementById('dep-num');
+            
+            const colorToggle = document.getElementById('color-toggle');
+            const colorMenu = document.getElementById('color-menu');
+            const viewModeToggle = document.getElementById('view-mode-toggle');
+            const viewModeMenu = document.getElementById('view-mode-menu');
+            const viewModeGroup = document.getElementById('view-mode-group');
+
+            const dates = quakeData.times.map(t => t.slice(0, 10));
+            const uniqueDates = Array.from(new Set(dates)).sort();
+
+            startInput.min = endInput.min = uniqueDates[0];
+            startInput.max = endInput.max = uniqueDates[uniqueDates.length - 1];
+            startInput.value = uniqueDates[0];
+            endInput.value = uniqueDates[uniqueDates.length - 1];
+
+            magInput.min = Math.min(...quakeData.magnitude);
+            magInput.max = Math.max(...quakeData.magnitude);
+            magInput.value = magInput.min;
+
+            const absDeps = quakeData.depth.map(Math.abs);
+            depInput.max = Math.ceil(Math.max(...absDeps));
+            depInput.value = depInput.max;
+
+            let currentColorMode = 'dep';
+            let currentViewMode = 'scatter';
+
+            const is3D = (gd.layout.scene !== undefined);
+            if (!is3D && gd.data.length > 1) viewModeGroup.style.display = 'block';
+            if (is3D && quakeData.cluster) {
+                const cwBtn = document.getElementById('cluster-wire-btn');
+                const csBtn = document.getElementById('cluster-solid-btn');
+                if (cwBtn) cwBtn.style.display = 'block';
+                if (csBtn) csBtn.style.display = 'block';
+            }
+
+            function setupMenu(btn, menu) {
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    document.querySelectorAll('.glass-menu').forEach(m => { if (m !== menu) m.classList.remove('show'); });
+                    menu.classList.toggle('show');
+                };
+            }
+            setupMenu(colorToggle, colorMenu);
+            if (viewModeToggle) setupMenu(viewModeToggle, viewModeMenu);
+            document.onclick = () => document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+
+            colorMenu.querySelectorAll('.menu-item').forEach(item => {
+                item.onclick = () => {
+                    currentColorMode = item.dataset.mode;
+                    colorMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    colorToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                    applyFilterWithLoader();
+                };
+            });
+
+            if (viewModeMenu) {
+                viewModeMenu.querySelectorAll('.menu-item').forEach(item => {
+                    item.onclick = () => {
+                        currentViewMode = item.dataset.mode;
+                        viewModeMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+                        item.classList.add('active');
+                        viewModeToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                        applyFilterWithLoader();
+                    };
+                });
+            }
+
+            const applyBtn = document.getElementById('apply-filters-btn');
+            const filterLoader = document.getElementById('filter-loader');
+
+            function applyFilterWithLoader() {
+                if (is3D) {
+                    filterLoader.classList.add('show');
+                    setTimeout(() => {
+                        try {
+                            applyFilter();
+                        } catch (e) {
+                            console.error('Filter Error:', e);
+                        }
+                        filterLoader.classList.remove('show');
+                    }, 50);
+                } else {
+                    try {
+                        applyFilter();
+                    } catch (e) {
+                        console.error('Filter Error:', e);
+                    }
+                }
+            }
+
+            function sanitizeInput(el, defVal) {
+                let val = el.value.trim();
+                // Fix leading zeros: 05 -> 5, 0.5 -> 0.5
+                if (/^0[1-9]/.test(val)) val = val.replace(/^0+/, '');
+                if (!val) val = defVal;
+                el.value = val;
+                applyFilterWithLoader();
+            }
+
+            magInput.onblur = () => sanitizeInput(magInput, magInput.min);
+            depInput.onblur = () => sanitizeInput(depInput, depInput.max);
+
+            if (is3D) {
+                applyBtn.onclick = applyFilterWithLoader;
+            } else {
+                applyBtn.style.display = 'none';
+                magInput.oninput = applyFilterWithLoader;
+                depInput.oninput = applyFilterWithLoader;
+                startInput.onchange = endInput.onchange = applyFilterWithLoader;
+                applyFilterWithLoader(); // Initial apply for 2D
+            }
+
+            function applyFilter() {
+                const start = startInput.value, end = endInput.value;
+                const minMag = parseFloat(magInput.value) || 0, maxDep = parseFloat(depInput.value) || 999;
+                const indices = [];
+
+                for (let i = 0; i < dates.length; i++) {
+                    if (dates[i] >= start && dates[i] <= end && 
+                        quakeData.magnitude[i] >= minMag && 
+                        Math.abs(quakeData.depth[i]) <= maxDep) indices.push(i);
+                }
+
+                const filtered = {
+                    lon: indices.map(i => quakeData.longitude[i]),
+                    lat: indices.map(i => quakeData.latitude[i]),
+                    mag: indices.map(i => quakeData.magnitude[i]),
+                    dep: indices.map(i => quakeData.depth[i]),
+                    times: indices.map(i => quakeData.times[i]),
+                    dnum: indices.map(i => quakeData.dates_num[i]),
+                    cluster: quakeData.cluster ? indices.map(i => quakeData.cluster[i]) : null,
+                    hover: indices.map(i => quakeData.hover[i])
+                };
+
+                const isMag = (currentColorMode === 'mag');
+                const isCluster = (currentColorMode === 'cluster');
+                const isHeatmap = (currentViewMode === 'heatmap');
+
+                if (is3D) {
+                    const n = quakeData.n_clusters;
+                    const isDep = (currentColorMode === 'dep');
+                    const isMag = (currentColorMode === 'mag');
+                    const isClusterWire = (currentColorMode === 'cluster_wire');
+                    const isClusterSolid = (currentColorMode === 'cluster_solid');
+                    const isClusterAny = isClusterWire || isClusterSolid;
+                    
+                    // Trace Map: 0:Surface, 1..n:Wireframes, n+1:ScatterMag, n+2:ScatterDate, n+3..2n+2:Solids, 2n+3..3n+2:Proxies
+                    const scatterIdxM = 1 + n;
+                    const scatterIdxD = 2 + n;
+                    const solidStart = 3 + n;
+                    const proxyStart = 3 + 2 * n;
+
+                    const traceIdx = (isMag || isDep || isClusterAny) ? scatterIdxM : scatterIdxD;
+                    let limits;
+                    if (isDep) limits = quakeData.dep_limit;
+                    else if (isMag) limits = quakeData.mag_limit;
+                    else limits = quakeData.date_limit;
+
+                    let colorArr;
+                    if (isDep) colorArr = filtered.dep;
+                    else if (isMag) colorArr = filtered.mag;
+                    else colorArr = filtered.dnum;
+
+                    let colorScale = (isMag || isDep) ? 'Plasma' : 'Turbo';
+                    let showScale = true;
+
+                    if (isClusterAny) {
+                        colorArr = filtered.cluster.map(c => clusterColors[c % clusterColors.length]);
+                        colorScale = null;
+                        showScale = false;
+                        limits = [0, 1];
+                    }
+
+                    Plotly.restyle(gd, { visible: false }, [scatterIdxM, scatterIdxD]);
+                    const restyleUpdate = {
+                        x: [filtered.lon], y: [filtered.lat], z: [filtered.dep],
+                        'marker.size': [filtered.mag],
+                        'marker.color': [colorArr],
+                        'marker.cmin': [limits[0]],
+                        'marker.cmax': [limits[1]],
+                        hovertext: [filtered.hover], visible: true
+                    };
+                    
+                    if (isClusterAny) {
+                        restyleUpdate['marker.colorscale'] = null;
+                        restyleUpdate['marker.showscale'] = false;
+                        restyleUpdate['marker.colorbar.visible'] = false;
+                    } else {
+                        restyleUpdate['marker.colorscale'] = colorScale;
+                        restyleUpdate['marker.showscale'] = true;
+                        restyleUpdate['marker.colorbar.visible'] = true;
+                        restyleUpdate['marker.colorbar.title'] = isDep ? 'Depth' : (isMag ? 'Magnitude' : 'Days');
+                    }
+                    
+                    Plotly.restyle(gd, restyleUpdate, [traceIdx]);
+                    
+                    // Toggle the Legend and its Proxy Traces
+                    Plotly.relayout(gd, { showlegend: isClusterAny });
+                    if (quakeData.cluster) {
+                        const proxyIndices = Array.from({length: n}, (_, i) => proxyStart + i);
+                        Plotly.restyle(gd, { visible: isClusterAny }, proxyIndices);
+                    }
+
+                    // Handle Cluster Wireframes and Solid Volumes
+                    if (quakeData.cluster) {
+                        for (let c = 0; c < n; c++) {
+                            // Toggle Wireframes (1 to n)
+                            if (gd.data.length > 1 + c) {
+                                Plotly.restyle(gd, { 
+                                    visible: isClusterWire,
+                                    hoverinfo: 'skip'
+                                }, [1 + c]);
+                            }
+                            // Toggle Solid Volumes (solidStart to solidStart + n - 1)
+                            const sIdx = solidStart + c;
+                            if (gd.data.length > sIdx) {
+                                Plotly.restyle(gd, { 
+                                    visible: isClusterSolid,
+                                    hoverinfo: 'skip',
+                                    hovertemplate: null
+                                }, [sIdx]);
+                            }
+                        }
+                    }
+
+                } else {
+                    if (isHeatmap) {
+                        Plotly.restyle(gd, { visible: false }, [0]);
+                        Plotly.restyle(gd, { lat: [filtered.lat], lon: [filtered.lon], z: [filtered.mag], visible: true, hovertext: [filtered.hover] }, [1]);
+                    } else {
+                        Plotly.restyle(gd, { visible: false }, [1]);
+                        const limits = isMag ? quakeData.mag_limit : quakeData.date_limit;
+                        Plotly.restyle(gd, {
+                            lat: [filtered.lat], lon: [filtered.lon],
+                            'marker.size': [filtered.mag],
+                            'marker.color': [isMag ? filtered.mag : filtered.dnum],
+                            'marker.cmin': [limits[0]],
+                            'marker.cmax': [limits[1]],
+                            'marker.colorscale': isMag ? 'Plasma' : 'Turbo',
+                            'marker.colorbar.title': isMag ? 'Magnitude' : 'Days',
+                            hovertext: [filtered.hover], visible: true
+                        }, [0]);
+                    }
+                }
+            }
+        });
+        </script>

@@ -256,7 +256,11 @@ def main():
         if os.path.exists(VIZ_TMP_DIR):
             # Launch background process to delete files so Python can exit NOW
             import subprocess
-            subprocess.Popen(['rm', '-rf', VIZ_TMP_DIR])
+            if os.name == 'nt':
+                # Windows: 'rd /s /q' is the equivalent of 'rm -rf'
+                subprocess.Popen(['cmd', '/C', 'rd', '/S', '/Q', VIZ_TMP_DIR], shell=True)
+            else:
+                subprocess.Popen(['rm', '-rf', VIZ_TMP_DIR])
     except Exception:
         pass
         
