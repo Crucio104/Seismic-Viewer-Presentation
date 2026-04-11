@@ -135,10 +135,11 @@
     #filter-loader {
         position: fixed; inset: 0; z-index: 150000;
         background: rgba(15, 12, 41, 0.4); backdrop-filter: blur(4px);
-        display: none; align-items: center; justify-content: center;
+        display: flex; align-items: center; justify-content: center;
         border-radius: 12px;
+        opacity: 0; pointer-events: none; transition: opacity 0.4s ease;
     }
-    #filter-loader.show { display: flex; }
+    #filter-loader.show { opacity: 1; pointer-events: auto; }
 
     .modebar { display: none !important; }
 
@@ -209,7 +210,7 @@
 
     <div id="loader"><div class="spinner"></div><p style="color:#fff;margin-top:15px;font-size:14px">Processing dataset...</p></div>
 
-    <button id="back-btn" class="glass-panel" onclick="pywebview.api.go_back()">← Hub</button>
+    <button id="back-btn" class="glass-panel" onclick="transitionToHub()">← Hub</button>
 
     <div id="glass-legend" class="glass-panel">
         <div id="legend-title">Variable</div>
@@ -220,6 +221,13 @@
     </div>
 
     <script>
+    function transitionToHub() {
+        showInitLoader('Returning to Hub...');
+        setTimeout(() => {
+            window.location.href = '/assets/index.html';
+        }, 0);
+    }
+
     function hideInitLoader() {
         const il = document.getElementById('init-loader');
         if (il) {

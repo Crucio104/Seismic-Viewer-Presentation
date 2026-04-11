@@ -7,9 +7,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, 'assets')
 VIZ_TMP_DIR = os.path.join(BASE_DIR, '.viz_tmp')
 
-# Relative paths used for logic
-FILE_PICKER_REL = 'assets/file_picker.html'
-HUB_REL = 'assets/hub.html'
+INDEX_REL = 'assets/index.html'
 
 
 # ─── Local HTTP Server ──────────────────────────────────────────────
@@ -141,7 +139,7 @@ class Api:
 
     def navigate_hub(self):
         """Navigate the window to the hub screen."""
-        self._navigate_delayed(HUB_REL)
+        self._window().evaluate_js("showHub()")
 
     def get_csv_info(self):
         """Return current CSV info for the hub badge."""
@@ -203,7 +201,7 @@ class Api:
 
     def go_back(self):
         """Return to the hub screen."""
-        self._navigate_delayed(HUB_REL)
+        self._navigate_delayed(INDEX_REL)
 
     def change_file(self):
         """Go back to the file picker screen."""
@@ -211,7 +209,7 @@ class Api:
         self._data = None
         self._csv_info = None
         self._html_cache.clear()
-        self._navigate_delayed(FILE_PICKER_REL)
+        return True
 
 
 # ─── Entry point ─────────────────────────────────────────────────────
@@ -225,7 +223,7 @@ def main():
     api = Api(win_ref)
 
     import pathlib
-    start_url = pathlib.Path(os.path.join(BASE_DIR, FILE_PICKER_REL)).as_uri()
+    start_url = pathlib.Path(os.path.join(BASE_DIR, INDEX_REL)).as_uri()
     window = webview.create_window(
         'Seismic Viewer',
         url=start_url,
