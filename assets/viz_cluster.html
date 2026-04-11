@@ -1,0 +1,303 @@
+        <div id="settings-bar" class="glass-panel">
+            <div class="settings-group">
+                <div class="label">Clustering Method</div>
+                <button class="settings-btn" id="method-toggle">K-Means ▾</button>
+                <div class="glass-panel glass-menu" id="method-menu">
+                    <div class="menu-item active" data-val="kmeans">K-Means</div>
+                    <div class="menu-item" data-val="dbscan">DBSCAN</div>
+                </div>
+            </div>
+
+            <!-- Clustering Parameters Section -->
+            <div class="settings-group" style="margin-top:12px; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                <div class="label" style="margin-bottom:8px; color: #fff;">Cluster Config</div>
+                
+                <div id="kmeans-params">
+                    <div class="label" style="font-size:10px; opacity:0.7;">Clusters Count</div>
+                    <input type="number" class="glass-input" id="param-clusters" value="3" min="1" max="10" style="margin-bottom:8px">
+                    
+                    <div class="label" style="font-size:10px; opacity:0.7;">Centroid Max Dist (meters)</div>
+                    <input type="number" class="glass-input" id="param-dist" value="0" min="0" step="10" style="margin-bottom:8px">
+                    <div style="font-size:11px; color:#fff; margin-top:4px; font-weight: 500;">0 = no distance limits</div>
+                </div>
+
+                <div id="dbscan-params" style="display:none">
+                    <div class="label" style="font-size:10px; opacity:0.7;">Epsilon (meters)</div>
+                    <input type="number" class="glass-input" id="param-eps" value="500" step="10" min="1" style="margin-bottom:8px">
+                    
+                    <div class="label" style="font-size:10px; opacity:0.7;">Min Samples</div>
+                    <input type="number" class="glass-input" id="param-min-samples" value="5" min="1" step="1">
+                </div>
+            </div>
+
+            <div class="settings-group" style="margin-top:12px">
+                <div class="label">Display Mode</div>
+                <button class="settings-btn" id="display-toggle">Wireframe ▾</button>
+                <div class="glass-panel glass-menu" id="display-menu">
+                    <div class="menu-item active" data-mode="wireframe">Wireframe</div>
+                    <div class="menu-item" data-mode="solid">Solid</div>
+                    <div class="menu-item" data-mode="both">Both</div>
+                    <div class="menu-item" data-mode="points">Points Only</div>
+                </div>
+            </div>
+
+            <div class="settings-group" style="margin-top:20px">
+                <div class="label">Magnitude Range</div>
+                <div class="settings-row">
+                    <input type="number" class="glass-input" id="mag-min" step="0.1" placeholder="Min">
+                    <span style="opacity:1; color:white;">to</span>
+                    <input type="number" class="glass-input" id="mag-max" step="0.1" placeholder="Max">
+                </div>
+            </div>
+
+            <div class="settings-group" style="margin-top:12px">
+                <div class="label">Depth Range (km)</div>
+                <div class="settings-row">
+                    <input type="number" class="glass-input" id="dep-min" step="1" placeholder="Min">
+                    <span style="opacity:1; color:white;">to</span>
+                    <input type="number" class="glass-input" id="dep-max" step="1" placeholder="Max">
+                </div>
+            </div>
+
+            <button class="settings-btn" id="apply-filters-btn" style="margin-top:20px; justify-content:center; background: rgba(165, 180, 252, 0.2); border-color: rgba(165, 180, 252, 0.4);">
+                Apply Filters
+            </button>
+        </div>
+
+
+
+        <div id="filter-bar" class="glass-panel">
+            <input type="date" id="filter-start">
+            <span style="opacity:1; color:white;">to</span>
+            <input type="date" id="filter-end">
+        </div>
+
+        <script>
+        const quakeData = __QUAKES_JSON__;
+        const clusterColors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'];
+
+        window.addEventListener('load', function() {
+            const gd = document.querySelector('.plotly-graph-div');
+            const startInput = document.getElementById('filter-start');
+            const endInput = document.getElementById('filter-end');
+            const magMin = document.getElementById('mag-min');
+            const magMax = document.getElementById('mag-max');
+            const depMin = document.getElementById('dep-min');
+            const depMax = document.getElementById('dep-max');
+
+            const methodToggle = document.getElementById('method-toggle');
+            const methodMenu = document.getElementById('method-menu');
+            const displayToggle = document.getElementById('display-toggle');
+            const displayMenu = document.getElementById('display-menu');
+
+            const dates = quakeData.times.map(t => t.slice(0, 10));
+            const uniqueDates = Array.from(new Set(dates)).sort();
+
+            startInput.min = endInput.min = uniqueDates[0];
+            startInput.max = endInput.max = uniqueDates[uniqueDates.length - 1];
+            startInput.value = uniqueDates[0];
+            endInput.value = uniqueDates[uniqueDates.length - 1];
+
+            magMin.value = Math.min(...quakeData.magnitude).toFixed(1);
+            magMax.value = Math.max(...quakeData.magnitude).toFixed(1);
+
+            const allDeps = quakeData.depth.map(Math.abs);
+            depMin.value = 0;
+            depMax.value = Math.ceil(Math.max(...allDeps));
+
+            let currentDisplayMode = 'wireframe';
+            let currentMethod = quakeData.clustering_method || 'kmeans';
+
+            // Parameter Inputs
+            const kmParams = document.getElementById('kmeans-params');
+            const dbParams = document.getElementById('dbscan-params');
+            const pClusters = document.getElementById('param-clusters');
+            const pDist = document.getElementById('param-dist');
+            const pEps = document.getElementById('param-eps');
+            const pMin = document.getElementById('param-min-samples');
+
+            // Initialize params from backend if they exist
+            if (quakeData.clustering_params) {
+                const cp = quakeData.clustering_params;
+                if (cp.kmeans_clusters) pClusters.value = cp.kmeans_clusters;
+                if (cp.kmeans_max_dist) pDist.value = cp.kmeans_max_dist;
+                if (cp.dbscan_eps) pEps.value = cp.dbscan_eps;
+                if (cp.dbscan_min_samples) pMin.value = cp.dbscan_min_samples;
+            }
+
+            function syncParamVisibility() {
+                kmParams.style.display = currentMethod === 'kmeans' ? 'block' : 'none';
+                dbParams.style.display = currentMethod === 'dbscan' ? 'block' : 'none';
+            }
+
+            // Set initial method toggle text
+            if (currentMethod === 'dbscan') {
+                methodToggle.textContent = 'DBSCAN ▾';
+                methodMenu.querySelectorAll('.menu-item').forEach(i => {
+                    i.classList.toggle('active', i.dataset.val === 'dbscan');
+                });
+                syncParamVisibility();
+            }
+
+            function setupMenu(btn, menu) {
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    document.querySelectorAll('.glass-menu').forEach(m => { if (m !== menu) m.classList.remove('show'); });
+                    menu.classList.toggle('show');
+                };
+            }
+            setupMenu(methodToggle, methodMenu);
+            setupMenu(displayToggle, displayMenu);
+            document.onclick = () => document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+
+            // Method change requires full re-generation
+            methodMenu.querySelectorAll('.menu-item').forEach(item => {
+                item.onclick = () => {
+                    const newMethod = item.dataset.val;
+                    methodMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    methodToggle.textContent = item.textContent + ' ▾';
+                    currentMethod = newMethod;
+                    syncParamVisibility();
+                    
+                    const params = {
+                        kmeans_clusters: pClusters.value,
+                        kmeans_max_dist: pDist.value,
+                        dbscan_eps: pEps.value,
+                        dbscan_min_samples: pMin.value
+                    };
+
+                    showInitLoader("Recalculating Clusters (" + newMethod.toUpperCase() + ")...");
+                    
+                    setTimeout(() => {
+                        if (typeof pywebview !== 'undefined') {
+                            pywebview.api.load_view(3, 'accumulation', 5, newMethod, params);
+                        }
+                    }, 50);
+                };
+            });
+
+            const applyBtn = document.getElementById('apply-filters-btn');
+
+            function applyCombinedFilters() {
+                const params = {
+                    kmeans_clusters: pClusters.value,
+                    kmeans_max_dist: pDist.value,
+                    dbscan_eps: pEps.value,
+                    dbscan_min_samples: pMin.value
+                };
+                showInitLoader("Regenerating Visualization...");
+                setTimeout(() => {
+                    if (typeof pywebview !== 'undefined') {
+                        pywebview.api.load_view(3, 'accumulation', 5, currentMethod, params);
+                    }
+                }, 50);
+            }
+
+            function sanitizeInput(el, defVal) {
+                let val = el.value.trim();
+                if (/^0[1-9]/.test(val)) val = val.replace(/^0+/, '');
+                if (!val) val = defVal;
+                el.value = val;
+                // For cluster view, any change to bounds might affect clustering (if we re-cluster), 
+                // but usually the user wants to see the effect on the current plot.
+                // However, the user specifically asked for these in the "filters menu".
+                // We'll trigger a full reload to be consistent.
+                applyCombinedFilters();
+            }
+
+            magMin.onblur = () => sanitizeInput(magMin, magMin.value);
+            magMax.onblur = () => sanitizeInput(magMax, magMax.value);
+            depMin.onblur = () => sanitizeInput(depMin, depMin.value);
+            depMax.onblur = () => sanitizeInput(depMax, depMax.value);
+
+            applyBtn.onclick = applyCombinedFilters;
+
+            function applyDisplayMode() {
+                const n = quakeData.n_clusters;
+                const showWire = (currentDisplayMode === 'wireframe' || currentDisplayMode === 'both');
+                const showSolid = (currentDisplayMode === 'solid' || currentDisplayMode === 'both');
+
+                for (let c = 0; c < n; c++) {
+                    const wireIdx = 1 + c;
+                    if (gd.data.length > wireIdx) {
+                        Plotly.restyle(gd, { visible: [showWire] }, [wireIdx]);
+                    }
+                }
+                for (let c = 0; c < n; c++) {
+                    const solidIdx = n + 1 + c;
+                    if (gd.data.length > solidIdx) {
+                        Plotly.restyle(gd, { visible: [showSolid] }, [solidIdx]);
+                    }
+                }
+            }
+
+            function applyFilter() {
+                const start = startInput.value, end = endInput.value;
+                const m1 = parseFloat(magMin.value) || 0, m2 = parseFloat(magMax.value) || 9.9;
+                const d1 = parseFloat(depMin.value) || 0, d2 = parseFloat(depMax.value) || 9999;
+                const indices = [];
+
+                for (let i = 0; i < dates.length; i++) {
+                    const m = quakeData.magnitude[i];
+                    const d = Math.abs(quakeData.depth[i]);
+                    if (dates[i] >= start && dates[i] <= end &&
+                        m >= m1 && m <= m2 &&
+                        d >= d1 && d <= d2) indices.push(i);
+                }
+
+                const filtered = {
+                    lon: indices.map(i => quakeData.longitude[i]),
+                    lat: indices.map(i => quakeData.latitude[i]),
+                    mag: indices.map(i => quakeData.magnitude[i]),
+                    dep: indices.map(i => quakeData.depth[i]),
+                    cluster: quakeData.cluster ? indices.map(i => quakeData.cluster[i]) : null,
+                    hover: indices.map(i => quakeData.hover[i])
+                };
+
+                const n = quakeData.n_clusters;
+                const scatterIdx = 2 * n + 1;
+
+                const colorMap = filtered.cluster
+                    ? filtered.cluster.map(c => c >= 0 ? clusterColors[c % clusterColors.length] : '#888888')
+                    : filtered.dep;
+
+                Plotly.restyle(gd, {
+                    x: [filtered.lon], y: [filtered.lat], z: [filtered.dep],
+                    'marker.size': [filtered.mag],
+                    'marker.color': [colorMap],
+                    'marker.showscale': [false],
+                    hovertext: [filtered.hover], visible: [true]
+                }, [scatterIdx]);
+
+                applyDisplayMode();
+            }
+
+            // Build custom glass legend for clusters
+            function updateClusterLegend() {
+                const legend = document.getElementById('glass-legend');
+                if (!legend) return;
+                legend.style.display = 'flex';
+                legend.style.minHeight = 'auto'; // Fit content natively
+                
+                let html = '<div style="font-family:\'Segoe UI\',system-ui,sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;margin-bottom:12px;opacity:0.9;text-align:center;width:100%;">Clusters</div>';
+                html += '<div style="display:flex;flex-direction:column;gap:10px;width:100%;">';
+                
+                for (let i = 0; i < quakeData.n_clusters; i++) {
+                    const color = clusterColors[i % clusterColors.length];
+                    html += `
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+                            <span style="font-family:\'Segoe UI\',system-ui,sans-serif;font-size:12px;font-weight:600;color:#fff;opacity:0.85;">Cluster ${i + 1}</span>
+                            <div style="width:14px;height:14px;border-radius:50%;background-color:${color};border:1px solid rgba(255,255,255,0.4);box-shadow:0 0 6px ${color}80;"></div>
+                        </div>
+                    `;
+                }
+                html += '</div>';
+                legend.innerHTML = html;
+            }
+
+            // Initial render
+            applyFilter();
+            updateClusterLegend();
+        });
+        </script>

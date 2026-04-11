@@ -4,16 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Seismic Viewer — Select File</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
 <style>
+    /* High-Performance System Font Stack */
+    :root {
+        --system-font: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    }
+    /* High-Performance System Font Stack */
+    :root {
+        --system-font: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-        font-family: 'Outfit', sans-serif;
-        min-height: 100vh;
+    html, body {
+        width: 100%; height: 100%;
         background: #050510;
         color: #fff;
+    }
+    body {
+        font-family: var(--system-font);
         display: flex;
         align-items: center;
         justify-content: center;

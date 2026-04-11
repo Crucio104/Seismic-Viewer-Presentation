@@ -50,7 +50,7 @@ def load_csv(source_file):
 
     # Date range from first to last (after sorting)
     date_range = f"{times[0][:10]} → {times[-1][:10]}"
-    print(f"Loaded {len(earthquakes)} seismic events (M ≥ {MIN_MAGNITUDE}).")
+    print(f"Loaded {len(earthquakes)} seismic events (M >= {MIN_MAGNITUDE}).")
 
     return {
         'latitude': latitude,

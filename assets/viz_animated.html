@@ -24,10 +24,28 @@
                 <div class="label">Color Analysis</div>
                 <button class="settings-btn" id="color-toggle">Magnitude ▾</button>
                 <div class="glass-panel glass-menu" id="color-menu">
-                    <div class="menu-item active" data-mode="mag">Magnitude (Plasma)</div>
-                    <div class="menu-item" data-mode="date">Date (Turbo)</div>
+                    <div class="menu-item active" data-mode="mag">Magnitude</div>
+                    <div class="menu-item" data-mode="date">Date</div>
+                    <div class="menu-item" data-mode="dep">Depth</div>
                 </div>
             </div>
+            <div class="settings-group" style="margin-top:12px">
+                <div class="label">Color Scale</div>
+                <button class="settings-btn" id="scale-toggle">Viridis ▾</button>
+                <div class="glass-panel glass-menu" id="scale-menu">
+                    <div class="menu-item active" data-val="Viridis">Viridis</div>
+                    <div class="menu-item" data-val="Jet">Jet</div>
+                    <div class="menu-item" data-val="Cividis">Cividis</div>
+                    <div class="menu-item" data-val="Electric">Electric</div>
+                    <div class="menu-item" data-val="Hot">Hot</div>
+                </div>
+            </div>
+
+            <label class="glass-checkbox">
+                <input type="checkbox" id="invert-scale">
+                Invert Scale
+            </label>
+
             <div class="settings-group" style="margin-top:12px">
                 <div class="label">Go to Date</div>
                 <div class="settings-row">
@@ -38,6 +56,26 @@
         </div>
 
         <script>
+        const quakeData = __QUAKES_JSON__;
+
+        function dayNumToDate(dayNum, startDateStr) {
+            const d = new Date(startDateStr);
+            d.setDate(d.getDate() + Math.round(dayNum));
+            return d.toISOString().slice(0, 10);
+        }
+
+        function makeDateTicks(minDay, maxDay, startDateStr, numTicks) {
+            numTicks = numTicks || 5;
+            const step = (maxDay - minDay) / (numTicks - 1);
+            const vals = [], texts = [];
+            for (let i = 0; i < numTicks; i++) {
+                const v = minDay + step * i;
+                vals.push(v);
+                texts.push(dayNumToDate(v, startDateStr));
+            }
+            return { tickvals: vals, ticktext: texts };
+        }
+        
         window.addEventListener('load', function() {
             const gd = document.querySelector('.plotly-graph-div');
             const playBtn = document.getElementById('play-btn');
@@ -48,85 +86,210 @@
             const speedMenu = document.getElementById('speed-menu');
             const colorToggle = document.getElementById('color-toggle');
             const colorMenu = document.getElementById('color-menu');
+            const scaleToggle = document.getElementById('scale-toggle');
+            const scaleMenu = document.getElementById('scale-menu');
+            const invertCheck = document.getElementById('invert-scale');
+            const jumpBtn = document.getElementById('jump-btn');
+            const jumpDate = document.getElementById('jump-date');
 
             let isPlaying = false;
-            let currentDuration = __ANIMATION_BASE_DURATION_MS__;
+            let currentStepIdx = 0;
+            let currentMode = 'mag'; 
+            let currentColorScale = 'Viridis';
+            let invertScale = false;
+            
+            let baseDelay = 1000; 
+            let speedMult = 1;
+            
+            let startTime = 0;
+            let startIdx = 0;
 
-            speedToggle.onclick = (e) => { e.stopPropagation(); colorMenu.classList.remove('show'); speedMenu.classList.toggle('show'); };
-            colorToggle.onclick = (e) => { e.stopPropagation(); speedMenu.classList.remove('show'); colorMenu.classList.toggle('show'); };
-            document.onclick = () => { speedMenu.classList.remove('show'); colorMenu.classList.remove('show'); };
+            const dates = quakeData.unique_dates;
+            slider.max = dates.length - 1;
+            jumpDate.min = dates[0];
+            jumpDate.max = dates[dates.length - 1];
+            jumpDate.value = dates[0];
+
+            function getActiveRange(idx) {
+                const date = dates[idx];
+                const endIdx = quakeData.date_to_cum[date];
+                let startIdx = 0;
+
+                if (quakeData.anim_mode === 'window') {
+                    const cutoffDate = new Date(new Date(date).getTime() - (quakeData.window_days - 1) * 86400000);
+                    const cutoffStr = cutoffDate.toISOString().slice(0, 10);
+                    for (let i = 0; i < dates.length; i++) {
+                        if (dates[i] >= cutoffStr) {
+                            if (i > 0) startIdx = quakeData.date_to_cum[dates[i-1]];
+                            break;
+                        }
+                    }
+                }
+                return [startIdx, endIdx];
+            }
+
+            function updateView(idx) {
+                if (idx < 0) idx = 0;
+                if (idx >= dates.length) idx = dates.length - 1;
+                
+                const [start, end] = getActiveRange(idx);
+                const sliceLon = quakeData.lon.slice(start, end);
+                const sliceLat = quakeData.lat.slice(start, end);
+                const sliceDep = quakeData.dep.slice(start, end);
+                const sliceMag = quakeData.mag.slice(start, end);
+                const sliceDnum = quakeData.dnum.slice(start, end);
+                const sliceHover = quakeData.hover.slice(start, end);
+
+                let sliceColor, visibleTraceIdx, limits, barTitle;
+                const isDate = (currentMode === 'date');
+                if (currentMode === 'mag') {
+                    sliceColor = sliceMag;
+                    visibleTraceIdx = 1;
+                    limits = quakeData.mag_range;
+                    barTitle = 'Magnitude';
+                } else if (isDate) {
+                    sliceColor = sliceDnum;
+                    visibleTraceIdx = 2;
+                    limits = quakeData.date_range;
+                    barTitle = 'Date';
+                } else {
+                    sliceColor = sliceDep;
+                    visibleTraceIdx = 3;
+                    limits = quakeData.dep_range;
+                    barTitle = 'Depth';
+                }
+
+                const restyleUpdate = {
+                    x: [sliceLon], 
+                    y: [sliceLat], 
+                    z: [sliceDep],
+                    'marker.size': [sliceMag],
+                    'marker.color': [sliceColor],
+                    'marker.colorscale': [currentColorScale],
+                    'marker.reversescale': [invertScale],
+                    'marker.cmin': [limits[0]],
+                    'marker.cmax': [limits[1]],
+                    'marker.showscale': [false],
+                    hovertext: [sliceHover]
+                };
+
+                Plotly.restyle(gd, restyleUpdate, [visibleTraceIdx]);
+
+                dateDisplay.textContent = dates[idx];
+                slider.value = idx;
+                currentStepIdx = idx;
+
+                // Update Glass Legend
+                updateGlassLegend(
+                    true,
+                    barTitle,
+                    currentColorScale,
+                    invertScale,
+                    limits,
+                    { startDate: quakeData.start_date }
+                );
+            }
+
+            function animationLoop(timestamp) {
+                if (!isPlaying) return;
+                if (!startTime) {
+                    startTime = timestamp;
+                    startIdx = currentStepIdx;
+                }
+                const elapsed = timestamp - startTime;
+                const secondsPassed = Math.floor(elapsed / baseDelay);
+                const targetIdx = startIdx + (secondsPassed * speedMult);
+                if (targetIdx !== currentStepIdx && targetIdx < dates.length) {
+                    updateView(targetIdx);
+                } else if (targetIdx >= dates.length) {
+                    updateView(dates.length - 1);
+                    pause();
+                    return;
+                }
+                requestAnimationFrame(animationLoop);
+            }
+
+            function play() {
+                if (isPlaying) return;
+                if (currentStepIdx >= dates.length - 1) {
+                    currentStepIdx = 0;
+                    updateView(0);
+                }
+                isPlaying = true;
+                startTime = 0; 
+                playBtn.classList.add('active');
+                pauseBtn.classList.remove('active');
+                requestAnimationFrame(animationLoop);
+            }
+
+            function pause() {
+                isPlaying = false;
+                startTime = 0; 
+                playBtn.classList.remove('active');
+                pauseBtn.classList.add('active');
+                setTimeout(() => {
+                    Plotly.relayout(gd, {uirevision: Math.random()});
+                }, 0);
+            }
+
+            playBtn.onclick = play;
+            pauseBtn.onclick = pause;
+
+            slider.oninput = () => {
+                pause();
+                updateView(parseInt(slider.value));
+            };
+
+            speedToggle.onclick = (e) => { e.stopPropagation(); colorMenu.classList.remove('show'); scaleMenu.classList.remove('show'); speedMenu.classList.toggle('show'); };
+            colorToggle.onclick = (e) => { e.stopPropagation(); speedMenu.classList.remove('show'); scaleMenu.classList.remove('show'); colorMenu.classList.toggle('show'); };
+            scaleToggle.onclick = (e) => { e.stopPropagation(); speedMenu.classList.remove('show'); colorMenu.classList.remove('show'); scaleMenu.classList.toggle('show'); };
+            document.onclick = () => { speedMenu.classList.remove('show'); colorMenu.classList.remove('show'); scaleMenu.classList.remove('show'); };
 
             speedMenu.querySelectorAll('.menu-item').forEach(item => {
                 item.onclick = () => {
-                    const mult = parseInt(item.dataset.val);
-                    currentDuration = __ANIMATION_BASE_DURATION_MS__ / mult;
+                    speedMult = parseInt(item.dataset.val);
                     speedMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
                     item.classList.add('active');
                     speedToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                    if (isPlaying) playBtn.click();
+                    if (isPlaying) startTime = 0;
                 };
             });
 
             colorMenu.querySelectorAll('.menu-item').forEach(item => {
                 item.onclick = () => {
-                    const mode = item.dataset.mode;
-                    Plotly.restyle(gd, {visible: [null, null, (mode === 'mag'), (mode !== 'mag')]}, [0, 1, 2, 3]);
+                    currentMode = item.dataset.mode;
+                    Plotly.restyle(gd, {visible: [null, (currentMode === 'mag'), (currentMode === 'date'), (currentMode === 'dep')]}, [0, 1, 2, 3]);
+                    updateView(currentStepIdx);
                     colorMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
                     item.classList.add('active');
                     colorToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
                 };
             });
 
-            const steps = gd._fullLayout.sliders[0].steps;
-            slider.max = steps.length - 1;
-            
-            function updateUI(stepIdx) {
-                dateDisplay.textContent = steps[stepIdx].label;
-                slider.value = stepIdx;
-            }
-            updateUI(0);
-
-            slider.oninput = () => {
-                const idx = parseInt(slider.value);
-                updateUI(idx);
-                Plotly.animate(gd, [steps[idx].label], {frame: {duration: 0, redraw: true}, mode: 'immediate'});
-            };
-
-            playBtn.onclick = () => {
-                isPlaying = true;
-                playBtn.classList.add('active'); pauseBtn.classList.remove('active');
-                Plotly.restyle(gd, {visible: [true, false]}, [0, 1]); // Low-res
-                Plotly.animate(gd, null, {frame: {duration: currentDuration, redraw: true}, fromcurrent: true});
-            };
-
-            pauseBtn.onclick = () => {
-                isPlaying = false;
-                pauseBtn.classList.add('active'); playBtn.classList.remove('active');
-                Plotly.animate(gd, [null], {mode: 'immediate'});
-                Plotly.restyle(gd, {visible: [false, true]}, [0, 1]); // High-res
-            };
-
-            gd.on('plotly_animatingframe', (e) => {
-                const idx = steps.findIndex(s => s.label === e.name);
-                if (idx !== -1) updateUI(idx);
+            scaleMenu.querySelectorAll('.menu-item').forEach(item => {
+                item.onclick = () => {
+                    currentColorScale = item.dataset.val;
+                    scaleMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    scaleToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                    updateView(currentStepIdx);
+                };
             });
 
-            const jumpBtn = document.getElementById('jump-btn');
-            const jumpDate = document.getElementById('jump-date');
-            
-            // Set jump date limits
-            jumpDate.min = steps[0].label;
-            jumpDate.max = steps[steps.length-1].label;
-            jumpDate.value = steps[0].label;
+            invertCheck.onchange = () => {
+                invertScale = invertCheck.checked;
+                updateView(currentStepIdx);
+            };
 
             jumpBtn.onclick = () => {
                 const target = jumpDate.value;
-                const idx = steps.findIndex(s => s.label >= target);
+                const idx = dates.findIndex(d => d >= target);
                 if (idx !== -1) {
-                    updateUI(idx);
-                    Plotly.animate(gd, [steps[idx].label], {frame: {duration: 0, redraw: true}, mode: 'immediate'});
-                    if (isPlaying) pauseBtn.click();
+                    pause();
+                    updateView(idx);
                 }
             };
+
+            updateView(0);
         });
         </script>

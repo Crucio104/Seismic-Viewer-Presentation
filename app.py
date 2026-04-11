@@ -1,46 +1,37 @@
-#Run with:  python app.py
-
 import os
-import atexit
 import threading
-import traceback
-import http.server
-import functools
-import socketserver
-import uuid
 import webview
-import engine  # our visualization library
 
 # ─── Paths ───────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, 'assets')
 VIZ_TMP_DIR = os.path.join(BASE_DIR, '.viz_tmp')
 
-# Relative paths (from BASE_DIR) used for HTTP URLs
+# Relative paths used for logic
 FILE_PICKER_REL = 'assets/file_picker.html'
 HUB_REL = 'assets/hub.html'
 
 
 # ─── Local HTTP Server ──────────────────────────────────────────────
-# Serves files over HTTP so that browser tile requests (OSM, etc.)
-# carry a proper Referer header — avoids 403 errors from file:// URIs.
-
-class _QuietHandler(http.server.SimpleHTTPRequestHandler):
-    """HTTP request handler that suppresses console access logs."""
-    def log_message(self, format, *args):
-        pass
-
-
 _http_server = None
 _http_port = 0
 
-
 def _start_http_server():
     global _http_server, _http_port
+    if _http_server: return # Already running
+    
+    import http.server
+    import socketserver
+    import functools
+    
+    class _QuietHandler(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, format, *args): pass
+
     os.makedirs(VIZ_TMP_DIR, exist_ok=True)
     handler = functools.partial(_QuietHandler, directory=BASE_DIR)
     _http_server = socketserver.TCPServer(("127.0.0.1", 0), handler)
     _http_port = _http_server.server_address[1]
+    
     t = threading.Thread(target=_http_server.serve_forever, daemon=True)
     t.start()
     print(f"Local server: http://127.0.0.1:{_http_port}")
@@ -68,6 +59,7 @@ def _cleanup():
     except Exception:
         pass
 
+import atexit
 atexit.register(_cleanup)
 
 
@@ -126,6 +118,7 @@ class Api:
             path = result[0] if isinstance(result, (list, tuple)) else result
 
             # Validate & parse
+            import engine
             data = engine.load_csv(path)
             self._csv_path = path
             self._data = data
@@ -140,6 +133,7 @@ class Api:
         except ValueError as e:
             return {'error': str(e)}
         except Exception as e:
+            import traceback
             traceback.print_exc()
             return {'error': f'Unexpected error: {e}'}
 
@@ -153,21 +147,23 @@ class Api:
         """Return current CSV info for the hub badge."""
         return self._csv_info
 
-    def load_view(self, view_style, anim_mode='accumulation', window_days=5):
+    def load_view(self, view_style, anim_mode='accumulation', window_days=5, clustering_method='kmeans', clustering_params=None):
         """Start visualization generation in a background thread."""
         if self._data is None:
             return {'error': 'No CSV file loaded.'}
 
         threading.Thread(
             target=self._generate_and_navigate,
-            args=(view_style, anim_mode, window_days),
+            args=(view_style, anim_mode, window_days, clustering_method, clustering_params),
             daemon=True,
         ).start()
 
-    def _generate_and_navigate(self, view_style, anim_mode, window_days):
+    def _generate_and_navigate(self, view_style, anim_mode, window_days, clustering_method='kmeans', clustering_params=None):
         """Background worker: generate HTML (or use cache), then navigate."""
         try:
-            cache_key = (self._csv_path, view_style, anim_mode, window_days)
+            # Include clustering_params in cache key (must be hashable)
+            c_params_frozen = frozenset(clustering_params.items()) if clustering_params else None
+            cache_key = (self._csv_path, view_style, anim_mode, window_days, clustering_method, c_params_frozen)
 
             # Check cache
             if cache_key in self._html_cache:
@@ -177,14 +173,18 @@ class Api:
                 return
 
             print(f"Generating view {view_style}…")
+            import engine
             html = engine.build_view_html(
                 self._data, view_style,
                 on_progress=self._push_progress,
                 anim_mode=anim_mode, 
                 window_days=window_days,
+                clustering_method=clustering_method,
+                clustering_params=clustering_params
             )
 
             # Write to temp file
+            import uuid
             fname = f'view_{uuid.uuid4().hex[:8]}.html'
             fpath = os.path.join(VIZ_TMP_DIR, fname)
             with open(fpath, 'w', encoding='utf-8') as f:
@@ -197,6 +197,7 @@ class Api:
             self._window().load_url(self._make_url(rel_path))
             print(f"View {view_style} loaded.")
         except Exception as e:
+            import traceback
             traceback.print_exc()
             self._push_progress(f"Error: {e}")
 
@@ -216,8 +217,6 @@ class Api:
 # ─── Entry point ─────────────────────────────────────────────────────
 
 def main():
-    _start_http_server()
-
     _win_holder = []
 
     def win_ref():
@@ -225,14 +224,16 @@ def main():
 
     api = Api(win_ref)
 
-    start_url = f'http://127.0.0.1:{_http_port}/{FILE_PICKER_REL}'
+    import pathlib
+    start_url = pathlib.Path(os.path.join(BASE_DIR, FILE_PICKER_REL)).as_uri()
     window = webview.create_window(
         'Seismic Viewer',
         url=start_url,
         js_api=api,
-        width=1100,
-        height=750,
-        min_size=(800, 500),
+        width=1150,
+        height=850,
+        min_size=(1000, 750),
+        background_color='#050510'
     )
     _win_holder.append(window)
 
@@ -245,7 +246,7 @@ def main():
 
     print("Starting Seismic Viewer…")
     try:
-        webview.start(debug=False)
+        webview.start(_start_http_server, debug=False)
     except KeyboardInterrupt:
         pass
     

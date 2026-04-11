@@ -43,7 +43,7 @@
     header {
         position: relative;
         text-align: center;
-        margin-bottom: 48px;
+        margin-bottom: 32px;
         animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
     }
     @keyframes fadeIn {
@@ -72,10 +72,10 @@
 
     .cards-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 24px;
         width: 100%;
-        max-width: 1000px;
+        max-width: 800px;
         position: relative;
         perspective: 1000px;
     }
@@ -86,7 +86,7 @@
         -webkit-backdrop-filter: blur(20px) saturate(160%);
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 28px;
-        padding: 40px 30px;
+        padding: 30px 20px;
         text-align: center;
         cursor: pointer;
         transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
@@ -101,7 +101,7 @@
 
     .icon-box {
         width: 64px; height: 64px; border-radius: 20px;
-        margin-bottom: 24px;
+        margin-bottom: 20px;
         display: flex; align-items: center; justify-content: center;
         transition: transform 0.4s ease;
     }
@@ -111,37 +111,37 @@
     .c2d .icon-box { background: linear-gradient(135deg, #4ade80 0%, #2dd4bf 100%); box-shadow: 0 10px 20px rgba(74, 222, 128, 0.2); }
     .c3d .icon-box { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); box-shadow: 0 10px 20px rgba(99, 102, 241, 0.2); }
     .canim .icon-box { background: linear-gradient(135deg, #f43f5e 0%, #fb923c 100%); box-shadow: 0 10px 20px rgba(244, 63, 94, 0.2); }
+    .ccluster .icon-box { background: linear-gradient(135deg, #06b6d4 0%, #14b8a6 100%); box-shadow: 0 10px 20px rgba(6, 182, 212, 0.2); }
 
     h2 { font-size: 20px; font-weight: 600; margin-bottom: 12px; color: #f8fafc; }
     p { font-size: 14px; color: #94a3b8; line-height: 1.6; font-weight: 300; }
 
     .change-link {
-        margin-top: 48px;
+        margin-top: 32px;
         font-size: 14px; color: #64748b;
         cursor: pointer;
         padding: 8px 16px; border-radius: 8px;
         transition: all 0.2s;
         text-decoration: underline; text-underline-offset: 4px;
+        margin-bottom: 40px;
     }
     .change-link:hover { color: #94a3b8; background: rgba(255,255,255,0.05); }
 
-    /* Modern Overlay */
+    /* Standardized Unified Loader CSS */
     #overlay {
-        display: none; position: fixed; inset: 0; z-index: 1000;
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999999;
         background: #050510;
-        flex-direction: column; align-items: center; justify-content: center;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        font-family: 'Outfit', sans-serif;
     }
-    #overlay.show { display: flex; animation: fadeInOverlay 0.5s ease; }
-    @keyframes fadeInOverlay { from { opacity: 0; } to { opacity: 1; } }
-
+    #overlay:not(.show) { display: none; }
     .loader-ring {
-        width: 60px; height: 60px; border: 3px solid rgba(255, 255, 255, 0.05);
+        width: 64px; height: 64px; border: 3px solid rgba(255, 255, 255, 0.1);
         border-radius: 50%; border-top-color: #6366f1;
         animation: spin 1s linear infinite;
-        margin-bottom: 24px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    #overlay-msg { font-size: 16px; font-weight: 500; color: #e2e8f0; letter-spacing: 0.5px; }
+    .loader-text { margin-top: 24px; font-size: 16px; font-weight: 500; color: #e2e8f0; letter-spacing: 0.5px; text-align: center; line-height: 1; }
 
     /* Modal Styles */
     .glass-modal {
@@ -230,13 +230,21 @@
             <h2>Dynamic Animation</h2>
             <p>Full temporal evolution. Experience the seismic sequence in 4D space-time.</p>
         </div>
+
+        <div class="vcard ccluster" onclick="loadView(3)">
+            <div class="icon-box">
+                <svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="3" fill="#fff"/><circle cx="16" cy="8" r="3" fill="#fff"/><circle cx="12" cy="16" r="3" fill="#fff"/><line x1="8" y1="8" x2="16" y2="8" stroke="#fff" stroke-width="1.5"/><line x1="8" y1="8" x2="12" y2="16" stroke="#fff" stroke-width="1.5"/><line x1="16" y1="8" x2="12" y2="16" stroke="#fff" stroke-width="1.5"/></svg>
+            </div>
+            <h2>Cluster Analysis</h2>
+            <p>Identify seismic zones with K-Means and DBSCAN spatial clustering.</p>
+        </div>
     </div>
 
     <div class="change-link" onclick="changeFile()">Import another dataset</div>
 
     <div id="overlay">
         <div class="loader-ring"></div>
-        <p id="overlay-msg">Initializing engine...</p>
+        <p class="loader-text" id="overlay-msg">Loading...</p>
     </div>
 
     <!-- Animation Settings Modal -->
@@ -281,11 +289,6 @@
 
     let loading = false;
 
-    function updateProgress(msg) {
-        const el = document.getElementById('overlay-msg');
-        if (el) el.textContent = msg;
-    }
-
     function openAnimModal() {
         document.getElementById('anim-modal').classList.add('show');
     }
@@ -310,15 +313,23 @@
         await loadView(2, mode, days);
     }
 
-    async function loadView(style, anim_mode='accumulation', window_days=5) {
+    const VIEW_LABELS = { 
+        0: 'Rendering Visualization...', 
+        1: 'Rendering Visualization...', 
+        2: 'Rendering Animation...', 
+        3: 'Rendering Cluster Analysis...' 
+    };
+
+    async function loadView(style, anim_mode='accumulation', window_days=5, clustering_method='kmeans') {
         if (loading) return;
         loading = true;
 
         const overlay = document.getElementById('overlay');
+        document.getElementById('overlay-msg').textContent = VIEW_LABELS[style] || 'Loading...';
         overlay.classList.add('show');
 
         try {
-            await pywebview.api.load_view(style, anim_mode, window_days);
+            await pywebview.api.load_view(style, anim_mode, window_days, clustering_method);
         } catch(e) {
             overlay.classList.remove('show');
             loading = false;

@@ -1,23 +1,30 @@
     <style>
     :root { 
-        --glass: rgba(15, 12, 41, 0.4); 
+        --glass: rgba(45, 45, 65, 0.4); 
         --glass-border: rgba(255, 255, 255, 0.2); 
     }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0f0c29; font-family: 'Segoe UI', system-ui, sans-serif; }
 
     .glass-panel {
-        background: var(--glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-        border: 1px solid var(--glass-border); border-radius: 12px;
+        position: relative;
         color: #fff; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-        text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+        border-radius: 12px;
+    }
+    .glass-panel::before {
+        content: ""; position: absolute; inset: 0; z-index: -1;
+        background: var(--glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--glass-border); border-radius: inherit;
+        pointer-events: none;
     }
 
     #back-btn {
         position: fixed; top: 16px; left: 16px; z-index: 100000;
         padding: 10px 20px; font-weight: 600; cursor: pointer;
-        transition: all 0.2s;
+        transition: all 0.2s; border: none; background: transparent;
     }
-    #back-btn:hover { border-color: #fff; transform: translateY(-1px); }
+    #back-btn::before { border: none; }
+    #back-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.05); }
 
     #loader {
         position: fixed; inset: 0; z-index: 200000;
@@ -27,8 +34,8 @@
     }
     #loader.show { opacity: 1; pointer-events: auto; }
     .spinner {
-        width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1);
-        border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite;
+        width: 64px; height: 64px; border: 3px solid rgba(255,255,255,0.1);
+        border-top-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -68,11 +75,7 @@
     .glass-menu {
         position: absolute; left: calc(100% + 15px); top: 0;
         display: none; flex-direction: column; gap: 2px; padding: 6px;
-        min-width: 140px; z-index: 100001;
-        box-shadow: 10px 0 30px rgba(0,0,0,0.5);
-        background: var(--glass); backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid var(--glass-border); border-radius: 12px;
+        min-width: 140px; z-index: 100001; border-radius: 12px;
     }
     .glass-menu.show { display: flex; }
     .menu-item {
@@ -138,7 +141,144 @@
     #filter-loader.show { display: flex; }
 
     .modebar { display: none !important; }
+
+    /* Rounded corners and glass style for Plotly colorbar */
+    .cbfill, .cbbg { rx: 8px; ry: 8px; }
+    .cbbg { 
+        fill: rgba(45, 45, 65, 0.6) !important; 
+        stroke: rgba(255, 255, 255, 0.25) !important;
+        stroke-width: 1px !important;
+        filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+    }
+
+    /* Glass checkbox */
+    .glass-checkbox {
+        display: flex; align-items: center; gap: 8px; margin-top: 8px; cursor: pointer;
+        font-size: 13px; color: #fff; user-select: none;
+    }
+    .glass-checkbox input[type="checkbox"] {
+        appearance: none; -webkit-appearance: none;
+        width: 18px; height: 18px; border-radius: 4px;
+        border: 1px solid rgba(255,255,255,0.3);
+        background: rgba(255,255,255,0.08);
+        cursor: pointer; position: relative; flex-shrink: 0;
+        transition: all 0.2s;
+    }
+    .glass-checkbox input[type="checkbox"]:checked {
+        background: rgba(165, 180, 252, 0.4);
+        border-color: rgba(165, 180, 252, 0.7);
+    }
+    .glass-checkbox input[type="checkbox"]:checked::after {
+        content: '✓'; position: absolute; top: 0; left: 3px;
+        font-size: 13px; color: #fff; font-weight: 700;
+    }
+
+    /* Glass Legend Styles */
+    #glass-legend {
+        position: fixed; right: 16px; top: 50%; transform: translateY(-50%);
+        z-index: 99999; padding: 18px 15px; width: 140px;
+        display: none; flex-direction: column; align-items: center; gap: 12px;
+        min-height: 280px; text-shadow: none !important;
+    }
+    #legend-title {
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px; font-weight: 700; text-transform: uppercase;
+        margin-bottom: 6px; opacity: 0.9; letter-spacing: 0.5px;
+        text-align: center; width: 100%;
+    }
+    #legend-container {
+        display: flex; flex-direction: row-reverse; align-items: stretch; 
+        gap: 10px; flex-grow: 1; height: 100%; width: 100%;
+        justify-content: center;
+    }
+    #legend-bar {
+        width: 16px; border-radius: 4px;
+        border: 1px solid rgba(255,255,255,0.2);
+        box-shadow: inset 0 0 8px rgba(0,0,0,0.4);
+    }
+    #legend-ticks {
+        display: flex; flex-direction: column; justify-content: space-between;
+        padding: 2px 0;
+    }
+    .legend-tick {
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 12px; font-weight: 600; color: #fff;
+        opacity: 0.85; text-align: right; line-height: 1;
+    }
     </style>
 
     <div id="loader"><div class="spinner"></div><p style="color:#fff;margin-top:15px;font-size:14px">Processing dataset...</p></div>
+
     <button id="back-btn" class="glass-panel" onclick="pywebview.api.go_back()">← Hub</button>
+
+    <div id="glass-legend" class="glass-panel">
+        <div id="legend-title">Variable</div>
+        <div id="legend-container">
+            <div id="legend-bar"></div>
+            <div id="legend-ticks"></div>
+        </div>
+    </div>
+
+    <script>
+    function hideInitLoader() {
+        const il = document.getElementById('init-loader');
+        if (il) {
+            il.style.opacity = '0';
+            setTimeout(() => { il.style.display = 'none'; }, 600);
+        }
+    }
+
+    function showInitLoader(msg) {
+        const il = document.getElementById('init-loader');
+        if (il) {
+            const textEl = il.querySelector('.loader-text');
+            if (textEl && msg) textEl.textContent = msg;
+            il.style.display = 'flex';
+            il.style.opacity = '1';
+        }
+    }
+
+    window.addEventListener('load', hideInitLoader);
+
+    const COLORS_MAP = {
+        'Viridis': ['#440154', '#482878', '#3e4989', '#31688e', '#26828e', '#1f9e89', '#6ece58', '#b5de2b', '#fde725'],
+        'Jet': ['#00008f', '#0000ff', '#007fff', '#00ffff', '#7fff7f', '#ffff00', '#ff7f00', '#ff0000', '#7f0000'],
+        'Cividis': ['#00224e', '#123570', '#3c4b66', '#6b6d76', '#8e8c82', '#b1ac86', '#d4cd91', '#f8f1ae'],
+        'Electric': ['#000000', '#1e008a', '#7d00ba', '#c400b8', '#fe00a2', '#ff5e61', '#ffc100', '#ffff00'],
+        'Hot': ['#000000', '#e60000', '#ffcc00', '#ffffff']
+    };
+
+    function updateGlassLegend(show, title, scaleName, invert, limits, dateInfo) {
+        const legend = document.getElementById('glass-legend');
+        if (!show) { legend.style.display = 'none'; return; }
+        
+        legend.style.display = 'flex';
+        document.getElementById('legend-title').textContent = title;
+        
+        const bar = document.getElementById('legend-bar');
+        let colors = COLORS_MAP[scaleName] || COLORS_MAP['Viridis'];
+        if (invert) colors = [...colors].reverse();
+        bar.style.background = `linear-gradient(to top, ${colors.join(',')})`;
+        
+        const ticksContainer = document.getElementById('legend-ticks');
+        ticksContainer.innerHTML = '';
+        
+        const numTicks = 5;
+        const step = (limits[1] - limits[0]) / (numTicks - 1);
+        
+        for (let i = numTicks - 1; i >= 0; i--) {
+            const val = limits[0] + step * i;
+            const tick = document.createElement('div');
+            tick.className = 'legend-tick';
+            
+            if (title === 'Date' && dateInfo && dateInfo.startDate) {
+                const d = new Date(dateInfo.startDate);
+                d.setDate(d.getDate() + Math.round(val));
+                tick.textContent = d.toISOString().slice(0, 10);
+            } else {
+                tick.textContent = val.toFixed(1);
+            }
+            ticksContainer.appendChild(tick);
+        }
+    }
+    </script>
