@@ -4,6 +4,47 @@ import numpy as np
 
 MIN_MAGNITUDE = 0.5
 
+def _make_hover(df):
+    """Generate descriptive hover text strings from a DataFrame."""
+    return [
+        f"Date: {t}<br>"
+        f"Magnitude: {m}<br>"
+        f"Latitude: {la:.4f}<br>"
+        f"Longitude: {lo:.4f}<br>"
+        f"Depth: {abs(d):.4f} km"
+        for t, m, la, lo, d in zip(
+            df['time'], df['mag'],
+            df['lat'], df['lon'], df['depth']
+        )
+    ]
+
+def precompute_visual_data(df):
+    """Pre-calculate expensive data structures for visualizations."""
+    print("Packaging visualization data...")
+    
+    # 1. Hover Strings
+    all_hover = _make_hover(df)
+    
+    # 2. Date grouping for animation
+    df['date_str'] = [t[:10] for t in df['time']]
+    unique_dates = sorted(df['date_str'].unique())
+    date_counts = df.groupby('date_str', sort=False).size()
+    
+    cum = 0
+    date_to_cum = {}
+    for d in unique_dates:
+        cum += int(date_counts[d])
+        date_to_cum[d] = cum
+        
+    return {
+        'hover': all_hover,
+        'unique_dates': unique_dates,
+        'date_to_cum': date_to_cum,
+        'mag_range': [float(df['mag'].min()), float(df['mag'].max())],
+        'dep_range': [float(df['depth'].min()), float(df['depth'].max())],
+        'date_range': [float(df['dates_num'].min()), float(df['dates_num'].max())],
+    }
+
 def load_csv(source_file):
     """Parse a seismic CSV and return extracted data arrays.
 
@@ -37,9 +78,13 @@ def load_csv(source_file):
     # Sort for visualization consistency
     df = df.sort_values('time_dt').reset_index(drop=True)
 
+
     # Pre-calculate dates_num (days since first event)
     min_t = df['time_dt'].min()
     df['dates_num'] = (df['time_dt'] - min_t).dt.total_seconds() / 86400.0
+    
+    # Pre-calculate visual pack
+    visual_pack = precompute_visual_data(df)
 
     # Extract as lists for JSON serialization (Webview)
     latitude = df['lat'].tolist()
@@ -61,10 +106,12 @@ def load_csv(source_file):
         'times': times,
         'dates_num': dates_num,
         'bbox': bbox,
+        'visual_pack': visual_pack,
         'summary': {
             'event_count': len(df),
             'date_range': date_range,
         },
     }
+
 
 

@@ -1,8 +1,9 @@
     <style>
     :root { 
-        --glass: rgba(45, 45, 65, 0.4); 
-        --glass-border: rgba(255, 255, 255, 0.2); 
+        --glass: rgba(15, 15, 25, 0.7); 
+        --glass-border: rgba(255, 255, 255, 0.1); 
     }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0f0c29; font-family: 'Segoe UI', system-ui, sans-serif; }
 
@@ -13,18 +14,19 @@
     }
     .glass-panel::before {
         content: ""; position: absolute; inset: 0; z-index: -1;
-        background: var(--glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+        background: var(--glass); backdrop-filter: blur(100px); -webkit-backdrop-filter: blur(100px);
         border: 1px solid var(--glass-border); border-radius: inherit;
         pointer-events: none;
     }
+
 
     #back-btn {
         position: fixed; top: 16px; left: 16px; z-index: 100000;
         padding: 10px 20px; font-weight: 600; cursor: pointer;
         transition: all 0.2s; border: none; background: transparent;
     }
-    #back-btn::before { border: none; }
-    #back-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.05); }
+    #back-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.1); }
+
 
     #loader {
         position: fixed; inset: 0; z-index: 200000;
@@ -208,7 +210,30 @@
         font-size: 12px; font-weight: 600; color: #fff;
         opacity: 0.85; text-align: right; line-height: 1;
     }
+
+    /* Toast Notifications (Top Right) */
+    #toast-container {
+        position: fixed; top: 16px; right: 24px;
+        display: flex; flex-direction: column; gap: 8px; z-index: 10000;
+        pointer-events: none;
+    }
+
+    .toast {
+        background: var(--glass); backdrop-filter: blur(100px); -webkit-backdrop-filter: blur(100px);
+        border: 1px solid var(--glass-border); border-top: 1px solid rgba(255,255,255,0.2); 
+        color: #fff; padding: 12px 20px;
+        border-radius: 12px; font-size: 13px; font-weight: 500;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.6); opacity: 0; transform: translateX(20px);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        display: flex; align-items: center; gap: 10px;
+    }
+
+
+
+    .toast.show { opacity: 1; transform: translateX(0); }
+
     </style>
+
 
     <div id="loader"><div class="spinner"></div><p style="color:#fff;margin-top:15px;font-size:14px">Processing dataset...</p></div>
 
@@ -222,19 +247,24 @@
         </div>
     </div>
 
+    <div id="toast-container"></div>
+
+
     <script>
     function transitionToHub() {
         showInitLoader('Returning to Hub...');
+        // Wait for the opacity transition (0.15s) before navigating
         setTimeout(() => {
             window.location.href = '/assets/index.html';
-        }, 0);
+        }, 150);
     }
+
 
     function hideInitLoader() {
         const il = document.getElementById('init-loader');
         if (il) {
             il.style.opacity = '0';
-            setTimeout(() => { il.style.display = 'none'; }, 600);
+            setTimeout(() => { il.style.display = 'none'; }, 300);
         }
     }
 
@@ -291,4 +321,15 @@
             ticksContainer.appendChild(tick);
         }
     }
+
+    function showStatusToast(msg) {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerHTML = `<span>⚠️ ${msg}</span>`;
+        container.appendChild(toast);
+        
+        setTimeout(() => toast.classList.add('show'), 100);
+    }
     </script>
+

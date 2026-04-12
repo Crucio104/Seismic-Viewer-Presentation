@@ -1,8 +1,12 @@
 import os
 import shutil
 import threading
+import uuid
+import traceback
+import atexit
+import subprocess
 import webview
-
+import engine
 
 # ─── Paths ───────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -54,12 +58,9 @@ def _cleanup():
     """Fast cleanup: stop server. Temp files will be handled at startup or by OS."""
     try:
         _stop_http_server()
-        # Deleting many large files can be slow on exit. 
-        # We'll just let them be or clean up at next startup.
     except Exception:
         pass
 
-import atexit
 atexit.register(_cleanup)
 
 
@@ -82,11 +83,7 @@ class Api:
         return f'http://127.0.0.1:{_http_port}/{rel_path.replace(os.sep, "/")}'
 
     def _navigate_delayed(self, rel_path, delay=0.15):
-        """Schedule a page navigation after a short delay.
-
-        Allows pywebview to return the JS callback result
-        before the current page is destroyed.
-        """
+        """Schedule a page navigation after a short delay."""
         url = self._make_url(rel_path)
         threading.Timer(delay, self._window().load_url, args=(url,)).start()
 
@@ -95,8 +92,7 @@ class Api:
         try:
             safe_msg = msg.replace('\\', '\\\\').replace("'", "\\'")
             self._window().evaluate_js(
-                f"if(typeof updateProgress==='function')"
-                f"updateProgress('{safe_msg}')"
+                f"if(typeof updateProgress==='function') updateProgress('{safe_msg}')"
             )
         except Exception:
             pass
@@ -117,8 +113,7 @@ class Api:
 
             path = result[0] if isinstance(result, (list, tuple)) else result
 
-            # Validate & parse
-            import engine
+            # engine is already imported at top level
             data = engine.load_csv(path)
             self._csv_path = path
             self._data = data
@@ -133,7 +128,6 @@ class Api:
         except ValueError as e:
             return {'error': str(e)}
         except Exception as e:
-            import traceback
             traceback.print_exc()
             return {'error': f'Unexpected error: {e}'}
 
@@ -161,11 +155,9 @@ class Api:
     def _generate_and_navigate(self, view_style, anim_mode, window_days, clustering_method='kmeans', clustering_params=None):
         """Background worker: generate HTML (or use cache), then navigate."""
         try:
-            # Include clustering_params in cache key (must be hashable)
             c_params_frozen = frozenset(clustering_params.items()) if clustering_params else None
             cache_key = (self._csv_path, view_style, anim_mode, window_days, clustering_method, c_params_frozen)
 
-            # Check cache
             if cache_key in self._html_cache:
                 self._push_progress("Loading from cache…")
                 rel_path = self._html_cache[cache_key]
@@ -173,8 +165,7 @@ class Api:
                 return
 
             print(f"Generating view {view_style}…")
-            import engine
-            html = engine.build_view_html(
+            res = engine.build_view_html(
                 self._data, view_style,
                 on_progress=self._push_progress,
                 anim_mode=anim_mode, 
@@ -182,22 +173,21 @@ class Api:
                 clustering_method=clustering_method,
                 clustering_params=clustering_params
             )
+            html, is_fallback = res
 
-            # Write to temp file
-            import uuid
             fname = f'view_{uuid.uuid4().hex[:8]}.html'
             fpath = os.path.join(VIZ_TMP_DIR, fname)
             with open(fpath, 'w', encoding='utf-8') as f:
                 f.write(html)
 
             rel_path = os.path.relpath(fpath, BASE_DIR)
-            self._html_cache[cache_key] = rel_path
+            if not is_fallback:
+                self._html_cache[cache_key] = rel_path
 
             self._push_progress("Opening visualization…")
             self._window().load_url(self._make_url(rel_path))
             print(f"View {view_style} loaded.")
         except Exception as e:
-            import traceback
             traceback.print_exc()
             self._push_progress(f"Error: {e}")
 
@@ -214,20 +204,17 @@ class Api:
         return True
 
     def clear_map_cache(self):
-        """Delete and recreate the map cache directory (cross-platform)."""
+        """Delete and recreate the map cache directory."""
         from core.geo_utils import MAP_CACHE_DIR
         try:
             if os.path.exists(MAP_CACHE_DIR):
                 shutil.rmtree(MAP_CACHE_DIR)
             os.makedirs(MAP_CACHE_DIR, exist_ok=True)
-            self._html_cache.clear() # Force regeneration of views to repopulate cache
+            self._html_cache.clear()
             return True
-
         except Exception as e:
-            import traceback
             traceback.print_exc()
             return str(e)
-
 
 
 # ─── Entry point ─────────────────────────────────────────────────────
@@ -266,15 +253,11 @@ def main():
     except KeyboardInterrupt:
         pass
     
-    # GUI is now closed. Perform 'silent' heavy cleanup before process exit.
     print("Window closed. Freeing terminal...")
     try:
         _stop_http_server()
         if os.path.exists(VIZ_TMP_DIR):
-            # Launch background process to delete files so Python can exit NOW
-            import subprocess
             if os.name == 'nt':
-                # Windows: 'rd /s /q' is the equivalent of 'rm -rf'
                 subprocess.Popen(['cmd', '/C', 'rd', '/S', '/Q', VIZ_TMP_DIR], shell=True)
             else:
                 subprocess.Popen(['rm', '-rf', VIZ_TMP_DIR])
@@ -283,7 +266,6 @@ def main():
         
     print("Application closed correctly.")
     os._exit(0)
-
 
 
 if __name__ == '__main__':

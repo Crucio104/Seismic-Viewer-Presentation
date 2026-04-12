@@ -425,18 +425,30 @@
     function showHub(badgeText) {
         if(badgeText) {
             document.getElementById('badge-text').textContent = badgeText;
+            localStorage.setItem('hub_badge', badgeText);
         }
         document.getElementById('view-picker').classList.remove('active');
         document.getElementById('view-hub').classList.add('active');
     }
 
-    // Attempt to pull existing info to auto-skip if refreshed
+    // Instant Restoration from localStorage
+    (function() {
+        const cachedBadge = localStorage.getItem('hub_badge');
+        if (cachedBadge) {
+            showHub(cachedBadge);
+        } else {
+            document.getElementById('view-picker').classList.add('active');
+        }
+    })();
+
+    // Verification via API
     window.addEventListener('pywebviewready', async function() {
         try {
             const info = await pywebview.api.get_csv_info();
             if (info && info.filename) {
                 showHub(info.filename + ' | ' + info.event_count.toLocaleString() + ' events');
             } else {
+                localStorage.removeItem('hub_badge');
                 showFilePicker();
             }
         } catch(e) {
@@ -502,6 +514,7 @@
     function changeFileJS() {
         // Clear via API, then show picker
         pywebview.api.change_file().then(() => {
+            localStorage.removeItem('hub_badge');
             showFilePicker();
         }).catch(() => {
             showFilePicker();

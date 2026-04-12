@@ -4,10 +4,12 @@ import pickle
 import numpy as np
 import smopy
 import PIL.Image
+from functools import lru_cache
+
 
 MESH_HD_SIZE = 700
-MESH_LOW_SIZE = 200
 PALETTE_COLORS = 128
+
 
 MAP_CACHE_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -24,16 +26,19 @@ def _get_cache_path(bbox, resolution):
 
 
 def _fetch_tiles_raw(bbox):
-    """Low-level fetch from Smopy. Tiles themselves are cached by smopy/os common patterns, 
-    but we keep this clean here.
-    """
-    print("Downloading map tiles (first time for this area)...")
-    map_obj = smopy.Map(bbox)
-    return {
-        'img': map_obj.to_pil(),
-        'xmin': map_obj.xmin, 'ymin': map_obj.ymin,
-        'z': map_obj.z, 'tilesize': map_obj.tilesize,
-    }
+    """Low-level fetch from Smopy with error handling for offline usage."""
+    try:
+        print("Downloading map tiles (first time for this area)...")
+        map_obj = smopy.Map(bbox)
+        return {
+            'img': map_obj.to_pil(),
+            'xmin': map_obj.xmin, 'ymin': map_obj.ymin,
+            'z': map_obj.z, 'tilesize': map_obj.tilesize,
+        }
+    except Exception as e:
+        print(f"Map download failed: {e}")
+        return None
+
 
 
 def _compute_grid(w, h, scale, ts, xmin, ymin, n):
@@ -46,7 +51,9 @@ def _compute_grid(w, h, scale, ts, xmin, ymin, n):
     return x, y
 
 
+@lru_cache(maxsize=4)
 def build_map_mesh(bbox, resolution):
+
     """
     Build a map mesh at the given resolution.
     Caches the FINAL processed mesh (grids + texture) to disk.
@@ -65,39 +72,53 @@ def build_map_mesh(bbox, resolution):
 
     # Not in cache, perform processing
     map_data = _fetch_tiles_raw(bbox)
-    img = map_data['img']
-    original_w, original_h = img.size
-    n = 2 ** map_data['z']
-    ts = map_data['tilesize']
-
-    # 1. Resize & Palette
-    scale = max(1, max(original_w, original_h) / resolution)
-    new_w, new_h = int(original_w / scale), int(original_h / scale)
-
-    print(f"Processing map mesh: {original_w}x{original_h} -> {new_w}x{new_h}...")
-    img_rs = img.resize((new_w, new_h), resample=PIL.Image.Resampling.BILINEAR)
-    img_p = img_rs.convert('P', palette=PIL.Image.Palette.ADAPTIVE, colors=PALETTE_COLORS)
     
-    matrix = np.array(img_p)
-    palette = img_p.getpalette()
-    cols = np.array(palette).reshape(-1, 3)[:PALETTE_COLORS]
-    cscale = [
-        [i / (PALETTE_COLORS - 1), f'rgb({c[0]},{c[1]},{c[2]})']
-        for i, c in enumerate(cols)
-    ]
+    if map_data is None:
+        # Fallback: Create a simple flat neutral grid if offline and no cache
+        print("Offline: creating fallback neutral grid...")
+        new_w, new_h = 2, 2
+        matrix = np.zeros((new_h, new_w), dtype=int)
+        cscale = [[0, 'rgb(30, 30, 45)'], [1, 'rgb(30, 30, 45)']]
+        x = np.array([bbox[1], bbox[3]])
+        y = np.array([bbox[2], bbox[0]])
+        z = np.zeros(matrix.shape)
+    else:
+        img = map_data['img']
+        original_w, original_h = img.size
+        n = 2 ** map_data['z']
+        ts = map_data['tilesize']
 
-    # 2. Grid calculation
-    x, y = _compute_grid(new_w, new_h, scale, ts, map_data['xmin'], map_data['ymin'], n)
-    z = np.zeros(matrix.shape)
+        # 1. Resize & Palette
+        scale = max(1, max(original_w, original_h) / resolution)
+        new_w, new_h = int(original_w / scale), int(original_h / scale)
+
+        print(f"Processing map mesh: {original_w}x{original_h} -> {new_w}x{new_h}...")
+        img_rs = img.resize((new_w, new_h), resample=PIL.Image.Resampling.BILINEAR)
+        img_p = img_rs.convert('P', palette=PIL.Image.Palette.ADAPTIVE, colors=PALETTE_COLORS)
+        
+        matrix = np.array(img_p)
+        palette = img_p.getpalette()
+        cols = np.array(palette).reshape(-1, 3)[:PALETTE_COLORS]
+        cscale = [
+            [i / (PALETTE_COLORS - 1), f'rgb({c[0]},{c[1]},{c[2]})']
+            for i, c in enumerate(cols)
+        ]
+
+        # 2. Grid calculation
+        x, y = _compute_grid(new_w, new_h, scale, ts, map_data['xmin'], map_data['ymin'], n)
+        z = np.zeros(matrix.shape)
 
     result = (x, y, z, matrix, cscale, map_data)
 
-    # 3. Save to cache
-    try:
-        with open(cache_path, 'wb') as f:
-            pickle.dump(result, f)
-    except Exception as e:
-        print(f"Failed to cache mesh: {e}")
+
+    # 3. Save to cache (only if we have real map data)
+    if map_data is not None:
+        try:
+            with open(cache_path, 'wb') as f:
+                pickle.dump(result, f)
+        except Exception as e:
+            print(f"Failed to cache mesh: {e}")
 
     return result
+
 
