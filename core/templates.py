@@ -33,7 +33,7 @@ def _ensure_templates_loaded():
             TEMPLATE_CACHE[key] = ""
 
 
-def generate_html(fig, is_animated=False, is_cluster=False, back_button=True, earthquake_data=None, is_fallback=False):
+def generate_html(fig, is_animated=False, is_cluster=False, is_3d=False, back_button=True, earthquake_data=None, is_fallback=False):
     """Convert a Plotly figure to a full HTML string with custom overlays and cached templates."""
     _ensure_templates_loaded()
 
@@ -100,8 +100,13 @@ def generate_html(fig, is_animated=False, is_cluster=False, back_button=True, ea
     if is_fallback:
         extra_scripts += f"<script>window.addEventListener('load', () => {{ showStatusToast('Offline: Map tiles unavailable.'); }});</script>"
 
+    if earthquake_data:
+        # Inject is_3d flag for UI logic
+        extra_scripts += f"\n<script>window.IS_3D_VIEW = {'true' if is_3d else 'false'};</script>"
+
     if extra_scripts:
         html_content = html_content.replace('<body>', '<body>\n' + loader_html + '\n' + extra_scripts)
+
     else:
         html_content = html_content.replace('<body>', '<body>\n' + loader_html)
 

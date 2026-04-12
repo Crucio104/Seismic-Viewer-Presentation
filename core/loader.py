@@ -41,8 +41,9 @@ def precompute_visual_data(df):
         'unique_dates': unique_dates,
         'date_to_cum': date_to_cum,
         'mag_range': [float(df['mag'].min()), float(df['mag'].max())],
-        'dep_range': [float(df['depth'].min()), float(df['depth'].max())],
+        'dep_range': [float((-df['depth']).min()), float((-df['depth']).max())],
         'date_range': [float(df['dates_num'].min()), float(df['dates_num'].max())],
+
     }
 
 def load_csv(source_file):

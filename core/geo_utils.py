@@ -7,7 +7,8 @@ import PIL.Image
 from functools import lru_cache
 
 
-MESH_HD_SIZE = 700
+MESH_HD_SIZE = 500
+
 PALETTE_COLORS = 128
 
 

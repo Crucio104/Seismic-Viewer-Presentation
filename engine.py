@@ -1,8 +1,8 @@
-from datetime import datetime
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+
 
 # Import from our new core modules
 from core.loader import load_csv
@@ -26,8 +26,14 @@ def view_2d(longitude, latitude, magnitude, times, dates_num=None, depth=None, v
         color=depth if depth is not None else magnitude,
         hover_name=all_hover,
         zoom=12,
+        center=dict(
+            lat=(min(latitude) + max(latitude)) / 2,
+            lon=(min(longitude) + max(longitude)) / 2
+        ),
         labels={"lat": "Latitude", "lon": "Longitude", "size": "Magnitude", "color": "Depth" if depth is not None else "Magnitude"},
     )
+
+
     
     # Trace 0: Scatter
     fig.update_traces(
@@ -35,15 +41,6 @@ def view_2d(longitude, latitude, magnitude, times, dates_num=None, depth=None, v
             coloraxis=None,
             colorscale='Viridis',
             showscale=False,
-            colorbar=dict(
-                title=dict(text="Depth" if depth is not None else "Magnitude", side='top', font=dict(color='#fff')),
-                x=0.98, xanchor='right', y=0.5,
-                thickness=12, len=0.35,
-                bgcolor='rgba(45, 45, 65, 0.6)',
-                bordercolor='rgba(255, 255, 255, 0.25)',
-                borderwidth=1,
-                tickfont=dict(color='#fff'),
-            )
         ),
         hoverinfo='text',
         hovertemplate='%{hovertext}<extra></extra>'
@@ -88,7 +85,9 @@ def get_3d_static_figure(longitude, latitude, magnitude, depth, times, dates_num
     fig.add_trace(go.Surface(
         x=x_grid, y=y_grid, z=z_grid,
         surfacecolor=surfacecolor, colorscale=colorscale,
-        showscale=False, opacity=0.9, hoverinfo='skip'
+        showscale=False, opacity=0.9, hoverinfo='skip',
+        lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0)
+
     ))
 
     # 1. Scatter Depth
@@ -132,16 +131,32 @@ def get_3d_static_figure(longitude, latitude, magnitude, depth, times, dates_num
         autosize=True,
         showlegend=False,
         paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
         scene=dict(
-            bgcolor='#f8f8fc',
-            xaxis=dict(title='Longitude', range=[x_grid[0], x_grid[-1]], showspikes=False),
-            yaxis=dict(title='Latitude', range=[y_grid[-1], y_grid[0]], showspikes=False),
-            zaxis=dict(title='Depth (km)', range=[min_depth, 0], showspikes=False),
+            dragmode='turntable',
+            bgcolor='rgba(0,0,0,0)',
+            xaxis=dict(
+                title=dict(text='Longitude', font=dict(color='rgba(255,255,255,0.8)')),
+                range=[x_grid[0], x_grid[-1]], showspikes=False,
+                gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color='rgba(255,255,255,0.6)')
+            ),
+            yaxis=dict(
+                title=dict(text='Latitude', font=dict(color='rgba(255,255,255,0.8)')),
+                range=[y_grid[-1], y_grid[0]], showspikes=False,
+                gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color='rgba(255,255,255,0.6)')
+            ),
+            zaxis=dict(
+                title=dict(text='Depth (km)', font=dict(color='rgba(255,255,255,0.8)')),
+                range=[min_depth, 0], showspikes=False,
+                gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color='rgba(255,255,255,0.6)')
+            ),
+
             aspectmode='manual',
             aspectratio=dict(x=1, y=1, z=0.5),
         ),
         margin=dict(l=0, r=0, b=0, t=0),
     )
+
     return fig
 
 
@@ -212,7 +227,9 @@ def get_3d_cluster_figure(longitude, latitude, magnitude, depth, times,
     fig.add_trace(go.Surface(
         x=x_grid, y=y_grid, z=z_grid,
         surfacecolor=surfacecolor, colorscale=colorscale,
-        showscale=False, opacity=0.9, hoverinfo='skip'
+        showscale=False, opacity=0.9, hoverinfo='skip',
+        lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0)
+
     ))
 
     # Filtering points for visual hull generation
@@ -331,16 +348,33 @@ def get_3d_cluster_figure(longitude, latitude, magnitude, depth, times,
 
     fig.update_layout(
         autosize=True, showlegend=False, paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        uirevision=True,
         legend=dict(font=dict(color='#fff'), bgcolor='rgba(0,0,0,0)'),
         scene=dict(
-            bgcolor='#f8f8fc',
-            xaxis=dict(title='Longitude', range=[x_grid[0], x_grid[-1]], showspikes=False),
-            yaxis=dict(title='Latitude', range=[y_grid[-1], y_grid[0]], showspikes=False),
-            zaxis=dict(title='Depth (km)', range=[min_depth, 0], showspikes=False),
+            dragmode='turntable',
+            bgcolor='rgba(0,0,0,0)',
+            xaxis=dict(
+                title=dict(text='Longitude', font=dict(color='rgba(255,255,255,0.8)')),
+                range=[x_grid[0], x_grid[-1]], showspikes=False,
+                gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color='rgba(255,255,255,0.6)')
+            ),
+            yaxis=dict(
+                title=dict(text='Latitude', font=dict(color='rgba(255,255,255,0.8)')),
+                range=[y_grid[-1], y_grid[0]], showspikes=False,
+                gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color='rgba(255,255,255,0.6)')
+            ),
+            zaxis=dict(
+                title=dict(text='Depth (km)', font=dict(color='rgba(255,255,255,0.8)')),
+                range=[min_depth, 0], showspikes=False,
+                gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color='rgba(255,255,255,0.6)')
+            ),
+
             aspectmode='manual', aspectratio=dict(x=1, y=1, z=0.5),
         ),
         margin=dict(l=0, r=0, b=0, t=0),
     )
+
     return fig, display_labels, n_clusters
 
 
@@ -384,14 +418,6 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
             size=[], sizemode='diameter', sizeref=0.1,
             color=[], colorscale='Viridis',
             showscale=False, cmin=mag_range[0], cmax=mag_range[1],
-            colorbar=dict(
-                title=dict(text="Magnitude", side='top', font=dict(color='#fff')),
-                x=0.98, xanchor='right', y=0.5, thickness=15, len=0.4,
-                bgcolor='rgba(45, 45, 65, 0.6)',
-                bordercolor='rgba(255, 255, 255, 0.25)',
-                borderwidth=1,
-                tickfont=dict(color='#fff'),
-            ),
             line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
             opacity=0.8,
         ),
@@ -406,14 +432,6 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
             size=[], sizemode='diameter', sizeref=0.1,
             color=[], colorscale='Jet',
             showscale=False, cmin=date_range[0], cmax=date_range[1],
-            colorbar=dict(
-                title=dict(text="Date", side='top', font=dict(color='#fff')),
-                x=0.98, xanchor='right', y=0.5, thickness=15, len=0.4,
-                bgcolor='rgba(45, 45, 65, 0.6)',
-                bordercolor='rgba(255, 255, 255, 0.25)',
-                borderwidth=1,
-                tickfont=dict(color='#fff'),
-            ),
             line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
             opacity=0.8,
         ),
@@ -428,14 +446,6 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
             size=[], sizemode='diameter', sizeref=0.1,
             color=[], colorscale='Viridis',
             showscale=False, cmin=dep_range[0], cmax=dep_range[1],
-            colorbar=dict(
-                title=dict(text="Depth", side='top', font=dict(color='#fff')),
-                x=0.98, xanchor='right', y=0.5, thickness=15, len=0.4,
-                bgcolor='rgba(45, 45, 65, 0.6)',
-                bordercolor='rgba(255, 255, 255, 0.25)',
-                borderwidth=1,
-                tickfont=dict(color='#fff'),
-            ),
             line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
             opacity=0.8,
         ),
@@ -462,15 +472,32 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
 
     fig.update_layout(
         autosize=True, paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        uirevision=True,
         scene=dict(
-            bgcolor='#f8f8fc',
-            xaxis=dict(title='Longitude', range=[x_high[0], x_high[-1]], showspikes=False),
-            yaxis=dict(title='Latitude', range=[y_high[-1], y_high[0]], showspikes=False),
-            zaxis=dict(title='Depth (km)', range=[min_depth, 0], showspikes=False),
+            dragmode='turntable',
+            bgcolor='rgba(0,0,0,0)',
+            xaxis=dict(
+                title=dict(text='Longitude', font=dict(color='rgba(255,255,255,0.8)')),
+                range=[x_high[0], x_high[-1]], showspikes=False,
+                gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color='rgba(255,255,255,0.6)')
+            ),
+            yaxis=dict(
+                title=dict(text='Latitude', font=dict(color='rgba(255,255,255,0.8)')),
+                range=[y_high[-1], y_high[0]], showspikes=False,
+                gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color='rgba(255,255,255,0.6)')
+            ),
+            zaxis=dict(
+                title=dict(text='Depth (km)', font=dict(color='rgba(255,255,255,0.8)')),
+                range=[min_depth, 0], showspikes=False,
+                gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color='rgba(255,255,255,0.6)')
+            ),
+
             aspectmode='manual', aspectratio=dict(x=1, y=1, z=0.5),
         ),
         margin=dict(l=0, r=0, b=0, t=0),
     )
+
     return fig, anim_data
 
 
@@ -516,7 +543,7 @@ def build_view_html(data, view_style, back_button=True, on_progress=None,
         static_data['date_limit'] = vpack.get('date_range', [0, 0])
         static_data['dep_limit'] = vpack.get('dep_range', [0, 0])
         static_data['start_date'] = times[0][:10] if times else ""
-        html = generate_html(fig, back_button=back_button, earthquake_data=static_data, is_fallback=is_fallback)
+        html = generate_html(fig, is_3d=True, back_button=back_button, earthquake_data=static_data, is_fallback=is_fallback)
 
     elif view_style == 2:
         _, _, _, _, _, map_data = build_map_mesh(data.get('bbox'), MESH_HD_SIZE)
@@ -525,7 +552,7 @@ def build_view_html(data, view_style, back_button=True, on_progress=None,
         fig, anim_data = get_3d_animated_figure(lon, lat, mag, dep, times, 
                                                on_progress=on_progress, anim_mode=anim_mode, 
                                                window_days=window_days, data=data, bbox=data.get('bbox'))
-        html = generate_html(fig, is_animated=True, back_button=back_button, earthquake_data=anim_data, is_fallback=is_fallback)
+        html = generate_html(fig, is_animated=True, is_3d=True, back_button=back_button, earthquake_data=anim_data, is_fallback=is_fallback)
 
     elif view_style == 3:
         _report("Preparing cluster analysis…")
@@ -549,7 +576,7 @@ def build_view_html(data, view_style, back_button=True, on_progress=None,
         cluster_data['clustering_method'] = clustering_method
         cluster_data['clustering_params'] = clustering_params
         cluster_data['start_date'] = times[0][:10] if times else ""
-        html = generate_html(fig, is_cluster=True, back_button=back_button, earthquake_data=cluster_data, is_fallback=is_fallback)
+        html = generate_html(fig, is_cluster=True, is_3d=True, back_button=back_button, earthquake_data=cluster_data, is_fallback=is_fallback)
 
     else:
         raise ValueError(f"Invalid view style: {view_style}")

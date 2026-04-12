@@ -23,6 +23,9 @@
                 <button class="settings-btn" id="scale-toggle">Viridis ▾</button>
                 <div class="glass-panel glass-menu" id="scale-menu">
                     <div class="menu-item active" data-val="Viridis">Viridis</div>
+                    <div class="menu-item" data-val="Plasma">Plasma</div>
+                    <div class="menu-item" data-val="Inferno">Inferno</div>
+                    <div class="menu-item" data-val="Turbo">Turbo</div>
                     <div class="menu-item" data-val="Jet">Jet</div>
                     <div class="menu-item" data-val="Cividis">Cividis</div>
                     <div class="menu-item" data-val="Electric">Electric</div>
@@ -57,6 +60,11 @@
             <button class="settings-btn" id="apply-filters-btn" style="margin-top:20px; justify-content:center; background: rgba(165, 180, 252, 0.2); border-color: rgba(165, 180, 252, 0.4);">
                 Apply Filters
             </button>
+
+            <button class="settings-btn priority-btn" id="reset-camera" style="margin-top:12px; justify-content:center; display:none; background: rgba(99, 102, 241, 0.2); border-color: rgba(99, 102, 241, 0.4);">
+                Reset Camera
+            </button>
+
         </div>
 
         <div id="filter-loader" class="glass-panel"><div class="spinner" style="width:30px; height:30px"></div></div>
@@ -130,6 +138,36 @@
             const is3D = (gd.layout.scene !== undefined);
             if (!is3D && gd.data.length > 1) viewModeGroup.style.display = 'block';
 
+             const resetBtn = document.getElementById('reset-camera');
+             let initialMapboxView = null;
+ 
+             if (!is3D) {
+                 resetBtn.style.display = 'flex';
+                 // Store initial view after a small delay to ensure Plotly has initialized mapbox
+                 setTimeout(() => {
+                     if (gd.layout.mapbox) {
+                         initialMapboxView = {
+                             center: { ...gd.layout.mapbox.center },
+                             zoom: gd.layout.mapbox.zoom,
+                             pitch: gd.layout.mapbox.pitch || 0,
+                             bearing: gd.layout.mapbox.bearing || 0
+                         };
+                     }
+                 }, 500);
+ 
+                 resetBtn.onclick = () => {
+                     if (initialMapboxView) {
+                         Plotly.relayout(gd, {
+                             'mapbox.center': initialMapboxView.center,
+                             'mapbox.zoom': initialMapboxView.zoom,
+                             'mapbox.pitch': 0,
+                             'mapbox.bearing': 0
+                         });
+                     }
+                 };
+             }
+
+
             function setupMenu(btn, menu) {
                 btn.onclick = (e) => {
                     e.stopPropagation();
@@ -168,16 +206,36 @@
             };
 
             if (viewModeMenu) {
+                const updateUIForMode = (mode) => {
+                    const isHeatmap = (mode === 'heatmap');
+                    // Lock color mode, color scale, and invert checkbox
+                    const scaleGroup = scaleToggle.closest('.settings-group');
+                    const colorGroup = colorToggle.closest('.settings-group');
+                    const invertLabel = invertCheck.closest('.glass-checkbox');
+                    
+                    if (isHeatmap) {
+                        if (scaleGroup) scaleGroup.classList.add('disabled');
+                        if (colorGroup) colorGroup.classList.add('disabled');
+                        if (invertLabel) invertLabel.classList.add('disabled');
+                    } else {
+                        if (scaleGroup) scaleGroup.classList.remove('disabled');
+                        if (colorGroup) colorGroup.classList.remove('disabled');
+                        if (invertLabel) invertLabel.classList.remove('disabled');
+                    }
+                };
+
                 viewModeMenu.querySelectorAll('.menu-item').forEach(item => {
                     item.onclick = () => {
                         currentViewMode = item.dataset.mode;
                         viewModeMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
                         item.classList.add('active');
                         viewModeToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                        updateUIForMode(currentViewMode);
                         applyFilterWithLoader();
                     };
                 });
             }
+
 
             const applyBtn = document.getElementById('apply-filters-btn');
             const filterLoader = document.getElementById('filter-loader');
@@ -246,24 +304,29 @@
                 };
 
                 const isHeatmap = (currentViewMode === 'heatmap');
+                const isDep = (currentColorMode === 'dep');
+                const isMag = (currentColorMode === 'mag');
+                const isDate = (currentColorMode === 'date');
+
+                let limits, colorArr, barTitle;
+                if (isDep) {
+                    limits = quakeData.dep_limit;
+                    colorArr = filtered.dep;
+                    barTitle = 'Depth';
+                } else if (isMag) {
+                    limits = quakeData.mag_limit;
+                    colorArr = filtered.mag;
+                    barTitle = 'Magnitude';
+                } else {
+                    limits = quakeData.date_limit;
+                    colorArr = filtered.dnum;
+                    barTitle = 'Date';
+                }
 
                 if (is3D) {
-                    const isDep = (currentColorMode === 'dep');
-                    const isMag = (currentColorMode === 'mag');
-                    const isDate = (currentColorMode === 'date');
-
                     // Trace 1 = Depth/Mag, Trace 2 = Date
                     const traceIdx = isDate ? 2 : 1;
                     const otherIdx = isDate ? 1 : 2;
-                    let limits;
-                    if (isDep) limits = quakeData.dep_limit;
-                    else if (isMag) limits = quakeData.mag_limit;
-                    else limits = quakeData.date_limit;
-
-                    let colorArr;
-                    if (isDep) colorArr = filtered.dep;
-                    else if (isMag) colorArr = filtered.mag;
-                    else colorArr = filtered.dnum;
 
                     Plotly.restyle(gd, { visible: [false] }, [otherIdx]);
                     Plotly.restyle(gd, {
@@ -272,7 +335,7 @@
                         'marker.color': [colorArr],
                         'marker.cmin': [limits[0]],
                         'marker.cmax': [limits[1]],
-                        'marker.colorscale': [currentColorScale],
+                        'marker.colorscale': [getPlotlyScale(currentColorScale)],
                         'marker.reversescale': [invertScale],
                         'marker.showscale': [false],
                         hovertext: [filtered.hover], visible: [true]
@@ -284,56 +347,24 @@
                         Plotly.restyle(gd, { lat: [filtered.lat], lon: [filtered.lon], z: [filtered.mag], visible: [true], hovertext: [filtered.hover] }, [1]);
                     } else {
                         Plotly.restyle(gd, { visible: [false] }, [1]);
-                        
-                        const isDep = (currentColorMode === 'dep');
-                        const isMag = (currentColorMode === 'mag');
-                        const isDate = (currentColorMode === 'date');
-                        
-                        let limits, colorArr, barTitle;
-                        if (isDep) {
-                            limits = quakeData.dep_limit;
-                            colorArr = filtered.dep;
-                            barTitle = 'Depth';
-                        } else if (isMag) {
-                            limits = quakeData.mag_limit;
-                            colorArr = filtered.mag;
-                            barTitle = 'Magnitude';
-                        } else {
-                            limits = quakeData.date_limit;
-                            colorArr = filtered.dnum;
-                            barTitle = 'Date';
-                        }
-
                         const update = {
                             lat: [filtered.lat], lon: [filtered.lon],
                             'marker.size': [filtered.mag],
                             'marker.color': [colorArr],
                             'marker.cmin': [limits[0]],
                             'marker.cmax': [limits[1]],
-                            'marker.colorscale': [currentColorScale],
+                            'marker.colorscale': [getPlotlyScale(currentColorScale)],
                             'marker.coloraxis': [null],
                             'marker.reversescale': [invertScale],
                             'marker.showscale': [false],
                             hovertext: [filtered.hover], visible: [true]
                         };
-
                         Plotly.restyle(gd, update, [0]);
                     }
                 }
+
                 
                 // Update Glass Legend
-                let limits, barTitle;
-                if (currentColorMode === 'dep') {
-                    limits = quakeData.dep_limit;
-                    barTitle = 'Depth';
-                } else if (currentColorMode === 'mag') {
-                    limits = quakeData.mag_limit;
-                    barTitle = 'Magnitude';
-                } else if (currentColorMode === 'date') {
-                    limits = quakeData.date_limit;
-                    barTitle = 'Date';
-                }
-                
                 updateGlassLegend(
                     currentViewMode !== 'heatmap',
                     barTitle,
@@ -344,4 +375,5 @@
                 );
             }
         });
+
         </script>

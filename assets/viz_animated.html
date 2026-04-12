@@ -15,10 +15,13 @@
                 <button class="settings-btn" id="speed-toggle">1x ▾</button>
                 <div class="glass-panel glass-menu" id="speed-menu">
                     <div class="menu-item active" data-val="1">1x (Real-time)</div>
+                    <div class="menu-item" data-val="2">2x</div>
                     <div class="menu-item" data-val="4">4x</div>
+                    <div class="menu-item" data-val="8">8x</div>
                     <div class="menu-item" data-val="16">16x</div>
                     <div class="menu-item" data-val="32">32x (Turbo)</div>
                 </div>
+
             </div>
             <div class="settings-group" style="margin-top:12px">
                 <div class="label">Color Analysis</div>
@@ -34,6 +37,9 @@
                 <button class="settings-btn" id="scale-toggle">Viridis ▾</button>
                 <div class="glass-panel glass-menu" id="scale-menu">
                     <div class="menu-item active" data-val="Viridis">Viridis</div>
+                    <div class="menu-item" data-val="Plasma">Plasma</div>
+                    <div class="menu-item" data-val="Inferno">Inferno</div>
+                    <div class="menu-item" data-val="Turbo">Turbo</div>
                     <div class="menu-item" data-val="Jet">Jet</div>
                     <div class="menu-item" data-val="Cividis">Cividis</div>
                     <div class="menu-item" data-val="Electric">Electric</div>
@@ -133,6 +139,7 @@
                 if (idx >= dates.length) idx = dates.length - 1;
                 
                 const [start, end] = getActiveRange(idx);
+                
                 const sliceLon = quakeData.lon.slice(start, end);
                 const sliceLat = quakeData.lat.slice(start, end);
                 const sliceDep = quakeData.dep.slice(start, end);
@@ -165,19 +172,22 @@
                     z: [sliceDep],
                     'marker.size': [sliceMag],
                     'marker.color': [sliceColor],
-                    'marker.colorscale': [currentColorScale],
+                    'marker.colorscale': [getPlotlyScale(currentColorScale)],
                     'marker.reversescale': [invertScale],
                     'marker.cmin': [limits[0]],
                     'marker.cmax': [limits[1]],
                     'marker.showscale': [false],
+                    'marker.opacity': [0.85],
                     hovertext: [sliceHover]
                 };
+
 
                 Plotly.restyle(gd, restyleUpdate, [visibleTraceIdx]);
 
                 dateDisplay.textContent = dates[idx];
                 slider.value = idx;
                 currentStepIdx = idx;
+
 
                 // Update Glass Legend
                 updateGlassLegend(
@@ -189,6 +199,7 @@
                     { startDate: quakeData.start_date }
                 );
             }
+
 
             function animationLoop(timestamp) {
                 if (!isPlaying) return;
@@ -219,6 +230,7 @@
                 startTime = 0; 
                 playBtn.classList.add('active');
                 pauseBtn.classList.remove('active');
+                if (typeof setGlobalInterfaceLock === 'function') setGlobalInterfaceLock(true);
                 requestAnimationFrame(animationLoop);
             }
 
@@ -227,6 +239,7 @@
                 startTime = 0; 
                 playBtn.classList.remove('active');
                 pauseBtn.classList.add('active');
+                if (typeof setGlobalInterfaceLock === 'function') setGlobalInterfaceLock(false);
                 setTimeout(() => {
                     Plotly.relayout(gd, {uirevision: Math.random()});
                 }, 0);

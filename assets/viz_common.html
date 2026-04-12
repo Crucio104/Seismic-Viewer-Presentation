@@ -5,7 +5,14 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0f0c29; font-family: 'Segoe UI', system-ui, sans-serif; }
+    body { 
+        margin: 0; padding: 0;
+        background: radial-gradient(circle at 50% 50%, #1a1a2e 0%, #0f0f1a 100%);
+        background-attachment: fixed;
+        color: #e2e8f0; font-family: 'Outfit', sans-serif; 
+        width: 100vw; height: 100vh; overflow: hidden;
+    }
+
 
     .glass-panel {
         position: relative;
@@ -131,6 +138,19 @@
         font-size: 18px; transition: all 0.2s;
     }
     .play-controls button.active { border-color: #fff; background: rgba(255,255,255,0.2); }
+    
+    .disabled { 
+        opacity: 0.4 !important; 
+        pointer-events: none !important; 
+        filter: grayscale(0.5);
+    }
+
+    /* High-priority action buttons (Reset, Apply, etc.) */
+    .priority-btn {
+        z-index: 1000001 !important; /* Ensure they are above almost everything */
+        position: relative;
+    }
+    .priority-btn:active { transform: scale(0.96); transition: transform 0.05s; }
 
     .slider-container { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; }
     #time-slider { width: 100%; }
@@ -180,7 +200,7 @@
 
     /* Glass Legend Styles */
     #glass-legend {
-        position: fixed; right: 16px; top: 50%; transform: translateY(-50%);
+        position: fixed; right: 16px; top: 100px;
         z-index: 99999; padding: 18px 15px; width: 140px;
         display: none; flex-direction: column; align-items: center; gap: 12px;
         min-height: 280px; text-shadow: none !important;
@@ -231,6 +251,32 @@
 
 
     .toast.show { opacity: 1; transform: translateX(0); }
+    
+    /* Camera Control Panel */
+    #camera-controls {
+        position: fixed; top: 420px; right: 16px; z-index: 99999;
+        display: none; flex-direction: column; gap: 8px; padding: 10px;
+        width: 140px;
+    }
+    #camera-controls .btn-cam {
+        background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+        color: #fff; border-radius: 8px; padding: 8px 10px; cursor: pointer;
+        width: 100%; text-align: left; font-size: 12px; font-weight: 500;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex; align-items: center; gap: 8px;
+    }
+    #camera-controls .btn-cam:hover { background: rgba(255,255,255,0.18); transform: translateX(-4px); }
+    #camera-controls .btn-cam.active { 
+        background: rgba(99, 102, 241, 0.4); 
+        border-color: rgba(99, 102, 241, 0.6); 
+        box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+    }
+    #camera-controls.locked, #back-btn.locked, #settings-bar.locked {
+        opacity: 0.5;
+        pointer-events: none;
+        filter: grayscale(0.5);
+    }
+    #camera-controls .btn-cam svg { width: 14px; height: 14px; opacity: 0.9; }
 
     </style>
 
@@ -245,6 +291,26 @@
             <div id="legend-bar"></div>
             <div id="legend-ticks"></div>
         </div>
+    </div>
+
+    <div id="camera-controls" class="glass-panel">
+        <div class="label" style="text-align: center; margin-bottom: 8px;">Camera</div>
+        <button class="btn-cam" id="btn-cinema" onclick="toggleCinemaMode()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            Auto-rotation
+        </button>
+        <button class="btn-cam" onclick="snapToView('top')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12l-9-9-9 9M12 3v18"/></svg>
+            Top View
+        </button>
+        <button class="btn-cam" onclick="snapToView('side')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5l-5-5-5 5"/></svg>
+            Side View
+        </button>
+        <button class="btn-cam" onclick="snapToView('reset')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            Reset
+        </button>
     </div>
 
     <div id="toast-container"></div>
@@ -282,11 +348,22 @@
 
     const COLORS_MAP = {
         'Viridis': ['#440154', '#482878', '#3e4989', '#31688e', '#26828e', '#1f9e89', '#6ece58', '#b5de2b', '#fde725'],
+        'Plasma': ['#0d0887', '#4b03a1', '#7d03a8', '#a41e9a', '#c33580', '#de4c60', '#f16d41', '#fa9913', '#f6c710', '#eff921'],
+        'Inferno': ['#000004', '#160b39', '#420a68', '#6a176e', '#932667', '#bc3754', '#dd513a', '#f37819', '#fca50a', '#f9d22a', '#fcffa4'],
+
+        'Turbo': ['#30123b', '#41459b', '#4675ed', '#419df9', '#2eaede', '#1dbeab', '#24ca70', '#56d445', '#88db32', '#bad928', '#e2c933', '#f8aa31', '#ff842a', '#f75b14', '#e03b07', '#bd2205', '#9a1003', '#7a0403'],
         'Jet': ['#00008f', '#0000ff', '#007fff', '#00ffff', '#7fff7f', '#ffff00', '#ff7f00', '#ff0000', '#7f0000'],
         'Cividis': ['#00224e', '#123570', '#3c4b66', '#6b6d76', '#8e8c82', '#b1ac86', '#d4cd91', '#f8f1ae'],
         'Electric': ['#000000', '#1e008a', '#7d00ba', '#c400b8', '#fe00a2', '#ff5e61', '#ffc100', '#ffff00'],
         'Hot': ['#000000', '#e60000', '#ffcc00', '#ffffff']
     };
+
+
+    function getPlotlyScale(name) {
+        const colors = COLORS_MAP[name] || COLORS_MAP['Viridis'];
+        return colors.map((c, i) => [i / (colors.length - 1), c]);
+    }
+
 
     function updateGlassLegend(show, title, scaleName, invert, limits, dateInfo) {
         const legend = document.getElementById('glass-legend');
@@ -331,5 +408,150 @@
         
         setTimeout(() => toast.classList.add('show'), 100);
     }
+
+    /* ─── 3D Camera & Cinema Mode Logic ─── */
+    let cinemaModeActive = false;
+    let cinemaAngle = 0;
+    let cinemaReqId = null;
+    let plotlyId = null;
+
+    function findPlotlyGraph() {
+        if (!plotlyId) {
+            const gd = document.querySelector('.plotly-graph-div');
+            if (gd) {
+                plotlyId = gd.id;
+            }
+        }
+        
+        // Show camera controls instantly if we know it's a 3D view
+        if (window.IS_3D_VIEW) {
+            document.getElementById('camera-controls').style.display = 'flex';
+        } else if (plotlyId) {
+             const gd = document.getElementById(plotlyId);
+             if (gd && gd.layout && gd.layout.scene) {
+                 document.getElementById('camera-controls').style.display = 'flex';
+             }
+        }
+    }
+
+    function toggleCinemaMode() {
+        findPlotlyGraph();
+        if (!plotlyId) {
+            showStatusToast('Waiting for plot initialization...');
+            return;
+        }
+        
+        const gd = document.getElementById(plotlyId);
+        if (!gd || !gd.layout || !gd.layout.scene) {
+            showStatusToast('Preparing 3D scene...');
+            setTimeout(toggleCinemaMode, 200);
+            return;
+        }
+
+
+        cinemaModeActive = !cinemaModeActive;
+        const btn = document.getElementById('btn-cinema');
+        
+        if (cinemaModeActive) {
+            btn.classList.add('active');
+            // Reset "Up" vector to Z axis to ensure horizontal rotation 
+            // even if we were in Top View (where Up was Y)
+            Plotly.relayout(gd, { 'scene.camera.up': { x: 0, y: 0, z: 1 } });
+            try {
+                const eye = gd.layout.scene.camera.eye || { x: 1.25, y: 1.25, z: 1.25 };
+                cinemaAngle = Math.atan2(eye.y, eye.x);
+            } catch(e) {
+                cinemaAngle = 0;
+            }
+            animateCinema();
+        } else {
+            btn.classList.remove('active');
+            if (cinemaReqId) cancelAnimationFrame(cinemaReqId);
+        }
+    }
+
+    function animateCinema() {
+        if (!cinemaModeActive) return;
+        const gd = document.getElementById(plotlyId);
+        if (!gd || !gd.layout || !gd.layout.scene) return;
+
+        cinemaAngle += 0.005; // Speed adjustment
+        const radius = 1.8;
+        
+        try {
+            // Update Background "Skybox"
+            const bgX = 50 + 10 * Math.cos(cinemaAngle);
+            const bgY = 50 + 10 * Math.sin(cinemaAngle);
+            document.body.style.background = `radial-gradient(circle at ${bgX}% ${bgY}%, #1a1a2e 0%, #0f0f1a 100%)`;
+
+
+            const update = {
+                'scene.camera.eye': {
+                    x: radius * Math.cos(cinemaAngle),
+                    y: radius * Math.sin(cinemaAngle),
+                    z: 1.0
+                }
+            };
+            Plotly.relayout(gd, update);
+        } catch(e) {
+            console.warn("Auto-rotation mode skipped frame:", e);
+        }
+        
+        cinemaReqId = requestAnimationFrame(animateCinema);
+    }
+
+    function snapToView(view) {
+        if (cinemaModeActive) toggleCinemaMode(); // Stop cinema mode on manual snap
+        if (!plotlyId) findPlotlyGraph();
+        const gd = document.getElementById(plotlyId);
+        if (!gd) return;
+
+        let eye = { x: 1.25, y: 1.25, z: 1.25 };
+        let up  = { x: 0, y: 0, z: 1 }; // Default Up is Z
+
+        if (view === 'top') {
+            eye = { x: 0, y: 0, z: 2.5 };
+            up  = { x: 0, y: 1, z: 0 };  // Y is Up (Latitude), X is Right (Longitude)
+        } else if (view === 'side') {
+            eye = { x: 0, y: -2.5, z: 0 };
+            up  = { x: 0, y: 0, z: 1 };  // Z is Up (Depth), X is Right (Longitude)
+        } else if (view === 'reset') {
+            eye = { x: 1.25, y: 1.25, z: 1.25 };
+            up  = { x: 0, y: 0, z: 1 };
+        }
+
+        Plotly.relayout(gd, { 
+            'scene.camera.eye': eye,
+            'scene.camera.up': up
+        });
+    }
+
+    function setGlobalInterfaceLock(locked) {
+        const panels = ['camera-controls', 'back-btn', 'settings-bar'];
+        
+        panels.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                if (locked) el.classList.add('locked');
+                else el.classList.remove('locked');
+            }
+        });
+        
+        if (locked && cinemaModeActive) toggleCinemaMode();
+        
+        // Also lock/unlock 3D rotation on the graph
+        if (!plotlyId) findPlotlyGraph();
+        const gd = document.getElementById(plotlyId);
+        if (gd && gd.layout && gd.layout.scene) {
+            Plotly.relayout(gd, { 'scene.dragmode': locked ? false : 'turntable' });
+        }
+    }
+
+
+    // Auto-detect plot and show UI controls immediately
+    findPlotlyGraph();
+    window.addEventListener('load', findPlotlyGraph);
+    setTimeout(findPlotlyGraph, 100); // Small backup for slow DOM
     </script>
+
 
