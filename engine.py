@@ -391,7 +391,7 @@ def get_3d_cluster_figure(longitude, latitude, magnitude, depth, times,
 
 
 def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
-                           on_progress=None, anim_mode='accumulation', window_days=5):
+                           on_progress=None, anim_mode='accumulation', window_days=5, data=None):
     import pandas as pd
     import plotly.graph_objects as go
     import numpy as np
@@ -402,24 +402,20 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
             on_progress(msg)
 
     _report("Preparing 3D animation data...")
+    # Dates are already parsed as dates_num in loader.py
     df = pd.DataFrame({
         'lon': longitude, 'lat': latitude,
         'mag': magnitude, 'dep': depth, 'time_str': times,
-        'time': [
-            datetime.strptime(t, "%Y-%m-%d %H:%M:%S.%f")
-            if '.' in t
-            else datetime.strptime(t, "%Y-%m-%d %H:%M:%S")
-            for t in times
-        ],
+        'date_num': [float(d) for d in data['dates_num']] if 'dates_num' in data else []
     })
-
-    df['date_num'] = (df['time'] - df['time'].min()).dt.total_seconds() / 86400.0
-    df = df.sort_values('time').reset_index(drop=True)
-    df['date'] = df['time'].dt.strftime('%Y-%m-%d')
+    
+    # We still need date strings for grouping, but we can get them from times list efficiently
+    df['date'] = [t[:10] for t in times]
     unique_dates = sorted(df['date'].unique())
 
-    bbox = (df['lat'].min(), df['lon'].min(), df['lat'].max(), df['lon'].max())
-    min_depth = df['dep'].min()
+    bbox = (min(latitude), min(longitude), max(latitude), max(longitude))
+    min_depth = min(depth)
+
 
     _report("Building map mesh (HD)...")
     x_high, y_high, z_high, mat_high, scale_high, map_data = build_map_mesh(
@@ -531,7 +527,8 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
         'mag_range': [float(mag_min), float(mag_max)],
         'date_range': [float(date_n_min), float(date_n_max)],
         'dep_range': [float(dep_min), float(dep_max)],
-        'start_date': df['time'].min().strftime('%Y-%m-%d'),
+        'start_date': times[0][:10],
+
     }
 
     fig.update_layout(
@@ -557,61 +554,51 @@ def build_view_html(data, view_style, back_button=True, on_progress=None,
         if on_progress: on_progress(msg)
 
     lon, lat, mag, dep, times = data['longitude'], data['latitude'], data['magnitude'], data['depth'], data['times']
-
-    def _get_dates_num():
-        ts = [datetime.strptime(t, "%Y-%m-%d %H:%M:%S.%f") if '.' in t else datetime.strptime(t, "%Y-%m-%d %H:%M:%S") for t in times]
-        min_t = min(ts)
-        return [(t - min_t).total_seconds() / 86400.0 for t in ts]
+    d_num = data.get('dates_num', [])
 
     if view_style == 0:
         _report("Generating 2D map…")
-        d_num = _get_dates_num()
         fig = view_2d(lon, lat, mag, times, dates_num=d_num, depth=dep)
         static_data = data.copy()
-        static_data['dates_num'] = d_num
         static_data['hover'] = _make_hover(pd.DataFrame({'lon': lon, 'lat': lat, 'mag': mag, 'dep': dep, 'time_str': times}))
         static_data['mag_limit'] = [min(mag), max(mag)]
-        static_data['date_limit'] = [min(d_num), max(d_num)]
+        static_data['date_limit'] = [min(d_num), max(d_num)] if d_num else [0, 0]
         static_data['dep_limit'] = [min(dep), max(dep)]
-        ts_parsed = [datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f') if '.' in t else datetime.strptime(t, '%Y-%m-%d %H:%M:%S') for t in times]
-        static_data['start_date'] = min(ts_parsed).strftime('%Y-%m-%d')
+        static_data['start_date'] = times[0][:10]
         return generate_html(fig, back_button=back_button, earthquake_data=static_data)
     elif view_style == 1:
         _report("Preparing 3D static view…")
-        d_num = _get_dates_num()
         fig = get_3d_static_figure(lon, lat, mag, dep, times, dates_num=d_num)
         static_data = data.copy()
-        static_data['dates_num'] = d_num
         static_data['hover'] = _make_hover(pd.DataFrame({'lon': lon, 'lat': lat, 'mag': mag, 'dep': dep, 'time_str': times}))
         static_data['mag_limit'] = [min(mag), max(mag)]
-        static_data['date_limit'] = [min(d_num), max(d_num)]
+        static_data['date_limit'] = [min(d_num), max(d_num)] if d_num else [0, 0]
         static_data['dep_limit'] = [min(dep), max(dep)]
-        ts_parsed = [datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f') if '.' in t else datetime.strptime(t, '%Y-%m-%d %H:%M:%S') for t in times]
-        static_data['start_date'] = min(ts_parsed).strftime('%Y-%m-%d')
+        static_data['start_date'] = times[0][:10]
         return generate_html(fig, back_button=back_button, earthquake_data=static_data)
     elif view_style == 2:
-        fig, anim_data = get_3d_animated_figure(lon, lat, mag, dep, times, on_progress=on_progress, anim_mode=anim_mode, window_days=window_days)
+        fig, anim_data = get_3d_animated_figure(lon, lat, mag, dep, times, 
+                                               on_progress=on_progress, anim_mode=anim_mode, 
+                                               window_days=window_days, data=data)
         return generate_html(fig, is_animated=True, back_button=back_button, earthquake_data=anim_data)
     elif view_style == 3:
         _report("Preparing cluster analysis…")
-        d_num = _get_dates_num()
         fig, labels, n_clusters = get_3d_cluster_figure(
             lon, lat, mag, dep, times, dates_num=d_num,
             clustering_method=clustering_method,
             clustering_params=clustering_params
         )
         cluster_data = data.copy()
-        cluster_data['dates_num'] = d_num
         cluster_data['cluster'] = labels.tolist()
         cluster_data['hover'] = _make_hover(pd.DataFrame({'lon': lon, 'lat': lat, 'mag': mag, 'dep': dep, 'time_str': times}))
         cluster_data['mag_limit'] = [min(mag), max(mag)]
-        cluster_data['date_limit'] = [min(d_num), max(d_num)]
+        cluster_data['date_limit'] = [min(d_num), max(d_num)] if d_num else [0, 0]
         cluster_data['dep_limit'] = [min(dep), max(dep)]
         cluster_data['n_clusters'] = n_clusters
         cluster_data['clustering_method'] = clustering_method
         cluster_data['clustering_params'] = clustering_params
-        ts_parsed = [datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f') if '.' in t else datetime.strptime(t, '%Y-%m-%d %H:%M:%S') for t in times]
-        cluster_data['start_date'] = min(ts_parsed).strftime('%Y-%m-%d')
+        cluster_data['start_date'] = times[0][:10]
         return generate_html(fig, is_cluster=True, back_button=back_button, earthquake_data=cluster_data)
+
     else:
         raise ValueError(f"Invalid view style: {view_style}")

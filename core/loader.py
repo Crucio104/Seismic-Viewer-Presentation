@@ -1,5 +1,6 @@
-import csv
 import os
+import pandas as pd
+import numpy as np
 
 MIN_MAGNITUDE = 0.5
 
@@ -7,50 +8,49 @@ def load_csv(source_file):
     """Parse a seismic CSV and return extracted data arrays.
 
     Returns a dict with keys: latitude, longitude, depth, magnitude, times,
-    and a summary dict with event_count, date_range.
+    dates_num, and a summary dict with event_count, date_range.
     Raises ValueError if the CSV is invalid or has no qualifying events.
     """
-    with open(source_file, 'r', encoding='utf-8') as file:
-        reader = csv.reader(file)
-        try:
-            header = next(reader)
-        except StopIteration:
-            raise ValueError("The CSV file is empty.")
-
-        # Basic validation: need at least 6 columns
-        if len(header) < 6:
-            raise ValueError(
-                "The CSV must have at least 6 columns "
-                "(EventID, Time, Latitude, Longitude, Depth, Magnitude)."
-            )
-        
-        earthquakes = []
-        for row in reader:
-            if (len(row) > 5 and all(row[i].strip() != '' for i in [2, 3, 4, 5])):
-                try:
-                    if float(row[5]) >= MIN_MAGNITUDE:
-                        earthquakes.append(row)
-                except ValueError:
-                    continue # Skip malformed rows
-                    
-    if not earthquakes:
-        raise ValueError(
-            f"No seismic events found with M ≥ {MIN_MAGNITUDE}."
+    try:
+        # Read only necessary columns and use pandas' fast CSV parser
+        # Expecting: ID, Time, Lat, Lon, Depth, Mag (columns 0-5)
+        df = pd.read_csv(
+            source_file, 
+            usecols=[1, 2, 3, 4, 5],
+            names=['time', 'lat', 'lon', 'depth', 'mag'],
+            header=0
         )
+    except Exception as e:
+        raise ValueError(f"Failed to read CSV: {e}")
 
-    # Sort by time ascending for visualization consistency
-    # (Assuming column 1 is time)
-    earthquakes.sort(key=lambda x: x[1])
+    # Drop malformed rows and filter by magnitude
+    df = df.dropna()
+    df = df[df['mag'] >= MIN_MAGNITUDE]
 
-    latitude = [float(e[2]) for e in earthquakes]
-    longitude = [float(e[3]) for e in earthquakes]
-    depth = [-float(e[4]) for e in earthquakes]
-    magnitude = [float(e[5]) for e in earthquakes]
-    times = [e[1] for e in earthquakes]
+    if df.empty:
+        raise ValueError(f"No seismic events found with M ≥ {MIN_MAGNITUDE}.")
 
-    # Date range from first to last (after sorting)
-    date_range = f"{times[0][:10]} → {times[-1][:10]}"
-    print(f"Loaded {len(earthquakes)} seismic events (M >= {MIN_MAGNITUDE}).")
+    # Fast datetime parsing
+    df['time_dt'] = pd.to_datetime(df['time'], errors='coerce')
+    df = df.dropna(subset=['time_dt'])
+    
+    # Sort for visualization consistency
+    df = df.sort_values('time_dt').reset_index(drop=True)
+
+    # Pre-calculate dates_num (days since first event)
+    min_t = df['time_dt'].min()
+    df['dates_num'] = (df['time_dt'] - min_t).dt.total_seconds() / 86400.0
+
+    # Extract as lists for JSON serialization (Webview)
+    latitude = df['lat'].tolist()
+    longitude = df['lon'].tolist()
+    depth = (-df['depth']).tolist() # Store as negative for depth
+    magnitude = df['mag'].tolist()
+    times = df['time'].tolist()
+    dates_num = df['dates_num'].tolist()
+
+    date_range = f"{df['time_dt'].iloc[0].strftime('%Y-%m-%d')} → {df['time_dt'].iloc[-1].strftime('%Y-%m-%d')}"
+    print(f"Loaded {len(df)} seismic events (M >= {MIN_MAGNITUDE}).")
 
     return {
         'latitude': latitude,
@@ -58,8 +58,10 @@ def load_csv(source_file):
         'depth': depth,
         'magnitude': magnitude,
         'times': times,
+        'dates_num': dates_num,
         'summary': {
-            'event_count': len(earthquakes),
+            'event_count': len(df),
             'date_range': date_range,
         },
     }
+
