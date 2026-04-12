@@ -73,14 +73,18 @@ def view_2d(longitude, latitude, magnitude, times, dates_num=None, depth=None):
     return fig
 
 
-def get_3d_static_figure(longitude, latitude, magnitude, depth, times, dates_num=None):
+def get_3d_static_figure(longitude, latitude, magnitude, depth, times, dates_num=None, bbox=None):
     import pandas as pd
     import plotly.graph_objects as go
     import numpy as np
     min_lon, max_lon = min(longitude), max(longitude)
     min_lat, max_lat = min(latitude), max(latitude)
     min_depth = min(depth)
-    bbox = (min_lat, min_lon, max_lat, max_lon)
+
+    # Use pre-calculated bbox if available, fallback to local calculation
+    if bbox is None:
+        bbox = (min_lat, min_lon, max_lat, max_lon)
+
 
     print("Preparing 3D static view...")
     x_grid, y_grid, z_grid, surfacecolor, colorscale, _ = build_map_mesh(
@@ -158,7 +162,8 @@ def get_3d_static_figure(longitude, latitude, magnitude, depth, times, dates_num
 
 
 def get_3d_cluster_figure(longitude, latitude, magnitude, depth, times,
-                          dates_num=None, clustering_method='kmeans', clustering_params=None):
+                          dates_num=None, clustering_method='kmeans', clustering_params=None, bbox=None):
+
     """Generate a 3D figure dedicated to cluster analysis.
 
     Trace layout:
@@ -181,7 +186,9 @@ def get_3d_cluster_figure(longitude, latitude, magnitude, depth, times,
     depth = np.array(depth)
     
     min_depth = np.min(depth)
-    bbox = (np.min(latitude), np.min(longitude), np.max(latitude), np.max(longitude))
+    if bbox is None:
+        bbox = (np.min(latitude), np.min(longitude), np.max(latitude), np.max(longitude))
+
 
     print(f"Preparing 3D cluster view ({clustering_method})...")
     x_grid, y_grid, z_grid, surfacecolor, colorscale, _ = build_map_mesh(
@@ -391,7 +398,8 @@ def get_3d_cluster_figure(longitude, latitude, magnitude, depth, times,
 
 
 def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
-                           on_progress=None, anim_mode='accumulation', window_days=5, data=None):
+                           on_progress=None, anim_mode='accumulation', window_days=5, data=None, bbox=None):
+
     import pandas as pd
     import plotly.graph_objects as go
     import numpy as np
@@ -413,8 +421,10 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
     df['date'] = [t[:10] for t in times]
     unique_dates = sorted(df['date'].unique())
 
-    bbox = (min(latitude), min(longitude), max(latitude), max(longitude))
+    if bbox is None:
+        bbox = (min(latitude), min(longitude), max(latitude), max(longitude))
     min_depth = min(depth)
+
 
 
     _report("Building map mesh (HD)...")
@@ -568,7 +578,7 @@ def build_view_html(data, view_style, back_button=True, on_progress=None,
         return generate_html(fig, back_button=back_button, earthquake_data=static_data)
     elif view_style == 1:
         _report("Preparing 3D static view…")
-        fig = get_3d_static_figure(lon, lat, mag, dep, times, dates_num=d_num)
+        fig = get_3d_static_figure(lon, lat, mag, dep, times, dates_num=d_num, bbox=data.get('bbox'))
         static_data = data.copy()
         static_data['hover'] = _make_hover(pd.DataFrame({'lon': lon, 'lat': lat, 'mag': mag, 'dep': dep, 'time_str': times}))
         static_data['mag_limit'] = [min(mag), max(mag)]
@@ -579,15 +589,17 @@ def build_view_html(data, view_style, back_button=True, on_progress=None,
     elif view_style == 2:
         fig, anim_data = get_3d_animated_figure(lon, lat, mag, dep, times, 
                                                on_progress=on_progress, anim_mode=anim_mode, 
-                                               window_days=window_days, data=data)
+                                               window_days=window_days, data=data, bbox=data.get('bbox'))
         return generate_html(fig, is_animated=True, back_button=back_button, earthquake_data=anim_data)
     elif view_style == 3:
         _report("Preparing cluster analysis…")
         fig, labels, n_clusters = get_3d_cluster_figure(
             lon, lat, mag, dep, times, dates_num=d_num,
             clustering_method=clustering_method,
-            clustering_params=clustering_params
+            clustering_params=clustering_params,
+            bbox=data.get('bbox')
         )
+
         cluster_data = data.copy()
         cluster_data['cluster'] = labels.tolist()
         cluster_data['hover'] = _make_hover(pd.DataFrame({'lon': lon, 'lat': lat, 'mag': mag, 'dep': dep, 'time_str': times}))

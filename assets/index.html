@@ -138,7 +138,9 @@
        ========================================= */
     header.hub-header {
         position: relative; text-align: center; margin-bottom: 32px;
+        display: flex; flex-direction: column; align-items: center; gap: 12px;
     }
+
     h1.hub-title {
         font-size: 36px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px;
         background: linear-gradient(to right, #fff, #a5b4fc);
@@ -181,10 +183,11 @@
     .vcard p { font-size: 14px; color: #94a3b8; line-height: 1.6; font-weight: 300; margin:0;}
 
     .change-link {
-        margin-top: 32px; font-size: 14px; color: #64748b; cursor: pointer;
+        font-size: 14px; color: #64748b; cursor: pointer;
         padding: 8px 16px; border-radius: 8px; transition: all 0.2s;
-        text-decoration: underline; text-underline-offset: 4px; margin-bottom: 40px;
+        text-decoration: underline; text-underline-offset: 4px;
     }
+
     .change-link:hover { color: #94a3b8; background: rgba(255,255,255,0.05); }
 
     /* =========================================
@@ -204,10 +207,13 @@
 
     .glass-modal {
         display: none; position: fixed; inset: 0; z-index: 2000;
-        background: rgba(5, 5, 16, 0.6); backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px); align-items: center; justify-content: center;
+        background: rgba(5, 5, 16, 0.6); backdrop-filter: blur(100px);
+        -webkit-backdrop-filter: blur(100px); align-items: center; justify-content: center;
         opacity: 0; transition: opacity 0.3s;
     }
+
+
+
     .glass-modal.show { display: flex; opacity: 1; }
     .modal-content {
         background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
@@ -236,6 +242,27 @@
     .btn-cancel:hover { background: rgba(255,255,255,0.15); }
     .btn-primary { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); color: #fff; }
     .btn-primary:hover { box-shadow: 0 5px 15px rgba(99,102,241,0.4); transform: translateY(-2px); }
+
+    /* Custom Toast Notification */
+    #toast-container {
+        position: fixed; bottom: 30px; right: 30px; z-index: 10000;
+        display: flex; flex-direction: column; gap: 12px;
+    }
+    .toast {
+        min-width: 280px; padding: 16px 20px;
+        background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px; color: #fff; font-size: 14px; font-weight: 500;
+        display: flex; align-items: center; gap: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        transform: translateX(120%); transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .toast.show { transform: translateX(0); }
+    .toast-icon { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .toast-success .toast-icon { background: #4ade80; color: #050510; }
+    .toast-error .toast-icon { background: #fb7185; color: #fff; }
+    .toast-icon svg { width: 12px; height: 12px; fill: currentColor; }
+
 </style>
 </head>
 <body>
@@ -298,7 +325,9 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                 <span id="badge-text">Synchronizing dataset...</span>
             </div>
+            <div class="change-link" onclick="changeFileJS()">Import another dataset</div>
         </header>
+
 
         <div class="cards-grid">
             <div class="vcard c2d" onclick="loadView(0)">
@@ -334,11 +363,15 @@
             </div>
         </div>
 
-        <div class="change-link" onclick="changeFileJS()">Import another dataset</div>
+        <div class="change-link" style="margin-top: 48px; margin-bottom: 40px;" onclick="clearCacheJS()">Clear Map Cache</div>
     </div>
 
 
+
+    <div id="toast-container"></div>
+
     <div id="overlay">
+
         <div class="loader-ring"></div>
         <p class="loader-text" id="overlay-msg">Loading...</p>
     </div>
@@ -475,6 +508,53 @@
         });
     }
 
+    async function clearCacheJS() {
+        const overlay = document.getElementById('overlay');
+        document.getElementById('overlay-msg').textContent = 'Clearing Cache...';
+        overlay.classList.add('show');
+        
+        try {
+            const res = await pywebview.api.clear_map_cache();
+            overlay.classList.remove('show');
+            if (res === true) {
+                showToast('Map cache cleared successfully.', 'success');
+            } else {
+                showToast('Error clearing cache: ' + res, 'error');
+            }
+        } catch(e) {
+            overlay.classList.remove('show');
+            showToast('System error: ' + e, 'error');
+        }
+    }
+
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        
+        const icon = type === 'success' ? 
+            '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' :
+            '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
+            
+        toast.innerHTML = `
+            <div class="toast-icon">${icon}</div>
+            <div class="toast-message">${message}</div>
+        `;
+        
+        container.appendChild(toast);
+        
+        // Trigger reflow for animation
+        setTimeout(() => toast.classList.add('show'), 10);
+        
+        // Remove after delay
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 400);
+        }, 2000);
+
+    }
+
+
     // --- Hub Functions ---
     let loading = false;
 
@@ -521,8 +601,9 @@
         } catch(e) {
             overlay.classList.remove('show');
             loading = false;
-            alert('Engine failure: ' + e);
+            showToast('Engine failure: ' + e, 'error');
         }
+
     }
 </script>
 </body>

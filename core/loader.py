@@ -50,6 +50,7 @@ def load_csv(source_file):
     dates_num = df['dates_num'].tolist()
 
     date_range = f"{df['time_dt'].iloc[0].strftime('%Y-%m-%d')} → {df['time_dt'].iloc[-1].strftime('%Y-%m-%d')}"
+    bbox = (df['lat'].min(), df['lon'].min(), df['lat'].max(), df['lon'].max())
     print(f"Loaded {len(df)} seismic events (M >= {MIN_MAGNITUDE}).")
 
     return {
@@ -59,9 +60,11 @@ def load_csv(source_file):
         'magnitude': magnitude,
         'times': times,
         'dates_num': dates_num,
+        'bbox': bbox,
         'summary': {
             'event_count': len(df),
             'date_range': date_range,
         },
     }
+
 

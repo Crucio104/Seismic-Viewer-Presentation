@@ -1,6 +1,8 @@
 import os
+import shutil
 import threading
 import webview
+
 
 # ─── Paths ───────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -210,6 +212,22 @@ class Api:
         self._csv_info = None
         self._html_cache.clear()
         return True
+
+    def clear_map_cache(self):
+        """Delete and recreate the map cache directory (cross-platform)."""
+        from core.geo_utils import MAP_CACHE_DIR
+        try:
+            if os.path.exists(MAP_CACHE_DIR):
+                shutil.rmtree(MAP_CACHE_DIR)
+            os.makedirs(MAP_CACHE_DIR, exist_ok=True)
+            self._html_cache.clear() # Force regeneration of views to repopulate cache
+            return True
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return str(e)
+
 
 
 # ─── Entry point ─────────────────────────────────────────────────────
