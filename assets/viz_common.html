@@ -590,7 +590,7 @@
         if (!plotlyId) findPlotlyGraph();
         const gd = document.getElementById(plotlyId);
         if (gd && gd.layout && gd.layout.scene) {
-            Plotly.relayout(gd, { 'scene.dragmode': locked ? false : 'turntable' });
+            Plotly.relayout(gd, { 'scene.dragmode': locked ? false : 'orbit' });
         }
     }
 
