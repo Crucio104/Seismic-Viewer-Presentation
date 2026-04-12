@@ -114,6 +114,8 @@
             const viewModeToggle = document.getElementById('view-mode-toggle');
             const viewModeMenu = document.getElementById('view-mode-menu');
             const viewModeGroup = document.getElementById('view-mode-group');
+            const applyBtn = document.getElementById('apply-filters-btn');
+
 
             const dates = quakeData.times.map(t => t.slice(0, 10));
             const uniqueDates = Array.from(new Set(dates)).sort();
@@ -132,7 +134,8 @@
 
             let currentColorMode = 'dep';
             let currentColorScale = 'Viridis';
-            let currentViewMode = 'scatter';
+            let currentViewMode = 'points';
+
             let invertScale = false;
 
             const is3D = (gd.layout.scene !== undefined);
@@ -168,77 +171,53 @@
              }
 
 
-            function setupMenu(btn, menu) {
-                btn.onclick = (e) => {
-                    e.stopPropagation();
-                    document.querySelectorAll('.glass-menu').forEach(m => { if (m !== menu) m.classList.remove('show'); });
-                    menu.classList.toggle('show');
-                };
-            }
-            setupMenu(colorToggle, colorMenu);
-            setupMenu(scaleToggle, scaleMenu);
-            if (viewModeToggle) setupMenu(viewModeToggle, viewModeMenu);
-            document.onclick = () => document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+            // Menus
+            SeismicUI.initMenu(colorToggle, colorMenu);
+            SeismicUI.initMenu(scaleToggle, scaleMenu);
+            if (viewModeToggle) SeismicUI.initMenu(viewModeToggle, viewModeMenu);
 
-            colorMenu.querySelectorAll('.menu-item').forEach(item => {
-                item.onclick = () => {
-                    currentColorMode = item.dataset.mode;
-                    colorMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
-                    item.classList.add('active');
-                    colorToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                    applyFilterWithLoader();
-                };
+            SeismicUI.bindMenu(colorMenu, (item) => {
+                currentColorMode = item.dataset.mode;
+                colorToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                if (!is3D) applyFilterWithLoader();
             });
 
-            scaleMenu.querySelectorAll('.menu-item').forEach(item => {
-                item.onclick = () => {
-                    currentColorScale = item.dataset.val;
-                    scaleMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
-                    item.classList.add('active');
-                    scaleToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                    applyFilterWithLoader();
-                };
+            SeismicUI.bindMenu(scaleMenu, (item) => {
+                currentColorScale = item.dataset.val;
+                scaleToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                if (!is3D) applyFilterWithLoader();
             });
-
-            invertCheck.onchange = () => {
-                invertScale = invertCheck.checked;
-                applyFilterWithLoader();
-            };
 
             if (viewModeMenu) {
-                const updateUIForMode = (mode) => {
-                    const isHeatmap = (mode === 'heatmap');
-                    // Lock color mode, color scale, and invert checkbox
-                    const scaleGroup = scaleToggle.closest('.settings-group');
-                    const colorGroup = colorToggle.closest('.settings-group');
-                    const invertLabel = invertCheck.closest('.glass-checkbox');
-                    
-                    if (isHeatmap) {
-                        if (scaleGroup) scaleGroup.classList.add('disabled');
-                        if (colorGroup) colorGroup.classList.add('disabled');
-                        if (invertLabel) invertLabel.classList.add('disabled');
-                    } else {
-                        if (scaleGroup) scaleGroup.classList.remove('disabled');
-                        if (colorGroup) colorGroup.classList.remove('disabled');
-                        if (invertLabel) invertLabel.classList.remove('disabled');
-                    }
-                };
-
-                viewModeMenu.querySelectorAll('.menu-item').forEach(item => {
-                    item.onclick = () => {
-                        currentViewMode = item.dataset.mode;
-                        viewModeMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
-                        item.classList.add('active');
-                        viewModeToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                        updateUIForMode(currentViewMode);
-                        applyFilterWithLoader();
-                    };
+                SeismicUI.bindMenu(viewModeMenu, (item) => {
+                    currentViewMode = item.dataset.mode;
+                    viewModeToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                    const isHeatmap = (currentViewMode === 'heatmap');
+                    SeismicUI.setGroupDisabled(scaleToggle.closest('.settings-group'), isHeatmap);
+                    SeismicUI.setGroupDisabled(colorToggle.closest('.settings-group'), isHeatmap);
+                    SeismicUI.setGroupDisabled(invertCheck.closest('.glass-checkbox'), isHeatmap);
+                    if (!is3D) applyFilterWithLoader();
                 });
             }
 
 
-            const applyBtn = document.getElementById('apply-filters-btn');
-            const filterLoader = document.getElementById('filter-loader');
+            const rangeApplyCallback = is3D ? null : applyFilterWithLoader;
+
+            invertCheck.onchange = () => {
+                invertScale = invertCheck.checked;
+                if (!is3D) applyFilterWithLoader();
+            };
+
+            // Range input sanitization
+            SeismicUI.setupBoundsValidation(magMin, magMin.value, rangeApplyCallback);
+            SeismicUI.setupBoundsValidation(magMax, magMax.value, rangeApplyCallback);
+            SeismicUI.setupBoundsValidation(depMin, depMin.value, rangeApplyCallback);
+            SeismicUI.setupBoundsValidation(depMax, depMax.value, rangeApplyCallback);
+
+
+
+             const filterLoader = document.getElementById('filter-loader');
+
 
             function applyFilterWithLoader() {
                 if (is3D) {
@@ -252,18 +231,7 @@
                 }
             }
 
-            function sanitizeInput(el, defVal) {
-                let val = el.value.trim();
-                if (/^0[1-9]/.test(val)) val = val.replace(/^0+/, '');
-                if (!val) val = defVal;
-                el.value = val;
-                applyFilterWithLoader();
-            }
 
-            magMin.onblur = () => sanitizeInput(magMin, magMin.value);
-            magMax.onblur = () => sanitizeInput(magMax, magMax.value);
-            depMin.onblur = () => sanitizeInput(depMin, depMin.value);
-            depMax.onblur = () => sanitizeInput(depMax, depMax.value);
 
             if (is3D) {
                 applyBtn.onclick = applyFilterWithLoader;

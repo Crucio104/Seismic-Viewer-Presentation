@@ -50,7 +50,8 @@ def generate_html(fig, is_animated=False, is_cluster=False, is_3d=False, back_bu
         '<style id="unified-loader-css">'
         '*{box-sizing:border-box;margin:0;padding:0}'
         'html,body{width:100%;height:100%;background:#050510;overflow:hidden}'
-        '#init-loader,#overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;background:#050510;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.3s ease-out;font-family:\'Outfit\',sans-serif}'
+        '#init-loader,#overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;background:#050510;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.1s ease-out;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}'
+
 
         '.loader-ring{width:64px;height:64px;border:3px solid rgba(255,255,255,0.1);border-radius:50%;border-top-color:#6366f1;animation:spin 1s linear infinite}'
         '@keyframes spin{to{transform:rotate(360deg)}}'

@@ -102,14 +102,18 @@ def view_2d(longitude, latitude, magnitude, times, dates_num=None, depth=None, v
 
 
 
-def get_3d_static_figure(longitude, latitude, magnitude, depth, times, dates_num=None, bbox=None, visual_pack=None):
+def get_3d_static_figure(longitude, latitude, magnitude, depth, times, dates_num=None, bbox=None, visual_pack=None, map_grids=None):
     """Generate a high-quality 3D static view with pre-calculated hover and map mesh."""
     if bbox is None:
         bbox = (min(latitude), min(longitude), max(latitude), max(longitude))
     min_depth = min(depth)
 
-    # 1. Map Mesh
-    x_grid, y_grid, z_grid, surfacecolor, colorscale, _ = build_map_mesh(bbox, MESH_HD_SIZE)
+    # 1. Map Mesh (Use provided grids or fallback)
+    if map_grids:
+        x_grid, y_grid, z_grid, surfacecolor, colorscale, _ = map_grids
+    else:
+        x_grid, y_grid, z_grid, surfacecolor, colorscale, _ = build_map_mesh(bbox, MESH_HD_SIZE)
+
 
     # 2. Points Hover (Pre-calculated)
     all_hover = visual_pack.get('hover', []) if visual_pack else []
@@ -167,39 +171,92 @@ def get_3d_static_figure(longitude, latitude, magnitude, depth, times, dates_num
 
 
 
-def get_3d_cluster_figure(longitude, latitude, magnitude, depth, times,
-                          dates_num=None, clustering_method='kmeans', clustering_params=None, bbox=None, visual_pack=None):
-    """Generate a 3D figure dedicated to cluster analysis."""
-    from sklearn.preprocessing import StandardScaler
-    from scipy.spatial import ConvexHull
-
-    magnitude = np.array(magnitude)
-    longitude = np.array(longitude)
-    latitude = np.array(latitude)
-    depth = np.array(depth)
-    
+def get_3d_cluster_figure(longitude, latitude, magnitude, depth,
+                            clustering_method='kmeans', clustering_params=None,
+                            bbox=None, visual_pack=None, map_grids=None):
+    """
+    Generate the initial high-quality 3D Cluster figure.
+    """
     min_depth = np.min(depth)
     if bbox is None:
         bbox = (np.min(latitude), np.min(longitude), np.max(latitude), np.max(longitude))
 
-    print(f"Preparing 3D cluster view ({clustering_method})...")
-    x_grid, y_grid, z_grid, surfacecolor, colorscale, _ = build_map_mesh(bbox, MESH_HD_SIZE)
+    # 1. Map Mesh (Use provided grids or fallback)
+    if map_grids:
+        x_grid, y_grid, z_grid, surfacecolor, colorscale, _ = map_grids
+    else:
+        x_grid, y_grid, z_grid, surfacecolor, colorscale, _ = build_map_mesh(bbox, MESH_HD_SIZE)
 
-    all_hover = visual_pack.get('hover', []) if visual_pack else []
+    # Note: Initial render uses full data (viz_mask=None)
+    result = _generate_cluster_traces(
+        longitude, latitude, magnitude, depth, 
+        visual_pack.get('hover', []) if visual_pack else [],
+        clustering_method, clustering_params,
+        viz_mask=None
+    )
 
-    # ── Clustering ──────────────────────────────────────────────────
+    
+    fig = go.Figure()
+
+    # 0. Surface (Map)
+    fig.add_trace(go.Surface(
+        x=x_grid, y=y_grid, z=z_grid,
+        surfacecolor=surfacecolor, colorscale=colorscale,
+        showscale=False, opacity=0.9, hoverinfo='skip',
+        lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0)
+    ))
+
+    # Add all generated cluster layers (Wireframes, Solids, Scatter, Centroids, Proxies)
+    for t in result['traces']:
+        fig.add_trace(t)
+
+    apply_3d_style(fig, [x_grid[0], x_grid[-1]], [y_grid[-1], y_grid[0]], [min_depth, 0])
+    return fig, result['labels'], result['n_clusters']
+
+
+def get_cluster_update_traces(longitude, latitude, magnitude, depth, hover,
+                              clustering_method='kmeans', clustering_params=None, viz_mask=None):
+    """
+    Perform clustering and return a JSON-ready package for async updates.
+    """
+    result = _generate_cluster_traces(
+        longitude, latitude, magnitude, depth, hover,
+        clustering_method, clustering_params, viz_mask=viz_mask
+    )
+
+    
+    # Convert Plotly objects to JSON-serializable dictionaries
+    json_traces = [t.to_plotly_json() for t in result['traces']]
+    
+    return {
+        'traces': json_traces,
+        'labels': result['labels'].tolist(),
+        'n_clusters': result['n_clusters']
+    }
+
+
+def _generate_cluster_traces(longitude, latitude, magnitude, depth, hover,
+                             method='kmeans', params=None, viz_mask=None):
+    """
+    Shared helper to perform clustering and generate Plotly trace objects.
+    Ensures identical logic between initial render and async updates.
+    """
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.cluster import MiniBatchKMeans, DBSCAN
+    from scipy.spatial import ConvexHull
+
+    params = params or {}
+    longitude, latitude, depth = np.array(longitude), np.array(latitude), np.array(depth)
+    magnitude = np.array(magnitude)
     X_orig = np.column_stack((longitude, latitude, depth))
-    X_scaled = StandardScaler().fit_transform(X_orig)
-
-    params = clustering_params or {}
-    centroids = None
-
-    if clustering_method == 'dbscan':
-        from sklearn.cluster import DBSCAN
+    
+    # --- 1. CLUSTERING EXECUTION ---
+    # Runs on ALL points provided (which should be filtered by Date only)
+    if method == 'dbscan':
         eps_m = float(params.get('dbscan_eps', 500))
         min_samples = int(params.get('dbscan_min_samples', 5))
         
-        # Project to local metric space (meters) for DBSCAN
+        # DBSCAN needs meters for EPS to make sense
         avg_lat = np.mean(latitude)
         X_meters = np.zeros_like(X_orig)
         X_meters[:, 0] = longitude * 111320 * np.cos(np.radians(avg_lat))
@@ -212,54 +269,41 @@ def get_3d_cluster_figure(longitude, latitude, magnitude, depth, times,
         if n_clusters == 0:
             n_clusters = 1
             labels = np.zeros(len(X_orig), dtype=int)
-    else:  # kmeans
-        from sklearn.cluster import MiniBatchKMeans
-        n_clusters_req = int(params.get('kmeans_clusters', N_CLUSTERS))
+    else:
+        n_clusters_req = int(params.get('kmeans_clusters', 3))
         if len(X_orig) >= n_clusters_req:
-            kmeans = MiniBatchKMeans(
-                n_clusters=n_clusters_req, random_state=42,
-                n_init='auto', batch_size=1024
-            ).fit(X_scaled)
+            X_scaled = StandardScaler().fit_transform(X_orig)
+            kmeans = MiniBatchKMeans(n_clusters=n_clusters_req, random_state=42, n_init='auto').fit(X_scaled)
             labels = kmeans.labels_
             n_clusters = n_clusters_req
-            centroids = kmeans.cluster_centers_
+            centroids_scaled = kmeans.cluster_centers_
         else:
             labels = np.zeros(len(X_orig), dtype=int)
             n_clusters = 1
 
-    cluster_colors = px.colors.qualitative.Plotly
-    fig = go.Figure()
-
-    # 0. Surface
-    fig.add_trace(go.Surface(
-        x=x_grid, y=y_grid, z=z_grid,
-        surfacecolor=surfacecolor, colorscale=colorscale,
-        showscale=False, opacity=0.9, hoverinfo='skip',
-        lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0)
-
-    ))
-
-    # Filtering points for visual hull generation
+    # --- 2. OUTLIER FILTERING ---
+    # Optional: filter out points too far from their centroid for cleaner hull generation
+    # Also based on the full cluster set
     display_labels = labels.copy()
-    if clustering_method == 'kmeans' and float(params.get('kmeans_max_dist', 0)) > 0 and centroids is not None:
-        kmeans_dist = float(params.get('kmeans_max_dist', 0))
+    if method == 'kmeans' and float(params.get('kmeans_max_dist', 0)) > 0:
+        max_d = float(params.get('kmeans_max_dist', 0))
         for i in range(n_clusters):
-            idx = labels == i
+            idx = (labels == i)
             if not np.any(idx): continue
-            pts_cluster = X_orig[idx]
-            c_phys = np.mean(pts_cluster, axis=0)
-            d_lat = (pts_cluster[:, 1] - c_phys[1]) * 111320
-            d_lon = (pts_cluster[:, 0] - c_phys[0]) * 111320 * np.cos(np.radians(c_phys[1]))
-            d_dep = (pts_cluster[:, 2] - c_phys[2]) * 1000
-            dists_m = np.sqrt(d_lat**2 + d_lon**2 + d_dep**2)
-            far_mask = dists_m > kmeans_dist
-            cluster_indices = np.where(idx)[0]
-            display_labels[cluster_indices[far_mask]] = -1
+            pts_c = X_orig[idx]
+            center = np.mean(pts_c, axis=0)
+            dists = np.sqrt(((pts_c[:,1]-center[1])*111320)**2 + 
+                            ((pts_c[:,0]-center[0])*111320*np.cos(np.radians(center[1])))**2 + 
+                            ((pts_c[:,2]-center[2])*1000)**2)
+            display_labels[np.where(idx)[0][dists > max_d]] = -1
 
-    # 1..N  Wireframe hulls
+    # --- 3. TRACE GENERATION ---
+    cluster_colors = px.colors.qualitative.Plotly
+    traces = []
+
+    # A. Wireframe Hulls (Based on full cluster groups)
     for i in range(n_clusters):
-        idx = display_labels == i
-        pts = X_orig[idx]
+        pts = X_orig[display_labels == i]
         if len(pts) > 4:
             try:
                 hull = ConvexHull(pts)
@@ -269,97 +313,81 @@ def get_3d_cluster_figure(longitude, latitude, magnitude, depth, times,
                         lx.extend([pts[s[c[0]],0], pts[s[c[1]],0], None])
                         ly.extend([pts[s[c[0]],1], pts[s[c[1]],1], None])
                         lz.extend([pts[s[c[0]],2], pts[s[c[1]],2], None])
-                fig.add_trace(go.Scatter3d(
+                traces.append(go.Scatter3d(
                     x=lx, y=ly, z=lz, mode='lines',
                     line=dict(color=cluster_colors[i % len(cluster_colors)], width=2),
-                    opacity=0.4, name=f'Cluster {i+1} Wire',
-                    visible=True, showlegend=False, hoverinfo='skip'
+                    opacity=0.4, name=f'Cluster {i+1} Wire', visible=True, showlegend=False, hoverinfo='skip'
                 ))
-            except Exception:
-                fig.add_trace(go.Scatter3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
-        else:
-            fig.add_trace(go.Scatter3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
+            except: traces.append(go.Scatter3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
+        else: traces.append(go.Scatter3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
 
-    # N+1..2N  Solid volumes
+    # B. Solid Volumes (Based on full cluster groups)
     for i in range(n_clusters):
-        idx = display_labels == i
-        pts = X_orig[idx]
+        pts = X_orig[display_labels == i]
         if len(pts) > 4:
             try:
-                fig.add_trace(go.Mesh3d(
-                    x=pts[:,0], y=pts[:,1], z=pts[:,2],
-                    color=cluster_colors[i % len(cluster_colors)],
-                    opacity=0.15, alphahull=0,
-                    name=f'Cluster {i+1} Solid',
-                    visible=False, showlegend=False,
-                    hoverinfo='skip', hovertemplate=None
+                traces.append(go.Mesh3d(
+                    x=pts[:,0].tolist(), y=pts[:,1].tolist(), z=pts[:,2].tolist(), 
+                    color=cluster_colors[i % len(cluster_colors)], opacity=0.15, alphahull=0, 
+                    name=f'Cluster {i+1} Solid', visible=False, showlegend=False, hoverinfo='skip'
                 ))
-            except Exception:
-                fig.add_trace(go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
-        else:
-            fig.add_trace(go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
+            except: traces.append(go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
+        else: traces.append(go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
 
-    # 2N+1  Scatter points colored by cluster
-    color_map = [cluster_colors[int(l) % len(cluster_colors)] if l >= 0 else '#888888' for l in display_labels]
-    fig.add_trace(go.Scatter3d(
-        x=longitude, y=latitude, z=depth,
-        mode='markers', hovertext=all_hover,
-        marker=dict(
-            size=magnitude, sizemode='diameter', sizeref=0.12,
-            color=color_map,
-            line=dict(width=1, color='rgba(50,50,50,0.8)'),
-            opacity=0.9,
-        ),
-        name='Earthquakes', visible=True,
-        showlegend=False,
-        hovertemplate='%{hovertext}<extra></extra>'
+    # C. Earthquake Markers (Optionally filtered for "Visualization Only" Mag/Dep ranges)
+    if viz_mask is not None:
+        v_idx = viz_mask
+        v_lon = longitude[v_idx]
+        v_lat = latitude[v_idx]
+        v_dep = depth[v_idx]
+        v_mag = magnitude[v_idx]
+        v_labels = display_labels[v_idx]
+        v_hover = [hover[i] for i, m in enumerate(v_idx) if m]
+    else:
+        v_lon, v_lat, v_dep, v_mag, v_labels, v_hover = longitude, latitude, depth, magnitude, display_labels, hover
+
+    pt_colors = [cluster_colors[int(l) % len(cluster_colors)] if l >= 0 else '#888888' for l in v_labels]
+    
+    traces.append(go.Scatter3d(
+        x=v_lon.tolist(), y=v_lat.tolist(), z=v_dep.tolist(), mode='markers', hovertext=v_hover,
+        marker=dict(size=v_mag.tolist(), sizemode='diameter', sizeref=0.12, color=pt_colors, line=dict(width=1, color='rgba(50,50,50,0.8)'), opacity=0.9),
+        name='Earthquakes', visible=True, showlegend=False, hovertemplate='%{hovertext}<extra></extra>'
     ))
 
-    # 2N+2 Centroids (K-Means only)
-    if clustering_method == 'kmeans':
-        cx, cy, cz, chover = [], [], [], []
+
+    # D. Centroids (2N+2)
+    if method == 'kmeans':
+        cx, cy, cz, ch = [], [], [], []
         for i in range(n_clusters):
             idx_c = labels == i
-            pts_c = X_orig[idx_c]
-            if len(pts_c) > 0:
-                m = np.mean(pts_c, axis=0)
-                avg_mag = np.mean(magnitude[idx_c])
+            if np.any(idx_c):
+                m = np.mean(X_orig[idx_c], axis=0); am = np.mean(magnitude[idx_c])
                 cx.append(m[0]); cy.append(m[1]); cz.append(m[2])
-                chover.append(
-                    f"<b>Cluster {i+1} Centroid</b><br>"
-                    f"Latitude: {m[1]:.4f}<br>"
-                    f"Longitude: {m[0]:.4f}<br>"
-                    f"Depth: {abs(m[2]):.2f} km<br>"
-                    f"Avg Magnitude: {avg_mag:.2f}"
-                )
-            else:
-                cx.append(None); cy.append(None); cz.append(None); chover.append("")
-        fig.add_trace(go.Scatter3d(
-            x=cx, y=cy, z=cz, mode='markers',
-            hovertext=chover,
+                ch.append(f"<b>Cluster {i+1} Centroid</b><br>Lat: {m[1]:.4f}<br>Lon: {m[0]:.4f}<br>Dep: {abs(m[2]):.2f}km<br>Avg Mag: {am:.2f}")
+        traces.append(go.Scatter3d(
+            x=cx, y=cy, z=cz, mode='markers', hovertext=ch,
             marker=dict(symbol='diamond', size=8, color='#ffffff', line=dict(width=2, color='#000')),
-            name='Cluster Centroids', showlegend=True, visible=True, 
-            hoverinfo='text', hovertemplate='%{hovertext}<extra></extra>'
+            name='Cluster Centroids', showlegend=True, visible=True, hovertemplate='%{hovertext}<extra></extra>'
         ))
-    else:
-        fig.add_trace(go.Scatter3d(x=[], y=[], z=[], visible=False, showlegend=False))
+    else: traces.append(go.Scatter3d(x=[], y=[], z=[], visible=False, showlegend=False))
 
-    # 2N+2..3N+1  Legend proxies
+    # E. Legend Proxies (2N+3..3N+2)
     for i in range(n_clusters):
-        is_visible = bool(np.any(display_labels == i))
-        fig.add_trace(go.Scatter3d(
+        vis = bool(np.any(display_labels == i))
+        traces.append(go.Scatter3d(
             x=[None], y=[None], z=[None], mode='markers',
             marker=dict(color=cluster_colors[i % len(cluster_colors)], size=10),
-            name=f'Cluster {i+1}', visible=is_visible, showlegend=is_visible
+            name=f'Cluster {i+1}', visible=vis, showlegend=vis
         ))
 
-    apply_3d_style(fig, [x_grid[0], x_grid[-1]], [y_grid[-1], y_grid[0]], [min_depth, 0])
-    return fig, display_labels, n_clusters
+    return {'traces': traces, 'labels': labels, 'n_clusters': n_clusters}
+
+
 
 
 
 def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
-                           on_progress=None, anim_mode='accumulation', window_days=5, data=None, bbox=None):
+                           on_progress=None, anim_mode='accumulation', window_days=5, data=None, bbox=None, map_grids=None):
     """Generate a 3D figure for animation with timeline interaction."""
     def _report(msg):
         print(msg)
@@ -373,8 +401,12 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
         bbox = (min(latitude), min(longitude), max(latitude), max(longitude))
     min_depth = min(depth)
 
-    _report("Building map mesh (HD)...")
-    x_high, y_high, z_high, mat_high, scale_high, map_data = build_map_mesh(bbox, MESH_HD_SIZE)
+    # 1. Map Mesh (Use provided grids or fallback)
+    if map_grids:
+        x_high, y_high, z_high, mat_high, scale_high, map_data = map_grids
+    else:
+        _report("Building map mesh (HD)...")
+        x_high, y_high, z_high, mat_high, scale_high, map_data = build_map_mesh(bbox, MESH_HD_SIZE)
 
     mag_range = vpack.get('mag_range', [0, 10])
     date_range = vpack.get('date_range', [0, 0])
@@ -389,6 +421,7 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
         showscale=False, opacity=0.85, hoverinfo='skip', visible=True,
         lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0),
     ))
+
     
     # 1. Scatter Mag (Trace 1)
     fig.add_trace(go.Scatter3d(
@@ -467,6 +500,21 @@ def build_view_html(data, view_style, back_button=True, on_progress=None,
     vpack = data.get('visual_pack', {})
 
     is_fallback = False
+    
+    # 1. Bounding Box Consistency
+    bbox = data.get('bbox')
+    if bbox is None:
+        bbox = (min(lat), min(lon), max(lat), max(lon))
+        data['bbox'] = bbox
+
+    # 2. Shared Map Mesh (HD)
+    map_grids = None
+    if view_style in [1, 2, 3]:
+        _report("Preparing map mesh…")
+        map_grids = build_map_mesh(bbox, MESH_HD_SIZE)
+        is_fallback = (map_grids[5] is None) # index 5 is map_data
+
+    # 3. View Routing
     if view_style == 0:
         _report("Generating 2D map…")
         import socket
@@ -486,11 +534,8 @@ def build_view_html(data, view_style, back_button=True, on_progress=None,
         html = generate_html(fig, back_button=back_button, earthquake_data=static_data, is_fallback=is_fallback)
 
     elif view_style == 1:
-        _report("Preparing 3D static view…")
-        _, _, _, _, _, map_data = build_map_mesh(data.get('bbox'), MESH_HD_SIZE)
-        is_fallback = (map_data is None)
-        
-        fig = get_3d_static_figure(lon, lat, mag, dep, times, dates_num=d_num, bbox=data.get('bbox'), visual_pack=vpack)
+        _report("Rendering 3D static view…")
+        fig = get_3d_static_figure(lon, lat, mag, dep, times, dates_num=d_num, bbox=bbox, visual_pack=vpack, map_grids=map_grids)
         static_data = data.copy()
         static_data['hover'] = vpack.get('hover', [])
         static_data['mag_limit'] = vpack.get('mag_range', [0, 10])
@@ -500,26 +545,21 @@ def build_view_html(data, view_style, back_button=True, on_progress=None,
         html = generate_html(fig, is_3d=True, back_button=back_button, earthquake_data=static_data, is_fallback=is_fallback)
 
     elif view_style == 2:
-        _, _, _, _, _, map_data = build_map_mesh(data.get('bbox'), MESH_HD_SIZE)
-        is_fallback = (map_data is None)
-        
         fig, anim_data = get_3d_animated_figure(lon, lat, mag, dep, times, 
                                                on_progress=on_progress, anim_mode=anim_mode, 
-                                               window_days=window_days, data=data, bbox=data.get('bbox'))
+                                               window_days=window_days, data=data, bbox=bbox, map_grids=map_grids)
         html = generate_html(fig, is_animated=True, is_3d=True, back_button=back_button, earthquake_data=anim_data, is_fallback=is_fallback)
 
     elif view_style == 3:
-        _report("Preparing cluster analysis…")
-        _, _, _, _, _, map_data = build_map_mesh(data.get('bbox'), MESH_HD_SIZE)
-        is_fallback = (map_data is None)
-
         fig, labels, n_clusters = get_3d_cluster_figure(
-            lon, lat, mag, dep, times, dates_num=d_num,
+            lon, lat, mag, dep, 
             clustering_method=clustering_method,
             clustering_params=clustering_params,
-            bbox=data.get('bbox'),
-            visual_pack=vpack
+            bbox=bbox,
+            visual_pack=vpack,
+            map_grids=map_grids
         )
+
         cluster_data = data.copy()
         cluster_data['cluster'] = labels.tolist()
         cluster_data['hover'] = vpack.get('hover', [])
@@ -531,6 +571,7 @@ def build_view_html(data, view_style, back_button=True, on_progress=None,
         cluster_data['clustering_params'] = clustering_params
         cluster_data['start_date'] = times[0][:10] if times else ""
         html = generate_html(fig, is_cluster=True, is_3d=True, back_button=back_button, earthquake_data=cluster_data, is_fallback=is_fallback)
+
 
     else:
         raise ValueError(f"Invalid view style: {view_style}")

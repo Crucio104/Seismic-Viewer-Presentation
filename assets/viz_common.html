@@ -326,25 +326,72 @@
     }
 
 
+    let initLoaderTimeout = null;
+
     function hideInitLoader() {
         const il = document.getElementById('init-loader');
         if (il) {
+            if (initLoaderTimeout) clearTimeout(initLoaderTimeout);
             il.style.opacity = '0';
-            setTimeout(() => { il.style.display = 'none'; }, 300);
+            initLoaderTimeout = setTimeout(() => { il.style.display = 'none'; }, 100);
         }
     }
+
 
     function showInitLoader(msg) {
         const il = document.getElementById('init-loader');
         if (il) {
+            if (initLoaderTimeout) clearTimeout(initLoaderTimeout);
             const textEl = il.querySelector('.loader-text');
             if (textEl && msg) textEl.textContent = msg;
             il.style.display = 'flex';
-            il.style.opacity = '1';
+            setTimeout(() => { il.style.opacity = '1'; }, 10);
         }
     }
 
+
+
+    const SeismicUI = {
+
+        initMenu(btn, menu) {
+            if (!btn || !menu) return;
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                document.querySelectorAll('.glass-menu').forEach(m => { if (m !== menu) m.classList.remove('show'); });
+                menu.classList.toggle('show');
+            };
+        },
+        bindMenu(menu, callback) {
+            if (!menu) return;
+            menu.querySelectorAll('.menu-item').forEach(item => {
+                item.onclick = () => {
+                    menu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    if (callback) callback(item);
+                };
+            });
+        },
+        setupBoundsValidation(input, defaultValue, onApply) {
+            if (!input) return;
+            input.onblur = () => {
+                let val = input.value.trim();
+                // Avoid leading zeros unless it's just '0'
+                if (/^0[0-9]/.test(val) && val.length > 1 && val[1] !== '.') val = val.replace(/^0+/, '');
+                if (!val) val = defaultValue;
+                input.value = val;
+                if (onApply) onApply();
+            };
+        },
+        setGroupDisabled(el, disabled) {
+            if (!el) return;
+            if (disabled) el.classList.add('disabled');
+            else el.classList.remove('disabled');
+        }
+    };
+    document.onclick = () => document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+
     window.addEventListener('load', hideInitLoader);
+
 
     const COLORS_MAP = {
         'Viridis': ['#440154', '#482878', '#3e4989', '#31688e', '#26828e', '#1f9e89', '#6ece58', '#b5de2b', '#fde725'],

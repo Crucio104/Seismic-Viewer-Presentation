@@ -1,4 +1,5 @@
         <div id="settings-bar" class="glass-panel">
+
             <div class="settings-group">
                 <div class="label">Clustering Method</div>
                 <button class="settings-btn" id="method-toggle">K-Means ▾</button>
@@ -64,6 +65,9 @@
             </button>
         </div>
 
+        <div id="filter-loader" class="glass-panel"><div class="spinner" style="width:30px; height:30px"></div></div>
+
+
 
 
         <div id="filter-bar" class="glass-panel">
@@ -108,7 +112,13 @@
             let currentDisplayMode = 'wireframe';
             let currentMethod = quakeData.clustering_method || 'kmeans';
 
+            // Recover previous display mode if set in params
+            if (quakeData.clustering_params && quakeData.clustering_params.display_mode) {
+                currentDisplayMode = quakeData.clustering_params.display_mode;
+            }
+
             // Parameter Inputs
+
             const kmParams = document.getElementById('kmeans-params');
             const dbParams = document.getElementById('dbscan-params');
             const pClusters = document.getElementById('param-clusters');
@@ -123,7 +133,16 @@
                 if (cp.kmeans_max_dist) pDist.value = cp.kmeans_max_dist;
                 if (cp.dbscan_eps) pEps.value = cp.dbscan_eps;
                 if (cp.dbscan_min_samples) pMin.value = cp.dbscan_min_samples;
+                
+                // Restore Filters
+                if (cp.mag_min) magMin.value = cp.mag_min;
+                if (cp.mag_max) magMax.value = cp.mag_max;
+                if (cp.dep_min) depMin.value = cp.dep_min;
+                if (cp.dep_max) depMax.value = cp.dep_max;
+                if (cp.start_date) startInput.value = cp.start_date;
+                if (cp.end_date) endInput.value = cp.end_date;
             }
+
 
             function syncParamVisibility() {
                 kmParams.style.display = currentMethod === 'kmeans' ? 'block' : 'none';
@@ -139,85 +158,112 @@
                 syncParamVisibility();
             }
 
-            function setupMenu(btn, menu) {
-                btn.onclick = (e) => {
-                    e.stopPropagation();
-                    document.querySelectorAll('.glass-menu').forEach(m => { if (m !== menu) m.classList.remove('show'); });
-                    menu.classList.toggle('show');
-                };
-            }
-            setupMenu(methodToggle, methodMenu);
-            setupMenu(displayToggle, displayMenu);
-            document.onclick = () => document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+            // Menus
+            SeismicUI.initMenu(methodToggle, methodMenu);
+            SeismicUI.initMenu(displayToggle, displayMenu);
 
-            // Method change requires full re-generation
-            methodMenu.querySelectorAll('.menu-item').forEach(item => {
-                item.onclick = () => {
-                    const newMethod = item.dataset.val;
-                    methodMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
-                    item.classList.add('active');
-                    methodToggle.textContent = item.textContent + ' ▾';
-                    currentMethod = newMethod;
-                    syncParamVisibility();
-                    
-                    const params = {
-                        kmeans_clusters: pClusters.value,
-                        kmeans_max_dist: pDist.value,
-                        dbscan_eps: pEps.value,
-                        dbscan_min_samples: pMin.value
-                    };
-
-                    showInitLoader("Recalculating Clusters (" + newMethod.toUpperCase() + ")...");
-                    
-                    setTimeout(() => {
-                        if (typeof pywebview !== 'undefined') {
-                            pywebview.api.load_view(3, 'accumulation', 5, newMethod, params);
-                        }
-                    }, 50);
-                };
+            SeismicUI.bindMenu(methodMenu, (item) => {
+                currentMethod = item.dataset.val;
+                methodToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                syncParamVisibility();
             });
 
+            SeismicUI.bindMenu(displayMenu, (item) => {
+                currentDisplayMode = item.dataset.mode;
+                displayToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                // Defer update: no call to applyDisplayMode() here
+            });
+
+
+            // Range input sanitization (Passive)
+            SeismicUI.setupBoundsValidation(magMin, magMin.value, null);
+            SeismicUI.setupBoundsValidation(magMax, magMax.value, null);
+            SeismicUI.setupBoundsValidation(depMin, depMin.value, null);
+            SeismicUI.setupBoundsValidation(depMax, depMax.value, null);
+
+
             const applyBtn = document.getElementById('apply-filters-btn');
+
+
+
+            const loader = document.getElementById('filter-loader');
 
             function applyCombinedFilters() {
                 const params = {
                     kmeans_clusters: pClusters.value,
                     kmeans_max_dist: pDist.value,
                     dbscan_eps: pEps.value,
-                    dbscan_min_samples: pMin.value
+                    dbscan_min_samples: pMin.value,
+                    display_mode: currentDisplayMode,
+                    mag_min: magMin.value,
+                    mag_max: magMax.value,
+                    dep_min: depMin.value,
+                    dep_max: depMax.value,
+                    start_date: startInput.value,
+                    end_date: endInput.value
                 };
-                showInitLoader("Regenerating Visualization...");
-                setTimeout(() => {
+
+                loader.classList.add('show');
+
+                setTimeout(async () => {
                     if (typeof pywebview !== 'undefined') {
-                        pywebview.api.load_view(3, 'accumulation', 5, currentMethod, params);
+                        try {
+                            const res = await pywebview.api.get_cluster_update(currentMethod, params);
+                            if (res && res.traces) {
+                                // Delete all traces except Surface (index 0)
+                                const currentTraceCount = gd.data.length;
+                                if (currentTraceCount > 1) {
+                                    const indices = Array.from({length: currentTraceCount - 1}, (_, i) => i + 1);
+                                    Plotly.deleteTraces(gd, indices);
+                                }
+                                // Add new ones
+                                Plotly.addTraces(gd, res.traces);
+                                
+                                // Update local state for legend
+                                quakeData.n_clusters = res.n_clusters;
+                                if (res.labels) quakeData.display_labels = res.labels; // for legend logic
+
+                                // Sync legend and display mode
+                                applyDisplayMode();
+                                updateClusterLegend();
+                            } else if (res && res.error) {
+                                console.error("Update Error:", res.error);
+                            }
+                        } catch (err) {
+                            console.error("Async Error:", err);
+                        }
+                    } else {
+                        // Fallback for dev
+                        applyDisplayMode();
                     }
-                }, 50);
+                    loader.classList.remove('show');
+                }, 100);
             }
 
-            function sanitizeInput(el, defVal) {
-                let val = el.value.trim();
-                if (/^0[1-9]/.test(val)) val = val.replace(/^0+/, '');
-                if (!val) val = defVal;
-                el.value = val;
-                // For cluster view, any change to bounds might affect clustering (if we re-cluster), 
-                // but usually the user wants to see the effect on the current plot.
-                // However, the user specifically asked for these in the "filters menu".
-                // We'll trigger a full reload to be consistent.
-                applyCombinedFilters();
-            }
 
-            magMin.onblur = () => sanitizeInput(magMin, magMin.value);
-            magMax.onblur = () => sanitizeInput(magMax, magMax.value);
-            depMin.onblur = () => sanitizeInput(depMin, depMin.value);
-            depMax.onblur = () => sanitizeInput(depMax, depMax.value);
+
 
             applyBtn.onclick = applyCombinedFilters;
 
+
+
+
+            /**
+             * applyDisplayMode()
+             * Locally toggles the visibility of Wireframe/Solid traces based on the dropdown.
+             * This does NOT require a backend call as it only affects Plotly's visibility flags.
+             */
             function applyDisplayMode() {
                 const n = quakeData.n_clusters;
                 const showWire = (currentDisplayMode === 'wireframe' || currentDisplayMode === 'both');
                 const showSolid = (currentDisplayMode === 'solid' || currentDisplayMode === 'both');
 
+                // Indices follow the order created in engine.py:
+                // 0: Map
+                // 1..N: Wireframes
+                // N+1..2N: Solids
+                // 2N+1: Markers
+                // 2N+2: Centroids
                 for (let c = 0; c < n; c++) {
                     const wireIdx = 1 + c;
                     if (gd.data.length > wireIdx) {
@@ -232,46 +278,6 @@
                 }
             }
 
-            function applyFilter() {
-                const start = startInput.value, end = endInput.value;
-                const m1 = parseFloat(magMin.value) || 0, m2 = parseFloat(magMax.value) || 9.9;
-                const d1 = parseFloat(depMin.value) || 0, d2 = parseFloat(depMax.value) || 9999;
-                const indices = [];
-
-                for (let i = 0; i < dates.length; i++) {
-                    const m = quakeData.magnitude[i];
-                    const d = Math.abs(quakeData.depth[i]);
-                    if (dates[i] >= start && dates[i] <= end &&
-                        m >= m1 && m <= m2 &&
-                        d >= d1 && d <= d2) indices.push(i);
-                }
-
-                const filtered = {
-                    lon: indices.map(i => quakeData.longitude[i]),
-                    lat: indices.map(i => quakeData.latitude[i]),
-                    mag: indices.map(i => quakeData.magnitude[i]),
-                    dep: indices.map(i => quakeData.depth[i]),
-                    cluster: quakeData.cluster ? indices.map(i => quakeData.cluster[i]) : null,
-                    hover: indices.map(i => quakeData.hover[i])
-                };
-
-                const n = quakeData.n_clusters;
-                const scatterIdx = 2 * n + 1;
-
-                const colorMap = filtered.cluster
-                    ? filtered.cluster.map(c => c >= 0 ? clusterColors[c % clusterColors.length] : '#888888')
-                    : filtered.dep;
-
-                Plotly.restyle(gd, {
-                    x: [filtered.lon], y: [filtered.lat], z: [filtered.dep],
-                    'marker.size': [filtered.mag],
-                    'marker.color': [colorMap],
-                    'marker.showscale': [false],
-                    hovertext: [filtered.hover], visible: [true]
-                }, [scatterIdx]);
-
-                applyDisplayMode();
-            }
 
             // Build custom glass legend for clusters
             function updateClusterLegend() {
@@ -296,8 +302,23 @@
                 legend.innerHTML = html;
             }
 
-            // Initial render
-            applyFilter();
+            // --- INITIAL RENDER ---
+            
+            // Set initial selection in menu if it was passed from backend
+            displayMenu.querySelectorAll('.menu-item').forEach(item => {
+                if (item.dataset.mode === currentDisplayMode) {
+                    displayMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    displayToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                }
+            });
+
+            // Initial view is already rendered by backend, just sync legend
+            applyDisplayMode();
             updateClusterLegend();
         });
+
+
+
+
         </script>

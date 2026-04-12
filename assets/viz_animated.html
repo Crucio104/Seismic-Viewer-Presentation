@@ -200,6 +200,11 @@
                 );
             }
 
+            function updateTimeline() {
+                updateView(currentStepIdx);
+            }
+
+
 
             function animationLoop(timestamp) {
                 if (!isPlaying) return;
@@ -240,10 +245,14 @@
                 playBtn.classList.remove('active');
                 pauseBtn.classList.add('active');
                 if (typeof setGlobalInterfaceLock === 'function') setGlobalInterfaceLock(false);
-                setTimeout(() => {
-                    Plotly.relayout(gd, {uirevision: Math.random()});
-                }, 0);
+                
+                // Explicitly stop cinema mode (auto-rotation) when pausing
+                if (typeof cinemaModeActive !== 'undefined' && cinemaModeActive) {
+                    toggleCinemaMode();
+                }
             }
+
+
 
             playBtn.onclick = play;
             pauseBtn.onclick = pause;
@@ -253,45 +262,37 @@
                 updateView(parseInt(slider.value));
             };
 
-            speedToggle.onclick = (e) => { e.stopPropagation(); colorMenu.classList.remove('show'); scaleMenu.classList.remove('show'); speedMenu.classList.toggle('show'); };
-            colorToggle.onclick = (e) => { e.stopPropagation(); speedMenu.classList.remove('show'); scaleMenu.classList.remove('show'); colorMenu.classList.toggle('show'); };
-            scaleToggle.onclick = (e) => { e.stopPropagation(); speedMenu.classList.remove('show'); colorMenu.classList.remove('show'); scaleMenu.classList.toggle('show'); };
-            document.onclick = () => { speedMenu.classList.remove('show'); colorMenu.classList.remove('show'); scaleMenu.classList.remove('show'); };
+            // Menus
 
-            speedMenu.querySelectorAll('.menu-item').forEach(item => {
-                item.onclick = () => {
-                    speedMult = parseInt(item.dataset.val);
-                    speedMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
-                    item.classList.add('active');
-                    speedToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                    if (isPlaying) startTime = 0;
-                };
+            SeismicUI.initMenu(speedToggle, speedMenu);
+            SeismicUI.initMenu(colorToggle, colorMenu);
+            SeismicUI.initMenu(scaleToggle, scaleMenu);
+
+            SeismicUI.bindMenu(speedMenu, (item) => {
+                speedMult = parseFloat(item.dataset.val);
+                speedToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
             });
 
-            colorMenu.querySelectorAll('.menu-item').forEach(item => {
-                item.onclick = () => {
-                    currentMode = item.dataset.mode;
-                    Plotly.restyle(gd, {visible: [null, (currentMode === 'mag'), (currentMode === 'date'), (currentMode === 'dep')]}, [0, 1, 2, 3]);
-                    updateView(currentStepIdx);
-                    colorMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
-                    item.classList.add('active');
-                    colorToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                };
+            SeismicUI.bindMenu(colorMenu, (item) => {
+                currentMode = item.dataset.mode;
+                colorToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                const traceIdx = (currentMode === 'mag') ? 1 : (currentMode === 'date' ? 2 : 3);
+                const otherIdx1 = (traceIdx === 1) ? 2 : 1;
+                const otherIdx2 = (traceIdx === 3) ? 2 : 3;
+                Plotly.restyle(gd, { visible: [false] }, [otherIdx1, otherIdx2]);
+                Plotly.restyle(gd, { visible: [true] }, [traceIdx]);
+                updateTimeline();
             });
 
-            scaleMenu.querySelectorAll('.menu-item').forEach(item => {
-                item.onclick = () => {
-                    currentColorScale = item.dataset.val;
-                    scaleMenu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
-                    item.classList.add('active');
-                    scaleToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                    updateView(currentStepIdx);
-                };
+            SeismicUI.bindMenu(scaleMenu, (item) => {
+                currentColorScale = item.dataset.val;
+                scaleToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                updateTimeline();
             });
 
             invertCheck.onchange = () => {
                 invertScale = invertCheck.checked;
-                updateView(currentStepIdx);
+                updateTimeline();
             };
 
             jumpBtn.onclick = () => {

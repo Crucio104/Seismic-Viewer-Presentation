@@ -3,6 +3,7 @@ import uuid
 import threading
 import traceback
 import webview
+import numpy as np
 import engine
 from core.config import BASE_DIR, VIZ_TMP_DIR, INDEX_REL, get_http_port
 
@@ -131,7 +132,54 @@ class Api:
             traceback.print_exc()
             self._push_progress(f"Error: {e}")
 
+    def get_cluster_update(self, method, params):
+        """Asynchronously recalculate clusters for the existing view."""
+        if self._data is None: return {'error': 'No data'}
+        try:
+            d = self._data
+            # Extract filters from params
+            m1 = float(params.get('mag_min', 0))
+            m2 = float(params.get('mag_max', 10))
+            d1 = float(params.get('dep_min', 0))
+            d2 = float(params.get('dep_max', 10000))
+            t1 = params.get('start_date', "")
+            t2 = params.get('end_date', "")
+
+            # 1. Clustering Subset: Filter ONLY by Date 
+            # (Clustering definition should be stable regardless of mag/dep)
+            cluster_idx = []
+            for i in range(len(d['longitude'])):
+                dt = d['times'][i][:10]
+                if (not t1 or dt >= t1) and (not t2 or dt <= t2):
+                    cluster_idx.append(i)
+
+            if not cluster_idx: return {'error': 'No data in this date range'}
+
+            # 2. Visualization Mask: Of those in the Date Range, which satisfy Mag/Dep?
+            viz_mask = []
+            for i in cluster_idx:
+                m = d['magnitude'][i]
+                dp = abs(d['depth'][i])
+                viz_mask.append(m >= m1 and m <= m2 and dp >= d1 and dp <= d2)
+
+            updated_traces = engine.get_cluster_update_traces(
+                longitude=[d['longitude'][i] for i in cluster_idx],
+                latitude=[d['latitude'][i] for i in cluster_idx],
+                magnitude=[d['magnitude'][i] for i in cluster_idx],
+                depth=[d['depth'][i] for i in cluster_idx],
+                hover=[d['visual_pack']['hover'][i] for i in cluster_idx],
+                clustering_method=method,
+                clustering_params=params,
+                viz_mask=np.array(viz_mask)
+            )
+            return updated_traces
+
+        except Exception as e:
+            traceback.print_exc()
+            return {'error': str(e)}
+
     def go_back(self):
+
         """Return to the hub screen."""
         self._navigate_delayed(INDEX_REL)
 
@@ -144,15 +192,20 @@ class Api:
         return True
 
     def clear_map_cache(self):
-        """Delete and recreate the map cache directory."""
-        from core.geo_utils import MAP_CACHE_DIR
+        """Delete and recreate the map cache directory and clear in-memory caches."""
+        from core.geo_utils import MAP_CACHE_DIR, build_map_mesh
         import shutil
         try:
             if os.path.exists(MAP_CACHE_DIR):
                 shutil.rmtree(MAP_CACHE_DIR)
             os.makedirs(MAP_CACHE_DIR, exist_ok=True)
+            
+            # CRITICAL: Clear both the HTML path cache and the memory mesh cache
             self._html_cache.clear()
+            build_map_mesh.cache_clear()
+            
             return True
         except Exception as e:
             traceback.print_exc()
             return str(e)
+
