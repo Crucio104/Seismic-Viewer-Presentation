@@ -28,6 +28,10 @@ def apply_3d_style(fig, x_range, y_range, z_range):
         **COMMON_LAYOUT,
         scene=dict(
             dragmode='turntable',
+            camera=dict(
+                eye=dict(x=1.25, y=1.25, z=1.25),
+                center=dict(x=0, y=0, z=0)
+            ),
             bgcolor='rgba(0,0,0,0)',
             xaxis=dict(
                 title=dict(text='Longitude', font=dict(color='rgba(255,255,255,0.8)')),

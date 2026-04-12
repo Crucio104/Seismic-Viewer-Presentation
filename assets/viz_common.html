@@ -1,322 +1,641 @@
-    <style>
-    :root { 
-        --glass: rgba(15, 15, 25, 0.7); 
-        --glass-border: rgba(255, 255, 255, 0.1); 
+<style>
+    :root {
+        --glass: rgba(15, 15, 25, 0.7);
+        --glass-border: rgba(255, 255, 255, 0.1);
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { 
-        margin: 0; padding: 0;
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    body {
+        margin: 0;
+        padding: 0;
         background: radial-gradient(circle at 50% 50%, #1a1a2e 0%, #0f0f1a 100%);
         background-attachment: fixed;
-        color: #e2e8f0; font-family: 'Outfit', sans-serif; 
-        width: 100vw; height: 100vh; overflow: hidden;
+        color: #e2e8f0;
+        font-family: 'Outfit', sans-serif;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
     }
 
 
     .glass-panel {
         position: relative;
-        color: #fff; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        color: #fff;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
         border-radius: 12px;
     }
+
     .glass-panel::before {
-        content: ""; position: absolute; inset: 0; z-index: -1;
-        background: var(--glass); backdrop-filter: blur(100px); -webkit-backdrop-filter: blur(100px);
-        border: 1px solid var(--glass-border); border-radius: inherit;
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: var(--glass);
+        backdrop-filter: blur(100px);
+        -webkit-backdrop-filter: blur(100px);
+        border: 1px solid var(--glass-border);
+        border-radius: inherit;
         pointer-events: none;
     }
 
 
     #back-btn {
-        position: fixed; top: 16px; left: 16px; z-index: 100000;
-        padding: 10px 20px; font-weight: 600; cursor: pointer;
-        transition: all 0.2s; border: none; background: transparent;
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        z-index: 100000;
+        padding: 10px 20px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        background: transparent;
     }
-    #back-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.1); }
+
+    #back-btn:hover {
+        transform: translateY(-1px);
+        background: rgba(255, 255, 255, 0.1);
+    }
 
 
     #loader {
-        position: fixed; inset: 0; z-index: 200000;
-        background: rgba(15, 12, 41, 0.7); backdrop-filter: blur(8px);
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        transition: opacity 0.4s; pointer-events: none; opacity: 0;
+        position: fixed;
+        inset: 0;
+        z-index: 200000;
+        background: rgba(15, 12, 41, 0.7);
+        backdrop-filter: blur(8px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.4s;
+        pointer-events: none;
+        opacity: 0;
     }
-    #loader.show { opacity: 1; pointer-events: auto; }
+
+    #loader.show {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
     .spinner {
-        width: 64px; height: 64px; border: 3px solid rgba(255,255,255,0.1);
-        border-top-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite;
+        width: 64px;
+        height: 64px;
+        border: 3px solid rgba(255, 255, 255, 0.1);
+        border-top-color: #6366f1;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
 
     #filter-bar {
-        position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 99999;
-        display: flex; align-items: center; gap: 12px; padding: 8px 20px;
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 20px;
         font-size: 13px;
     }
+
     #filter-bar input {
-        background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.3);
-        color: #fff; border-radius: 6px; padding: 4px 8px; cursor: pointer;
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: #fff;
+        border-radius: 6px;
+        padding: 4px 8px;
+        cursor: pointer;
     }
-    #filter-bar input::-webkit-calendar-picker-indicator { filter: invert(1); }
+
+    #filter-bar input::-webkit-calendar-picker-indicator {
+        filter: invert(1);
+    }
 
     #settings-bar {
-        position: fixed; top: 76px; left: 16px; z-index: 99999;
-        display: flex; flex-direction: column; gap: 10px; padding: 12px;
+        position: fixed;
+        top: 76px;
+        left: 16px;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
         width: 215px;
     }
-    .settings-group { position: relative; width: 100%; }
 
-
-    .label { 
-        font-size: 11px; color: #fff; text-transform: uppercase; letter-spacing: 0.5px; 
-        font-weight: 700; opacity: 0.9; margin-bottom: 4px;
+    .settings-group {
+        position: relative;
+        width: 100%;
     }
+
+
+    .label {
+        font-size: 11px;
+        color: #fff;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 700;
+        opacity: 0.9;
+        margin-bottom: 4px;
+    }
+
     .settings-btn {
-        background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
-        color: #fff; border-radius: 8px; padding: 10px 14px; cursor: pointer;
-        width: 100%; text-align: left; font-size: 13px;
-        transition: all 0.2s; display: flex; justify-content: space-between; align-items: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #fff;
+        border-radius: 8px;
+        padding: 10px 14px;
+        cursor: pointer;
+        width: 100%;
+        text-align: left;
+        font-size: 13px;
+        transition: all 0.2s;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
         font-family: inherit;
     }
-    .settings-btn:hover { background: rgba(255,255,255,0.15); }
-    
-    .settings-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
-    .settings-row .glass-input { margin-top: 0; flex: 1; }
-    .settings-row .settings-btn { width: auto; padding: 6px 10px; flex-shrink: 0; }
+
+    .settings-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+    }
+
+    .settings-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 6px;
+    }
+
+    .settings-row .glass-input {
+        margin-top: 0;
+        flex: 1;
+    }
+
+    .settings-row .settings-btn {
+        width: auto;
+        padding: 6px 10px;
+        flex-shrink: 0;
+    }
+
     .glass-menu {
-        position: absolute; left: calc(100% + 15px); top: 0;
-        display: none; flex-direction: column; gap: 2px; padding: 6px;
-        min-width: 140px; z-index: 100001; border-radius: 12px;
+        position: absolute;
+        left: calc(100% + 15px);
+        top: 0;
+        display: none;
+        flex-direction: column;
+        gap: 2px;
+        padding: 6px;
+        min-width: 140px;
+        z-index: 100001;
+        border-radius: 12px;
     }
-    .glass-menu.show { display: flex; }
+
+    .glass-menu.show {
+        display: flex;
+    }
+
     .menu-item {
-        padding: 8px 12px; border-radius: 6px; cursor: pointer;
-        font-size: 13px; transition: background 0.2s;
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: background 0.2s;
     }
-    .menu-item:hover { background: rgba(255,255,255,0.12); }
-    .menu-item.active { background: rgba(255,255,255,0.22); font-weight: 600; }
+
+    .menu-item:hover {
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .menu-item.active {
+        background: rgba(255, 255, 255, 0.22);
+        font-weight: 600;
+    }
 
     .slider {
-        width: 100%; height: 6px; appearance: none; background: rgba(255,255,255,0.1);
-        border-radius: 3px; outline: none; margin-top: 8px;
+        width: 100%;
+        height: 6px;
+        appearance: none;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+        outline: none;
+        margin-top: 8px;
     }
+
     .slider::-webkit-slider-thumb {
         -webkit-appearance: none;
         appearance: none;
-        width: 14px; height: 14px; background: #fff; border-radius: 50%; cursor: pointer;
+        width: 14px;
+        height: 14px;
+        background: #fff;
+        border-radius: 50%;
+        cursor: pointer;
     }
 
     .glass-input {
-        background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
-        color: #fff; border-radius: 6px; padding: 6px 10px; width: 100%;
-        font-size: 14px; outline: none; margin-top: 6px; font-family: inherit;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #fff;
+        border-radius: 6px;
+        padding: 6px 10px;
+        width: 100%;
+        font-size: 14px;
+        outline: none;
+        margin-top: 6px;
+        font-family: inherit;
         transition: border-color 0.2s;
     }
-    .glass-input:focus { border-color: #fff; background: rgba(255,255,255,0.12); }
+
+    .glass-input:focus {
+        border-color: #fff;
+        background: rgba(255, 255, 255, 0.12);
+    }
+
     /* Hide arrows in Chrome, Safari, Edge, Opera */
     .glass-input::-webkit-outer-spin-button,
-    .glass-input::-webkit-inner-spin-button { 
-        -webkit-appearance: none; 
+    .glass-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
         appearance: none;
-        margin: 0; 
+        margin: 0;
     }
+
     /* Hide arrows in Firefox */
-    .glass-input[type=number] { 
+    .glass-input[type=number] {
         -moz-appearance: textfield;
-        appearance: textfield; 
+        appearance: textfield;
     }
 
     #playback-bar {
-        position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 99999;
-        display: flex; align-items: center; gap: 20px; padding: 12px 24px;
-        width: 80%; max-width: 900px;
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 12px 24px;
+        width: 80%;
+        max-width: 900px;
     }
-    .play-controls { display: flex; gap: 10px; }
+
+    .play-controls {
+        display: flex;
+        gap: 10px;
+    }
+
     .play-controls button {
-        background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
-        color: #fff; border-radius: 8px; width: 44px; height: 44px; cursor: pointer;
-        font-size: 18px; transition: all 0.2s;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #fff;
+        border-radius: 8px;
+        width: 44px;
+        height: 44px;
+        cursor: pointer;
+        font-size: 18px;
+        transition: all 0.2s;
     }
-    .play-controls button.active { border-color: #fff; background: rgba(255,255,255,0.2); }
-    
-    .disabled { 
-        opacity: 0.4 !important; 
-        pointer-events: none !important; 
+
+    .play-controls button.active {
+        border-color: #fff;
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .disabled {
+        opacity: 0.4 !important;
+        pointer-events: none !important;
         filter: grayscale(0.5);
     }
 
     /* High-priority action buttons (Reset, Apply, etc.) */
     .priority-btn {
-        z-index: 1000001 !important; /* Ensure they are above almost everything */
+        z-index: 1000001 !important;
+        /* Ensure they are above almost everything */
         position: relative;
     }
-    .priority-btn:active { transform: scale(0.96); transition: transform 0.05s; }
 
-    .slider-container { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; }
-    #time-slider { width: 100%; }
-    #current-date { font-size: 12px; color: #fff; text-align: center; }
+    .priority-btn:active {
+        transform: scale(0.96);
+        transition: transform 0.05s;
+    }
+
+    .slider-container {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    #time-slider {
+        width: 100%;
+    }
+
+    #current-date {
+        font-size: 12px;
+        color: #fff;
+        text-align: center;
+    }
 
     #filter-loader {
-        position: fixed; inset: 0; z-index: 150000;
-        background: rgba(15, 12, 41, 0.4); backdrop-filter: blur(4px);
-        display: flex; align-items: center; justify-content: center;
+        position: fixed;
+        inset: 0;
+        z-index: 150000;
+        background: rgba(15, 12, 41, 0.4);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
         border-radius: 12px;
-        opacity: 0; pointer-events: none; transition: opacity 0.4s ease;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.4s ease;
     }
-    #filter-loader.show { opacity: 1; pointer-events: auto; }
 
-    .modebar { display: none !important; }
+    #filter-loader.show {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .modebar {
+        display: none !important;
+    }
 
     /* Rounded corners and glass style for Plotly colorbar */
-    .cbfill, .cbbg { rx: 8px; ry: 8px; }
-    .cbbg { 
-        fill: rgba(45, 45, 65, 0.6) !important; 
+    .cbfill,
+    .cbbg {
+        rx: 8px;
+        ry: 8px;
+    }
+
+    .cbbg {
+        fill: rgba(45, 45, 65, 0.6) !important;
         stroke: rgba(255, 255, 255, 0.25) !important;
         stroke-width: 1px !important;
-        filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+        filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
     }
 
     /* Glass checkbox */
     .glass-checkbox {
-        display: flex; align-items: center; gap: 8px; margin-top: 8px; cursor: pointer;
-        font-size: 13px; color: #fff; user-select: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        color: #fff;
+        user-select: none;
     }
+
     .glass-checkbox input[type="checkbox"] {
-        appearance: none; -webkit-appearance: none;
-        width: 18px; height: 18px; border-radius: 4px;
-        border: 1px solid rgba(255,255,255,0.3);
-        background: rgba(255,255,255,0.08);
-        cursor: pointer; position: relative; flex-shrink: 0;
+        appearance: none;
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.08);
+        cursor: pointer;
+        position: relative;
+        flex-shrink: 0;
         transition: all 0.2s;
     }
+
     .glass-checkbox input[type="checkbox"]:checked {
         background: rgba(165, 180, 252, 0.4);
         border-color: rgba(165, 180, 252, 0.7);
     }
+
     .glass-checkbox input[type="checkbox"]:checked::after {
-        content: '✓'; position: absolute; top: 0; left: 3px;
-        font-size: 13px; color: #fff; font-weight: 700;
+        content: '✓';
+        position: absolute;
+        top: 0;
+        left: 3px;
+        font-size: 13px;
+        color: #fff;
+        font-weight: 700;
     }
 
     /* Glass Legend Styles */
     #glass-legend {
-        position: fixed; right: 16px; top: 100px;
-        z-index: 99999; padding: 18px 15px; width: 140px;
-        display: none; flex-direction: column; align-items: center; gap: 12px;
-        min-height: 280px; text-shadow: none !important;
+        position: fixed;
+        right: 16px;
+        top: 100px;
+        z-index: 99999;
+        padding: 18px 15px;
+        width: 140px;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        min-height: 280px;
+        text-shadow: none !important;
     }
+
     #legend-title {
         font-family: 'Segoe UI', system-ui, sans-serif;
-        font-size: 13px; font-weight: 700; text-transform: uppercase;
-        margin-bottom: 6px; opacity: 0.9; letter-spacing: 0.5px;
-        text-align: center; width: 100%;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+        opacity: 0.9;
+        letter-spacing: 0.5px;
+        text-align: center;
+        width: 100%;
     }
+
     #legend-container {
-        display: flex; flex-direction: row-reverse; align-items: stretch; 
-        gap: 10px; flex-grow: 1; height: 100%; width: 100%;
+        display: flex;
+        flex-direction: row-reverse;
+        align-items: stretch;
+        gap: 10px;
+        flex-grow: 1;
+        height: 100%;
+        width: 100%;
         justify-content: center;
     }
+
     #legend-bar {
-        width: 16px; border-radius: 4px;
-        border: 1px solid rgba(255,255,255,0.2);
-        box-shadow: inset 0 0 8px rgba(0,0,0,0.4);
+        width: 16px;
+        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.4);
     }
+
     #legend-ticks {
-        display: flex; flex-direction: column; justify-content: space-between;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
         padding: 2px 0;
     }
+
     .legend-tick {
         font-family: 'Segoe UI', system-ui, sans-serif;
-        font-size: 12px; font-weight: 600; color: #fff;
-        opacity: 0.85; text-align: right; line-height: 1;
+        font-size: 12px;
+        font-weight: 600;
+        color: #fff;
+        opacity: 0.85;
+        text-align: right;
+        line-height: 1;
     }
 
     /* Toast Notifications (Top Right) */
     #toast-container {
-        position: fixed; top: 16px; right: 24px;
-        display: flex; flex-direction: column; gap: 8px; z-index: 10000;
+        position: fixed;
+        top: 16px;
+        right: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 10000;
         pointer-events: none;
     }
 
     .toast {
-        background: var(--glass); backdrop-filter: blur(100px); -webkit-backdrop-filter: blur(100px);
-        border: 1px solid var(--glass-border); border-top: 1px solid rgba(255,255,255,0.2); 
-        color: #fff; padding: 12px 20px;
-        border-radius: 12px; font-size: 13px; font-weight: 500;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.6); opacity: 0; transform: translateX(20px);
+        background: var(--glass);
+        backdrop-filter: blur(100px);
+        -webkit-backdrop-filter: blur(100px);
+        border: 1px solid var(--glass-border);
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
+        color: #fff;
+        padding: 12px 20px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 500;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+        opacity: 0;
+        transform: translateX(20px);
         transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        display: flex; align-items: center; gap: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
 
 
 
-    .toast.show { opacity: 1; transform: translateX(0); }
-    
+    .toast.show {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
     /* Camera Control Panel */
     #camera-controls {
-        position: fixed; top: 420px; right: 16px; z-index: 99999;
-        display: none; flex-direction: column; gap: 8px; padding: 10px;
+        position: fixed;
+        top: 420px;
+        right: 16px;
+        z-index: 99999;
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
         width: 140px;
     }
+
     #camera-controls .btn-cam {
-        background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
-        color: #fff; border-radius: 8px; padding: 8px 10px; cursor: pointer;
-        width: 100%; text-align: left; font-size: 12px; font-weight: 500;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #fff;
+        border-radius: 8px;
+        padding: 8px 10px;
+        cursor: pointer;
+        width: 100%;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 500;
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        display: flex; align-items: center; gap: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
-    #camera-controls .btn-cam:hover { background: rgba(255,255,255,0.18); transform: translateX(-4px); }
-    #camera-controls .btn-cam.active { 
-        background: rgba(99, 102, 241, 0.4); 
-        border-color: rgba(99, 102, 241, 0.6); 
+
+    #camera-controls .btn-cam:hover {
+        background: rgba(255, 255, 255, 0.18);
+        transform: translateX(-4px);
+    }
+
+    #camera-controls .btn-cam.active {
+        background: rgba(99, 102, 241, 0.4);
+        border-color: rgba(99, 102, 241, 0.6);
         box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
     }
-    #camera-controls.locked, #back-btn.locked, #settings-bar.locked {
+
+    #camera-controls.locked,
+    #back-btn.locked,
+    #settings-bar.locked {
         opacity: 0.5;
         pointer-events: none;
         filter: grayscale(0.5);
     }
-    #camera-controls .btn-cam svg { width: 14px; height: 14px; opacity: 0.9; }
 
-    </style>
+    #camera-controls .btn-cam svg {
+        width: 14px;
+        height: 14px;
+        opacity: 0.9;
+    }
+</style>
 
 
-    <div id="loader"><div class="spinner"></div><p style="color:#fff;margin-top:15px;font-size:14px">Processing dataset...</p></div>
+<div id="loader">
+    <div class="spinner"></div>
+    <p style="color:#fff;margin-top:15px;font-size:14px">Processing dataset...</p>
+</div>
 
-    <button id="back-btn" class="glass-panel" onclick="transitionToHub()">← Hub</button>
+<button id="back-btn" class="glass-panel" onclick="transitionToHub()">← Hub</button>
 
-    <div id="glass-legend" class="glass-panel">
-        <div id="legend-title">Variable</div>
-        <div id="legend-container">
-            <div id="legend-bar"></div>
-            <div id="legend-ticks"></div>
-        </div>
+<div id="glass-legend" class="glass-panel">
+    <div id="legend-title">Variable</div>
+    <div id="legend-container">
+        <div id="legend-bar"></div>
+        <div id="legend-ticks"></div>
     </div>
+</div>
 
-    <div id="camera-controls" class="glass-panel">
-        <div class="label" style="text-align: center; margin-bottom: 8px;">Camera</div>
-        <button class="btn-cam" id="btn-cinema" onclick="toggleCinemaMode()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-            Auto-rotation
-        </button>
-        <button class="btn-cam" onclick="snapToView('top')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12l-9-9-9 9M12 3v18"/></svg>
-            Top View
-        </button>
-        <button class="btn-cam" onclick="snapToView('side')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5l-5-5-5 5"/></svg>
-            Side View
-        </button>
-        <button class="btn-cam" onclick="snapToView('reset')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-            Reset
-        </button>
-    </div>
+<div id="camera-controls" class="glass-panel">
+    <div class="label" style="text-align: center; margin-bottom: 8px;">Camera</div>
+    <button class="btn-cam" id="btn-cinema" onclick="toggleCinemaMode()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 7l-7 5 7 5V7z" />
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+        </svg>
+        Auto-rotation
+    </button>
+    <button class="btn-cam" onclick="snapToView('top')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12l-9-9-9 9M12 3v18" />
+        </svg>
+        Top View
+    </button>
+    <button class="btn-cam" onclick="snapToView('side')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1v22M17 5l-5-5-5 5" />
+        </svg>
+        Side View
+    </button>
+    <button class="btn-cam" onclick="snapToView('reset')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+        </svg>
+        Reset
+    </button>
+</div>
 
-    <div id="toast-container"></div>
+<div id="toast-container"></div>
 
 
-    <script>
+<script>
     function transitionToHub() {
         showInitLoader('Returning to Hub...');
         // Wait for the opacity transition (0.15s) before navigating
@@ -415,26 +734,26 @@
     function updateGlassLegend(show, title, scaleName, invert, limits, dateInfo) {
         const legend = document.getElementById('glass-legend');
         if (!show) { legend.style.display = 'none'; return; }
-        
+
         legend.style.display = 'flex';
         document.getElementById('legend-title').textContent = title;
-        
+
         const bar = document.getElementById('legend-bar');
         let colors = COLORS_MAP[scaleName] || COLORS_MAP['Viridis'];
         if (invert) colors = [...colors].reverse();
         bar.style.background = `linear-gradient(to top, ${colors.join(',')})`;
-        
+
         const ticksContainer = document.getElementById('legend-ticks');
         ticksContainer.innerHTML = '';
-        
+
         const numTicks = 5;
         const step = (limits[1] - limits[0]) / (numTicks - 1);
-        
+
         for (let i = numTicks - 1; i >= 0; i--) {
             const val = limits[0] + step * i;
             const tick = document.createElement('div');
             tick.className = 'legend-tick';
-            
+
             if (title === 'Date' && dateInfo && dateInfo.startDate) {
                 const d = new Date(dateInfo.startDate);
                 d.setDate(d.getDate() + Math.round(val));
@@ -452,7 +771,7 @@
         toast.className = 'toast';
         toast.innerHTML = `<span>⚠️ ${msg}</span>`;
         container.appendChild(toast);
-        
+
         setTimeout(() => toast.classList.add('show'), 100);
     }
 
@@ -469,15 +788,15 @@
                 plotlyId = gd.id;
             }
         }
-        
+
         // Show camera controls instantly if we know it's a 3D view
         if (window.IS_3D_VIEW) {
             document.getElementById('camera-controls').style.display = 'flex';
         } else if (plotlyId) {
-             const gd = document.getElementById(plotlyId);
-             if (gd && gd.layout && gd.layout.scene) {
-                 document.getElementById('camera-controls').style.display = 'flex';
-             }
+            const gd = document.getElementById(plotlyId);
+            if (gd && gd.layout && gd.layout.scene) {
+                document.getElementById('camera-controls').style.display = 'flex';
+            }
         }
     }
 
@@ -487,7 +806,7 @@
             showStatusToast('Waiting for plot initialization...');
             return;
         }
-        
+
         const gd = document.getElementById(plotlyId);
         if (!gd || !gd.layout || !gd.layout.scene) {
             showStatusToast('Preparing 3D scene...');
@@ -498,7 +817,7 @@
 
         cinemaModeActive = !cinemaModeActive;
         const btn = document.getElementById('btn-cinema');
-        
+
         if (cinemaModeActive) {
             btn.classList.add('active');
             // Reset "Up" vector to Z axis to ensure horizontal rotation 
@@ -507,7 +826,7 @@
             try {
                 const eye = gd.layout.scene.camera.eye || { x: 1.25, y: 1.25, z: 1.25 };
                 cinemaAngle = Math.atan2(eye.y, eye.x);
-            } catch(e) {
+            } catch (e) {
                 cinemaAngle = 0;
             }
             animateCinema();
@@ -524,7 +843,7 @@
 
         cinemaAngle += 0.005; // Speed adjustment
         const radius = 1.8;
-        
+
         try {
             // Update Background "Skybox"
             const bgX = 50 + 10 * Math.cos(cinemaAngle);
@@ -540,42 +859,77 @@
                 }
             };
             Plotly.relayout(gd, update);
-        } catch(e) {
+        } catch (e) {
             console.warn("Auto-rotation mode skipped frame:", e);
         }
-        
+
         cinemaReqId = requestAnimationFrame(animateCinema);
     }
+
+    let smoothCameraReqId = null;
 
     function snapToView(view) {
         if (cinemaModeActive) toggleCinemaMode(); // Stop cinema mode on manual snap
         if (!plotlyId) findPlotlyGraph();
         const gd = document.getElementById(plotlyId);
-        if (!gd) return;
+        if (!gd || !gd.layout || !gd.layout.scene) return;
 
-        let eye = { x: 1.25, y: 1.25, z: 1.25 };
-        let up  = { x: 0, y: 0, z: 1 }; // Default Up is Z
+        let targetEye = { x: 1.25, y: 1.25, z: 1.25 };
+        let targetUp = { x: 0, y: 0, z: 1 }; // Default Up is Z
 
         if (view === 'top') {
-            eye = { x: 0, y: 0, z: 2.5 };
-            up  = { x: 0, y: 1, z: 0 };  // Y is Up (Latitude), X is Right (Longitude)
+            targetEye = { x: 0, y: 0, z: 1.8 };
+            targetUp = { x: 0, y: 1, z: 0 };  // Y is Up (Latitude), X is Right (Longitude)
         } else if (view === 'side') {
-            eye = { x: 0, y: -2.5, z: 0 };
-            up  = { x: 0, y: 0, z: 1 };  // Z is Up (Depth), X is Right (Longitude)
+            targetEye = { x: 0, y: -1.8, z: 0 };
+            targetUp = { x: 0, y: 0, z: 1 };  // Z is Up (Depth), X is Right (Longitude)
         } else if (view === 'reset') {
-            eye = { x: 1.25, y: 1.25, z: 1.25 };
-            up  = { x: 0, y: 0, z: 1 };
+            targetEye = { x: 1.25, y: 1.25, z: 1.25 };
+            targetUp = { x: 0, y: 0, z: 1 };
         }
 
-        Plotly.relayout(gd, { 
-            'scene.camera.eye': eye,
-            'scene.camera.up': up
-        });
+        if (smoothCameraReqId) cancelAnimationFrame(smoothCameraReqId);
+
+        let cam = gd.layout.scene.camera || {};
+        let startEye = cam.eye || { x: 1.25, y: 1.25, z: 1.25 };
+        let startUp  = cam.up || { x: 0, y: 0, z: 1 };
+
+        const duration = 800; // ms transition duration
+        const startTime = performance.now();
+
+        function step(now) {
+            const elapsed = now - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            // Cubic ease-out for smooth deceleration
+            const ease = 1 - Math.pow(1 - progress, 3);
+
+            const currentEye = {
+                x: startEye.x + (targetEye.x - startEye.x) * ease,
+                y: startEye.y + (targetEye.y - startEye.y) * ease,
+                z: startEye.z + (targetEye.z - startEye.z) * ease
+            };
+            const currentUp = {
+                x: startUp.x + (targetUp.x - startUp.x) * ease,
+                y: startUp.y + (targetUp.y - startUp.y) * ease,
+                z: startUp.z + (targetUp.z - startUp.z) * ease
+            };
+
+            Plotly.relayout(gd, {
+                'scene.camera.eye': currentEye,
+                'scene.camera.up': currentUp
+            });
+
+            if (progress < 1) {
+                smoothCameraReqId = requestAnimationFrame(step);
+            }
+        }
+        
+        smoothCameraReqId = requestAnimationFrame(step);
     }
 
     function setGlobalInterfaceLock(locked) {
         const panels = ['camera-controls', 'back-btn', 'settings-bar'];
-        
+
         panels.forEach(id => {
             const el = document.getElementById(id);
             if (el) {
@@ -583,14 +937,14 @@
                 else el.classList.remove('locked');
             }
         });
-        
+
         if (locked && cinemaModeActive) toggleCinemaMode();
-        
+
         // Also lock/unlock 3D rotation on the graph
         if (!plotlyId) findPlotlyGraph();
         const gd = document.getElementById(plotlyId);
         if (gd && gd.layout && gd.layout.scene) {
-            Plotly.relayout(gd, { 'scene.dragmode': locked ? false : 'orbit' });
+            Plotly.relayout(gd, { 'scene.dragmode': locked ? false : 'turntable' });
         }
     }
 
@@ -599,6 +953,4 @@
     findPlotlyGraph();
     window.addEventListener('load', findPlotlyGraph);
     setTimeout(findPlotlyGraph, 100); // Small backup for slow DOM
-    </script>
-
-
+</script>
