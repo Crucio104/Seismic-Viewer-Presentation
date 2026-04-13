@@ -79,11 +79,105 @@
                 Invert Scale
             </label>
 
-            <div class="settings-group" style="margin-top:12px">
-                <div class="label">Go to Date</div>
-                <div class="settings-row">
-                    <input type="date" id="jump-date" class="glass-input">
-                    <button class="settings-btn" id="jump-btn" style="justify-content:center;">Go</button>
+        </div>
+
+        <div id="jump-bar" class="glass-panel">
+            <style>
+                #jump-bar {
+                    position: fixed;
+                    top: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    z-index: 100000;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 8px 16px;
+                }
+                #jump-bar .glass-input {
+                    margin-top: 0;
+                    width: 130px;
+                    height: 36px;
+                    font-size: 14px;
+                    background: rgba(255, 255, 255, 0.08);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    color: #fff;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    text-align: center;
+                }
+                #jump-bar #jump-btn {
+                    width: auto;
+                    height: 36px;
+                    padding: 0 16px;
+                    justify-content: center;
+                }
+                #jump-bar .glass-input:hover {
+                    background: rgba(255, 255, 255, 0.15);
+                }
+            </style>
+            <input type="date" id="jump-date" class="glass-input">
+            <button class="settings-btn" id="jump-btn">Go</button>
+        </div>
+
+        <div id="stats-hud" class="glass-panel">
+            <style>
+                #stats-hud {
+                    position: fixed;
+                    top: 380px; /* Below settings bar */
+                    left: 20px;
+                    padding: 18px;
+                    width: 180px;
+                    z-index: 99999;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 16px;
+                }
+                #stats-hud .stats-item {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                }
+                #stats-hud .stats-label {
+                    font-size: 11px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    font-weight: 700;
+                    color: #fff;
+                    opacity: 0.9;
+                }
+                #stats-hud .stats-value {
+                    font-size: 16px;
+                    font-weight: 500;
+                    color: #fff;
+                    font-family: inherit;
+                }
+                .stats-formula {
+                    font-size: 10px;
+                    opacity: 0.5;
+                    color: #fff;
+                    margin-top: 4px;
+                    font-style: italic;
+                    line-height: 1.2;
+                }
+            </style>
+            <div class="stats-item">
+                <div class="stats-label">Visible Events</div>
+                <div class="stats-value" id="stat-count">0</div>
+            </div>
+            <div class="stats-item">
+                <div class="stats-label">Peak Magnitude</div>
+                <div class="stats-value" id="stat-max-mag">0.0</div>
+            </div>
+            <div class="stats-item">
+                <div class="stats-label">Avg. Depth</div>
+                <div class="stats-value" id="stat-avg-dep">0.0 km</div>
+            </div>
+            <div class="stats-item">
+                <div class="stats-label">Energy Release (J)</div>
+                <div>
+                    <div class="stats-value" id="stat-energy">0.0</div>
+                    <div class="stats-formula">log₁₀E = 4.8 + 1.5M</div>
                 </div>
             </div>
         </div>
@@ -227,6 +321,10 @@
                     { startDate: quakeData.start_date }
                 );
 
+                const dayEnd = quakeData.date_to_cum[dates[idx]];
+                const dayStart = (idx > 0) ? quakeData.date_to_cum[dates[idx-1]] : 0;
+                updateHUD(start, end, dayStart, dayEnd);
+
                 // Update Histogram Bars
                 const bars = histogramMap.children;
                 if (bars.length > 0) {
@@ -259,6 +357,38 @@
                     
                     histogramMap.appendChild(bar);
                 });
+            }
+
+            function updateHUD(windowStart, windowEnd, frameStart, frameEnd) {
+                const sliceMagWindow = quakeData.mag.slice(windowStart, windowEnd);
+                const sliceDepWindow = quakeData.dep.slice(windowStart, windowEnd);
+                const sliceMagFrame = quakeData.mag.slice(frameStart, frameEnd);
+                
+                const count = sliceMagWindow.length;
+                if (count === 0) {
+                    document.getElementById('stat-count').textContent = '0';
+                    document.getElementById('stat-max-mag').textContent = '0.0';
+                    document.getElementById('stat-avg-dep').textContent = '0.0 km';
+                    document.getElementById('stat-energy').textContent = '0.0';
+                    return;
+                }
+                
+                const maxMag = Math.max(...sliceMagWindow);
+                const avgDep = sliceDepWindow.reduce((a, b) => a + b, 0) / count;
+                
+                // Energy Index: sum(10^(1.5 * M)) for current FRAME only
+                let totalEnergy = 0;
+                for (let m of sliceMagFrame) {
+                    totalEnergy += Math.pow(10, 1.5 * m);
+                }
+                
+                let energyStr = totalEnergy.toExponential(1);
+                if (totalEnergy < 1e6) energyStr = Math.round(totalEnergy).toLocaleString();
+                
+                document.getElementById('stat-count').textContent = count.toLocaleString();
+                document.getElementById('stat-max-mag').textContent = maxMag.toFixed(1);
+                document.getElementById('stat-avg-dep').textContent = `${Math.abs(avgDep).toFixed(1)} km`;
+                document.getElementById('stat-energy').textContent = energyStr;
             }
 
             function updateTimeline() {
