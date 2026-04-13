@@ -4,6 +4,33 @@
                 <button id="pause-btn" class="active">⏸</button>
             </div>
             <div class="slider-container">
+                <style>
+                    .histogram-container {
+                        display: flex;
+                        align-items: flex-end;
+                        gap: 1.5px;
+                        height: 32px;
+                        margin-bottom: -5px;
+                        padding: 0 5px;
+                    }
+                    .hist-bar {
+                        flex: 1;
+                        background: rgba(255,255,255,0.12);
+                        border-radius: 2px 2px 0 0;
+                        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                        min-height: 2px;
+                    }
+                    .hist-bar.active {
+                        background: rgba(99, 102, 241, 0.6);
+                        box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+                    }
+                    .hist-bar:hover {
+                        background: rgba(255, 255, 255, 0.25);
+                        cursor: pointer;
+                        transform: scaleY(1.1);
+                    }
+                </style>
+                <div id="histogram-map" class="histogram-container"></div>
                 <input type="range" id="time-slider" class="slider" min="0" max="100" value="0">
                 <div id="current-date">Timeline initializing</div>
             </div>
@@ -97,6 +124,7 @@
             const invertCheck = document.getElementById('invert-scale');
             const jumpBtn = document.getElementById('jump-btn');
             const jumpDate = document.getElementById('jump-date');
+            const histogramMap = document.getElementById('histogram-map');
 
             let isPlaying = false;
             let currentStepIdx = 0;
@@ -198,6 +226,39 @@
                     limits,
                     { startDate: quakeData.start_date }
                 );
+
+                // Update Histogram Bars
+                const bars = histogramMap.children;
+                if (bars.length > 0) {
+                    for (let i = 0; i < bars.length; i++) {
+                        if (i === idx) bars[i].classList.add('active');
+                        else bars[i].classList.remove('active');
+                    }
+                }
+            }
+
+            function renderHistogram() {
+                const counts = quakeData.date_counts;
+                if (!counts || counts.length === 0) return;
+                
+                const maxCount = Math.max(...counts);
+                histogramMap.innerHTML = '';
+                
+                counts.forEach((count, i) => {
+                    const bar = document.createElement('div');
+                    bar.className = 'hist-bar';
+                    const h = Math.max(2, (count / maxCount) * 100);
+                    bar.style.height = `${h}%`;
+                    bar.title = `${dates[i]}: ${count} events`;
+                    
+                    bar.onclick = (e) => {
+                        e.stopPropagation();
+                        pause();
+                        updateView(i);
+                    };
+                    
+                    histogramMap.appendChild(bar);
+                });
             }
 
             function updateTimeline() {
@@ -304,6 +365,7 @@
                 }
             };
 
+            renderHistogram();
             updateView(0);
         });
         </script>

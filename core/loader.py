@@ -28,12 +28,14 @@ def precompute_visual_data(df):
     # 2. Date grouping for animation
     df['date_str'] = [t[:10] for t in df['time']]
     unique_dates = sorted(df['date_str'].unique())
-    date_counts = df.groupby('date_str', sort=False).size()
+    # Count events per unique date
+    counts_map = df.groupby('date_str').size().to_dict()
+    date_counts = [int(counts_map.get(d, 0)) for d in unique_dates]
     
     cum = 0
     date_to_cum = {}
     for d in unique_dates:
-        cum += int(date_counts[d])
+        cum += int(counts_map.get(d, 0))
         date_to_cum[d] = cum
         
     return {
@@ -43,6 +45,7 @@ def precompute_visual_data(df):
         'mag_range': [float(df['mag'].min()), float(df['mag'].max())],
         'dep_range': [float((-df['depth']).min()), float((-df['depth']).max())],
         'date_range': [float(df['dates_num'].min()), float(df['dates_num'].max())],
+        'date_counts': date_counts,
 
     }
 

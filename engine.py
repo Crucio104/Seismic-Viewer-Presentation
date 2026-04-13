@@ -485,6 +485,7 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
         'date_range': date_range,
         'dep_range': dep_range,
         'start_date': times[0][:10],
+        'date_counts': vpack.get('date_counts', []),
     }
 
     apply_3d_style(fig, [x_high[0], x_high[-1]], [y_high[-1], y_high[0]], [min_depth, 0])
