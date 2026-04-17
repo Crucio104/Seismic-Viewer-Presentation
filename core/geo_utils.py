@@ -3,8 +3,26 @@ import hashlib
 import pickle
 import numpy as np
 import smopy
+import urllib.request
+import ssl
 import PIL.Image
 from functools import lru_cache
+
+# --- Network & SSL Configuration for Maps ---
+# Fix for macOS/Hotspot SSL Certificate errors
+try:
+    context = ssl._create_unverified_context()
+except AttributeError:
+    context = None
+
+# Set a User-Agent and increase timeout
+if context:
+    opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=context))
+else:
+    opener = urllib.request.build_opener()
+
+opener.addheaders = [('User-Agent', 'SeismicViewer/1.0')]
+urllib.request.install_opener(opener)
 
 
 MESH_HD_SIZE = 500

@@ -12,3 +12,9 @@ resources/.map_cache/
 # IDE
 .vscode/
 .idea/
+
+# Documento di progetto
+*.aux
+*.log
+*.out
+*.toc
