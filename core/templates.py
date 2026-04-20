@@ -1,13 +1,15 @@
-import json
 import os
+import json
+import plotly.graph_objects as go
+from typing import Any
 
 ANIMATION_BASE_DURATION_MS = 1000
 
 # ─── Template Caching ────────────────────────────────────────────────
 # Assets are loaded once at startup to improve visualization generation speed.
-TEMPLATE_CACHE = {}
+TEMPLATE_CACHE: dict[str, str] = {}
 
-def _ensure_templates_loaded():
+def _ensure_templates_loaded() -> None:
     """Load HTML assets from the assets directory if not already cached."""
     if TEMPLATE_CACHE:
         return
@@ -33,7 +35,7 @@ def _ensure_templates_loaded():
             TEMPLATE_CACHE[key] = ""
 
 
-def generate_html(fig, is_animated=False, is_cluster=False, is_3d=False, back_button=True, earthquake_data=None, is_fallback=False):
+def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = False, is_3d: bool = False, back_button: bool = True, earthquake_data: dict[str, Any] | None = None, is_fallback: bool = False) -> str:
     """Convert a Plotly figure to a full HTML string with custom overlays and cached templates."""
     _ensure_templates_loaded()
 

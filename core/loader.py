@@ -1,10 +1,11 @@
 import os
 import pandas as pd
 import numpy as np
+from typing import Any
 
-MIN_MAGNITUDE = 0.5
+MIN_MAGNITUDE: float = 0.5
 
-def _make_hover(df):
+def _make_hover(df: pd.DataFrame) -> list[str]:
     """Generate descriptive hover text strings from a DataFrame."""
     return [
         f"Date: {t}<br>"
@@ -18,7 +19,7 @@ def _make_hover(df):
         )
     ]
 
-def precompute_visual_data(df):
+def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
     """Pre-calculate expensive data structures for visualizations."""
     print("Packaging visualization data...")
     
@@ -49,7 +50,7 @@ def precompute_visual_data(df):
 
     }
 
-def load_csv(source_file):
+def load_csv(source_file: str) -> dict[str, Any]:
     """Parse a seismic CSV and return extracted data arrays.
 
     Returns a dict with keys: latitude, longitude, depth, magnitude, times,

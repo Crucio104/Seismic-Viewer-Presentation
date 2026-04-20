@@ -4,15 +4,16 @@ import threading
 import atexit
 import webview
 import pathlib
+from typing import Any
 
 # ─── Core Imports ────────────────────────────────────────────────────
 from core.config import BASE_DIR, VIZ_TMP_DIR, INDEX_REL, set_http_port
 from core.bridge import Api
 
 # ─── Local HTTP Server ──────────────────────────────────────────────
-_http_server = None
+_http_server: Any = None
 
-def _start_http_server():
+def _start_http_server() -> None:
     global _http_server
     if _http_server: return # Already running
     
@@ -35,7 +36,7 @@ def _start_http_server():
     print(f"Local server: http://127.0.0.1:{port}")
 
 
-def _stop_http_server():
+def _stop_http_server() -> None:
     global _http_server
     if _http_server:
         try:
@@ -48,7 +49,7 @@ def _stop_http_server():
 
 # ─── Cleanup ────────────────────────────────────────────────────────
 
-def _cleanup():
+def _cleanup() -> None:
     """Fast cleanup: stop server. Temp files will be handled at startup or by OS."""
     try:
         _stop_http_server()
@@ -60,10 +61,10 @@ atexit.register(_cleanup)
 
 # ─── Entry point ─────────────────────────────────────────────────────
 
-def main():
-    _win_holder = []
+def main() -> None:
+    _win_holder: list[webview.Window] = []
 
-    def win_ref():
+    def win_ref() -> webview.Window:
         return _win_holder[0]
 
     api = Api(win_ref)
@@ -80,7 +81,7 @@ def main():
     )
     _win_holder.append(window)
 
-    def on_closing():
+    def on_closing() -> bool:
         print("Window closing...")
         return True
 

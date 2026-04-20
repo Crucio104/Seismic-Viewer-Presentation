@@ -4,32 +4,33 @@ import threading
 import traceback
 import webview
 import numpy as np
+from typing import Any, Callable
 import engine
 from core.config import BASE_DIR, VIZ_TMP_DIR, INDEX_REL, get_http_port
 
 class Api:
     """Python ↔ JS bridge exposed via pywebview."""
 
-    def __init__(self, window_ref):
-        self._window = window_ref
-        self._csv_path = None
-        self._data = None
-        self._csv_info = None
-        self._html_cache = {}  # (csv_path, view_style) -> rel_path
+    def __init__(self, window_ref: Callable[[], webview.Window]):
+        self._window: Callable[[], webview.Window] = window_ref
+        self._csv_path: str | None = None
+        self._data: dict[str, Any] | None = None
+        self._csv_info: dict[str, Any] | None = None
+        self._html_cache: dict[tuple[Any, ...], str] = {}  # (csv_path, view_style, ...) -> rel_path
 
     # ── Helpers ──────────────────────────────────────────────────────
 
-    def _make_url(self, rel_path):
+    def _make_url(self, rel_path: str) -> str:
         """Build an HTTP URL from a path relative to BASE_DIR."""
         port = get_http_port()
         return f'http://127.0.0.1:{port}/{rel_path.replace(os.sep, "/")}'
 
-    def _navigate_delayed(self, rel_path, delay=0.15):
+    def _navigate_delayed(self, rel_path: str, delay: float = 0.15) -> None:
         """Schedule a page navigation after a short delay."""
         url = self._make_url(rel_path)
         threading.Timer(delay, self._window().load_url, args=(url,)).start()
 
-    def _push_progress(self, msg):
+    def _push_progress(self, msg: str) -> None:
         """Send a progress message to the hub overlay via JS."""
         try:
             safe_msg = msg.replace('\\', '\\\\').replace("'", "\\'")
@@ -41,7 +42,7 @@ class Api:
 
     # ── File selection ───────────────────────────────────────────────
 
-    def select_csv(self):
+    def select_csv(self) -> dict[str, Any] | None:
         """Open native file dialog, validate the CSV, return summary or error."""
         try:
             result = self._window().create_file_dialog(
@@ -74,15 +75,15 @@ class Api:
 
     # ── Navigation ───────────────────────────────────────────────────
 
-    def navigate_hub(self):
+    def navigate_hub(self) -> None:
         """Navigate the window to the hub screen."""
         self._window().evaluate_js("showHub()")
 
-    def get_csv_info(self):
+    def get_csv_info(self) -> dict[str, Any] | None:
         """Return current CSV info for the hub badge."""
         return self._csv_info
 
-    def load_view(self, view_style, anim_mode='accumulation', window_days=5, clustering_method='kmeans', clustering_params=None):
+    def load_view(self, view_style: int, anim_mode: str = 'accumulation', window_days: int = 5, clustering_method: str = 'kmeans', clustering_params: dict[str, Any] | None = None) -> None:
         """Start visualization generation in a background thread."""
         if self._data is None:
             return {'error': 'No CSV file loaded.'}
@@ -93,7 +94,7 @@ class Api:
             daemon=True,
         ).start()
 
-    def _generate_and_navigate(self, view_style, anim_mode, window_days, clustering_method='kmeans', clustering_params=None):
+    def _generate_and_navigate(self, view_style: int, anim_mode: str, window_days: int, clustering_method: str = 'kmeans', clustering_params: dict[str, Any] | None = None) -> None:
         """Background worker: generate HTML (or use cache), then navigate."""
         try:
             c_params_frozen = frozenset(clustering_params.items()) if clustering_params else None
@@ -132,7 +133,7 @@ class Api:
             traceback.print_exc()
             self._push_progress(f"Error: {e}")
 
-    def get_cluster_update(self, method, params):
+    def get_cluster_update(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Asynchronously recalculate clusters for the existing view."""
         if self._data is None: return {'error': 'No data'}
         try:
@@ -178,12 +179,12 @@ class Api:
             traceback.print_exc()
             return {'error': str(e)}
 
-    def go_back(self):
+    def go_back(self) -> None:
 
         """Return to the hub screen."""
         self._navigate_delayed(INDEX_REL)
 
-    def change_file(self):
+    def change_file(self) -> bool:
         """Go back to the file picker screen."""
         self._csv_path = None
         self._data = None
@@ -191,7 +192,7 @@ class Api:
         self._html_cache.clear()
         return True
 
-    def clear_map_cache(self):
+    def clear_map_cache(self) -> bool | str:
         """Delete and recreate the map cache directory and clear in-memory caches."""
         from core.geo_utils import MAP_CACHE_DIR, build_map_mesh
         import shutil

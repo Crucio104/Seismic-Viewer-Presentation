@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+from typing import Any, Callable
 
 
 # Import from our new core modules
@@ -22,7 +23,7 @@ COMMON_LAYOUT = dict(
     uirevision=True
 )
 
-def apply_3d_style(fig, x_range, y_range, z_range):
+def apply_3d_style(fig: go.Figure, x_range: list[float], y_range: list[float], z_range: list[float]) -> None:
     """Unified style application for 3D scenes."""
     fig.update_layout(
         **COMMON_LAYOUT,
@@ -56,7 +57,7 @@ def apply_3d_style(fig, x_range, y_range, z_range):
 # ─── View Functions ──────────────────────────────────────────────────
 
 
-def view_2d(longitude, latitude, magnitude, times, dates_num=None, depth=None, visual_pack=None):
+def view_2d(longitude: list[float], latitude: list[float], magnitude: list[float], times: list[str], dates_num: list[float] | None = None, depth: list[float] | None = None, visual_pack: dict[str, Any] | None = None) -> go.Figure:
     """Generate a 2D map view with scatter and density traces."""
     # Use pre-calculated hover text
     all_hover = visual_pack.get('hover', []) if visual_pack else []
@@ -106,7 +107,7 @@ def view_2d(longitude, latitude, magnitude, times, dates_num=None, depth=None, v
 
 
 
-def get_3d_static_figure(longitude, latitude, magnitude, depth, times, dates_num=None, bbox=None, visual_pack=None, map_grids=None):
+def get_3d_static_figure(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], times: list[str], dates_num: list[float] | None = None, bbox: tuple[float, float, float, float] | None = None, visual_pack: dict[str, Any] | None = None, map_grids: tuple[Any, ...] | None = None) -> go.Figure:
     """Generate a high-quality 3D static view with pre-calculated hover and map mesh."""
     if bbox is None:
         bbox = (min(latitude), min(longitude), max(latitude), max(longitude))
@@ -175,9 +176,9 @@ def get_3d_static_figure(longitude, latitude, magnitude, depth, times, dates_num
 
 
 
-def get_3d_cluster_figure(longitude, latitude, magnitude, depth,
-                            clustering_method='kmeans', clustering_params=None,
-                            bbox=None, visual_pack=None, map_grids=None):
+def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float],
+                            clustering_method: str = 'kmeans', clustering_params: dict[str, Any] | None = None,
+                            bbox: tuple[float, float, float, float] | None = None, visual_pack: dict[str, Any] | None = None, map_grids: tuple[Any, ...] | None = None) -> tuple[go.Figure, np.ndarray, int]:
     """
     Generate the initial high-quality 3D Cluster figure.
     """
@@ -218,8 +219,8 @@ def get_3d_cluster_figure(longitude, latitude, magnitude, depth,
     return fig, result['labels'], result['n_clusters']
 
 
-def get_cluster_update_traces(longitude, latitude, magnitude, depth, hover,
-                              clustering_method='kmeans', clustering_params=None, viz_mask=None):
+def get_cluster_update_traces(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], hover: list[str],
+                              clustering_method: str = 'kmeans', clustering_params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None) -> dict[str, Any]:
     """
     Perform clustering and return a JSON-ready package for async updates.
     """
@@ -239,8 +240,8 @@ def get_cluster_update_traces(longitude, latitude, magnitude, depth, hover,
     }
 
 
-def _generate_cluster_traces(longitude, latitude, magnitude, depth, hover,
-                             method='kmeans', params=None, viz_mask=None):
+def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list[float] | np.ndarray, magnitude: list[float] | np.ndarray, depth: list[float] | np.ndarray, hover: list[str],
+                             method: str = 'kmeans', params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None) -> dict[str, Any]:
     """
     Shared helper to perform clustering and generate Plotly trace objects.
     Ensures identical logic between initial render and async updates.
@@ -390,8 +391,8 @@ def _generate_cluster_traces(longitude, latitude, magnitude, depth, hover,
 
 
 
-def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
-                           on_progress=None, anim_mode='accumulation', window_days=5, data=None, bbox=None, map_grids=None):
+def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], times: list[str],
+                           on_progress: Callable[[str], None] | None = None, anim_mode: str = 'accumulation', window_days: int = 5, data: dict[str, Any] | None = None, bbox: tuple[float, float, float, float] | None = None, map_grids: tuple[Any, ...] | None = None) -> tuple[go.Figure, dict[str, Any]]:
     """Generate a 3D figure for animation with timeline interaction."""
     def _report(msg):
         print(msg)
@@ -493,9 +494,9 @@ def get_3d_animated_figure(longitude, latitude, magnitude, depth, times,
 
 
 
-def build_view_html(data, view_style, back_button=True, on_progress=None,
-                    anim_mode='accumulation', window_days=5, clustering_method='kmeans',
-                    clustering_params=None):
+def build_view_html(data: dict[str, Any], view_style: int, back_button: bool = True, on_progress: Callable[[str], None] | None = None,
+                    anim_mode: str = 'accumulation', window_days: int = 5, clustering_method: str = 'kmeans',
+                    clustering_params: dict[str, Any] | None = None) -> tuple[str, bool]:
     """Orchestrate view generation and return final HTML."""
     def _report(msg):
         if on_progress: on_progress(msg)

@@ -12,10 +12,10 @@ INDEX_REL = 'assets/index.html'
 # Note: These are populated at runtime in app.py
 _http_port = 0
 
-def get_http_port():
+def get_http_port() -> int:
     global _http_port
     return _http_port
 
-def set_http_port(port):
+def set_http_port(port: int) -> None:
     global _http_port
     _http_port = port

@@ -1,7 +1,10 @@
 plotly
 numpy
 pandas
+scipy
 smopy
 Pillow
 pywebview
 scikit-learn
+requests
+matplotlib

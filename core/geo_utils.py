@@ -7,6 +7,7 @@ import urllib.request
 import ssl
 import PIL.Image
 from functools import lru_cache
+from typing import Any
 
 # --- Network & SSL Configuration for Maps ---
 # Fix for macOS/Hotspot SSL Certificate errors
@@ -35,16 +36,16 @@ MAP_CACHE_DIR = os.path.join(
     'resources', '.map_cache'
 )
 
-def _get_cache_path(bbox, resolution):
+def _get_cache_path(bbox: tuple[float, float, float, float], resolution: int) -> str:
     """Generate a deterministic cache path from the bounding box and resolution."""
     # Round bbox to 5 decimal places to avoid tiny float differences breaking cache
-    rounded_bbox = tuple(round(v, 5) for v in bbox)
+    rounded_bbox: tuple[float, float, float, float] = tuple(round(v, 5) for v in bbox)
     key_str = f"{rounded_bbox}_{resolution}"
     key = hashlib.md5(key_str.encode()).hexdigest()
     return os.path.join(MAP_CACHE_DIR, f'mesh_{key}.pkl')
 
 
-def _fetch_tiles_raw(bbox):
+def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] | None:
     """Low-level fetch from Smopy with error handling for offline usage."""
     try:
         print("Downloading map tiles (first time for this area)...")
@@ -60,7 +61,7 @@ def _fetch_tiles_raw(bbox):
 
 
 
-def _compute_grid(w, h, scale, ts, xmin, ymin, n):
+def _compute_grid(w: int, h: int, scale: float, ts: int, xmin: float, ymin: float, n: int) -> tuple[np.ndarray, np.ndarray]:
     """Vectorized coordinate grid calculation using NumPy."""
     js = np.arange(w)
     x = (((js * scale) / ts + xmin) / n) * 360.0 - 180.0
@@ -71,7 +72,7 @@ def _compute_grid(w, h, scale, ts, xmin, ymin, n):
 
 
 @lru_cache(maxsize=4)
-def build_map_mesh(bbox, resolution):
+def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[list[float | str]], dict[str, Any] | None]:
 
     """
     Build a map mesh at the given resolution.
