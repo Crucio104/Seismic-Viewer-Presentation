@@ -636,6 +636,21 @@
 
 
 <script>
+    // --- Message Synchronization ---
+    function updateProgress(msg) {
+        // Update the injected init-loader from Python templates
+        const initLoaderText = document.querySelector('#init-loader .loader-text');
+        if (initLoaderText) {
+            initLoaderText.textContent = msg;
+        }
+        
+        // Update the standard loader if present
+        const loaderText = document.querySelector('#loader p');
+        if (loaderText) {
+            loaderText.textContent = msg;
+        }
+    }
+
     function transitionToHub() {
         showInitLoader('Returning to Hub...');
         // Wait for the opacity transition (0.15s) before navigating

@@ -408,6 +408,17 @@
     </div>
 
 <script>
+    // --- Message Synchronization ---
+    function updateProgress(msg) {
+        // Update the overlay message used during heavy operations
+        const overlayMsg = document.getElementById('overlay-msg');
+        if (overlayMsg) overlayMsg.textContent = msg;
+        
+        // Update the file picker loader if visible
+        const pickerLoaderText = document.querySelector('#loader p');
+        if (pickerLoaderText) pickerLoaderText.textContent = msg;
+    }
+
     // --- View Switching Logic ---
     function showFilePicker() {
         document.getElementById('view-hub').classList.remove('active');
