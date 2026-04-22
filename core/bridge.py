@@ -10,6 +10,7 @@ from typing import Any, Callable
 logger = logging.getLogger(__name__)
 import engine
 from core.config import BASE_DIR, VIZ_TMP_DIR, get_http_port
+from core.history import get_recent_files, save_recent_file, clear_history
 
 class Api:
     """Python ↔ JS bridge exposed via pywebview."""
@@ -65,6 +66,7 @@ class Api:
                 'date_range': data['summary']['date_range'],
             }
             self._html_cache.clear()  # new CSV → invalidate cache
+            save_recent_file(path)
             return self._csv_info
 
         except ValueError as e:
@@ -72,6 +74,31 @@ class Api:
         except Exception as e:
             logger.error("Unexpected error in select_csv", exc_info=True)
             return {'error': f'Unexpected error: {e}'}
+
+    def get_history(self) -> list[dict[str, str]]:
+        """Return a list of recent files with their names and paths."""
+        paths = get_recent_files()
+        return [{'name': os.path.basename(p), 'path': p} for p in paths]
+
+    def load_recent_file(self, path: str) -> dict[str, Any] | None:
+        """Load a file directly from path without dialog."""
+        try:
+            if not os.path.exists(path):
+                return {'error': 'File no longer exists.'}
+            
+            data = engine.load_csv(path)
+            self._csv_path = path
+            self._data = data
+            self._csv_info = {
+                'filename': os.path.basename(path),
+                'event_count': data['summary']['event_count'],
+                'date_range': data['summary']['date_range'],
+            }
+            self._html_cache.clear()
+            save_recent_file(path)
+            return self._csv_info
+        except Exception as e:
+            return {'error': str(e)}
 
     # ── Navigation ───────────────────────────────────────────────────
 
@@ -177,6 +204,22 @@ class Api:
             return {'error': str(e)}
 
 
+    def get_structural_planes(self, radius_km: float, min_pts: int, window_days: int) -> dict[str, Any]:
+        """Recalculate structural planes for the entire animation timeline."""
+        if self._data is None: return {'error': 'No data'}
+        try:
+            planes_mapping = engine.get_animation_planes(
+                self._data, 
+                radius_km=float(radius_km), 
+                min_pts=int(min_pts), 
+                window_days=int(window_days)
+            )
+            return planes_mapping
+        except Exception as e:
+            traceback.print_exc()
+            return {'error': str(e)}
+
+
     def change_file(self) -> bool:
         """Go back to the file picker screen."""
         self._csv_path = None
@@ -197,6 +240,9 @@ class Api:
             # CRITICAL: Clear both the HTML path cache and the memory mesh cache
             self._html_cache.clear()
             build_map_mesh.cache_clear()
+            
+            # Also clear the recent files history
+            clear_history()
             
             return True
         except Exception as e:

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -32,6 +32,11 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                 Import Dataset
             </button>
+
+            <div id="recent-files-section" style="display:none; margin-top: 1.5rem; animation: fadeIn 0.8s ease-out;">
+                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05rem; color: rgba(255,255,255,0.4); margin-bottom: 0.75rem; font-weight: 600;">Lastly opened</div>
+                <div id="recent-list" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+            </div>
 
             <div class="file-card" id="file-card">
                 <div class="info-item">
@@ -107,7 +112,7 @@
             </div>
         </div>
 
-        <div class="change-link" style="margin-top: 0.2rem; margin-bottom: 0.2rem; opacity: 0.6;" onclick="clearCacheJS()">Clear Map Cache</div>
+        <div class="change-link" style="margin-top: 0.2rem; margin-bottom: 0.2rem; opacity: 0.6;" onclick="clearCacheJS()">Clear Cache</div>
     </div>
 
 
@@ -205,11 +210,75 @@
             } else {
                 localStorage.removeItem('hub_badge');
                 showFilePicker();
+                refreshRecentFiles();
             }
         } catch(e) {
             showFilePicker();
+            refreshRecentFiles();
         }
     });
+
+    async function refreshRecentFiles() {
+        const section = document.getElementById('recent-files-section');
+        const list = document.getElementById('recent-list');
+        try {
+            const history = await pywebview.api.get_history();
+            if (history && history.length > 0) {
+                list.innerHTML = '';
+                history.forEach(item => {
+                    const btn = document.createElement('button');
+                    btn.className = 'recent-item';
+                    btn.innerHTML = `
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                        <span>${item.name}</span>
+                    `;
+                    btn.onclick = () => loadRecent(item.path);
+                    list.appendChild(btn);
+                });
+                section.style.display = 'block';
+            } else {
+                section.style.display = 'none';
+            }
+        } catch(e) {
+            section.style.display = 'none';
+        }
+    }
+
+    async function loadRecent(path) {
+        const btn = document.getElementById('pick-btn');
+        const loader = document.getElementById('loader');
+        const progressBar = document.getElementById('progress-bar');
+        progressBar.style.width = '0%';
+        
+        btn.disabled = true;
+        loader.style.display = 'block';
+        document.getElementById('recent-files-section').style.display = 'none';
+        updateProgress('Accessing recent file...');
+
+        try {
+            const result = await pywebview.api.load_recent_file(path);
+            if (result && !result.error) {
+                // Success
+                document.getElementById('fi-name').textContent = result.filename;
+                document.getElementById('fi-count').textContent = result.event_count.toLocaleString() + ' quakes recovered';
+                document.getElementById('fi-range').textContent = result.date_range;
+                
+                progressBar.style.width = '100%';
+                setTimeout(() => {
+                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events');
+                }, 400);
+            } else {
+                showToast(result?.error || 'Failed to load recent file', 'error');
+                btn.disabled = false;
+                loader.style.display = 'none';
+                refreshRecentFiles();
+            }
+        } catch(e) {
+            showToast('System error: ' + e, 'error');
+            btn.disabled = false;
+            loader.style.display = 'none';
+        }
+    }
 
     // --- File Picker Functions ---
     async function selectFile() {
@@ -218,10 +287,12 @@
         const card = document.getElementById('file-card');
         const loader = document.getElementById('loader');
         const progressBar = document.getElementById('progress-bar');
+        progressBar.style.width = '0%';
 
         btn.disabled = true;
         status.innerHTML = '';
         card.style.display = 'none';
+        document.getElementById('recent-files-section').style.display = 'none';
 
         try {
             const result = await pywebview.api.select_csv();
@@ -271,8 +342,10 @@
         pywebview.api.change_file().then(() => {
             localStorage.removeItem('hub_badge');
             showFilePicker();
+            refreshRecentFiles();
         }).catch(() => {
             showFilePicker();
+            refreshRecentFiles();
         });
     }
 
@@ -285,7 +358,8 @@
             const res = await pywebview.api.clear_map_cache();
             overlay.classList.remove('show');
             if (res === true) {
-                showToast('Map cache cleared successfully.', 'success');
+                showToast('System cache and history cleared.', 'success');
+                refreshRecentFiles();
             } else {
                 showToast('Error clearing cache: ' + res, 'error');
             }

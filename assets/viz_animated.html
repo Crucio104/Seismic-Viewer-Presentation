@@ -25,7 +25,7 @@
                 </div>
 
             </div>
-            <div class="settings-group" style="margin-top:1rem">
+            <div class="settings-group">
                 <div class="label">Color Analysis</div>
                 <button class="settings-btn" id="color-toggle">Magnitude ▾</button>
                 <div class="glass-panel glass-menu" id="color-menu">
@@ -34,7 +34,7 @@
                     <div class="menu-item" data-mode="dep">Depth</div>
                 </div>
             </div>
-            <div class="settings-group" style="margin-top:0.750rem">
+            <div class="settings-group">
                 <div class="label">Color Scale</div>
                 <button class="settings-btn" id="scale-toggle">Viridis ▾</button>
                 <div class="glass-panel glass-menu" id="scale-menu">
@@ -54,6 +54,35 @@
                 Invert Scale
             </label>
 
+            <div class="settings-group" id="structural-settings-group" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem; display:none;">
+                <div class="label">Structural Analysis</div>
+                <label class="glass-checkbox">
+                    <input type="checkbox" id="show-planes">
+                    Enable Planes
+                </label>
+                
+                <div id="plane-controls" style="display:none; margin-top:0.75rem;">
+                    <div class="label" style="font-size:0.6rem; opacity:0.7;">Cylinder Radius (km)</div>
+                    <div class="settings-row" style="margin-bottom:0.5rem;">
+                        <input type="number" id="plane-radius" class="glass-input" min="0.1" max="10.0" step="0.1" value="0.5" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                    </div>
+                    
+                    <div class="label" style="font-size:0.6rem; opacity:0.7;">Min Points</div>
+                    <div class="settings-row" style="margin-bottom:0.75rem;">
+                        <input type="number" id="plane-min-pts" class="glass-input" min="3" max="50" value="4" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                    </div>
+
+                    <label class="glass-checkbox" style="margin-bottom:0.75rem;">
+                        <input type="checkbox" id="accumulate-planes">
+                        Accumulate Planes
+                    </label>
+                    
+                    <button class="settings-btn" id="update-planes-btn" style="margin-top:0.75rem; font-size:0.7rem; height:1.8rem; justify-content:center;">
+                        Apply filters
+                    </button>
+                </div>
+            </div>
+
         </div>
 
         <div id="jump-bar" class="glass-panel">
@@ -63,23 +92,23 @@
 
         <div id="stats-hud" class="glass-panel">
             <div class="stats-item">
-                <div class="stats-label">Visible Events</div>
+                <div class="stats-label">Events</div>
                 <div class="stats-value" id="stat-count">0</div>
             </div>
+            <div class="stats-divider"></div>
             <div class="stats-item">
-                <div class="stats-label">Peak Magnitude</div>
+                <div class="stats-label">Peak Mag</div>
                 <div class="stats-value" id="stat-max-mag">0.0</div>
             </div>
+            <div class="stats-divider"></div>
             <div class="stats-item">
-                <div class="stats-label">Avg. Depth</div>
+                <div class="stats-label">Avg Depth</div>
                 <div class="stats-value" id="stat-avg-dep">0.0 km</div>
             </div>
+            <div class="stats-divider"></div>
             <div class="stats-item">
-                <div class="stats-label">Energy Release (kJ)</div>
-                <div>
-                    <div class="stats-value" id="stat-energy">0.0</div>
-                    <div class="stats-formula">log₁₀E = 4.8 + 1.5M</div>
-                </div>
+                <div class="stats-label">Energy</div>
+                <div class="stats-value" id="stat-energy">0.0</div>
             </div>
         </div>
     </div>
@@ -104,6 +133,13 @@
             const jumpBtn = document.getElementById('jump-btn');
             const jumpDate = document.getElementById('jump-date');
             const histogramMap = document.getElementById('histogram-map');
+            
+            const showPlanesCheck = document.getElementById('show-planes');
+            const planeControls = document.getElementById('plane-controls');
+            const planeRadius = document.getElementById('plane-radius');
+            const planeMinPts = document.getElementById('plane-min-pts');
+            const accumulatePlanesCheck = document.getElementById('accumulate-planes');
+            const updatePlanesBtn = document.getElementById('update-planes-btn');
 
             let isPlaying = false;
             let currentStepIdx = 0;
@@ -111,17 +147,31 @@
             let currentColorScale = 'Viridis';
             let invertScale = false;
             
+            let planesEnabled = false;
+            let accumulatePlanes = false;
+            let structuralPlanes = null; // Mapping date -> planes
+            let persistentPlanesMap = new Map(); // grid_id -> plane_data (for accumulation)
+            let lastAccumIdx = -1;
+            
             let baseDelay = 1000; 
             let speedMult = 1;
             
             let startTime = 0;
             let startIdx = 0;
+            let animId = null;
 
             const dates = quakeData.unique_dates;
             slider.max = dates.length - 1;
             jumpDate.min = dates[0];
             jumpDate.max = dates[dates.length - 1];
             jumpDate.value = dates[0];
+
+            function formatDate(isoStr) {
+                if (!isoStr) return '';
+                const parts = isoStr.split('-');
+                if (parts.length !== 3) return isoStr;
+                return `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
 
             function getActiveRange(idx) {
                 const date = dates[idx];
@@ -131,12 +181,19 @@
                 if (quakeData.anim_mode === 'window') {
                     const cutoffDate = new Date(new Date(date).getTime() - (quakeData.window_days - 1) * 86400000);
                     const cutoffStr = cutoffDate.toISOString().slice(0, 10);
-                    for (let i = 0; i < dates.length; i++) {
-                        if (dates[i] >= cutoffStr) {
-                            if (i > 0) startIdx = quakeData.date_to_cum[dates[i-1]];
-                            break;
+                    
+                    let low = 0, high = dates.length - 1;
+                    let foundIdx = 0;
+                    while (low <= high) {
+                        let mid = (low + high) >>> 1;
+                        if (dates[mid] >= cutoffStr) {
+                            foundIdx = mid;
+                            high = mid - 1;
+                        } else {
+                            low = mid + 1;
                         }
                     }
+                    if (foundIdx > 0) startIdx = quakeData.date_to_cum[dates[foundIdx - 1]];
                 }
                 return [startIdx, endIdx];
             }
@@ -189,9 +246,57 @@
                 };
 
 
-                Plotly.restyle(gd, restyleUpdate, [visibleTraceIdx]);
+                // --- Optimized Multi-Trace Update ---
+                const bulkUpdate = {
+                    ...restyleUpdate
+                };
+                const traceIndices = [visibleTraceIdx];
 
-                dateDisplay.textContent = dates[idx];
+                if (planesEnabled && structuralPlanes) {
+                    // Accumulation Logic
+                    if (accumulatePlanes) {
+                        // If we jumped backwards, reset the map and the accumulation index
+                        if (idx < lastAccumIdx) {
+                            persistentPlanesMap.clear();
+                            lastAccumIdx = -1;
+                        }
+                        
+                        // Fill map from lastAccumIdx+1 to idx
+                        for (let i = Math.max(0, lastAccumIdx + 1); i <= idx; i++) {
+                            const daily = structuralPlanes[dates[i]] || [];
+                            daily.forEach(p => persistentPlanesMap.set(p.grid_id, p));
+                        }
+                        lastAccumIdx = idx;
+                        
+                        const meshData = generatePlaneMesh(Array.from(persistentPlanesMap.values()));
+                        bulkUpdate.x = [...(bulkUpdate.x || []), meshData.x[0]];
+                        bulkUpdate.y = [...(bulkUpdate.y || []), meshData.y[0]];
+                        bulkUpdate.z = [...(bulkUpdate.z || []), meshData.z[0]];
+                        bulkUpdate.i = [...(bulkUpdate.i || []), meshData.i[0]];
+                        bulkUpdate.j = [...(bulkUpdate.j || []), meshData.j[0]];
+                        bulkUpdate.k = [...(bulkUpdate.k || []), meshData.k[0]];
+                        bulkUpdate.facecolor = [...(bulkUpdate.facecolor || []), meshData.facecolor[0]];
+                    } else {
+                        const datePlanes = structuralPlanes[dates[idx]] || [];
+                        const meshData = generatePlaneMesh(datePlanes);
+                        bulkUpdate.x = [...(bulkUpdate.x || []), meshData.x[0]];
+                        bulkUpdate.y = [...(bulkUpdate.y || []), meshData.y[0]];
+                        bulkUpdate.z = [...(bulkUpdate.z || []), meshData.z[0]];
+                        bulkUpdate.i = [...(bulkUpdate.i || []), meshData.i[0]];
+                        bulkUpdate.j = [...(bulkUpdate.j || []), meshData.j[0]];
+                        bulkUpdate.k = [...(bulkUpdate.k || []), meshData.k[0]];
+                        bulkUpdate.facecolor = [...(bulkUpdate.facecolor || []), meshData.facecolor[0]];
+                    }
+                    bulkUpdate.visible = [...Array(traceIndices.length).fill(true), true];
+                    traceIndices.push(4);
+                } else {
+                    bulkUpdate.visible = [...Array(traceIndices.length).fill(true), false];
+                    traceIndices.push(4);
+                }
+
+                Plotly.restyle(gd, bulkUpdate, traceIndices);
+                
+                dateDisplay.textContent = formatDate(dates[idx]);
                 slider.value = idx;
                 currentStepIdx = idx;
 
@@ -281,6 +386,66 @@
                 updateView(currentStepIdx);
             }
 
+            function generatePlaneMesh(planes) {
+                if (!planes || planes.length === 0) {
+                    return { x: [[]], y: [[]], z: [[]], i: [[]], j: [[]], k: [[]], facecolor: [[]] };
+                }
+
+                const allX = [], allY = [], allZ = [];
+                const allI = [], allJ = [], allK = [];
+                const allColors = [];
+                let vertOffset = 0;
+
+                const nSegments = 16; 
+
+                planes.forEach(p => {
+                    allX.push(...p.x);
+                    allY.push(...p.y);
+                    allZ.push(...p.z);
+
+                    const color = `rgba(0, 243, 255, ${0.5 + p.planarity * 0.4})`;
+                    for (let i = 1; i < nSegments - 1; i++) {
+                        allI.push(vertOffset);
+                        allJ.push(vertOffset + i);
+                        allK.push(vertOffset + i + 1);
+                        allColors.push(color);
+                    }
+                    vertOffset += nSegments;
+                });
+
+                return {
+                    x: [allX], y: [allY], z: [allZ],
+                    i: [allI], j: [allJ], k: [allK],
+                    facecolor: [allColors]
+                };
+            }
+
+            async function syncPlanes() {
+                if (!planesEnabled) return;
+                
+                showInitLoader("Analyzing structural planes...");
+                try {
+                    const result = await pywebview.api.get_structural_planes(
+                        planeRadius.value,
+                        planeMinPts.value,
+                        quakeData.window_days
+                    );
+                    
+                    if (result && !result.error) {
+                        structuralPlanes = result;
+                        persistentPlanesMap.clear();
+                        lastAccumIdx = -1;
+                        updateView(currentStepIdx);
+                    } else {
+                        console.error("Plane Calculation Error:", result?.error);
+                    }
+                } catch (e) {
+                    console.error("Bridge Error:", e);
+                } finally {
+                    hideInitLoader();
+                }
+            }
+
 
 
             function animationLoop(timestamp) {
@@ -292,6 +457,7 @@
                 const elapsed = timestamp - startTime;
                 const secondsPassed = Math.floor(elapsed / baseDelay);
                 const targetIdx = startIdx + (secondsPassed * speedMult);
+                
                 if (targetIdx !== currentStepIdx && targetIdx < dates.length) {
                     updateView(targetIdx);
                 } else if (targetIdx >= dates.length) {
@@ -299,7 +465,7 @@
                     pause();
                     return;
                 }
-                requestAnimationFrame(animationLoop);
+                animId = requestAnimationFrame(animationLoop);
             }
 
             function play() {
@@ -313,11 +479,15 @@
                 playBtn.classList.add('active');
                 pauseBtn.classList.remove('active');
                 if (typeof setGlobalInterfaceLock === 'function') setGlobalInterfaceLock(true);
-                requestAnimationFrame(animationLoop);
+                animId = requestAnimationFrame(animationLoop);
             }
 
             function pause() {
                 isPlaying = false;
+                if (animId) {
+                    cancelAnimationFrame(animId);
+                    animId = null;
+                }
                 startTime = 0; 
                 playBtn.classList.remove('active');
                 pauseBtn.classList.add('active');
@@ -374,14 +544,70 @@
 
             jumpBtn.onclick = () => {
                 const target = jumpDate.value;
+                if (!target) return;
+                
                 const idx = dates.findIndex(d => d >= target);
                 if (idx !== -1) {
                     pause();
                     updateView(idx);
+                } else {
+                    // Fallback to last date if target is beyond range
+                    pause();
+                    updateView(dates.length - 1);
                 }
             };
 
+            // Plane Controls
+            showPlanesCheck.onchange = () => {
+                planesEnabled = showPlanesCheck.checked;
+                planeControls.style.display = planesEnabled ? 'block' : 'none';
+                if (planesEnabled && !structuralPlanes) {
+                    syncPlanes();
+                } else {
+                    persistentPlanesMap.clear();
+                    lastAccumIdx = -1;
+                    updateView(currentStepIdx);
+                }
+            };
+
+            accumulatePlanesCheck.onchange = () => {
+                accumulatePlanes = accumulatePlanesCheck.checked;
+                persistentPlanesMap.clear();
+                lastAccumIdx = -1;
+                updateView(currentStepIdx);
+            };
+
+            // Plane Radius/MinPts updates (using inputs now)
+            planeRadius.onchange = () => {
+                if (planeRadius.value < 0.1) planeRadius.value = 0.1;
+            };
+            planeMinPts.onchange = () => {
+                if (planeMinPts.value < 3) planeMinPts.value = 3;
+            };
+            updatePlanesBtn.onclick = syncPlanes;
+
+            // Add the Plane Trace (Trace 4)
+            Plotly.addTraces(gd, {
+                type: 'mesh3d',
+                x: [[]], y: [[]], z: [[]],
+                i: [[]], j: [[]], k: [[]],
+                opacity: 0.8,
+                color: '#00f3ff',
+                name: 'Structural Planes',
+                hoverinfo: 'skip',
+                visible: false,
+                lighting: { ambient: 0.9, diffuse: 0.5, specular: 0.1, roughness: 0.9, fresnel: 0.1 },
+                flatshading: true
+            });
+
             renderHistogram();
             updateView(0);
+
+            // Show structural panel only if we have a real time window (not cumulative)
+            if (quakeData.anim_mode === 'window') {
+                document.getElementById('structural-settings-group').style.display = 'block';
+            } else {
+                document.getElementById('structural-settings-group').style.display = 'none';
+            }
         });
         </script>

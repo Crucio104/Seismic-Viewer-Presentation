@@ -66,7 +66,7 @@ def view_2d(longitude: list[float], latitude: list[float], magnitude: list[float
 
     fig = px.scatter_mapbox(
         lat=latitude, lon=longitude,
-        size=[6] * len(latitude),
+        size=magnitude,
         color=depth if depth is not None else magnitude,
         hover_name=all_hover,
         zoom=12,
@@ -585,3 +585,162 @@ def build_view_html(data: dict[str, Any], view_style: int, back_button: bool = T
         raise ValueError(f"Invalid view style: {view_style}")
 
     return html, is_fallback
+
+
+# ─── Structural Plane Analysis ─────────────────────────────────────────
+
+def calculate_structural_planes(longitude: np.ndarray, latitude: np.ndarray, depth: np.ndarray, 
+                               radius_km: float, min_pts: int, overlap: float = 0.2,
+                               global_context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """
+    Fits planes to points within overlapping vertical cylinders.
+    """
+    from scipy.linalg import svd
+
+    if len(longitude) < min_pts:
+        return []
+
+    # 1. Coordinate Transformation using stable origin
+    if global_context:
+        origin_lat = global_context['origin_lat']
+        origin_lon = global_context['origin_lon']
+        gx_min, gx_max, gy_min, gy_max = global_context['bounds']
+    else:
+        origin_lat = np.mean(latitude)
+        origin_lon = np.mean(longitude)
+        gx_min, gx_max = None, None
+
+    lat_to_km = 111.32
+    lon_to_km = 111.32 * np.cos(np.radians(origin_lat))
+    
+    x_km = (longitude - origin_lon) * lon_to_km
+    y_km = (latitude - origin_lat) * lat_to_km
+    pts_km = np.column_stack((x_km, y_km, depth))
+
+    # 2. Grid Generation
+    if gx_min is not None:
+        pass # use provided bounds
+    else:
+        gx_min, gx_max = np.min(x_km), np.max(x_km)
+        gy_min, gy_max = np.min(y_km), np.max(y_km)
+    
+    spacing = radius_km * (2.0 - overlap)
+    grid_x = np.arange(gx_min, gx_max + spacing, spacing)
+    grid_y = np.arange(gy_min, gy_max + spacing, spacing)
+
+    planes = []
+
+    # 3. Fitting
+    for ix, cx in enumerate(grid_x):
+        for iy, cy in enumerate(grid_y):
+            # Mask points in cylinder
+            dists_sq = (x_km - cx)**2 + (y_km - cy)**2
+            mask = dists_sq <= radius_km**2
+            
+            if np.sum(mask) >= min_pts:
+                subset = pts_km[mask]
+                centroid = np.mean(subset, axis=0)
+                
+                # PCA via SVD
+                centered = subset - centroid
+                _, s, vh = svd(centered)
+                
+                # Normal is the eigenvector of the smallest singular value
+                normal = vh[2, :]
+                
+                # Conversion back to lon/lat for the centroid
+                c_lon = (centroid[0] / lon_to_km) + origin_lon
+                c_lat = (centroid[1] / lat_to_km) + origin_lat
+                c_z = float(centroid[2])
+
+                # --- GEOMETRY GENERATION (Directly in Python) ---
+                # Find orthogonal basis u, v in KM
+                u = np.array([1, 0, 0])
+                if abs(normal[0]) > 0.9: u = np.array([0, 1, 0])
+                u = np.cross(normal, u)
+                u /= np.linalg.norm(u)
+                v = np.cross(normal, u)
+                
+                n_segments = 16 # Sufficient for small scale
+                theta = np.linspace(0, 2*np.pi, n_segments, endpoint=False)
+                
+                # Vertices in KM
+                disk_verts_km = centroid + radius_km * (np.outer(np.cos(theta), u) + np.outer(np.sin(theta), v))
+                
+                # Convert vertices back to Lon/Lat/Depth
+                v_lon = (disk_verts_km[:, 0] / lon_to_km) + origin_lon
+                v_lat = (disk_verts_km[:, 1] / lat_to_km) + origin_lat
+                v_z = disk_verts_km[:, 2]
+
+                planes.append({
+                    'x': v_lon.tolist(),
+                    'y': v_lat.tolist(),
+                    'z': v_z.tolist(),
+                    'planarity': float((s[1] - s[2]) / s[0] if s[0] > 0 else 1.0),
+                    'grid_id': f"{ix}_{iy}"
+                })
+                    
+    return planes
+
+
+def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, window_days: int) -> dict[str, list[dict[str, Any]]]:
+    """
+    Calculates structural planes for every step of the animation.
+    Returns a dict mapping date -> list of planes.
+    """
+    lon = np.array(data['longitude'])
+    lat = np.array(data['latitude'])
+    dep = np.array(data['depth'])
+    times = data['times']
+    dates_unique = data['visual_pack']['unique_dates']
+    date_to_cum = data['visual_pack']['date_to_cum']
+
+    # Pre-calculate global context for coordinate stability
+    origin_lat = np.mean(lat)
+    origin_lon = np.mean(lon)
+    lat_to_km = 111.32
+    lon_to_km = 111.32 * np.cos(np.radians(origin_lat))
+    
+    all_x = (lon - origin_lon) * lon_to_km
+    all_y = (lat - origin_lat) * lat_to_km
+    global_ctx = {
+        'origin_lat': origin_lat,
+        'origin_lon': origin_lon,
+        'bounds': (np.min(all_x), np.max(all_x), np.min(all_y), np.max(all_y))
+    }
+
+    results = {}
+    
+    # Ensure window_days is at least 1
+    w_days = max(1, int(window_days))
+    
+    # Optimization: If many steps, we could skip some, but for now let's do all.
+    for date_str in dates_unique:
+        # Get window range
+        end_idx = date_to_cum[date_str]
+        
+        # Calculate start_idx based on window_days
+        from datetime import datetime, timedelta
+        curr_dt = datetime.strptime(date_str, '%Y-%m-%d')
+        cutoff_dt = curr_dt - timedelta(days=w_days - 1)
+        cutoff_str = cutoff_dt.strftime('%Y-%m-%d')
+        
+        start_idx = 0
+        for d in dates_unique:
+            if d >= cutoff_str:
+                d_idx = dates_unique.index(d)
+                if d_idx > 0:
+                    start_idx = date_to_cum[dates_unique[d_idx-1]]
+                break
+        
+        # Filter points
+        s_lon = lon[start_idx:end_idx]
+        s_lat = lat[start_idx:end_idx]
+        s_dep = dep[start_idx:end_idx]
+        
+        if len(s_lon) >= min_pts:
+            results[date_str] = calculate_structural_planes(s_lon, s_lat, s_dep, radius_km, min_pts, global_context=global_ctx)
+        else:
+            results[date_str] = []
+            
+    return results

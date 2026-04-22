@@ -57,6 +57,7 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
         '<link rel="stylesheet" href="/assets/style.css">'
     )
     
+    html_content = html_content.replace('<html>', '<html lang="en-GB">')
     html_content = html_content.replace('<head>', '<head>\n' + loader_css)
     
     extra_scripts = TEMPLATE_CACHE.get('common', "")

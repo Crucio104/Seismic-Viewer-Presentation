@@ -9,7 +9,7 @@ MIN_MAGNITUDE: float = 0.5
 def _make_hover(df: pd.DataFrame) -> list[str]:
     """Generate descriptive hover text strings from a DataFrame using vectorized operations."""
     return (
-        "Date: " + df['time'].astype(str) + "<br>" +
+        "Date: " + pd.to_datetime(df['time']).dt.strftime('%d-%m-%Y %H:%M') + "<br>" +
         "Magnitude: " + df['mag'].astype(str) + "<br>" +
         "Latitude: " + df['lat'].map('{:.4f}'.format) + "<br>" +
         "Longitude: " + df['lon'].map('{:.4f}'.format) + "<br>" +
@@ -24,7 +24,7 @@ def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
     all_hover = _make_hover(df)
     
     # 2. Date grouping for animation
-    df['date_str'] = df['time'].str.slice(0, 10)
+    df['date_str'] = df['time_dt'].dt.strftime('%Y-%m-%d')
     unique_dates = sorted(df['date_str'].unique())
     # Count events per unique date
     counts_map = df.groupby('date_str').size().to_dict()
@@ -123,7 +123,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
     times = df['time'].tolist()
     dates_num = df['dates_num'].tolist()
 
-    date_range = f"{df['time_dt'].iloc[0].strftime('%Y-%m-%d')} → {df['time_dt'].iloc[-1].strftime('%Y-%m-%d')}"
+    date_range = f"{df['time_dt'].iloc[0].strftime('%d-%m-%Y')} → {df['time_dt'].iloc[-1].strftime('%d-%m-%Y')}"
     bbox = (df['lat'].min(), df['lon'].min(), df['lat'].max(), df['lon'].max())
     logger.info(f"Loaded {len(df)} seismic events (M >= {MIN_MAGNITUDE}).")
 

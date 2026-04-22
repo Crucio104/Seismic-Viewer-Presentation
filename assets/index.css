@@ -72,7 +72,7 @@
        ========================================= */
     .container {
         width: 90vw; max-width: 32rem;
-        padding: 5vmin;
+        padding: 5vmin 5vmin 2vmin 5vmin;
         flex-shrink: 1;
         background: rgba(255, 255, 255, 0.03);
         backdrop-filter: blur(1.5rem) saturate(160%);
@@ -118,7 +118,34 @@
     .btn-pick:hover { background: #e2e8f0; transform: scale(1.02); box-shadow: 0 0.625rem 1.250rem rgba(0,0,0,0.2); }
     .btn-pick:active { transform: scale(0.98); }
     .btn-pick svg { width: 1.250rem; height: 1.250rem; }
-    .btn-pick:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-pick:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .recent-item {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #fff;
+        padding: 0.75rem 1rem;
+        border-radius: 1rem;
+        cursor: pointer;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        width: 100%;
+        font-family: inherit;
+    }
+
+    .recent-item:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+        transform: translateX(0.25rem);
+    }
+
+    .recent-item svg {
+        opacity: 0.6;
+        color: #6366f1;
+    }
 
     .file-card {
         margin-top: 1.500rem; padding: 1.250rem; background: rgba(255, 255, 255, 0.05);
@@ -293,4 +320,9 @@
     .toast-success .toast-icon { background: #4ade80; color: #050510; }
     .toast-error .toast-icon { background: #fb7185; color: #fff; }
     .toast-icon svg { width: 0.750rem; height: 0.750rem; fill: currentColor; }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(0.625rem); }
+        to { opacity: 1; transform: translateY(0); }
+    }
 
