@@ -66,7 +66,7 @@ def view_2d(longitude: list[float], latitude: list[float], magnitude: list[float
 
     fig = px.scatter_mapbox(
         lat=latitude, lon=longitude,
-        size=magnitude,
+        size=[6] * len(latitude),
         color=depth if depth is not None else magnitude,
         hover_name=all_hover,
         zoom=12,
@@ -141,7 +141,7 @@ def get_3d_static_figure(longitude: list[float], latitude: list[float], magnitud
         x=longitude, y=latitude, z=depth,
         mode='markers', hovertext=all_hover,
         marker=dict(
-            size=magnitude, sizemode='diameter', sizeref=0.12,
+            size=5,
             color=depth, colorscale='Viridis',
             showscale=False,
             cmin=min(depth), cmax=max(depth),
@@ -159,7 +159,7 @@ def get_3d_static_figure(longitude: list[float], latitude: list[float], magnitud
             x=longitude, y=latitude, z=depth,
             mode='markers', hovertext=all_hover,
             marker=dict(
-                size=magnitude, sizemode='diameter', sizeref=0.15,
+                size=5,
                 color=dates_num, colorscale='Jet',
                 showscale=False,
                 cmin=min(dates_num), cmax=max(dates_num),
@@ -357,7 +357,7 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
     
     traces.append(go.Scatter3d(
         x=v_lon.tolist(), y=v_lat.tolist(), z=v_dep.tolist(), mode='markers', hovertext=v_hover,
-        marker=dict(size=v_mag.tolist(), sizemode='diameter', sizeref=0.12, color=pt_colors, line=dict(width=1, color='rgba(50,50,50,0.8)'), opacity=0.9),
+        marker=dict(size=5, color=pt_colors, line=dict(width=1, color='rgba(50,50,50,0.8)'), opacity=0.9),
         name='Earthquakes', visible=True, showlegend=False, hovertemplate='%{hovertext}<extra></extra>'
     ))
 
@@ -435,7 +435,7 @@ def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnit
         x=[], y=[], z=[],
         mode='markers', hoverinfo='text',
         marker=dict(
-            size=[], sizemode='diameter', sizeref=0.1,
+            size=5,
             color=[], colorscale='Viridis',
             showscale=False, cmin=mag_range[0], cmax=mag_range[1],
             line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
@@ -449,7 +449,7 @@ def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnit
         x=[], y=[], z=[],
         mode='markers', hoverinfo='text',
         marker=dict(
-            size=[], sizemode='diameter', sizeref=0.1,
+            size=5,
             color=[], colorscale='Jet',
             showscale=False, cmin=date_range[0], cmax=date_range[1],
             line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
@@ -463,7 +463,7 @@ def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnit
         x=[], y=[], z=[],
         mode='markers', hoverinfo='text',
         marker=dict(
-            size=[], sizemode='diameter', sizeref=0.1,
+            size=5,
             color=[], colorscale='Viridis',
             showscale=False, cmin=dep_range[0], cmax=dep_range[1],
             line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
