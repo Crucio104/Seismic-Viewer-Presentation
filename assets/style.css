@@ -17,11 +17,11 @@
 }
 
 .loader-text {
-    margin-top: 24px;
-    font-size: 16px;
+    margin-top: 1.500rem;
+    font-size: 1.000rem;
     font-weight: 500;
     color: #e2e8f0;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.031rem;
     text-align: center;
     line-height: 1;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -30,6 +30,19 @@
 .js-plotly-plot, .plotly-graph-div {
     width: 100% !important;
     height: 100% !important;
+}
+
+/* Base Responsive Typography */
+html {
+    font-size: 1.000rem;
+}
+
+@media (max-width: 75.000rem) {
+    html { font-size: 0.875rem; }
+}
+
+@media (max-width: 50.000rem) {
+    html { font-size: 0.750rem; }
 }
 
     :root {
@@ -59,8 +72,8 @@
     .glass-panel {
         position: relative;
         color: #fff;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-        border-radius: 12px;
+        box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.5);
+        border-radius: 0.75rem;
     }
 
     .glass-panel::before {
@@ -69,8 +82,8 @@
         inset: 0;
         z-index: -1;
         background: var(--glass);
-        backdrop-filter: blur(100px);
-        -webkit-backdrop-filter: blur(100px);
+        backdrop-filter: blur(6.250rem);
+        -webkit-backdrop-filter: blur(6.250rem);
         border: 1px solid var(--glass-border);
         border-radius: inherit;
         pointer-events: none;
@@ -79,15 +92,16 @@
 
     #back-btn {
         position: fixed;
-        top: 16px;
-        left: 16px;
+        top: 1rem;
+        left: 1rem;
         z-index: 100000;
-        padding: 10px 20px;
+        padding: 0.6rem 1.2rem;
         font-weight: 600;
         cursor: pointer;
         transition: all 0.2s;
         border: none;
         background: transparent;
+        font-size: 0.9rem;
     }
 
     #back-btn:hover {
@@ -101,7 +115,7 @@
         inset: 0;
         z-index: 200000;
         background: rgba(15, 12, 41, 0.7);
-        backdrop-filter: blur(8px);
+        backdrop-filter: blur(0.500rem);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -117,9 +131,9 @@
     }
 
     .loader-ring {
-        width: 64px;
-        height: 64px;
-        border: 3px solid rgba(255, 255, 255, 0.1);
+        width: 4.000rem;
+        height: 4.000rem;
+        border: 0.188rem solid rgba(255, 255, 255, 0.1);
         border-top-color: #6366f1;
         border-radius: 50%;
         animation: spin 1s linear infinite;
@@ -133,23 +147,23 @@
 
     #filter-bar {
         position: fixed;
-        top: 16px;
+        top: 1.000rem;
         left: 50%;
         transform: translateX(-50%);
         z-index: 99999;
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 8px 20px;
-        font-size: 13px;
+        gap: 0.750rem;
+        padding: 0.500rem 1.250rem;
+        font-size: 0.812rem;
     }
 
     #filter-bar input {
         background: rgba(0, 0, 0, 0.4);
         border: 1px solid rgba(255, 255, 255, 0.3);
         color: #fff;
-        border-radius: 6px;
-        padding: 4px 8px;
+        border-radius: 0.375rem;
+        padding: 0.250rem 0.500rem;
         cursor: pointer;
     }
 
@@ -159,14 +173,15 @@
 
     #settings-bar {
         position: fixed;
-        top: 76px;
-        left: 16px;
+        top: 5rem;
+        left: 1rem;
         z-index: 99999;
         display: flex;
         flex-direction: column;
-        gap: 10px;
-        padding: 12px;
-        width: 215px;
+        gap: 0.625rem;
+        padding: 0.750rem;
+        width: 13.438rem;
+        overflow: visible;
     }
 
     .settings-group {
@@ -176,25 +191,25 @@
 
 
     .label {
-        font-size: 11px;
+        font-size: 0.688rem;
         color: #fff;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.031rem;
         font-weight: 700;
         opacity: 0.9;
-        margin-bottom: 4px;
+        margin-bottom: 0.250rem;
     }
 
     .settings-btn {
         background: rgba(255, 255, 255, 0.08);
         border: 1px solid rgba(255, 255, 255, 0.15);
         color: #fff;
-        border-radius: 8px;
-        padding: 10px 14px;
+        border-radius: 0.500rem;
+        padding: 0.625rem 0.875rem;
         cursor: pointer;
         width: 100%;
         text-align: left;
-        font-size: 13px;
+        font-size: 0.812rem;
         transition: all 0.2s;
         display: flex;
         justify-content: space-between;
@@ -209,8 +224,8 @@
     .settings-row {
         display: flex;
         align-items: center;
-        gap: 8px;
-        margin-top: 6px;
+        gap: 0.500rem;
+        margin-top: 0.375rem;
     }
 
     .settings-row .glass-input {
@@ -220,21 +235,21 @@
 
     .settings-row .settings-btn {
         width: auto;
-        padding: 6px 10px;
+        padding: 0.375rem 0.625rem;
         flex-shrink: 0;
     }
 
     .glass-menu {
         position: absolute;
-        left: calc(100% + 15px);
+        left: calc(100% + 0.938rem);
         top: 0;
         display: none;
         flex-direction: column;
-        gap: 2px;
-        padding: 6px;
-        min-width: 140px;
+        gap: 0.125rem;
+        padding: 0.375rem;
+        min-width: 8.750rem;
         z-index: 100001;
-        border-radius: 12px;
+        border-radius: 0.750rem;
     }
 
     .glass-menu.show {
@@ -242,10 +257,10 @@
     }
 
     .menu-item {
-        padding: 8px 12px;
-        border-radius: 6px;
+        padding: 0.500rem 0.750rem;
+        border-radius: 0.375rem;
         cursor: pointer;
-        font-size: 13px;
+        font-size: 0.812rem;
         transition: background 0.2s;
     }
 
@@ -260,19 +275,19 @@
 
     .slider {
         width: 100%;
-        height: 6px;
+        height: 0.375rem;
         appearance: none;
         background: rgba(255, 255, 255, 0.1);
-        border-radius: 3px;
+        border-radius: 0.188rem;
         outline: none;
-        margin-top: 8px;
+        margin-top: 0.500rem;
     }
 
     .slider::-webkit-slider-thumb {
         -webkit-appearance: none;
         appearance: none;
-        width: 14px;
-        height: 14px;
+        width: 0.875rem;
+        height: 0.875rem;
         background: #fff;
         border-radius: 50%;
         cursor: pointer;
@@ -282,12 +297,12 @@
         background: rgba(255, 255, 255, 0.08);
         border: 1px solid rgba(255, 255, 255, 0.2);
         color: #fff;
-        border-radius: 6px;
-        padding: 6px 10px;
+        border-radius: 0.375rem;
+        padding: 0.375rem 0.625rem;
         width: 100%;
-        font-size: 14px;
+        font-size: 0.875rem;
         outline: none;
-        margin-top: 6px;
+        margin-top: 0.375rem;
         font-family: inherit;
         transition: border-color 0.2s;
     }
@@ -313,32 +328,32 @@
 
     #playback-bar {
         position: fixed;
-        bottom: 20px;
+        bottom: 1.250rem;
         left: 50%;
         transform: translateX(-50%);
         z-index: 99999;
         display: flex;
         align-items: center;
-        gap: 20px;
-        padding: 12px 24px;
+        gap: 1.250rem;
+        padding: 0.750rem 1.500rem;
         width: 80%;
-        max-width: 900px;
+        max-width: 56.250rem;
     }
 
     .play-controls {
         display: flex;
-        gap: 10px;
+        gap: 0.625rem;
     }
 
     .play-controls button {
         background: rgba(255, 255, 255, 0.1);
         border: 1px solid rgba(255, 255, 255, 0.2);
         color: #fff;
-        border-radius: 8px;
-        width: 44px;
-        height: 44px;
+        border-radius: 0.500rem;
+        width: 2.750rem;
+        height: 2.750rem;
         cursor: pointer;
-        font-size: 18px;
+        font-size: 1.125rem;
         transition: all 0.2s;
     }
 
@@ -369,7 +384,7 @@
         flex-grow: 1;
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 0.250rem;
     }
 
     #time-slider {
@@ -377,7 +392,7 @@
     }
 
     #current-date {
-        font-size: 12px;
+        font-size: 0.750rem;
         color: #fff;
         text-align: center;
     }
@@ -387,11 +402,11 @@
         inset: 0;
         z-index: 150000;
         background: rgba(15, 12, 41, 0.4);
-        backdrop-filter: blur(4px);
+        backdrop-filter: blur(0.250rem);
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 12px;
+        border-radius: 0.750rem;
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.4s ease;
@@ -409,25 +424,25 @@
     /* Rounded corners and glass style for Plotly colorbar */
     .cbfill,
     .cbbg {
-        rx: 8px;
-        ry: 8px;
+        rx: 0.500rem;
+        ry: 0.500rem;
     }
 
     .cbbg {
         fill: rgba(45, 45, 65, 0.6) !important;
         stroke: rgba(255, 255, 255, 0.25) !important;
         stroke-width: 1px !important;
-        filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+        filter: drop-shadow(0 0.250rem 0.750rem rgba(0, 0, 0, 0.5));
     }
 
     /* Glass checkbox */
     .glass-checkbox {
         display: flex;
         align-items: center;
-        gap: 8px;
-        margin-top: 8px;
+        gap: 0.500rem;
+        margin-top: 0.500rem;
         cursor: pointer;
-        font-size: 13px;
+        font-size: 0.812rem;
         color: #fff;
         user-select: none;
     }
@@ -435,9 +450,9 @@
     .glass-checkbox input[type="checkbox"] {
         appearance: none;
         -webkit-appearance: none;
-        width: 18px;
-        height: 18px;
-        border-radius: 4px;
+        width: 1.125rem;
+        height: 1.125rem;
+        border-radius: 0.250rem;
         border: 1px solid rgba(255, 255, 255, 0.3);
         background: rgba(255, 255, 255, 0.08);
         cursor: pointer;
@@ -455,8 +470,8 @@
         content: '✓';
         position: absolute;
         top: 0;
-        left: 3px;
-        font-size: 13px;
+        left: 0.188rem;
+        font-size: 0.812rem;
         color: #fff;
         font-weight: 700;
     }
@@ -464,27 +479,28 @@
     /* Glass Legend Styles */
     #glass-legend {
         position: fixed;
-        right: 16px;
-        top: 100px;
+        right: 1rem;
+        top: 6rem;
         z-index: 99999;
-        padding: 18px 15px;
-        width: 140px;
+        padding: 1.1rem 0.9rem;
+        width: 8rem;
         display: none;
         flex-direction: column;
         align-items: center;
-        gap: 12px;
-        min-height: 280px;
+        gap: 0.75rem;
+        height: 35vh;
+        max-height: 25rem;
         text-shadow: none !important;
     }
 
     #legend-title {
         font-family: 'Segoe UI', system-ui, sans-serif;
-        font-size: 13px;
+        font-size: 0.812rem;
         font-weight: 700;
         text-transform: uppercase;
-        margin-bottom: 6px;
+        margin-bottom: 0.375rem;
         opacity: 0.9;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.031rem;
         text-align: center;
         width: 100%;
     }
@@ -493,7 +509,7 @@
         display: flex;
         flex-direction: row-reverse;
         align-items: stretch;
-        gap: 10px;
+        gap: 0.625rem;
         flex-grow: 1;
         height: 100%;
         width: 100%;
@@ -501,22 +517,22 @@
     }
 
     #legend-bar {
-        width: 16px;
-        border-radius: 4px;
+        width: 1.000rem;
+        border-radius: 0.250rem;
         border: 1px solid rgba(255, 255, 255, 0.2);
-        box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.4);
+        box-shadow: inset 0 0 0.500rem rgba(0, 0, 0, 0.4);
     }
 
     #legend-ticks {
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        padding: 2px 0;
+        padding: 0.125rem 0;
     }
 
     .legend-tick {
         font-family: 'Segoe UI', system-ui, sans-serif;
-        font-size: 12px;
+        font-size: 0.750rem;
         font-weight: 600;
         color: #fff;
         opacity: 0.85;
@@ -527,33 +543,33 @@
     /* Toast Notifications (Top Right) */
     #toast-container {
         position: fixed;
-        top: 16px;
-        right: 24px;
+        top: 1.000rem;
+        right: 1.500rem;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 0.500rem;
         z-index: 10000;
         pointer-events: none;
     }
 
     .toast {
         background: var(--glass);
-        backdrop-filter: blur(100px);
-        -webkit-backdrop-filter: blur(100px);
+        backdrop-filter: blur(6.250rem);
+        -webkit-backdrop-filter: blur(6.250rem);
         border: 1px solid var(--glass-border);
         border-top: 1px solid rgba(255, 255, 255, 0.2);
         color: #fff;
-        padding: 12px 20px;
-        border-radius: 12px;
-        font-size: 13px;
+        padding: 0.750rem 1.250rem;
+        border-radius: 0.750rem;
+        font-size: 0.812rem;
         font-weight: 500;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+        box-shadow: 0 0.500rem 2.000rem rgba(0, 0, 0, 0.6);
         opacity: 0;
-        transform: translateX(20px);
+        transform: translateX(1.250rem);
         transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 0.625rem;
     }
 
 
@@ -566,42 +582,42 @@
     /* Camera Control Panel */
     #camera-controls {
         position: fixed;
-        top: 420px;
-        right: 16px;
+        top: 26.250rem;
+        right: 1.000rem;
         z-index: 99999;
         display: none;
         flex-direction: column;
-        gap: 8px;
-        padding: 10px;
-        width: 140px;
+        gap: 0.500rem;
+        padding: 0.625rem;
+        width: 8.750rem;
     }
 
     #camera-controls .btn-cam {
         background: rgba(255, 255, 255, 0.08);
         border: 1px solid rgba(255, 255, 255, 0.15);
         color: #fff;
-        border-radius: 8px;
-        padding: 8px 10px;
+        border-radius: 0.5rem;
+        padding: 0.5rem 0.6rem;
         cursor: pointer;
         width: 100%;
         text-align: left;
-        font-size: 12px;
+        font-size: 0.750rem;
         font-weight: 500;
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 0.500rem;
     }
 
     #camera-controls .btn-cam:hover {
         background: rgba(255, 255, 255, 0.18);
-        transform: translateX(-4px);
+        transform: translateX(-0.250rem);
     }
 
     #camera-controls .btn-cam.active {
         background: rgba(99, 102, 241, 0.4);
         border-color: rgba(99, 102, 241, 0.6);
-        box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+        box-shadow: 0 0 0.938rem rgba(99, 102, 241, 0.3);
     }
 
     #camera-controls.locked,
@@ -613,8 +629,8 @@
     }
 
     #camera-controls .btn-cam svg {
-        width: 14px;
-        height: 14px;
+        width: 0.875rem;
+        height: 0.875rem;
         opacity: 0.9;
     }
 
@@ -626,21 +642,21 @@
                     .histogram-container {
                         display: flex;
                         align-items: flex-end;
-                        gap: 1.5px;
-                        height: 32px;
-                        margin-bottom: -5px;
-                        padding: 0 5px;
+                        gap: 0.1rem;
+                        height: 2rem;
+                        margin-bottom: -0.3rem;
+                        padding: 0 0.3rem;
                     }
                     .hist-bar {
                         flex: 1;
                         background: rgba(255,255,255,0.12);
-                        border-radius: 2px 2px 0 0;
+                        border-radius: 0.125rem 0.125rem 0 0;
                         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                        min-height: 2px;
+                        min-height: 0.125rem;
                     }
                     .hist-bar.active {
                         background: rgba(99, 102, 241, 0.6);
-                        box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+                        box-shadow: 0 0 0.750rem rgba(99, 102, 241, 0.3);
                     }
                     .hist-bar:hover {
                         background: rgba(255, 255, 255, 0.25);
@@ -650,31 +666,31 @@
                 
                 #jump-bar {
                     position: fixed;
-                    top: 20px;
+                    top: 1.25rem;
                     left: 50%;
                     transform: translateX(-50%);
                     z-index: 100000;
                     display: flex;
                     align-items: center;
-                    gap: 10px;
-                    padding: 8px 16px;
+                    gap: 0.625rem;
+                    padding: 0.500rem 1.000rem;
                 }
                 #jump-bar .glass-input {
                     margin-top: 0;
-                    width: 130px;
-                    height: 36px;
-                    font-size: 14px;
+                    width: 8rem;
+                    height: 2.25rem;
+                    font-size: 0.85rem;
                     background: rgba(255, 255, 255, 0.08);
                     border: 1px solid rgba(255, 255, 255, 0.2);
                     color: #fff;
-                    border-radius: 6px;
+                    border-radius: 0.375rem;
                     cursor: pointer;
                     text-align: center;
                 }
                 #jump-bar #jump-btn {
                     width: auto;
-                    height: 36px;
-                    padding: 0 16px;
+                    height: 2.250rem;
+                    padding: 0 1.000rem;
                     justify-content: center;
                 }
                 #jump-bar .glass-input:hover {
@@ -683,39 +699,39 @@
             
                 #stats-hud {
                     position: fixed;
-                    top: 380px; /* Below settings bar */
-                    left: 20px;
-                    padding: 18px;
-                    width: 180px;
+                    top: 24rem; /* Below settings bar */
+                    left: 1.25rem;
+                    padding: 1.1rem;
+                    width: 11rem;
                     z-index: 99999;
                     display: flex;
                     flex-direction: column;
-                    gap: 16px;
+                    gap: 1rem;
                 }
                 #stats-hud .stats-item {
                     display: flex;
                     flex-direction: column;
-                    gap: 4px;
+                    gap: 0.250rem;
                 }
                 #stats-hud .stats-label {
-                    font-size: 11px;
+                    font-size: 0.688rem;
                     text-transform: uppercase;
-                    letter-spacing: 0.5px;
+                    letter-spacing: 0.031rem;
                     font-weight: 700;
                     color: #fff;
                     opacity: 0.9;
                 }
                 #stats-hud .stats-value {
-                    font-size: 16px;
+                    font-size: 1.000rem;
                     font-weight: 500;
                     color: #fff;
                     font-family: inherit;
                 }
                 .stats-formula {
-                    font-size: 10px;
+                    font-size: 0.625rem;
                     opacity: 0.5;
                     color: #fff;
-                    margin-top: 4px;
+                    margin-top: 0.250rem;
                     font-style: italic;
                     line-height: 1.2;
                 }

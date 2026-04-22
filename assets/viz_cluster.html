@@ -10,28 +10,28 @@
             </div>
 
             <!-- Clustering Parameters Section -->
-            <div class="settings-group" style="margin-top:12px; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-                <div class="label" style="margin-bottom:8px; color: #fff;">Cluster Config</div>
+            <div class="settings-group" style="margin-top:1rem; padding: 0.6rem; background: rgba(255,255,255,0.03); border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.05);">
+                <div class="label" style="margin-bottom:0.5rem; color: #fff;">Cluster Config</div>
                 
                 <div id="kmeans-params">
-                    <div class="label" style="font-size:10px; opacity:0.7;">Clusters Count</div>
-                    <input type="number" class="glass-input" id="param-clusters" value="3" min="1" max="10" style="margin-bottom:8px">
+                    <div class="label" style="font-size:0.625rem; opacity:0.7;">Clusters Count</div>
+                    <input type="number" class="glass-input" id="param-clusters" value="3" min="1" max="10" style="margin-bottom:0.500rem">
                     
-                    <div class="label" style="font-size:10px; opacity:0.7;">Centroid Max Dist (meters)</div>
-                    <input type="number" class="glass-input" id="param-dist" value="0" min="0" step="10" style="margin-bottom:8px">
-                    <div style="font-size:11px; color:#fff; margin-top:4px; font-weight: 500;">0 = no distance limits</div>
+                    <div class="label" style="font-size:0.625rem; opacity:0.7;">Centroid Max Dist (meters)</div>
+                    <input type="number" class="glass-input" id="param-dist" value="0" min="0" step="10" style="margin-bottom:0.5rem">
+                    <div style="font-size:0.688rem; color:#fff; margin-top:0.250rem; font-weight: 500;">0 = no distance limits</div>
                 </div>
 
                 <div id="dbscan-params" style="display:none">
-                    <div class="label" style="font-size:10px; opacity:0.7;">Epsilon (meters)</div>
-                    <input type="number" class="glass-input" id="param-eps" value="500" step="10" min="1" style="margin-bottom:8px">
+                    <div class="label" style="font-size:0.625rem; opacity:0.7;">Epsilon (meters)</div>
+                    <input type="number" class="glass-input" id="param-eps" value="500" step="10" min="1" style="margin-bottom:0.500rem">
                     
-                    <div class="label" style="font-size:10px; opacity:0.7;">Min Samples</div>
+                    <div class="label" style="font-size:0.625rem; opacity:0.7;">Min Samples</div>
                     <input type="number" class="glass-input" id="param-min-samples" value="5" min="1" step="1">
                 </div>
             </div>
 
-            <div class="settings-group" style="margin-top:12px">
+            <div class="settings-group" style="margin-top:1rem">
                 <div class="label">Display Mode</div>
                 <button class="settings-btn" id="display-toggle">Wireframe ▾</button>
                 <div class="glass-panel glass-menu" id="display-menu">
@@ -42,7 +42,7 @@
                 </div>
             </div>
 
-            <div class="settings-group" style="margin-top:20px">
+            <div class="settings-group" style="margin-top:1.25rem">
                 <div class="label">Magnitude Range</div>
                 <div class="settings-row">
                     <input type="number" class="glass-input" id="mag-min" step="0.1" placeholder="Min">
@@ -51,7 +51,7 @@
                 </div>
             </div>
 
-            <div class="settings-group" style="margin-top:12px">
+            <div class="settings-group" style="margin-top:0.750rem">
                 <div class="label">Depth Range (km)</div>
                 <div class="settings-row">
                     <input type="number" class="glass-input" id="dep-min" step="1" placeholder="Min">
@@ -60,12 +60,12 @@
                 </div>
             </div>
 
-            <button class="settings-btn" id="apply-filters-btn" style="margin-top:20px; justify-content:center; background: rgba(165, 180, 252, 0.2); border-color: rgba(165, 180, 252, 0.4);">
+            <button class="settings-btn" id="apply-filters-btn" style="margin-top:1.25rem; justify-content:center; background: rgba(165, 180, 252, 0.2); border-color: rgba(165, 180, 252, 0.4);">
                 Apply Filters
             </button>
         </div>
 
-        <div id="filter-loader" class="glass-panel"><div class="loader-ring" style="width:30px; height:30px"></div></div>
+        <div id="filter-loader" class="glass-panel"><div class="loader-ring" style="width:2rem; height:2rem"></div></div>
 
 
 
@@ -286,15 +286,15 @@
                 legend.style.display = 'flex';
                 legend.style.minHeight = 'auto'; // Fit content natively
                 
-                let html = '<div style="font-family:\'Segoe UI\',system-ui,sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;margin-bottom:12px;opacity:0.9;text-align:center;width:100%;">Clusters</div>';
-                html += '<div style="display:flex;flex-direction:column;gap:10px;width:100%;">';
+                let html = '<div style="font-family:\'Segoe UI\',system-ui,sans-serif;font-size:0.812rem;font-weight:700;text-transform:uppercase;margin-bottom:0.750rem;opacity:0.9;text-align:center;width:100%;">Clusters</div>';
+                html += '<div style="display:flex;flex-direction:column;gap:0.625rem;width:100%;">';
                 
                 for (let i = 0; i < quakeData.n_clusters; i++) {
                     const color = clusterColors[i % clusterColors.length];
                     html += `
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
-                            <span style="font-family:\'Segoe UI\',system-ui,sans-serif;font-size:12px;font-weight:600;color:#fff;opacity:0.85;">Cluster ${i + 1}</span>
-                            <div style="width:14px;height:14px;border-radius:50%;background-color:${color};border:1px solid rgba(255,255,255,0.4);box-shadow:0 0 6px ${color}80;"></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:1.000rem;">
+                            <span style="font-family:\'Segoe UI\',system-ui,sans-serif;font-size:0.750rem;font-weight:600;color:#fff;opacity:0.85;">Cluster ${i + 1}</span>
+                            <div style="width:0.875rem;height:0.875rem;border-radius:50%;background-color:${color};border:1px solid rgba(255,255,255,0.4);box-shadow:0 0 0.375rem ${color}80;"></div>
                         </div>
                     `;
                 }
