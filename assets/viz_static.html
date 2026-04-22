@@ -67,7 +67,7 @@
 
         </div>
 
-        <div id="filter-loader" class="glass-panel"><div class="spinner" style="width:30px; height:30px"></div></div>
+        <div id="filter-loader" class="glass-panel"><div class="loader-ring" style="width:30px; height:30px"></div></div>
 
         <div id="filter-bar" class="glass-panel">
             <input type="date" id="filter-start">
@@ -79,23 +79,6 @@
         const quakeData = __QUAKES_JSON__;
 
 
-        function dayNumToDate(dayNum, startDateStr) {
-            const d = new Date(startDateStr);
-            d.setDate(d.getDate() + Math.round(dayNum));
-            return d.toISOString().slice(0, 10);
-        }
-
-        function makeDateTicks(minDay, maxDay, startDateStr, numTicks) {
-            numTicks = numTicks || 5;
-            const step = (maxDay - minDay) / (numTicks - 1);
-            const vals = [], texts = [];
-            for (let i = 0; i < numTicks; i++) {
-                const v = minDay + step * i;
-                vals.push(v);
-                texts.push(dayNumToDate(v, startDateStr));
-            }
-            return { tickvals: vals, ticktext: texts };
-        }
 
         window.addEventListener('load', function() {
             const gd = document.querySelector('.plotly-graph-div');

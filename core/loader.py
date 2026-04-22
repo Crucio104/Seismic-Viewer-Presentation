@@ -25,7 +25,7 @@ def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
     all_hover = _make_hover(df)
     
     # 2. Date grouping for animation
-    df['date_str'] = [t[:10] for t in df['time']]
+    df['date_str'] = df['time'].str.slice(0, 10)
     unique_dates = sorted(df['date_str'].unique())
     # Count events per unique date
     counts_map = df.groupby('date_str').size().to_dict()

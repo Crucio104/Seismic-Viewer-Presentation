@@ -4,32 +4,6 @@
                 <button id="pause-btn" class="active">⏸</button>
             </div>
             <div class="slider-container">
-                <style>
-                    .histogram-container {
-                        display: flex;
-                        align-items: flex-end;
-                        gap: 1.5px;
-                        height: 32px;
-                        margin-bottom: -5px;
-                        padding: 0 5px;
-                    }
-                    .hist-bar {
-                        flex: 1;
-                        background: rgba(255,255,255,0.12);
-                        border-radius: 2px 2px 0 0;
-                        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                        min-height: 2px;
-                    }
-                    .hist-bar.active {
-                        background: rgba(99, 102, 241, 0.6);
-                        box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
-                    }
-                    .hist-bar:hover {
-                        background: rgba(255, 255, 255, 0.25);
-                        cursor: pointer;
-                        transform: scaleY(1.1);
-                    }
-                </style>
                 <div id="histogram-map" class="histogram-container"></div>
                 <input type="range" id="time-slider" class="slider" min="0" max="100" value="0">
                 <div id="current-date">Timeline initializing</div>
@@ -82,85 +56,11 @@
         </div>
 
         <div id="jump-bar" class="glass-panel">
-            <style>
-                #jump-bar {
-                    position: fixed;
-                    top: 20px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    z-index: 100000;
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                    padding: 8px 16px;
-                }
-                #jump-bar .glass-input {
-                    margin-top: 0;
-                    width: 130px;
-                    height: 36px;
-                    font-size: 14px;
-                    background: rgba(255, 255, 255, 0.08);
-                    border: 1px solid rgba(255, 255, 255, 0.2);
-                    color: #fff;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    text-align: center;
-                }
-                #jump-bar #jump-btn {
-                    width: auto;
-                    height: 36px;
-                    padding: 0 16px;
-                    justify-content: center;
-                }
-                #jump-bar .glass-input:hover {
-                    background: rgba(255, 255, 255, 0.15);
-                }
-            </style>
             <input type="date" id="jump-date" class="glass-input">
             <button class="settings-btn" id="jump-btn">Go</button>
         </div>
 
         <div id="stats-hud" class="glass-panel">
-            <style>
-                #stats-hud {
-                    position: fixed;
-                    top: 380px; /* Below settings bar */
-                    left: 20px;
-                    padding: 18px;
-                    width: 180px;
-                    z-index: 99999;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 16px;
-                }
-                #stats-hud .stats-item {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 4px;
-                }
-                #stats-hud .stats-label {
-                    font-size: 11px;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                    font-weight: 700;
-                    color: #fff;
-                    opacity: 0.9;
-                }
-                #stats-hud .stats-value {
-                    font-size: 16px;
-                    font-weight: 500;
-                    color: #fff;
-                    font-family: inherit;
-                }
-                .stats-formula {
-                    font-size: 10px;
-                    opacity: 0.5;
-                    color: #fff;
-                    margin-top: 4px;
-                    font-style: italic;
-                    line-height: 1.2;
-                }
-            </style>
             <div class="stats-item">
                 <div class="stats-label">Visible Events</div>
                 <div class="stats-value" id="stat-count">0</div>
@@ -185,24 +85,7 @@
         <script>
         const quakeData = __QUAKES_JSON__;
 
-        function dayNumToDate(dayNum, startDateStr) {
-            const d = new Date(startDateStr);
-            d.setDate(d.getDate() + Math.round(dayNum));
-            return d.toISOString().slice(0, 10);
-        }
 
-        function makeDateTicks(minDay, maxDay, startDateStr, numTicks) {
-            numTicks = numTicks || 5;
-            const step = (maxDay - minDay) / (numTicks - 1);
-            const vals = [], texts = [];
-            for (let i = 0; i < numTicks; i++) {
-                const v = minDay + step * i;
-                vals.push(v);
-                texts.push(dayNumToDate(v, startDateStr));
-            }
-            return { tickvals: vals, ticktext: texts };
-        }
-        
         window.addEventListener('load', function() {
             const gd = document.querySelector('.plotly-graph-div');
             const playBtn = document.getElementById('play-btn');
