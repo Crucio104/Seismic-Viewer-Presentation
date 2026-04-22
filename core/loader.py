@@ -1,6 +1,4 @@
-import os
 import pandas as pd
-import numpy as np
 from typing import Any
 
 MIN_MAGNITUDE: float = 0.5

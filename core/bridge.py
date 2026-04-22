@@ -6,7 +6,7 @@ import webview
 import numpy as np
 from typing import Any, Callable
 import engine
-from core.config import BASE_DIR, VIZ_TMP_DIR, INDEX_REL, get_http_port
+from core.config import BASE_DIR, VIZ_TMP_DIR, get_http_port
 
 class Api:
     """Python ↔ JS bridge exposed via pywebview."""
@@ -25,10 +25,7 @@ class Api:
         port = get_http_port()
         return f'http://127.0.0.1:{port}/{rel_path.replace(os.sep, "/")}'
 
-    def _navigate_delayed(self, rel_path: str, delay: float = 0.15) -> None:
-        """Schedule a page navigation after a short delay."""
-        url = self._make_url(rel_path)
-        threading.Timer(delay, self._window().load_url, args=(url,)).start()
+
 
     def _push_progress(self, msg: str) -> None:
         """Send a progress message to the hub overlay via JS."""
@@ -75,9 +72,6 @@ class Api:
 
     # ── Navigation ───────────────────────────────────────────────────
 
-    def navigate_hub(self) -> None:
-        """Navigate the window to the hub screen."""
-        self._window().evaluate_js("showHub()")
 
     def get_csv_info(self) -> dict[str, Any] | None:
         """Return current CSV info for the hub badge."""
@@ -179,10 +173,6 @@ class Api:
             traceback.print_exc()
             return {'error': str(e)}
 
-    def go_back(self) -> None:
-
-        """Return to the hub screen."""
-        self._navigate_delayed(INDEX_REL)
 
     def change_file(self) -> bool:
         """Go back to the file picker screen."""

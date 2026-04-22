@@ -3,7 +3,6 @@ import os
 # ─── Paths ───────────────────────────────────────────────────────────
 CORE_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.dirname(CORE_DIR)
-ASSETS_DIR = os.path.join(BASE_DIR, 'assets')
 VIZ_TMP_DIR = os.path.join(BASE_DIR, '.viz_tmp')
 
 INDEX_REL = 'assets/index.html'

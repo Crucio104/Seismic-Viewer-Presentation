@@ -6,5 +6,4 @@ smopy
 Pillow
 pywebview
 scikit-learn
-requests
 matplotlib

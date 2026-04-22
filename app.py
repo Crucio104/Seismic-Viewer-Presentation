@@ -50,9 +50,15 @@ def _stop_http_server() -> None:
 # ─── Cleanup ────────────────────────────────────────────────────────
 
 def _cleanup() -> None:
-    """Fast cleanup: stop server. Temp files will be handled at startup or by OS."""
+    """Fast cleanup: stop server and remove temp files."""
     try:
         _stop_http_server()
+        if os.path.exists(VIZ_TMP_DIR):
+            if os.name == 'nt':
+                import subprocess
+                subprocess.run(['cmd', '/c', f'del /f /q "{VIZ_TMP_DIR}\\*.html"'], capture_output=True)
+            else:
+                shutil.rmtree(VIZ_TMP_DIR)
     except Exception:
         pass
 
@@ -95,16 +101,6 @@ def main() -> None:
         pass
     
     print("Window closed. Freeing terminal...")
-    try:
-        _stop_http_server()
-        if os.path.exists(VIZ_TMP_DIR):
-            if os.name == 'nt':
-                import subprocess
-                subprocess.run(['cmd', '/c', f'del /f /q "{VIZ_TMP_DIR}\\*.html"'], capture_output=True)
-            else:
-                shutil.rmtree(VIZ_TMP_DIR)
-    except Exception:
-        pass
 
 if __name__ == '__main__':
     main()
