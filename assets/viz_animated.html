@@ -74,7 +74,7 @@
                 <div class="stats-value" id="stat-avg-dep">0.0 km</div>
             </div>
             <div class="stats-item">
-                <div class="stats-label">Energy Release (J)</div>
+                <div class="stats-label">Energy Release (kJ)</div>
                 <div>
                     <div class="stats-value" id="stat-energy">0.0</div>
                     <div class="stats-formula">log₁₀E = 4.8 + 1.5M</div>
@@ -259,10 +259,11 @@
                 const maxMag = Math.max(...sliceMagWindow);
                 const avgDep = sliceDepWindow.reduce((a, b) => a + b, 0) / count;
                 
-                // Energy Index: sum(10^(1.5 * M)) for current FRAME only
+                // Energy Release (kJ) using Gutenberg-Richter relation: log10(E) = 4.8 + 1.5 * M
+                // We divide by 1000 for kJ, so the constant becomes 4.8 - 3 = 1.8
                 let totalEnergy = 0;
                 for (let m of sliceMagFrame) {
-                    totalEnergy += Math.pow(10, 1.5 * m);
+                    totalEnergy += Math.pow(10, 1.8 + 1.5 * m);
                 }
                 
                 let energyStr = totalEnergy.toExponential(1);

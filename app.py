@@ -4,7 +4,16 @@ import threading
 import atexit
 import webview
 import pathlib
+import logging
 from typing import Any
+
+# ─── Logging Setup ───────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger("SeismicViewer")
 
 # ─── Core Imports ────────────────────────────────────────────────────
 from core.config import BASE_DIR, VIZ_TMP_DIR, INDEX_REL, set_http_port
@@ -33,7 +42,7 @@ def _start_http_server() -> None:
     
     t = threading.Thread(target=_http_server.serve_forever, daemon=True)
     t.start()
-    print(f"Local server: http://127.0.0.1:{port}")
+    logger.info(f"Local server: http://127.0.0.1:{port}")
 
 
 def _stop_http_server() -> None:
@@ -88,13 +97,13 @@ def main() -> None:
     _win_holder.append(window)
 
     def on_closing() -> bool:
-        print("Window closing...")
+        logger.info("Window closing...")
         return True
 
     if window is not None:
         window.events.closing += on_closing
 
-    print("Starting Seismic Viewer…")
+    logger.info("Starting Seismic Viewer…")
     try:
         webview.start(_start_http_server, debug=False)
     except KeyboardInterrupt:

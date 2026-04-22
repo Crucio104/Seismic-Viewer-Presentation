@@ -3,8 +3,11 @@ import uuid
 import threading
 import traceback
 import webview
+import logging
 import numpy as np
 from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
 import engine
 from core.config import BASE_DIR, VIZ_TMP_DIR, get_http_port
 
@@ -67,7 +70,7 @@ class Api:
         except ValueError as e:
             return {'error': str(e)}
         except Exception as e:
-            traceback.print_exc()
+            logger.error("Unexpected error in select_csv", exc_info=True)
             return {'error': f'Unexpected error: {e}'}
 
     # ── Navigation ───────────────────────────────────────────────────
@@ -122,9 +125,9 @@ class Api:
 
             self._push_progress("Opening visualization…")
             self._window().load_url(self._make_url(rel_path))
-            print(f"View {view_style} loaded.")
+            logger.info(f"View {view_style} loaded.")
         except Exception as e:
-            traceback.print_exc()
+            logger.error(f"Failed to generate view {view_style}", exc_info=True)
             self._push_progress(f"Error: {e}")
 
     def get_cluster_update(self, method: str, params: dict[str, Any]) -> dict[str, Any]:

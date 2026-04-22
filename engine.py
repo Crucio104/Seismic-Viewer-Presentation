@@ -1,7 +1,10 @@
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+import logging
 from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
 
 
 # Import from our new core modules
@@ -394,7 +397,7 @@ def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnit
                            on_progress: Callable[[str], None] | None = None, anim_mode: str = 'accumulation', window_days: int = 5, data: dict[str, Any] | None = None, bbox: tuple[float, float, float, float] | None = None, map_grids: tuple[Any, ...] | None = None) -> tuple[go.Figure, dict[str, Any]]:
     """Generate a 3D figure for animation with timeline interaction."""
     def _report(msg):
-        print(msg)
+        logger.info(msg)
         if on_progress: on_progress(msg)
 
     _report("Preparing 3D animation data...")

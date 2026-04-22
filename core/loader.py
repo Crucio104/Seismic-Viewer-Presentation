@@ -1,25 +1,24 @@
 import pandas as pd
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 MIN_MAGNITUDE: float = 0.5
 
 def _make_hover(df: pd.DataFrame) -> list[str]:
-    """Generate descriptive hover text strings from a DataFrame."""
-    return [
-        f"Date: {t}<br>"
-        f"Magnitude: {m}<br>"
-        f"Latitude: {la:.4f}<br>"
-        f"Longitude: {lo:.4f}<br>"
-        f"Depth: {abs(d):.4f} km"
-        for t, m, la, lo, d in zip(
-            df['time'], df['mag'],
-            df['lat'], df['lon'], df['depth']
-        )
-    ]
+    """Generate descriptive hover text strings from a DataFrame using vectorized operations."""
+    return (
+        "Date: " + df['time'].astype(str) + "<br>" +
+        "Magnitude: " + df['mag'].astype(str) + "<br>" +
+        "Latitude: " + df['lat'].map('{:.4f}'.format) + "<br>" +
+        "Longitude: " + df['lon'].map('{:.4f}'.format) + "<br>" +
+        "Depth: " + df['depth'].abs().map('{:.4f}'.format) + " km"
+    ).tolist()
 
 def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
     """Pre-calculate expensive data structures for visualizations."""
-    print("Packaging visualization data...")
+    logger.info("Packaging visualization data...")
     
     # 1. Hover Strings
     all_hover = _make_hover(df)
@@ -56,15 +55,42 @@ def load_csv(source_file: str) -> dict[str, Any]:
     Raises ValueError if the CSV is invalid or has no qualifying events.
     """
     try:
-        # Read only necessary columns and use pandas' fast CSV parser
-        # Expecting: ID, Time, Lat, Lon, Depth, Mag (columns 0-5)
-        df = pd.read_csv(
-            source_file, 
-            usecols=[1, 2, 3, 4, 5],
-            names=['time', 'lat', 'lon', 'depth', 'mag'],
-            header=0
-        )
+        # 1. Read header to detect columns by name
+        df_full = pd.read_csv(source_file, header=0)
+        cols = df_full.columns.tolist()
+
+        # Mapping dictionary for common earthquake CSV headers
+        mapping = {
+            'time': ['time', 'Date', 'DateTime', 'UTC', 'time_utc'],
+            'lat': ['lat', 'latitude', 'Latitude', 'LAT'],
+            'lon': ['lon', 'longitude', 'Longitude', 'LON'],
+            'depth': ['depth', 'Depth', 'depth_km', 'DEPTH'],
+            'mag': ['mag', 'magnitude', 'Magnitude', 'Mag', 'MAG']
+        }
+
+        found_mapping = {}
+        for internal_name, aliases in mapping.items():
+            for alias in aliases:
+                if alias in cols:
+                    found_mapping[internal_name] = alias
+                    break
+        
+        # If we found all 5 columns by name, use them
+        if len(found_mapping) == 5:
+            df = df_full[[found_mapping[k] for k in ['time', 'lat', 'lon', 'depth', 'mag']]]
+            df.columns = ['time', 'lat', 'lon', 'depth', 'mag']
+        else:
+            # Fallback to positional indices if names don't match
+            # Expecting: [1]Time, [2]Lat, [3]Lon, [4]Depth, [5]Mag
+            logger.warning("Column names not recognized, falling back to positional indices.")
+            df = pd.read_csv(
+                source_file, 
+                usecols=[1, 2, 3, 4, 5],
+                names=['time', 'lat', 'lon', 'depth', 'mag'],
+                header=0
+            )
     except Exception as e:
+        logger.error(f"Failed to read CSV: {e}")
         raise ValueError(f"Failed to read CSV: {e}")
 
     # Drop malformed rows and filter by magnitude
@@ -99,7 +125,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
 
     date_range = f"{df['time_dt'].iloc[0].strftime('%Y-%m-%d')} → {df['time_dt'].iloc[-1].strftime('%Y-%m-%d')}"
     bbox = (df['lat'].min(), df['lon'].min(), df['lat'].max(), df['lon'].max())
-    print(f"Loaded {len(df)} seismic events (M >= {MIN_MAGNITUDE}).")
+    logger.info(f"Loaded {len(df)} seismic events (M >= {MIN_MAGNITUDE}).")
 
     return {
         'latitude': latitude,

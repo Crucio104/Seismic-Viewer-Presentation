@@ -6,8 +6,11 @@ import smopy
 import urllib.request
 import ssl
 import PIL.Image
+import logging
 from functools import lru_cache
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # --- Network & SSL Configuration for Maps ---
 # Fix for macOS/Hotspot SSL Certificate errors
@@ -48,7 +51,7 @@ def _get_cache_path(bbox: tuple[float, float, float, float], resolution: int) ->
 def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] | None:
     """Low-level fetch from Smopy with error handling for offline usage."""
     try:
-        print("Downloading map tiles (first time for this area)...")
+        logger.info("Downloading map tiles (first time for this area)...")
         map_obj = smopy.Map(bbox)
         return {
             'img': map_obj.to_pil(),
@@ -56,7 +59,7 @@ def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] 
             'z': map_obj.z, 'tilesize': map_obj.tilesize,
         }
     except Exception as e:
-        print(f"Map download failed: {e}")
+        logger.error(f"Map download failed: {e}")
         return None
 
 
@@ -83,19 +86,19 @@ def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> 
     cache_path = _get_cache_path(bbox, resolution)
 
     if os.path.exists(cache_path):
-        print(f"Loading processed map mesh ({resolution}px) from cache...")
+        logger.info(f"Loading processed map mesh ({resolution}px) from cache...")
         try:
             with open(cache_path, 'rb') as f:
                 return pickle.load(f)
         except Exception:
-            print("Cache corrupted, rebuilding...")
+            logger.warning("Cache corrupted, rebuilding...")
 
     # Not in cache, perform processing
     map_data = _fetch_tiles_raw(bbox)
     
     if map_data is None:
         # Fallback: Create a simple flat neutral grid if offline and no cache
-        print("Offline: creating fallback neutral grid...")
+        logger.warning("Offline: creating fallback neutral grid...")
         new_w, new_h = 2, 2
         matrix = np.zeros((new_h, new_w), dtype=int)
         cscale = [[0, 'rgb(30, 30, 45)'], [1, 'rgb(30, 30, 45)']]
