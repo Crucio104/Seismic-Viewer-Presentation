@@ -32,17 +32,9 @@
     height: 100% !important;
 }
 
-/* Base Responsive Typography */
+/* Base Responsive Typography - Fully Dynamic */
 html {
-    font-size: 1.000rem;
-}
-
-@media (max-width: 75.000rem) {
-    html { font-size: 0.875rem; }
-}
-
-@media (max-width: 50.000rem) {
-    html { font-size: 0.750rem; }
+    font-size: clamp(12px, 0.5vw + 0.5vh + 6px, 24px);
 }
 
     :root {
