@@ -263,14 +263,14 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
         eps_m = float(params.get('dbscan_eps', 500))
         min_samples = int(params.get('dbscan_min_samples', 5))
         
-        # DBSCAN needs meters for EPS to make sense
-        avg_lat = np.mean(latitude)
-        X_meters = np.zeros_like(X_orig)
-        X_meters[:, 0] = longitude * 111320 * np.cos(np.radians(avg_lat))
-        X_meters[:, 1] = latitude * 111320
-        X_meters[:, 2] = depth * 1000
+        # Per il DBSCAN sul piano (epicentro), la metrica matematicamente esatta è l'haversine.
+        # Haversine in sklearn richiede (latitudine, longitudine) in radianti.
+        X_rad = np.radians(np.column_stack((latitude, longitude)))
         
-        db = DBSCAN(eps=eps_m, min_samples=min_samples).fit(X_meters)
+        # L'epsilon viene fornito in metri, quindi lo convertiamo in radianti (raggio Terra ~ 6371000m)
+        eps_rad = eps_m / 6371000.0
+        
+        db = DBSCAN(eps=eps_rad, min_samples=min_samples, metric='haversine').fit(X_rad)
         labels = db.labels_
         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
         if n_clusters == 0:
