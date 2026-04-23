@@ -61,6 +61,13 @@
                 </div>
             </div>
 
+            <div class="settings-group" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                <label class="glass-checkbox">
+                    <input type="checkbox" id="show-planes">
+                    Show Cluster Planes
+                </label>
+            </div>
+
             <button class="settings-btn" id="apply-filters-btn" style="margin-top:0.75rem; justify-content:center; background: rgba(165, 180, 252, 0.2); border-color: rgba(165, 180, 252, 0.4);">
                 Apply Filters
             </button>
@@ -143,6 +150,7 @@
                 if (cp.dep_max) depMax.value = cp.dep_max;
                 if (cp.start_date) startInput.value = cp.start_date;
                 if (cp.end_date) endInput.value = cp.end_date;
+                if (cp.show_cluster_planes) document.getElementById('show-planes').checked = cp.show_cluster_planes;
             }
 
 
@@ -202,7 +210,8 @@
                     dep_min: depMin.value,
                     dep_max: depMax.value,
                     start_date: startInput.value,
-                    end_date: endInput.value
+                    end_date: endInput.value,
+                    show_cluster_planes: document.getElementById('show-planes').checked
                 };
 
                 loader.classList.add('show');
@@ -259,13 +268,15 @@
                 const n = quakeData.n_clusters;
                 const showWire = (currentDisplayMode === 'wireframe' || currentDisplayMode === 'both');
                 const showSolid = (currentDisplayMode === 'solid' || currentDisplayMode === 'both');
+                const showPlanes = document.getElementById('show-planes').checked;
 
                 // Indices follow the order created in engine.py:
                 // 0: Map
                 // 1..N: Wireframes
                 // N+1..2N: Solids
-                // 2N+1: Markers
-                // 2N+2: Centroids
+                // 2N+1..3N: Planes
+                // 3N+1: Markers
+                // 3N+2: Centroids
                 for (let c = 0; c < n; c++) {
                     const wireIdx = 1 + c;
                     if (gd.data.length > wireIdx) {
@@ -278,6 +289,12 @@
                         Plotly.restyle(gd, { visible: [showSolid] }, [solidIdx]);
                     }
                 }
+                for (let c = 0; c < n; c++) {
+                    const planeIdx = (2 * n) + 1 + c;
+                    if (gd.data.length > planeIdx) {
+                        Plotly.restyle(gd, { visible: [showPlanes] }, [planeIdx]);
+                    }
+                }
             }
 
 
@@ -288,8 +305,8 @@
                 legend.style.display = 'flex';
                 legend.style.minHeight = 'auto'; // Fit content natively
                 
-                let html = '<div style="font-family:\'Segoe UI\',system-ui,sans-serif;font-size:0.812rem;font-weight:700;text-transform:uppercase;margin-bottom:0.750rem;opacity:0.9;text-align:center;width:100%;">Clusters</div>';
-                html += '<div style="display:flex;flex-direction:column;gap:0.625rem;width:100%;">';
+                let html = '<div id="legend-title">Clusters</div>';
+                html += '<div class="legend-list">';
                 
                 for (let i = 0; i < quakeData.n_clusters; i++) {
                     const color = clusterColors[i % clusterColors.length];

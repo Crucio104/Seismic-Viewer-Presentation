@@ -149,7 +149,7 @@
             
             let planesEnabled = false;
             let accumulatePlanes = false;
-            let structuralPlanes = null; // Mapping date -> planes
+            let structuralPlanes = quakeData.preloaded_planes || null; // Mapping date -> planes
             let persistentPlanesMap = new Map(); // grid_id -> plane_data (for accumulation)
             let lastAccumIdx = -1;
             
@@ -230,7 +230,8 @@
                     barTitle = 'Depth';
                 }
 
-                const restyleUpdate = {
+                // --- Optimized Multi-Trace Update ---
+                const bulkUpdate = {
                     x: [sliceLon], 
                     y: [sliceLat], 
                     z: [sliceDep],
@@ -242,13 +243,8 @@
                     'marker.cmax': [limits[1]],
                     'marker.showscale': [false],
                     'marker.opacity': [0.85],
-                    hovertext: [sliceHover]
-                };
-
-
-                // --- Optimized Multi-Trace Update ---
-                const bulkUpdate = {
-                    ...restyleUpdate
+                    hovertext: [sliceHover],
+                    visible: [true]
                 };
                 const traceIndices = [visibleTraceIdx];
 
@@ -267,53 +263,59 @@
                             daily.forEach(p => persistentPlanesMap.set(p.grid_id, p));
                         }
                         lastAccumIdx = idx;
-                        
                         const meshData = generatePlaneMesh(Array.from(persistentPlanesMap.values()));
-                        bulkUpdate.x = [...(bulkUpdate.x || []), meshData.x[0]];
-                        bulkUpdate.y = [...(bulkUpdate.y || []), meshData.y[0]];
-                        bulkUpdate.z = [...(bulkUpdate.z || []), meshData.z[0]];
-                        bulkUpdate.i = [...(bulkUpdate.i || []), meshData.i[0]];
-                        bulkUpdate.j = [...(bulkUpdate.j || []), meshData.j[0]];
-                        bulkUpdate.k = [...(bulkUpdate.k || []), meshData.k[0]];
-                        bulkUpdate.facecolor = [...(bulkUpdate.facecolor || []), meshData.facecolor[0]];
+                        bulkUpdate.x.push(meshData.x[0]);
+                        bulkUpdate.y.push(meshData.y[0]);
+                        bulkUpdate.z.push(meshData.z[0]);
+                        bulkUpdate.i = [null, meshData.i[0]];
+                        bulkUpdate.j = [null, meshData.j[0]];
+                        bulkUpdate.k = [null, meshData.k[0]];
+                        bulkUpdate.facecolor = [null, meshData.facecolor[0]];
+                        bulkUpdate.text = [null, meshData.text[0]];
+                        bulkUpdate.hovertext = [sliceHover, null];
+                        bulkUpdate['hoverlabel.bgcolor'] = [null, meshData.bgcolor[0]];
+                        bulkUpdate.visible = [true, true];
+                        traceIndices.push(4);
                     } else {
                         const datePlanes = structuralPlanes[dates[idx]] || [];
                         const meshData = generatePlaneMesh(datePlanes);
-                        bulkUpdate.x = [...(bulkUpdate.x || []), meshData.x[0]];
-                        bulkUpdate.y = [...(bulkUpdate.y || []), meshData.y[0]];
-                        bulkUpdate.z = [...(bulkUpdate.z || []), meshData.z[0]];
-                        bulkUpdate.i = [...(bulkUpdate.i || []), meshData.i[0]];
-                        bulkUpdate.j = [...(bulkUpdate.j || []), meshData.j[0]];
-                        bulkUpdate.k = [...(bulkUpdate.k || []), meshData.k[0]];
-                        bulkUpdate.facecolor = [...(bulkUpdate.facecolor || []), meshData.facecolor[0]];
+                        bulkUpdate.x.push(meshData.x[0]);
+                        bulkUpdate.y.push(meshData.y[0]);
+                        bulkUpdate.z.push(meshData.z[0]);
+                        bulkUpdate.i = [null, meshData.i[0]];
+                        bulkUpdate.j = [null, meshData.j[0]];
+                        bulkUpdate.k = [null, meshData.k[0]];
+                        bulkUpdate.facecolor = [null, meshData.facecolor[0]];
+                        bulkUpdate.text = [null, meshData.text[0]];
+                        bulkUpdate.hovertext = [sliceHover, null];
+                        bulkUpdate['hoverlabel.bgcolor'] = [null, meshData.bgcolor[0]];
+                        bulkUpdate.visible = [true, true];
+                        traceIndices.push(4);
                     }
-                    bulkUpdate.visible = [...Array(traceIndices.length).fill(true), true];
-                    traceIndices.push(4);
                 } else {
-                    bulkUpdate.visible = [...Array(traceIndices.length).fill(true), false];
+                    bulkUpdate.visible = [true, false];
                     traceIndices.push(4);
                 }
 
-                Plotly.restyle(gd, bulkUpdate, traceIndices);
-                
-                dateDisplay.textContent = formatDate(dates[idx]);
-                slider.value = idx;
                 currentStepIdx = idx;
+                return Plotly.restyle(gd, bulkUpdate, traceIndices).then(() => {
+                    dateDisplay.textContent = formatDate(dates[idx]);
+                    slider.value = idx;
 
+                    // Update Glass Legend
+                    updateGlassLegend(
+                        true,
+                        barTitle,
+                        currentColorScale,
+                        invertScale,
+                        limits,
+                        { startDate: quakeData.start_date }
+                    );
 
-                // Update Glass Legend
-                updateGlassLegend(
-                    true,
-                    barTitle,
-                    currentColorScale,
-                    invertScale,
-                    limits,
-                    { startDate: quakeData.start_date }
-                );
-
-                const dayEnd = quakeData.date_to_cum[dates[idx]];
-                const dayStart = (idx > 0) ? quakeData.date_to_cum[dates[idx-1]] : 0;
-                updateHUD(start, end, dayStart, dayEnd);
+                    const dayEnd = quakeData.date_to_cum[dates[idx]];
+                    const dayStart = (idx > 0) ? quakeData.date_to_cum[dates[idx-1]] : 0;
+                    updateHUD(start, end, dayStart, dayEnd);
+                });
 
                 // Update Histogram Bars
                 const bars = histogramMap.children;
@@ -379,44 +381,97 @@
                 document.getElementById('stat-count').textContent = count.toLocaleString();
                 document.getElementById('stat-max-mag').textContent = maxMag.toFixed(1);
                 document.getElementById('stat-avg-dep').textContent = `${Math.abs(avgDep).toFixed(1)} km`;
-                document.getElementById('stat-energy').textContent = energyStr;
+                document.getElementById('stat-energy').textContent = energyStr + ' kJ';
             }
 
-            function updateTimeline() {
-                updateView(currentStepIdx);
+            function getHexFromScale(scaleName, val01) {
+                let colors = COLORS_MAP[scaleName] || COLORS_MAP['Viridis'];
+                if (invertScale) val01 = 1 - val01;
+                const idx = Math.round(val01 * (colors.length - 1));
+                return colors[Math.min(colors.length - 1, Math.max(0, idx))];
             }
 
             function generatePlaneMesh(planes) {
                 if (!planes || planes.length === 0) {
-                    return { x: [[]], y: [[]], z: [[]], i: [[]], j: [[]], k: [[]], facecolor: [[]] };
+                return { x: [[]], y: [[]], z: [[]], i: [[]], j: [[]], k: [[]], facecolor: [[]], text: [[]], bgcolor: [[]] };
                 }
 
                 const allX = [], allY = [], allZ = [];
                 const allI = [], allJ = [], allK = [];
                 const allColors = [];
+                const allTexts = [];
+                const allBgColors = [];
                 let vertOffset = 0;
 
-                const nSegments = 16; 
-
                 planes.forEach(p => {
-                    allX.push(...p.x);
-                    allY.push(...p.y);
-                    allZ.push(...p.z);
-
-                    const color = `rgba(0, 243, 255, ${0.5 + p.planarity * 0.4})`;
-                    for (let i = 1; i < nSegments - 1; i++) {
-                        allI.push(vertOffset);
-                        allJ.push(vertOffset + i);
-                        allK.push(vertOffset + i + 1);
-                        allColors.push(color);
+                    // Color by Date using the Selected Color Scale
+                    const dateStr = p.grid_id.split('_').pop();
+                    const dIdx = Math.max(0, dates.indexOf(dateStr));
+                    const val01 = dates.length > 1 ? dIdx / (dates.length - 1) : 0.5;
+                    const hex = getHexFromScale(currentColorScale, val01);
+                    
+                    const r = parseInt(hex.slice(1, 3), 16);
+                    const g = parseInt(hex.slice(3, 5), 16);
+                    const b = parseInt(hex.slice(5, 7), 16);
+                    const color = `rgba(${r}, ${g}, ${b}, 0.6)`; // Uniform Opacity
+                    const bgColor = hex;
+                    
+                    // Format Equation for Hover
+                    let hoverText = "Structural Plane";
+                    if (p.equation) {
+                        const eq = p.equation;
+                        const fmt = (val) => (val >= 0 ? '+' : '') + val.toFixed(2);
+                        const eqStr = `${fmt(eq.a)}x ${fmt(eq.b)}y ${fmt(eq.c)}z ${fmt(eq.d)} = 0`;
+                        hoverText = `Plane Equation:<br>${eqStr}<br>(x:Lon, y:Lat, z:Depth)`;
                     }
-                    vertOffset += nSegments;
+
+                    // Sub-mesh the 4-vertex plane into a 10x10 grid for better hover tracking
+                    const gridSize = 10;
+                    const v0 = {x: p.x[0], y: p.y[0], z: p.z[0]};
+                    const v1 = {x: p.x[1], y: p.y[1], z: p.z[1]};
+                    const v2 = {x: p.x[2], y: p.y[2], z: p.z[2]};
+                    const v3 = {x: p.x[3], y: p.y[3], z: p.z[3]};
+
+                    for (let i = 0; i < gridSize; i++) {
+                        for (let j = 0; j < gridSize; j++) {
+                            const u = i / (gridSize - 1);
+                            const v = j / (gridSize - 1);
+                            
+                            const px = (1-u)*(1-v)*v0.x + u*(1-v)*v1.x + u*v*v2.x + (1-u)*v*v3.x;
+                            const py = (1-u)*(1-v)*v0.y + u*(1-v)*v1.y + u*v*v2.y + (1-u)*v*v3.y;
+                            const pz = (1-u)*(1-v)*v0.z + u*(1-v)*v1.z + u*v*v2.z + (1-u)*v*v3.z;
+                            
+                            allX.push(px);
+                            allY.push(py);
+                            allZ.push(pz);
+                            allTexts.push(hoverText);
+                            allBgColors.push(bgColor);
+                        }
+                    }
+
+                    for (let i = 0; i < gridSize - 1; i++) {
+                        for (let j = 0; j < gridSize - 1; j++) {
+                            const p1 = vertOffset + i * gridSize + j;
+                            const p2 = p1 + 1;
+                            const p3 = p1 + gridSize;
+                            const p4 = p3 + 1;
+                            
+                            allI.push(p1, p2);
+                            allJ.push(p2, p4);
+                            allK.push(p3, p3);
+                            allColors.push(color, color);
+                        }
+                    }
+                    
+                    vertOffset += gridSize * gridSize;
                 });
 
                 return {
                     x: [allX], y: [allY], z: [allZ],
                     i: [allI], j: [allJ], k: [allK],
-                    facecolor: [allColors]
+                    facecolor: [allColors],
+                    text: [allTexts],
+                    bgcolor: [allBgColors]
                 };
             }
 
@@ -448,8 +503,16 @@
 
 
 
-            function animationLoop(timestamp) {
+            let isRendering = false;
+            async function animationLoop(timestamp) {
                 if (!isPlaying) return;
+                
+                // If still rendering previous frame, skip this one to keep UI responsive
+                if (isRendering) {
+                    animId = requestAnimationFrame(animationLoop);
+                    return;
+                }
+
                 if (!startTime) {
                     startTime = timestamp;
                     startIdx = currentStepIdx;
@@ -459,9 +522,13 @@
                 const targetIdx = startIdx + (secondsPassed * speedMult);
                 
                 if (targetIdx !== currentStepIdx && targetIdx < dates.length) {
-                    updateView(targetIdx);
+                    isRendering = true;
+                    await updateView(targetIdx);
+                    isRendering = false;
                 } else if (targetIdx >= dates.length) {
-                    updateView(dates.length - 1);
+                    isRendering = true;
+                    await updateView(dates.length - 1);
+                    isRendering = false;
                     pause();
                     return;
                 }
@@ -470,27 +537,29 @@
 
             function play() {
                 if (isPlaying) return;
+                playBtn.classList.add('active');
+                pauseBtn.classList.remove('active');
+                
                 if (currentStepIdx >= dates.length - 1) {
                     currentStepIdx = 0;
                     updateView(0);
                 }
                 isPlaying = true;
                 startTime = 0; 
-                playBtn.classList.add('active');
-                pauseBtn.classList.remove('active');
                 if (typeof setGlobalInterfaceLock === 'function') setGlobalInterfaceLock(true);
                 animId = requestAnimationFrame(animationLoop);
             }
 
             function pause() {
                 isPlaying = false;
+                playBtn.classList.remove('active');
+                pauseBtn.classList.add('active');
+                
                 if (animId) {
                     cancelAnimationFrame(animId);
                     animId = null;
                 }
                 startTime = 0; 
-                playBtn.classList.remove('active');
-                pauseBtn.classList.add('active');
                 if (typeof setGlobalInterfaceLock === 'function') setGlobalInterfaceLock(false);
                 
                 // Explicitly stop cinema mode (auto-rotation) when pausing
@@ -589,12 +658,13 @@
             // Add the Plane Trace (Trace 4)
             Plotly.addTraces(gd, {
                 type: 'mesh3d',
-                x: [[]], y: [[]], z: [[]],
-                i: [[]], j: [[]], k: [[]],
+                x: [], y: [], z: [],
+                i: [], j: [], k: [],
                 opacity: 0.8,
                 color: '#00f3ff',
                 name: 'Structural Planes',
-                hoverinfo: 'skip',
+                hoverinfo: 'text',
+                // Removed hovertemplate to avoid %{text} literal issues
                 visible: false,
                 lighting: { ambient: 0.9, diffuse: 0.5, specular: 0.1, roughness: 0.9, fresnel: 0.1 },
                 flatshading: true

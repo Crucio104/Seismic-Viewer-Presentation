@@ -341,7 +341,93 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
             except: traces.append(go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
         else: traces.append(go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
 
-    # C. Earthquake Markers (Optionally filtered for "Visualization Only" Mag/Dep ranges)
+    # C. Cluster Planes (NEW)
+    show_planes = params.get('show_cluster_planes', False)
+    for i in range(n_clusters):
+        pts = X_orig[display_labels == i]
+        if len(pts) >= 4:
+            origin_lat = np.mean(pts[:, 1])
+            origin_lon = np.mean(pts[:, 0])
+            lat_to_km = 111.32
+            lon_to_km = 111.32 * np.cos(np.radians(origin_lat))
+            
+            x_km = (pts[:, 0] - origin_lon) * lon_to_km
+            y_km = (pts[:, 1] - origin_lat) * lat_to_km
+            pts_km = np.column_stack((x_km, y_km, pts[:, 2]))
+            
+            # Robust Fitting via RANSAC on KM space
+            normal, centroid_km, planarity = fit_plane_ransac(pts_km, threshold=0.15) 
+            
+            if normal is not None and centroid_km is not None:
+                # Calculate average distance of points from the centroid in KM
+                avg_dist = np.mean(np.linalg.norm(pts_km - centroid_km, axis=1))
+                side_length = 5 * avg_dist
+                if side_length < 0.2: side_length = 0.2 # Min 200m
+                
+                L = side_length
+                H = side_length
+                
+                # Calculate Orientation
+                u = np.cross(normal, [0, 0, 1])
+                if np.linalg.norm(u) < 1e-6:
+                    u = np.array([1, 0, 0])
+                else:
+                    u /= np.linalg.norm(u)
+                
+                v = np.cross(normal, u)
+                v /= np.linalg.norm(v)
+                
+                # Generate Grid Vertices for better hover tracking (5x5 grid)
+                grid_size = 5
+                rect_verts_km = []
+                i_idx, j_idx, k_idx = [], [], []
+                
+                for r_idx in range(grid_size):
+                    for c_idx in range(grid_size):
+                        u_frac = (r_idx / (grid_size - 1)) - 0.5
+                        v_frac = (c_idx / (grid_size - 1)) - 0.5
+                        vert = centroid_km + u_frac * L * u + v_frac * H * v
+                        rect_verts_km.append(vert)
+                
+                rect_verts_km = np.array(rect_verts_km)
+                
+                # Convert back to Lon/Lat/Depth
+                v_lon = (rect_verts_km[:, 0] / lon_to_km) + origin_lon
+                v_lat = (rect_verts_km[:, 1] / lat_to_km) + origin_lat
+                v_z = rect_verts_km[:, 2]
+                rect_verts = np.column_stack((v_lon, v_lat, v_z))
+                
+                for r_idx in range(grid_size - 1):
+                    for c_idx in range(grid_size - 1):
+                        p1 = r_idx * grid_size + c_idx
+                        p2 = p1 + 1
+                        p3 = p1 + grid_size
+                        p4 = p3 + 1
+                        i_idx.extend([p1, p2])
+                        j_idx.extend([p2, p4])
+                        k_idx.extend([p3, p3])
+                
+                # Plane Equation (ax + by + cz + d = 0)
+                centroid = np.array([(centroid_km[0]/lon_to_km)+origin_lon, (centroid_km[1]/lat_to_km)+origin_lat, centroid_km[2]])
+                
+                eq_a = normal[0] * lon_to_km
+                eq_b = normal[1] * lat_to_km
+                eq_c = normal[2]
+                eq_d = -(eq_a * centroid[0] + eq_b * centroid[1] + eq_c * centroid[2])
+                eq_str = f"{eq_a:+.2f}x {eq_b:+.2f}y {eq_c:+.2f}z {eq_d:+.2f} = 0"
+                
+                traces.append(go.Mesh3d(
+                    x=rect_verts[:,0].tolist(), y=rect_verts[:,1].tolist(), z=rect_verts[:,2].tolist(),
+                    i=i_idx, j=j_idx, k=k_idx,
+                    color=cluster_colors[i % len(cluster_colors)], opacity=0.6,
+                    name=f'Cluster {i+1} Plane', visible=show_planes, showlegend=False,
+                    hoverinfo='text', text=f"Cluster {i+1} Plane<br>{eq_str}<br>(x:Lon, y:Lat, z:Depth)",
+                    hoverlabel=dict(bgcolor=cluster_colors[i % len(cluster_colors)])
+                ))
+            else: traces.append(go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
+        else: traces.append(go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
+
+    # D. Earthquake Markers (Optionally filtered for "Visualization Only" Mag/Dep ranges)
     if viz_mask is not None:
         v_idx = viz_mask
         v_lon = longitude[v_idx]
@@ -362,7 +448,7 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
     ))
 
 
-    # D. Centroids (2N+2)
+    # E. Centroids (3N+2)
     if method == 'kmeans':
         cx, cy, cz, ch = [], [], [], []
         for i in range(n_clusters):
@@ -378,7 +464,7 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
         ))
     else: traces.append(go.Scatter3d(x=[], y=[], z=[], visible=False, showlegend=False))
 
-    # E. Legend Proxies (2N+3..3N+2)
+    # F. Legend Proxies (3N+3..4N+2)
     for i in range(n_clusters):
         vis = bool(np.any(display_labels == i))
         traces.append(go.Scatter3d(
@@ -388,6 +474,7 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
         ))
 
     return {'traces': traces, 'labels': labels, 'n_clusters': n_clusters}
+
 
 
 
@@ -473,6 +560,41 @@ def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnit
     ))
 
     _report("Packaging animation data...")
+    
+    # Pre-calculate Structural Planes for Window Mode
+    preloaded_planes = {}
+    if anim_mode == 'window':
+        _report("Pre-calculating structural planes...")
+        from datetime import datetime, timedelta
+        dt_objs = np.array([datetime.strptime(t[:19], '%Y-%m-%d %H:%M:%S') for t in times])
+        np_lons = np.array(longitude)
+        np_lats = np.array(latitude)
+        np_deps = np.array(depth)
+        
+        # Use default settings
+        radius_km = 0.5
+        min_pts = 5
+        
+        # Stable context for coordinate consistency
+        g_ctx = {
+            'origin_lat': np.mean(latitude),
+            'origin_lon': np.mean(longitude),
+            'bounds': None
+        }
+        
+        for d_str in unique_dates:
+            target_dt = datetime.strptime(d_str, '%Y-%m-%d')
+            start_dt = target_dt - timedelta(days=window_days)
+            mask = (dt_objs >= start_dt) & (dt_objs <= target_dt)
+            
+            if np.sum(mask) >= min_pts:
+                day_planes = calculate_structural_planes(
+                    np_lons[mask], np_lats[mask], np_deps[mask],
+                    radius_km, min_pts, global_context=g_ctx, date_tag=d_str
+                )
+                if day_planes:
+                    preloaded_planes[d_str] = day_planes
+
     anim_data = {
         'lon': longitude,
         'lat': latitude,
@@ -489,6 +611,7 @@ def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnit
         'dep_range': dep_range,
         'start_date': times[0][:10],
         'date_counts': vpack.get('date_counts', []),
+        'preloaded_planes': preloaded_planes
     }
 
     apply_3d_style(fig, [x_high[0], x_high[-1]], [y_high[-1], y_high[0]], [min_depth, 0])
@@ -589,26 +712,83 @@ def build_view_html(data: dict[str, Any], view_style: int, back_button: bool = T
 
 # ─── Structural Plane Analysis ─────────────────────────────────────────
 
-def calculate_structural_planes(longitude: np.ndarray, latitude: np.ndarray, depth: np.ndarray, 
-                               radius_km: float, min_pts: int, overlap: float = 0.2,
-                               global_context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations: int = 20) -> tuple[np.ndarray | None, np.ndarray | None, float]:
     """
-    Fits planes to points within overlapping vertical cylinders.
+    Robust plane fitting using RANSAC for 3D points (Total Least Squares).
+    Returns: (normal, centroid, planarity)
     """
     from scipy.linalg import svd
+    n_points = points.shape[0]
+    if n_points < 3:
+        return None, None, 0.0
+    
+    # Use a fixed seed for stability across recalculations
+    seed = int(np.abs(np.sum(points)) * 1000) % 4294967295
+    rng = np.random.RandomState(seed)
+    
+    best_inliers = []
+    
+    # RANSAC Loop
+    for _ in range(max_iterations):
+        # Pick 3 random points
+        idx = rng.choice(n_points, 3, replace=False)
+        sample = points[idx]
+        
+        # Calculate candidate plane
+        centroid = np.mean(sample, axis=0)
+        centered = sample - centroid
+        try:
+            _, _, vh = svd(centered)
+            normal = vh[2, :]
+            
+            # Calculate orthogonal distances to plane (since normal is unit length)
+            dists = np.abs(np.dot(points - centroid, normal))
+            
+            inliers = np.where(dists < threshold)[0]
+            if len(inliers) > len(best_inliers):
+                best_inliers = inliers
+        except:
+            continue
+            
+    if len(best_inliers) < 3:
+        # Fallback to SVD on all points if RANSAC fails to find a good set
+        centroid = np.mean(points, axis=0)
+        centered = points - centroid
+        _, s, vh = svd(centered)
+        normal = vh[2, :]
+        planarity = float((s[1] - s[2]) / s[0] if s[0] > 0 else 1.0)
+        return normal, centroid, planarity
+    
+    # Refit using all inliers for maximum precision
+    inlier_pts = points[best_inliers]
+    centroid = np.mean(inlier_pts, axis=0)
+    centered = inlier_pts - centroid
+    _, s, vh = svd(centered)
+    normal = vh[2, :]
+    planarity = float((s[1] - s[2]) / s[0] if s[0] > 0 else 1.0)
+    
+    return normal, centroid, planarity
 
+
+def calculate_structural_planes(longitude: np.ndarray, latitude: np.ndarray, depth: np.ndarray, 
+                               radius_km: float, min_pts: int, overlap: float = 0.2,
+                               global_context: dict[str, Any] | None = None,
+                               date_tag: str = "") -> list[dict[str, Any]]:
+    """
+    Fits planes to points within overlapping vertical cylinders using RANSAC.
+    """
     if len(longitude) < min_pts:
         return []
 
     # 1. Coordinate Transformation using stable origin
-    if global_context:
+    if global_context and global_context.get('bounds') is not None:
         origin_lat = global_context['origin_lat']
         origin_lon = global_context['origin_lon']
         gx_min, gx_max, gy_min, gy_max = global_context['bounds']
     else:
-        origin_lat = np.mean(latitude)
-        origin_lon = np.mean(longitude)
-        gx_min, gx_max = None, None
+        origin_lat = global_context['origin_lat'] if global_context else np.mean(latitude)
+        origin_lon = global_context['origin_lon'] if global_context else np.mean(longitude)
+        gx_min, gx_max, gy_min, gy_max = None, None, None, None
 
     lat_to_km = 111.32
     lon_to_km = 111.32 * np.cos(np.radians(origin_lat))
@@ -618,17 +798,18 @@ def calculate_structural_planes(longitude: np.ndarray, latitude: np.ndarray, dep
     pts_km = np.column_stack((x_km, y_km, depth))
 
     # 2. Grid Generation
-    if gx_min is not None:
-        pass # use provided bounds
-    else:
+    if gx_min is None:
         gx_min, gx_max = np.min(x_km), np.max(x_km)
         gy_min, gy_max = np.min(y_km), np.max(y_km)
+        if global_context:
+            global_context['bounds'] = (gx_min, gx_max, gy_min, gy_max)
     
     spacing = radius_km * (2.0 - overlap)
     grid_x = np.arange(gx_min, gx_max + spacing, spacing)
     grid_y = np.arange(gy_min, gy_max + spacing, spacing)
 
     planes = []
+    ransac_threshold = max(0.02, radius_km * 0.1) # 10% of radius, min 20m
 
     # 3. Fitting
     for ix, cx in enumerate(grid_x):
@@ -639,46 +820,61 @@ def calculate_structural_planes(longitude: np.ndarray, latitude: np.ndarray, dep
             
             if np.sum(mask) >= min_pts:
                 subset = pts_km[mask]
-                centroid = np.mean(subset, axis=0)
                 
-                # PCA via SVD
-                centered = subset - centroid
-                _, s, vh = svd(centered)
+                # Robust Fitting via RANSAC
+                normal, centroid, planarity = fit_plane_ransac(subset, threshold=ransac_threshold)
                 
-                # Normal is the eigenvector of the smallest singular value
-                normal = vh[2, :]
-                
-                # Conversion back to lon/lat for the centroid
+                if normal is None or centroid is None:
+                    continue
+
+                # Conversion back to lon/lat for the centroid (for metadata, though geometry is local)
                 c_lon = (centroid[0] / lon_to_km) + origin_lon
                 c_lat = (centroid[1] / lat_to_km) + origin_lat
-                c_z = float(centroid[2])
 
-                # --- GEOMETRY GENERATION (Directly in Python) ---
-                # Find orthogonal basis u, v in KM
-                u = np.array([1, 0, 0])
-                if abs(normal[0]) > 0.9: u = np.array([0, 1, 0])
-                u = np.cross(normal, u)
-                u /= np.linalg.norm(u)
+                # --- GEOMETRY GENERATION ---
+                # Calculate Orientation
+                # Strike (u): Horizontal vector on the plane
+                u = np.cross(normal, [0, 0, 1])
+                if np.linalg.norm(u) < 1e-6: # Near-horizontal plane
+                    u = np.array([1, 0, 0])
+                else:
+                    u /= np.linalg.norm(u)
+                
+                # Dip (v): Vector along the maximum slope of the plane
                 v = np.cross(normal, u)
+                v /= np.linalg.norm(v)
                 
-                n_segments = 16 # Sufficient for small scale
-                theta = np.linspace(0, 2*np.pi, n_segments, endpoint=False)
-                
-                # Vertices in KM
-                disk_verts_km = centroid + radius_km * (np.outer(np.cos(theta), u) + np.outer(np.sin(theta), v))
+                # Vertices for a Square (side = 2 * radius_km)
+                # Centered at centroid, using strike and dip for orientation
+                r = radius_km
+                sq_verts_km = np.array([
+                    centroid - r*u - r*v,
+                    centroid + r*u - r*v,
+                    centroid + r*u + r*v,
+                    centroid - r*u + r*v
+                ])
                 
                 # Convert vertices back to Lon/Lat/Depth
-                v_lon = (disk_verts_km[:, 0] / lon_to_km) + origin_lon
-                v_lat = (disk_verts_km[:, 1] / lat_to_km) + origin_lat
-                v_z = disk_verts_km[:, 2]
+                v_lon = (sq_verts_km[:, 0] / lon_to_km) + origin_lon
+                v_lat = (sq_verts_km[:, 1] / lat_to_km) + origin_lat
+                v_z = sq_verts_km[:, 2]
+
+                # Plane Equation: ax + by + cz + d = 0 (in Lon/Lat/Depth space)
+                # a = nx * lon_to_km, b = ny * lat_to_km, c = nz
+                eq_a = normal[0] * lon_to_km
+                eq_b = normal[1] * lat_to_km
+                eq_c = normal[2]
+                eq_d = -(eq_a * c_lon + eq_b * c_lat + eq_c * centroid[2])
 
                 planes.append({
                     'x': v_lon.tolist(),
                     'y': v_lat.tolist(),
                     'z': v_z.tolist(),
-                    'planarity': float((s[1] - s[2]) / s[0] if s[0] > 0 else 1.0),
-                    'grid_id': f"{ix}_{iy}"
+                    'planarity': float(planarity),
+                    'grid_id': f"{ix}_{iy}_{date_tag}" if date_tag else f"{ix}_{iy}",
+                    'equation': { 'a': float(eq_a), 'b': float(eq_b), 'c': float(eq_c), 'd': float(eq_d) }
                 })
+                     
                     
     return planes
 
@@ -739,7 +935,7 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
         s_dep = dep[start_idx:end_idx]
         
         if len(s_lon) >= min_pts:
-            results[date_str] = calculate_structural_planes(s_lon, s_lat, s_dep, radius_km, min_pts, global_context=global_ctx)
+            results[date_str] = calculate_structural_planes(s_lon, s_lat, s_dep, radius_km, min_pts, global_context=global_ctx, date_tag=date_str)
         else:
             results[date_str] = []
             

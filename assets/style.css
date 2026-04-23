@@ -520,6 +520,32 @@ html {
         max-height: 25rem;
         text-shadow: none !important;
         white-space: nowrap;
+        overflow: hidden;
+    }
+
+    .legend-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.625rem;
+        width: 100%;
+        overflow-y: auto;
+        padding-right: 0.3rem;
+    }
+
+    /* Custom Scrollbar for Legend */
+    .legend-list::-webkit-scrollbar {
+        width: 0.25rem;
+    }
+    .legend-list::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 1rem;
+    }
+    .legend-list::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 1rem;
+    }
+    .legend-list::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.3);
     }
 
     #legend-title {
