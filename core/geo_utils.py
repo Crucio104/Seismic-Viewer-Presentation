@@ -115,7 +115,7 @@ def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> 
         scale = max(1, max(original_w, original_h) / resolution)
         new_w, new_h = int(original_w / scale), int(original_h / scale)
 
-        print(f"Processing map mesh: {original_w}x{original_h} -> {new_w}x{new_h}...")
+        logger.info(f"Processing map mesh: {original_w}x{original_h} -> {new_w}x{new_h}...")
         img_rs = img.resize((new_w, new_h), resample=PIL.Image.Resampling.BILINEAR)
         img_p = img_rs.convert('P', palette=PIL.Image.Palette.ADAPTIVE, colors=PALETTE_COLORS)
         
@@ -140,7 +140,7 @@ def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> 
             with open(cache_path, 'wb') as f:
                 pickle.dump(result, f)
         except Exception as e:
-            print(f"Failed to cache mesh: {e}")
+            logger.error(f"Failed to cache mesh: {e}")
 
     return result
 

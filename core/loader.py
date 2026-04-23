@@ -61,18 +61,21 @@ def load_csv(source_file: str) -> dict[str, Any]:
 
         # Mapping dictionary for common earthquake CSV headers
         mapping = {
-            'time': ['time', 'Date', 'DateTime', 'UTC', 'time_utc'],
-            'lat': ['lat', 'latitude', 'Latitude', 'LAT'],
-            'lon': ['lon', 'longitude', 'Longitude', 'LON'],
-            'depth': ['depth', 'Depth', 'depth_km', 'DEPTH'],
-            'mag': ['mag', 'magnitude', 'Magnitude', 'Mag', 'MAG']
+            'time': ['time', 'date', 'datetime', 'utc', 'time_utc', 'origintime'],
+            'lat': ['lat', 'latitude'],
+            'lon': ['lon', 'longitude'],
+            'depth': ['depth', 'depth_km'],
+            'mag': ['mag', 'magnitude', 'md', 'ml', 'mw']
         }
+
+        # Robust case-insensitive and stripped matching
+        cols_clean = {c.strip().lower(): c for c in cols if isinstance(c, str)}
 
         found_mapping = {}
         for internal_name, aliases in mapping.items():
             for alias in aliases:
-                if alias in cols:
-                    found_mapping[internal_name] = alias
+                if alias.lower() in cols_clean:
+                    found_mapping[internal_name] = cols_clean[alias.lower()]
                     break
         
         # If we found all 5 columns by name, use them

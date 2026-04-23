@@ -712,14 +712,14 @@ def build_view_html(data: dict[str, Any], view_style: int, back_button: bool = T
 
 # ─── Structural Plane Analysis ─────────────────────────────────────────
 
-def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations: int = 20) -> tuple[np.ndarray | None, np.ndarray | None, float]:
+def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations: int = 100, min_inliers: int = 3) -> tuple[np.ndarray | None, np.ndarray | None, float]:
     """
     Robust plane fitting using RANSAC for 3D points (Total Least Squares).
     Returns: (normal, centroid, planarity)
     """
     from scipy.linalg import svd
     n_points = points.shape[0]
-    if n_points < 3:
+    if n_points < min_inliers:
         return None, None, 0.0
     
     # Use a fixed seed for stability across recalculations
@@ -734,30 +734,25 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
         idx = rng.choice(n_points, 3, replace=False)
         sample = points[idx]
         
-        # Calculate candidate plane
-        centroid = np.mean(sample, axis=0)
-        centered = sample - centroid
-        try:
-            _, _, vh = svd(centered)
-            normal = vh[2, :]
+        # Calculate candidate plane via cross product (much faster than SVD for 3 points)
+        v1 = sample[1] - sample[0]
+        v2 = sample[2] - sample[0]
+        normal = np.cross(v1, v2)
+        norm_len = np.linalg.norm(normal)
+        
+        if norm_len < 1e-8:
+            continue # Collinear points
             
-            # Calculate orthogonal distances to plane (since normal is unit length)
-            dists = np.abs(np.dot(points - centroid, normal))
-            
-            inliers = np.where(dists < threshold)[0]
-            if len(inliers) > len(best_inliers):
-                best_inliers = inliers
-        except:
-            continue
-            
-    if len(best_inliers) < 3:
-        # Fallback to SVD on all points if RANSAC fails to find a good set
-        centroid = np.mean(points, axis=0)
-        centered = points - centroid
-        _, s, vh = svd(centered)
-        normal = vh[2, :]
-        planarity = float((s[1] - s[2]) / s[0] if s[0] > 0 else 1.0)
-        return normal, centroid, planarity
+        normal /= norm_len
+        
+        # Calculate orthogonal distances to plane
+        # Optimized: dot(points - p0, n) = dot(points, n) - dot(p0, n)
+        dists = np.abs(np.dot(points, normal) - np.dot(sample[0], normal))
+        inliers = np.where(dists < threshold)[0]
+        if len(inliers) > len(best_inliers):
+            best_inliers = inliers
+    if len(best_inliers) < min_inliers:
+        return None, None, 0.0
     
     # Refit using all inliers for maximum precision
     inlier_pts = points[best_inliers]
@@ -822,7 +817,7 @@ def calculate_structural_planes(longitude: np.ndarray, latitude: np.ndarray, dep
                 subset = pts_km[mask]
                 
                 # Robust Fitting via RANSAC
-                normal, centroid, planarity = fit_plane_ransac(subset, threshold=ransac_threshold)
+                normal, centroid, planarity = fit_plane_ransac(subset, threshold=ransac_threshold, min_inliers=min_pts)
                 
                 if normal is None or centroid is None:
                     continue
@@ -910,23 +905,21 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
     # Ensure window_days is at least 1
     w_days = max(1, int(window_days))
     
-    # Optimization: If many steps, we could skip some, but for now let's do all.
-    for date_str in dates_unique:
+    from datetime import datetime, timedelta
+    parsed_dates = [datetime.strptime(d, '%Y-%m-%d') for d in dates_unique]
+    
+    # Optimization: Pre-parsed dates and efficient backward search
+    for i, date_str in enumerate(dates_unique):
         # Get window range
         end_idx = date_to_cum[date_str]
         
-        # Calculate start_idx based on window_days
-        from datetime import datetime, timedelta
-        curr_dt = datetime.strptime(date_str, '%Y-%m-%d')
+        curr_dt = parsed_dates[i]
         cutoff_dt = curr_dt - timedelta(days=w_days - 1)
-        cutoff_str = cutoff_dt.strftime('%Y-%m-%d')
         
         start_idx = 0
-        for d in dates_unique:
-            if d >= cutoff_str:
-                d_idx = dates_unique.index(d)
-                if d_idx > 0:
-                    start_idx = date_to_cum[dates_unique[d_idx-1]]
+        for j in range(i, -1, -1):
+            if parsed_dates[j] < cutoff_dt:
+                start_idx = date_to_cum[dates_unique[j]]
                 break
         
         # Filter points

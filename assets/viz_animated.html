@@ -519,7 +519,7 @@
                 }
                 const elapsed = timestamp - startTime;
                 const secondsPassed = Math.floor(elapsed / baseDelay);
-                const targetIdx = startIdx + (secondsPassed * speedMult);
+                const targetIdx = Math.floor(startIdx + (secondsPassed * speedMult));
                 
                 if (targetIdx !== currentStepIdx && targetIdx < dates.length) {
                     isRendering = true;

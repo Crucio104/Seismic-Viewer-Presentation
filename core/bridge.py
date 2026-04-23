@@ -130,7 +130,7 @@ class Api:
                 self._window().load_url(self._make_url(rel_path))
                 return
 
-            print(f"Generating view {view_style}…")
+            logger.info(f"Generating view {view_style}…")
             res = engine.build_view_html(
                 self._data, view_style,
                 on_progress=self._push_progress,
@@ -170,32 +170,51 @@ class Api:
             t1 = params.get('start_date', "")
             t2 = params.get('end_date', "")
 
-            # 1. Clustering Subset: Filter ONLY by Date 
-            # (Clustering definition should be stable regardless of mag/dep)
-            cluster_idx = []
-            for i in range(len(d['longitude'])):
-                dt = d['times'][i][:10]
-                if (not t1 or dt >= t1) and (not t2 or dt <= t2):
-                    cluster_idx.append(i)
+            # 1. Clustering Subset: Filter ONLY by Date (using fast precalculated cumulative indices)
+            start_idx = 0
+            end_idx = len(d['longitude'])
+            
+            if t1 or t2:
+                dates_unique = d['visual_pack']['unique_dates']
+                date_to_cum = d['visual_pack']['date_to_cum']
+                
+                if t1:
+                    # Find first date >= t1
+                    for i, dt in enumerate(dates_unique):
+                        if dt >= t1:
+                            if i > 0:
+                                start_idx = date_to_cum[dates_unique[i-1]]
+                            break
+                    else:
+                        start_idx = end_idx # No dates match
+                        
+                if t2:
+                    # Find first date > t2 to define the upper bound
+                    for i, dt in enumerate(dates_unique):
+                        if dt > t2:
+                            if i > 0:
+                                end_idx = date_to_cum[dates_unique[i-1]]
+                            else:
+                                end_idx = 0
+                            break
 
-            if not cluster_idx: return {'error': 'No data in this date range'}
+            if start_idx >= end_idx: 
+                return {'error': 'No data in this date range'}
 
-            # 2. Visualization Mask: Of those in the Date Range, which satisfy Mag/Dep?
-            viz_mask = []
-            for i in cluster_idx:
-                m = d['magnitude'][i]
-                dp = abs(d['depth'][i])
-                viz_mask.append(m >= m1 and m <= m2 and dp >= d1 and dp <= d2)
+            # 2. Visualization Mask: Vectorized filtering for Mag/Dep
+            mags = np.array(d['magnitude'][start_idx:end_idx])
+            deps = np.abs(d['depth'][start_idx:end_idx])
+            viz_mask = (mags >= m1) & (mags <= m2) & (deps >= d1) & (deps <= d2)
 
             updated_traces = engine.get_cluster_update_traces(
-                longitude=[d['longitude'][i] for i in cluster_idx],
-                latitude=[d['latitude'][i] for i in cluster_idx],
-                magnitude=[d['magnitude'][i] for i in cluster_idx],
-                depth=[d['depth'][i] for i in cluster_idx],
-                hover=[d['visual_pack']['hover'][i] for i in cluster_idx],
+                longitude=d['longitude'][start_idx:end_idx],
+                latitude=d['latitude'][start_idx:end_idx],
+                magnitude=mags.tolist(),  # Already sliced
+                depth=d['depth'][start_idx:end_idx],
+                hover=d['visual_pack']['hover'][start_idx:end_idx],
                 clustering_method=method,
                 clustering_params=params,
-                viz_mask=np.array(viz_mask)
+                viz_mask=viz_mask
             )
             return updated_traces
 
