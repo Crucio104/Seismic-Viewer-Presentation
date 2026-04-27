@@ -255,62 +255,76 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
     params = params or {}
     longitude, latitude, depth = np.array(longitude), np.array(latitude), np.array(depth)
     magnitude = np.array(magnitude)
-    X_orig = np.column_stack((longitude, latitude, depth))
     
-    # --- 1. CLUSTERING EXECUTION ---
-    # Runs on ALL points provided (which should be filtered by Date only)
+    # --- 1. FILTERING & COORDINATE CONVERSION ---
+    # Apply viz_mask immediately so clustering only runs on what is visible
+    if viz_mask is not None:
+        m_idx = viz_mask
+        f_lon, f_lat, f_dep = longitude[m_idx], latitude[m_idx], depth[m_idx]
+        f_mag, f_hover = magnitude[m_idx], [hover[i] for i, val in enumerate(m_idx) if val]
+    else:
+        f_lon, f_lat, f_dep, f_mag, f_hover = longitude, latitude, depth, magnitude, hover
+
+    if len(f_lon) == 0:
+        return {'traces': [], 'labels': np.array([]), 'n_clusters': 0}
+
+    # Convert to KM for accurate 3D spatial clustering (E, N, D)
+    origin_lat = np.mean(f_lat)
+    origin_lon = np.mean(f_lon)
+    lat_to_km = 111.32
+    lon_to_km = 111.32 * np.cos(np.radians(origin_lat))
+    
+    X_km = np.column_stack((
+        (f_lon - origin_lon) * lon_to_km,
+        (f_lat - origin_lat) * lat_to_km,
+        f_dep
+    ))
+    X_orig_f = np.column_stack((f_lon, f_lat, f_dep))
+
+    # --- 2. CLUSTERING EXECUTION ---
     if method == 'dbscan':
-        eps_m = float(params.get('dbscan_eps', 500))
+        eps_km = float(params.get('dbscan_eps', 500)) / 1000.0 # Convert meters to km
         min_samples = int(params.get('dbscan_min_samples', 5))
         
-        # Per il DBSCAN sul piano (epicentro), la metrica matematicamente esatta è l'haversine.
-        # Haversine in sklearn richiede (latitudine, longitudine) in radianti.
-        X_rad = np.radians(np.column_stack((latitude, longitude)))
-        
-        # L'epsilon viene fornito in metri, quindi lo convertiamo in radianti (raggio Terra ~ 6371000m)
-        eps_rad = eps_m / 6371000.0
-        
-        db = DBSCAN(eps=eps_rad, min_samples=min_samples, metric='haversine').fit(X_rad)
+        # DBSCAN in 3D (KM space)
+        db = DBSCAN(eps=eps_km, min_samples=min_samples, metric='euclidean').fit(X_km)
         labels = db.labels_
         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
         if n_clusters == 0:
             n_clusters = 1
-            labels = np.zeros(len(X_orig), dtype=int)
+            labels = np.zeros(len(X_km), dtype=int)
     else:
         n_clusters_req = int(params.get('kmeans_clusters', 3))
-        if len(X_orig) >= n_clusters_req:
-            X_scaled = StandardScaler().fit_transform(X_orig)
+        if len(X_km) >= n_clusters_req:
+            # Scale KM coordinates for KMeans to handle different spatial spreads
+            X_scaled = StandardScaler().fit_transform(X_km)
             kmeans = MiniBatchKMeans(n_clusters=n_clusters_req, random_state=42, n_init='auto').fit(X_scaled)
             labels = kmeans.labels_
             n_clusters = n_clusters_req
-            centroids_scaled = kmeans.cluster_centers_
         else:
-            labels = np.zeros(len(X_orig), dtype=int)
+            labels = np.zeros(len(X_km), dtype=int)
             n_clusters = 1
 
-    # --- 2. OUTLIER FILTERING ---
-    # Optional: filter out points too far from their centroid for cleaner hull generation
-    # Also based on the full cluster set
+    # --- 3. OUTLIER FILTERING (K-Means specific) ---
     display_labels = labels.copy()
     if method == 'kmeans' and float(params.get('kmeans_max_dist', 0)) > 0:
         max_d = float(params.get('kmeans_max_dist', 0))
         for i in range(n_clusters):
             idx = (labels == i)
             if not np.any(idx): continue
-            pts_c = X_orig[idx]
-            center = np.mean(pts_c, axis=0)
-            dists = np.sqrt(((pts_c[:,1]-center[1])*111320)**2 + 
-                            ((pts_c[:,0]-center[0])*111320*np.cos(np.radians(center[1])))**2 + 
-                            ((pts_c[:,2]-center[2])*1000)**2)
+            pts_km_c = X_km[idx]
+            center_km = np.mean(pts_km_c, axis=0)
+            # Distance in KM
+            dists = np.sqrt(np.sum((pts_km_c - center_km)**2, axis=1))
             display_labels[np.where(idx)[0][dists > max_d]] = -1
 
-    # --- 3. TRACE GENERATION ---
+    # --- 4. TRACE GENERATION ---
     cluster_colors = px.colors.qualitative.Plotly
     traces = []
 
     # A. Wireframe Hulls (Based on full cluster groups)
     for i in range(n_clusters):
-        pts = X_orig[display_labels == i]
+        pts = X_orig_f[display_labels == i]
         if len(pts) > 4:
             try:
                 hull = ConvexHull(pts)
@@ -330,7 +344,7 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
 
     # B. Solid Volumes (Based on full cluster groups)
     for i in range(n_clusters):
-        pts = X_orig[display_labels == i]
+        pts = X_orig_f[display_labels == i]
         if len(pts) > 4:
             try:
                 traces.append(go.Mesh3d(
@@ -344,23 +358,25 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
     # C. Cluster Planes (NEW)
     show_planes = params.get('show_cluster_planes', False)
     for i in range(n_clusters):
-        pts = X_orig[display_labels == i]
+        pts = X_orig_f[display_labels == i]
         if len(pts) >= 4:
-            origin_lat = np.mean(pts[:, 1])
-            origin_lon = np.mean(pts[:, 0])
-            lat_to_km = 111.32
-            lon_to_km = 111.32 * np.cos(np.radians(origin_lat))
+            origin_lat_c = np.mean(pts[:, 1])
+            origin_lon_c = np.mean(pts[:, 0])
+            lat_to_km_c = 111.32
+            lon_to_km_c = 111.32 * np.cos(np.radians(origin_lat_c))
             
-            x_km = (pts[:, 0] - origin_lon) * lon_to_km
-            y_km = (pts[:, 1] - origin_lat) * lat_to_km
-            pts_km = np.column_stack((x_km, y_km, pts[:, 2]))
+            pts_km_c = np.column_stack((
+                (pts[:, 0] - origin_lon_c) * lon_to_km_c,
+                (pts[:, 1] - origin_lat_c) * lat_to_km_c,
+                pts[:, 2]
+            ))
             
             # Robust Fitting via RANSAC on KM space
-            normal, centroid_km, planarity = fit_plane_ransac(pts_km, threshold=0.15) 
+            normal, centroid_km, planarity = fit_plane_ransac(pts_km_c, threshold=0.15) 
             
             if normal is not None and centroid_km is not None:
                 # Calculate average distance of points from the centroid in KM
-                avg_dist = np.mean(np.linalg.norm(pts_km - centroid_km, axis=1))
+                avg_dist = np.mean(np.linalg.norm(pts_km_c - centroid_km, axis=1))
                 side_length = 5 * avg_dist
                 if side_length < 0.2: side_length = 0.2 # Min 200m
                 
@@ -392,8 +408,8 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
                 rect_verts_km = np.array(rect_verts_km)
                 
                 # Convert back to Lon/Lat/Depth
-                v_lon = (rect_verts_km[:, 0] / lon_to_km) + origin_lon
-                v_lat = (rect_verts_km[:, 1] / lat_to_km) + origin_lat
+                v_lon = (rect_verts_km[:, 0] / lon_to_km_c) + origin_lon_c
+                v_lat = (rect_verts_km[:, 1] / lat_to_km_c) + origin_lat_c
                 v_z = rect_verts_km[:, 2]
                 rect_verts = np.column_stack((v_lon, v_lat, v_z))
                 
@@ -403,15 +419,17 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
                         p2 = p1 + 1
                         p3 = p1 + grid_size
                         p4 = p3 + 1
-                        i_idx.extend([p1, p2])
-                        j_idx.extend([p2, p4])
-                        k_idx.extend([p3, p3])
+                        i_idx.extend([p1, p2]); j_idx.extend([p2, p4]); k_idx.extend([p3, p3])
                 
+                # Geological Parameters
+                strike_val, dip_val, dd_val = get_strike_dip(normal)
+                geo_str = f"Strike: {strike_val:.1f}°<br>Dip: {dip_val:.1f}°<br>Dip Dir: {dd_val:.1f}°"
+
                 # Plane Equation (ax + by + cz + d = 0)
-                centroid = np.array([(centroid_km[0]/lon_to_km)+origin_lon, (centroid_km[1]/lat_to_km)+origin_lat, centroid_km[2]])
+                centroid = np.array([(centroid_km[0]/lon_to_km_c)+origin_lon_c, (centroid_km[1]/lat_to_km_c)+origin_lat_c, centroid_km[2]])
                 
-                eq_a = normal[0] * lon_to_km
-                eq_b = normal[1] * lat_to_km
+                eq_a = normal[0] * lon_to_km_c
+                eq_b = normal[1] * lat_to_km_c
                 eq_c = normal[2]
                 eq_d = -(eq_a * centroid[0] + eq_b * centroid[1] + eq_c * centroid[2])
                 eq_str = f"{eq_a:+.2f}x {eq_b:+.2f}y {eq_c:+.2f}z {eq_d:+.2f} = 0"
@@ -421,40 +439,28 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
                     i=i_idx, j=j_idx, k=k_idx,
                     color=cluster_colors[i % len(cluster_colors)], opacity=0.6,
                     name=f'Cluster {i+1} Plane', visible=show_planes, showlegend=False,
-                    hoverinfo='text', text=f"Cluster {i+1} Plane<br>{eq_str}<br>(x:Lon, y:Lat, z:Depth)",
+                    hoverinfo='text', 
+                    text=f"Cluster {i+1} Plane<br>{geo_str}<br>{eq_str}<br>(x:Lon, y:Lat, z:Depth)",
                     hoverlabel=dict(bgcolor=cluster_colors[i % len(cluster_colors)])
                 ))
             else: traces.append(go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
         else: traces.append(go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip'))
 
-    # D. Earthquake Markers (Optionally filtered for "Visualization Only" Mag/Dep ranges)
-    if viz_mask is not None:
-        v_idx = viz_mask
-        v_lon = longitude[v_idx]
-        v_lat = latitude[v_idx]
-        v_dep = depth[v_idx]
-        v_mag = magnitude[v_idx]
-        v_labels = display_labels[v_idx]
-        v_hover = [hover[i] for i, m in enumerate(v_idx) if m]
-    else:
-        v_lon, v_lat, v_dep, v_mag, v_labels, v_hover = longitude, latitude, depth, magnitude, display_labels, hover
-
-    pt_colors = [cluster_colors[int(l) % len(cluster_colors)] if l >= 0 else '#888888' for l in v_labels]
-    
+    # D. Earthquake Markers
+    pt_colors = [cluster_colors[int(l) % len(cluster_colors)] if l >= 0 else '#888888' for l in display_labels]
     traces.append(go.Scatter3d(
-        x=v_lon.tolist(), y=v_lat.tolist(), z=v_dep.tolist(), mode='markers', hovertext=v_hover,
+        x=f_lon.tolist(), y=f_lat.tolist(), z=f_dep.tolist(), mode='markers', hovertext=f_hover,
         marker=dict(size=5, color=pt_colors, line=dict(width=1, color='rgba(50,50,50,0.8)'), opacity=0.9),
         name='Earthquakes', visible=True, showlegend=False, hovertemplate='%{hovertext}<extra></extra>'
     ))
 
-
-    # E. Centroids (3N+2)
+    # E. Centroids
     if method == 'kmeans':
         cx, cy, cz, ch = [], [], [], []
         for i in range(n_clusters):
             idx_c = labels == i
             if np.any(idx_c):
-                m = np.mean(X_orig[idx_c], axis=0); am = np.mean(magnitude[idx_c])
+                m = np.mean(X_orig_f[idx_c], axis=0); am = np.mean(f_mag[idx_c])
                 cx.append(m[0]); cy.append(m[1]); cz.append(m[2])
                 ch.append(f"<b>Cluster {i+1} Centroid</b><br>Lat: {m[1]:.4f}<br>Lon: {m[0]:.4f}<br>Dep: {abs(m[2]):.2f}km<br>Avg Mag: {am:.2f}")
         traces.append(go.Scatter3d(
@@ -464,7 +470,7 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
         ))
     else: traces.append(go.Scatter3d(x=[], y=[], z=[], visible=False, showlegend=False))
 
-    # F. Legend Proxies (3N+3..4N+2)
+    # F. Legend Proxies
     for i in range(n_clusters):
         vis = bool(np.any(display_labels == i))
         traces.append(go.Scatter3d(
@@ -474,9 +480,6 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
         ))
 
     return {'traces': traces, 'labels': labels, 'n_clusters': n_clusters}
-
-
-
 
 
 
@@ -561,46 +564,16 @@ def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnit
 
     _report("Packaging animation data...")
     
-    # Pre-calculate Structural Planes for Window Mode
+    # We no longer pre-calculate all planes here to ensure instant loading.
+    # Planes will be requested on-demand or in background via WebSocket.
     preloaded_planes = {}
-    if anim_mode == 'window':
-        _report("Pre-calculating structural planes...")
-        from datetime import datetime, timedelta
-        dt_objs = np.array([datetime.strptime(t[:19], '%Y-%m-%d %H:%M:%S') for t in times])
-        np_lons = np.array(longitude)
-        np_lats = np.array(latitude)
-        np_deps = np.array(depth)
-        
-        # Use default settings
-        radius_km = 0.5
-        min_pts = 5
-        
-        # Stable context for coordinate consistency
-        g_ctx = {
-            'origin_lat': np.mean(latitude),
-            'origin_lon': np.mean(longitude),
-            'bounds': None
-        }
-        
-        for d_str in unique_dates:
-            target_dt = datetime.strptime(d_str, '%Y-%m-%d')
-            start_dt = target_dt - timedelta(days=window_days)
-            mask = (dt_objs >= start_dt) & (dt_objs <= target_dt)
-            
-            if np.sum(mask) >= min_pts:
-                day_planes = calculate_structural_planes(
-                    np_lons[mask], np_lats[mask], np_deps[mask],
-                    radius_km, min_pts, global_context=g_ctx, date_tag=d_str
-                )
-                if day_planes:
-                    preloaded_planes[d_str] = day_planes
 
     anim_data = {
         'lon': longitude,
         'lat': latitude,
         'dep': depth,
         'mag': magnitude,
-        'dnum': data.get('dates_num', []),
+        'dnum': data.get('dates_num', []) if data else [],
         'hover': vpack.get('hover', []),
         'unique_dates': unique_dates,
         'date_to_cum': vpack.get('date_to_cum', {}),
@@ -609,7 +582,7 @@ def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnit
         'mag_range': mag_range,
         'date_range': date_range,
         'dep_range': dep_range,
-        'start_date': times[0][:10],
+        'start_date': times[0][:10] if times else "",
         'date_counts': vpack.get('date_counts', []),
         'preloaded_planes': preloaded_planes
     }
@@ -621,10 +594,40 @@ def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnit
 
 def build_view_html(data: dict[str, Any], view_style: int, back_button: bool = True, on_progress: Callable[[str], None] | None = None,
                     anim_mode: str = 'accumulation', window_days: int = 5, clustering_method: str = 'kmeans',
-                    clustering_params: dict[str, Any] | None = None) -> tuple[str, bool]:
-    """Orchestrate view generation and return final HTML."""
+                    clustering_params: dict[str, Any] | None = None,
+                    data_url: str = "", session_id: str = "") -> tuple[str, bool]:
+    """Orchestrate view generation and return final HTML.
+    
+    When data_url and session_id are provided, visualization data is stored in the
+    in-memory data store and served via the FastAPI REST endpoint. The HTML template
+    loads data asynchronously with fetch(), enabling GZip compression.
+    """
+    from core.config import store_session_data
+
     def _report(msg):
         if on_progress: on_progress(msg)
+
+    def strip_data(fig_obj, data_dict):
+        """Removes heavy numerical data from seismic traces but PRESERVES the map mesh."""
+        import numpy as np
+        import plotly.graph_objects as go
+        for trace in fig_obj.data:
+            # Preservation criteria:
+            # 1. Any Surface trace (usually the terrain map)
+            # 2. Specifically named traces (Planes, Coastline)
+            # 3. Traces with no data (to avoid errors)
+            is_surface = isinstance(trace, go.Surface)
+            is_structural = getattr(trace, 'name', '') in ['Map Terrain', 'Structural Planes', 'Coastline']
+            
+            if not (is_surface or is_structural):
+                if hasattr(trace, 'x') and isinstance(trace.x, (list, np.ndarray)): trace.x = []
+                if hasattr(trace, 'y') and isinstance(trace.y, (list, np.ndarray)): trace.y = []
+                if hasattr(trace, 'z') and isinstance(trace.z, (list, np.ndarray)): trace.z = []
+        
+        keys_to_strip = ['longitude', 'latitude', 'magnitude', 'depth', 'dates_num', 'lon', 'lat', 'mag', 'dep', 'dnum', 'hover', 'cluster']
+        for k in keys_to_strip:
+            if k in data_dict:
+                data_dict[k] = []
 
     lon, lat, mag, dep, times = data['longitude'], data['latitude'], data['magnitude'], data['depth'], data['times']
     d_num = data.get('dates_num', [])
@@ -662,7 +665,12 @@ def build_view_html(data: dict[str, Any], view_style: int, back_button: bool = T
         static_data['date_limit'] = vpack.get('date_range', [0, 0])
         static_data['dep_limit'] = vpack.get('dep_range', [0, 0])
         static_data['start_date'] = times[0][:10] if times else ""
-        html = generate_html(fig, back_button=back_button, earthquake_data=static_data, is_fallback=is_fallback)
+
+        # Store data in REST endpoint and pass URL to template
+        if session_id:
+            store_session_data(session_id, static_data.copy())
+            strip_data(fig, static_data)
+        html = generate_html(fig, back_button=back_button, earthquake_data=static_data, is_fallback=is_fallback, data_url=data_url)
 
     elif view_style == 1:
         _report("Rendering 3D static view…")
@@ -673,13 +681,20 @@ def build_view_html(data: dict[str, Any], view_style: int, back_button: bool = T
         static_data['date_limit'] = vpack.get('date_range', [0, 0])
         static_data['dep_limit'] = vpack.get('dep_range', [0, 0])
         static_data['start_date'] = times[0][:10] if times else ""
-        html = generate_html(fig, is_3d=True, back_button=back_button, earthquake_data=static_data, is_fallback=is_fallback)
+
+        if session_id:
+            store_session_data(session_id, static_data.copy())
+            strip_data(fig, static_data)
+        html = generate_html(fig, is_3d=True, back_button=back_button, earthquake_data=static_data, is_fallback=is_fallback, data_url=data_url)
 
     elif view_style == 2:
         fig, anim_data = get_3d_animated_figure(lon, lat, mag, dep, times, 
                                                on_progress=on_progress, anim_mode=anim_mode, 
                                                window_days=window_days, data=data, bbox=bbox, map_grids=map_grids)
-        html = generate_html(fig, is_animated=True, is_3d=True, back_button=back_button, earthquake_data=anim_data, is_fallback=is_fallback)
+        if session_id:
+            store_session_data(session_id, anim_data.copy())
+            strip_data(fig, anim_data)
+        html = generate_html(fig, is_animated=True, is_3d=True, back_button=back_button, earthquake_data=anim_data, is_fallback=is_fallback, data_url=data_url)
 
     elif view_style == 3:
         fig, labels, n_clusters = get_3d_cluster_figure(
@@ -701,7 +716,11 @@ def build_view_html(data: dict[str, Any], view_style: int, back_button: bool = T
         cluster_data['clustering_method'] = clustering_method
         cluster_data['clustering_params'] = clustering_params
         cluster_data['start_date'] = times[0][:10] if times else ""
-        html = generate_html(fig, is_cluster=True, is_3d=True, back_button=back_button, earthquake_data=cluster_data, is_fallback=is_fallback)
+
+        if session_id:
+            store_session_data(session_id, cluster_data.copy())
+            strip_data(fig, cluster_data)
+        html = generate_html(fig, is_cluster=True, is_3d=True, back_button=back_button, earthquake_data=cluster_data, is_fallback=is_fallback, data_url=data_url)
 
 
     else:
@@ -710,7 +729,31 @@ def build_view_html(data: dict[str, Any], view_style: int, back_button: bool = T
     return html, is_fallback
 
 
+
 # ─── Structural Plane Analysis ─────────────────────────────────────────
+
+def get_strike_dip(normal: np.ndarray) -> tuple[float, float, float]:
+    """
+    Convert a 3D normal vector [nx, ny, nz] (x=East, y=North, z=Down) 
+    into geological parameters: Strike, Dip, Dip Direction.
+    """
+    # Ensure normal points down (z >= 0)
+    if normal[2] < 0:
+        normal = -normal
+    
+    # Dip: Angle with horizontal (degrees)
+    # Since normal is unit length, cos(dip) = normal[2]
+    # np.clip to avoid precision errors outside [-1, 1]
+    dip = np.degrees(np.arccos(np.clip(normal[2], -1.0, 1.0)))
+    
+    # Dip Direction: Azimuth of the downward slope (degrees)
+    # The downward slope direction is the horizontal projection of the normal vector [nx, ny]
+    dip_dir = (np.degrees(np.atan2(normal[0], normal[1]))) % 360
+    
+    # Strike: Dip Direction - 90 (using Right Hand Rule: dip is to the right)
+    strike = (dip_dir - 90) % 360
+    
+    return strike, dip, dip_dir
 
 def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations: int = 100, min_inliers: int = 3) -> tuple[np.ndarray | None, np.ndarray | None, float]:
     """
@@ -827,7 +870,10 @@ def calculate_structural_planes(longitude: np.ndarray, latitude: np.ndarray, dep
                 c_lat = (centroid[1] / lat_to_km) + origin_lat
 
                 # --- GEOMETRY GENERATION ---
-                # Calculate Orientation
+                # Geological Parameters
+                strike_val, dip_val, dd_val = get_strike_dip(normal)
+
+                # Calculate Orientation for rendering
                 # Strike (u): Horizontal vector on the plane
                 u = np.cross(normal, [0, 0, 1])
                 if np.linalg.norm(u) < 1e-6: # Near-horizontal plane
@@ -866,6 +912,9 @@ def calculate_structural_planes(longitude: np.ndarray, latitude: np.ndarray, dep
                     'y': v_lat.tolist(),
                     'z': v_z.tolist(),
                     'planarity': float(planarity),
+                    'strike': float(strike_val),
+                    'dip': float(dip_val),
+                    'dip_dir': float(dd_val),
                     'grid_id': f"{ix}_{iy}_{date_tag}" if date_tag else f"{ix}_{iy}",
                     'equation': { 'a': float(eq_a), 'b': float(eq_b), 'c': float(eq_c), 'd': float(eq_d) }
                 })
@@ -874,19 +923,50 @@ def calculate_structural_planes(longitude: np.ndarray, latitude: np.ndarray, dep
     return planes
 
 
+# ─── Multiprocessing Worker Logic ──────────────────────────────────────
+_worker_data = {}
+
+def _init_worker(lon, lat, dep):
+    """Initialize worker process with shared data once to avoid per-task serialization."""
+    global _worker_data
+    _worker_data['lon'] = lon
+    _worker_data['lat'] = lat
+    _worker_data['dep'] = dep
+
+def _worker_calculate_planes(args):
+    """Worker function using pre-shared global data."""
+    date_str, start_idx, end_idx, radius_km, min_pts, global_ctx = args
+    
+    # Access shared data from global scope
+    lon = _worker_data['lon']
+    lat = _worker_data['lat']
+    dep = _worker_data['dep']
+    
+    s_lon = lon[start_idx:end_idx]
+    s_lat = lat[start_idx:end_idx]
+    s_dep = dep[start_idx:end_idx]
+    
+    if len(s_lon) >= min_pts:
+        planes = calculate_structural_planes(s_lon, s_lat, s_dep, radius_km, min_pts, global_context=global_ctx, date_tag=date_str)
+        return date_str, planes
+    return date_str, []
+
+
 def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, window_days: int) -> dict[str, list[dict[str, Any]]]:
     """
-    Calculates structural planes for every step of the animation.
-    Returns a dict mapping date -> list of planes.
+    Calculates structural planes for every step of the animation using Optimized Multiprocessing.
     """
-    lon = np.array(data['longitude'])
-    lat = np.array(data['latitude'])
-    dep = np.array(data['depth'])
-    times = data['times']
+    import concurrent.futures
+    import os
+    from datetime import datetime, timedelta
+
+    lon = np.array(data['longitude'], dtype=np.float32)
+    lat = np.array(data['latitude'], dtype=np.float32)
+    dep = np.array(data['depth'], dtype=np.float32)
     dates_unique = data['visual_pack']['unique_dates']
     date_to_cum = data['visual_pack']['date_to_cum']
 
-    # Pre-calculate global context for coordinate stability
+    # Pre-calculate global context
     origin_lat = np.mean(lat)
     origin_lon = np.mean(lon)
     lat_to_km = 111.32
@@ -895,41 +975,38 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
     all_x = (lon - origin_lon) * lon_to_km
     all_y = (lat - origin_lat) * lat_to_km
     global_ctx = {
-        'origin_lat': origin_lat,
-        'origin_lon': origin_lon,
-        'bounds': (np.min(all_x), np.max(all_x), np.min(all_y), np.max(all_y))
+        'origin_lat': float(origin_lat),
+        'origin_lon': float(origin_lon),
+        'bounds': (float(np.min(all_x)), float(np.max(all_x)), float(np.min(all_y)), float(np.max(all_y)))
     }
 
-    results = {}
-    
-    # Ensure window_days is at least 1
     w_days = max(1, int(window_days))
-    
-    from datetime import datetime, timedelta
     parsed_dates = [datetime.strptime(d, '%Y-%m-%d') for d in dates_unique]
     
-    # Optimization: Pre-parsed dates and efficient backward search
+    tasks = []
     for i, date_str in enumerate(dates_unique):
-        # Get window range
         end_idx = date_to_cum[date_str]
-        
         curr_dt = parsed_dates[i]
         cutoff_dt = curr_dt - timedelta(days=w_days - 1)
         
         start_idx = 0
         for j in range(i, -1, -1):
-            if parsed_dates[j] < cutoff_dt:
+            if j < len(parsed_dates) and parsed_dates[j] < cutoff_dt:
                 start_idx = date_to_cum[dates_unique[j]]
                 break
         
-        # Filter points
-        s_lon = lon[start_idx:end_idx]
-        s_lat = lat[start_idx:end_idx]
-        s_dep = dep[start_idx:end_idx]
-        
-        if len(s_lon) >= min_pts:
-            results[date_str] = calculate_structural_planes(s_lon, s_lat, s_dep, radius_km, min_pts, global_context=global_ctx, date_tag=date_str)
-        else:
-            results[date_str] = []
+        tasks.append((date_str, start_idx, end_idx, radius_km, min_pts, global_ctx))
+
+    results = {}
+    max_workers = min(os.cpu_count() or 4, 8)
+    
+    # Use initializer to share data ONCE per worker
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=max_workers,
+        initializer=_init_worker,
+        initargs=(lon, lat, dep)
+    ) as executor:
+        for date_str, planes in executor.map(_worker_calculate_planes, tasks):
+            results[date_str] = planes
             
     return results

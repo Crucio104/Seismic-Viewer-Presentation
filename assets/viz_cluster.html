@@ -86,10 +86,39 @@
         </div>
 
         <script>
-        const quakeData = __QUAKES_JSON__;
+        const DATA_URL = '__DATA_URL__';
         const clusterColors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'];
 
-        window.addEventListener('load', function() {
+        async function initCluster() {
+            // Parallel fetch: Metadata (JSON) + Numerical Data (Binary)
+            const [respJson, respBin] = await Promise.all([
+                fetch(DATA_URL),
+                fetch(DATA_URL + '/bin')
+            ]);
+            
+            if (!respJson.ok || !respBin.ok) throw new Error("Data fetch failed");
+            
+            const quakeData = await respJson.json();
+            const buffer = await respBin.arrayBuffer();
+
+            // Unpack Binary Buffer (Float32)
+            const f32 = new Float32Array(buffer);
+            const count = Math.round(f32[0]);
+            const clusterCount = Math.round(f32[1]);
+            
+            // Map subarrays (Zero-copy) - Data starts at index 2 (8 bytes)
+            quakeData.longitude = f32.subarray(2, 2 + count);
+            quakeData.latitude  = f32.subarray(2 + count, 2 + 2 * count);
+            quakeData.magnitude = f32.subarray(2 + 2 * count, 2 + 3 * count);
+            quakeData.depth     = f32.subarray(2 + 3 * count, 2 + 4 * count);
+            quakeData.dates_num = f32.subarray(2 + 4 * count, 2 + 5 * count);
+            
+            // Cluster labels (Optional column)
+            if (clusterCount > 0) {
+                quakeData.cluster = f32.subarray(2 + 5 * count, 2 + 5 * count + clusterCount);
+            }
+
+
             const gd = document.querySelector('.plotly-graph-div');
             const startInput = document.getElementById('filter-start');
             const endInput = document.getElementById('filter-end');
@@ -103,16 +132,19 @@
             const displayToggle = document.getElementById('display-toggle');
             const displayMenu = document.getElementById('display-menu');
 
-            const dates = quakeData.times.map(t => t.slice(0, 10));
-            const uniqueDates = Array.from(new Set(dates)).sort();
+            function getArrayMinMax(arr) {
+                let min = Infinity, max = -Infinity;
+                for (let i = 0, len = arr.length; i < len; i++) {
+                    const v = arr[i];
+                    if (v < min) min = v;
+                    if (v > max) max = v;
+                }
+                return [min, max];
+            }
 
-            startInput.min = endInput.min = uniqueDates[0];
-            startInput.max = endInput.max = uniqueDates[uniqueDates.length - 1];
-            startInput.value = uniqueDates[0];
-            endInput.value = uniqueDates[uniqueDates.length - 1];
-
-            magMin.value = Math.min(...quakeData.magnitude).toFixed(1);
-            magMax.value = Math.max(...quakeData.magnitude).toFixed(1);
+            const [magMinVal, magMaxVal] = getArrayMinMax(quakeData.magnitude);
+            magMin.value = magMinVal.toFixed(1);
+            magMax.value = magMaxVal.toFixed(1);
 
             const allDeps = quakeData.depth.map(Math.abs);
             depMin.value = 0;
@@ -217,9 +249,12 @@
                 loader.classList.add('show');
 
                 setTimeout(async () => {
-                    if (typeof pywebview !== 'undefined') {
+                    if (window.seismicSocket) {
                         try {
-                            const res = await pywebview.api.get_cluster_update(currentMethod, params);
+                            const res = await window.seismicSocket.sendRequest('get_cluster_update', {
+                                method: currentMethod,
+                                params: params
+                            });
                             if (res && res.traces) {
                                 // Delete all traces except Surface (index 0)
                                 const currentTraceCount = gd.data.length;
@@ -264,36 +299,50 @@
              * Locally toggles the visibility of Wireframe/Solid traces based on the dropdown.
              * This does NOT require a backend call as it only affects Plotly's visibility flags.
              */
+            const dates = quakeData.times.map(t => t.slice(0, 10));
+            const uniqueDates = Array.from(new Set(dates)).sort();
+            startInput.min = endInput.min = uniqueDates[0];
+            startInput.max = endInput.max = uniqueDates[uniqueDates.length - 1];
+            startInput.value = uniqueDates[0];
+            endInput.value = uniqueDates[uniqueDates.length - 1];
+
+            const [depMinVal, depMaxVal] = getArrayMinMax(quakeData.depth.map(Math.abs));
+            depMin.value = depMinVal.toFixed(1);
+            depMax.value = depMaxVal.toFixed(1);
+
+            /**
+             * applyDisplayMode()
+             * Locally toggles the visibility of Wireframe/Solid traces based on the dropdown.
+             * Optimized with a single restyle call.
+             */
             function applyDisplayMode() {
                 const n = quakeData.n_clusters;
                 const showWire = (currentDisplayMode === 'wireframe' || currentDisplayMode === 'both');
                 const showSolid = (currentDisplayMode === 'solid' || currentDisplayMode === 'both');
                 const showPlanes = document.getElementById('show-planes').checked;
 
-                // Indices follow the order created in engine.py:
-                // 0: Map
+                const update = { visible: [] };
+                const indices = [];
+
+                // 0: Map (Always visible)
                 // 1..N: Wireframes
+                for (let c = 0; c < n; c++) {
+                    indices.push(1 + c);
+                    update.visible.push(showWire);
+                }
                 // N+1..2N: Solids
+                for (let c = 0; c < n; c++) {
+                    indices.push(n + 1 + c);
+                    update.visible.push(showSolid);
+                }
                 // 2N+1..3N: Planes
-                // 3N+1: Markers
-                // 3N+2: Centroids
                 for (let c = 0; c < n; c++) {
-                    const wireIdx = 1 + c;
-                    if (gd.data.length > wireIdx) {
-                        Plotly.restyle(gd, { visible: [showWire] }, [wireIdx]);
-                    }
+                    indices.push((2 * n) + 1 + c);
+                    update.visible.push(showPlanes);
                 }
-                for (let c = 0; c < n; c++) {
-                    const solidIdx = n + 1 + c;
-                    if (gd.data.length > solidIdx) {
-                        Plotly.restyle(gd, { visible: [showSolid] }, [solidIdx]);
-                    }
-                }
-                for (let c = 0; c < n; c++) {
-                    const planeIdx = (2 * n) + 1 + c;
-                    if (gd.data.length > planeIdx) {
-                        Plotly.restyle(gd, { visible: [showPlanes] }, [planeIdx]);
-                    }
+
+                if (indices.length > 0) {
+                    Plotly.restyle(gd, update, indices);
                 }
             }
 
@@ -335,9 +384,16 @@
             // Initial view is already rendered by backend, just sync legend
             applyDisplayMode();
             updateClusterLegend();
+
+            // Finally hide the loader once everything is ready
+            hideInitLoader();
+        }
+
+        window.addEventListener('load', function() {
+            initCluster().catch(err => {
+                console.error('Failed to load cluster data:', err);
+                if (typeof showStatusToast === 'function') showStatusToast('Failed to load data.');
+            });
         });
-
-
-
 
         </script>

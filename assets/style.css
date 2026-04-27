@@ -397,8 +397,6 @@ body {
 
 /* High-priority action buttons (Reset, Apply, etc.) */
 .priority-btn {
-    z-index: 1000001 !important;
-    /* Ensure they are above almost everything */
     position: relative;
 }
 
@@ -427,7 +425,7 @@ body {
 #filter-loader {
     position: fixed;
     inset: 0;
-    z-index: 150000;
+    z-index: 250000;
     background: rgba(15, 12, 41, 0.4);
     backdrop-filter: blur(0.250rem);
     display: flex;
@@ -436,7 +434,7 @@ body {
     border-radius: 0.750rem;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.4s ease;
+    transition: opacity 0.1s ease;
 }
 
 #filter-loader.show {

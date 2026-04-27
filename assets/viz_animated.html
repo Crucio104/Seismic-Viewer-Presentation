@@ -72,18 +72,18 @@
                         <input type="number" id="plane-min-pts" class="glass-input" min="3" max="50" value="4" style="width:100%; height:1.8rem; font-size:0.75rem;">
                     </div>
 
-                    <label class="glass-checkbox" style="margin-bottom:0.75rem;">
+                    <label class="glass-checkbox" style="margin-bottom:0.5rem;">
                         <input type="checkbox" id="accumulate-planes">
                         Accumulate Planes
                     </label>
-                    
-                    <button class="settings-btn" id="update-planes-btn" style="margin-top:0.75rem; font-size:0.7rem; height:1.8rem; justify-content:center;">
-                        Apply filters
-                    </button>
                 </div>
             </div>
-
+            <button class="settings-btn priority-btn" id="apply-anim-btn" style="margin-top:0.1rem; font-size:0.75rem; height:2.2rem; justify-content:center; background:rgba(99, 102, 241, 0.2); border-color:rgba(99, 102, 241, 0.4);">
+                Apply Changes
+            </button>
         </div>
+
+
 
         <div id="jump-bar" class="glass-panel">
             <input type="date" id="jump-date" class="glass-input">
@@ -113,11 +113,37 @@
         </div>
     </div>
 
+    <div id="filter-loader" class="glass-panel"><div class="loader-ring" style="width:2rem; height:2rem"></div></div>
+
     <script>
-        const quakeData = __QUAKES_JSON__;
+        const DATA_URL = '__DATA_URL__';
+        let quakeData = null;
+
+        async function initAnimation() {
+            // Parallel fetch: Metadata (JSON) + Numerical Data (Binary)
+            const [respJson, respBin] = await Promise.all([
+                fetch(DATA_URL),
+                fetch(DATA_URL + '/bin')
+            ]);
+            
+            if (!respJson.ok || !respBin.ok) throw new Error("Data fetch failed");
+            
+            quakeData = await respJson.json();
+            const buffer = await respBin.arrayBuffer();
+
+            // Unpack Binary Buffer (Float32)
+            const f32 = new Float32Array(buffer);
+            const count = Math.round(f32[0]);
+            const clusterCount = Math.round(f32[1]);
+            
+            // Map subarrays (Zero-copy) - Data starts at index 2 (8 bytes)
+            quakeData.lon = f32.subarray(2, 2 + count);
+            quakeData.lat = f32.subarray(2 + count, 2 + 2 * count);
+            quakeData.mag = f32.subarray(2 + 2 * count, 2 + 3 * count);
+            quakeData.dep = f32.subarray(2 + 3 * count, 2 + 4 * count);
+            quakeData.dnum = f32.subarray(2 + 4 * count, 2 + 5 * count);
 
 
-        window.addEventListener('load', function() {
             const gd = document.querySelector('.plotly-graph-div');
             const playBtn = document.getElementById('play-btn');
             const pauseBtn = document.getElementById('pause-btn');
@@ -209,7 +235,20 @@
                 const sliceDep = quakeData.dep.slice(start, end);
                 const sliceMag = quakeData.mag.slice(start, end);
                 const sliceDnum = quakeData.dnum.slice(start, end);
-                const sliceHover = quakeData.hover.slice(start, end);
+                
+                // Fallback for missing hover data (stripped for optimization)
+                if (!quakeData.hover || quakeData.hover.length === 0) {
+                    quakeData.hover = new Array(quakeData.lon.length).fill("");
+                }
+                
+                let sliceHover = quakeData.hover.slice(start, end);
+                
+                // If hover is still empty (generated now), populate it for this slice
+                if (sliceHover.length > 0 && sliceHover[0] === "") {
+                    for (let i = 0; i < sliceHover.length; i++) {
+                        sliceHover[i] = `Mag: ${sliceMag[i].toFixed(1)}<br>Dep: ${Math.abs(sliceDep[i]).toFixed(1)} km`;
+                    }
+                }
 
                 let sliceColor, visibleTraceIdx, limits, barTitle;
                 const isDate = (currentMode === 'date');
@@ -416,13 +455,19 @@
                     const color = `rgba(${r}, ${g}, ${b}, 0.6)`; // Uniform Opacity
                     const bgColor = hex;
                     
-                    // Format Equation for Hover
+                    // Format Equation and Geological Params for Hover
                     let hoverText = "Structural Plane";
+                    const strikeStr = p.strike !== undefined ? `Strike: ${p.strike.toFixed(1)}°<br>` : '';
+                    const dipStr = p.dip !== undefined ? `Dip: ${p.dip.toFixed(1)}°<br>` : '';
+                    const ddStr = p.dip_dir !== undefined ? `Dip Dir: ${p.dip_dir.toFixed(1)}°<br>` : '';
+                    
                     if (p.equation) {
                         const eq = p.equation;
                         const fmt = (val) => (val >= 0 ? '+' : '') + val.toFixed(2);
                         const eqStr = `${fmt(eq.a)}x ${fmt(eq.b)}y ${fmt(eq.c)}z ${fmt(eq.d)} = 0`;
-                        hoverText = `Plane Equation:<br>${eqStr}<br>(x:Lon, y:Lat, z:Depth)`;
+                        hoverText = `${strikeStr}${dipStr}${ddStr}Plane Equation:<br>${eqStr}<br>(x:Lon, y:Lat, z:Depth)`;
+                    } else {
+                        hoverText = `${strikeStr}${dipStr}${ddStr}`;
                     }
 
                     // Sub-mesh the 4-vertex plane into a 10x10 grid for better hover tracking
@@ -478,13 +523,12 @@
             async function syncPlanes() {
                 if (!planesEnabled) return;
                 
-                showInitLoader("Analyzing structural planes...");
                 try {
-                    const result = await pywebview.api.get_structural_planes(
-                        planeRadius.value,
-                        planeMinPts.value,
-                        quakeData.window_days
-                    );
+                    const result = await window.seismicSocket.sendRequest('get_structural_planes', {
+                        radius_km: parseFloat(planeRadius.value),
+                        min_pts: parseInt(planeMinPts.value),
+                        window_days: quakeData.window_days
+                    });
                     
                     if (result && !result.error) {
                         structuralPlanes = result;
@@ -497,7 +541,7 @@
                 } catch (e) {
                     console.error("Bridge Error:", e);
                 } finally {
-                    hideInitLoader();
+                    // No loader here, managed by caller
                 }
             }
 
@@ -592,23 +636,15 @@
             SeismicUI.bindMenu(colorMenu, (item) => {
                 currentMode = item.dataset.mode;
                 colorToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                const traceIdx = (currentMode === 'mag') ? 1 : (currentMode === 'date' ? 2 : 3);
-                const otherIdx1 = (traceIdx === 1) ? 2 : 1;
-                const otherIdx2 = (traceIdx === 3) ? 2 : 3;
-                Plotly.restyle(gd, { visible: [false] }, [otherIdx1, otherIdx2]);
-                Plotly.restyle(gd, { visible: [true] }, [traceIdx]);
-                updateTimeline();
             });
 
             SeismicUI.bindMenu(scaleMenu, (item) => {
                 currentColorScale = item.dataset.val;
                 scaleToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                updateTimeline();
             });
 
             invertCheck.onchange = () => {
                 invertScale = invertCheck.checked;
-                updateTimeline();
             };
 
             jumpBtn.onclick = () => {
@@ -620,7 +656,6 @@
                     pause();
                     updateView(idx);
                 } else {
-                    // Fallback to last date if target is beyond range
                     pause();
                     updateView(dates.length - 1);
                 }
@@ -630,20 +665,10 @@
             showPlanesCheck.onchange = () => {
                 planesEnabled = showPlanesCheck.checked;
                 planeControls.style.display = planesEnabled ? 'block' : 'none';
-                if (planesEnabled && !structuralPlanes) {
-                    syncPlanes();
-                } else {
-                    persistentPlanesMap.clear();
-                    lastAccumIdx = -1;
-                    updateView(currentStepIdx);
-                }
             };
 
             accumulatePlanesCheck.onchange = () => {
                 accumulatePlanes = accumulatePlanesCheck.checked;
-                persistentPlanesMap.clear();
-                lastAccumIdx = -1;
-                updateView(currentStepIdx);
             };
 
             // Plane Radius/MinPts updates (using inputs now)
@@ -653,7 +678,51 @@
             planeMinPts.onchange = () => {
                 if (planeMinPts.value < 3) planeMinPts.value = 3;
             };
-            updatePlanesBtn.onclick = syncPlanes;
+
+            const filterLoader = document.getElementById('filter-loader');
+
+            async function applyAllChanges() {
+                filterLoader.classList.add('show');
+                
+                // Minimal delay to ensure the loader is painted before blocking the thread
+                setTimeout(async () => {
+                    try {
+                        if (!gd) {
+                            filterLoader.classList.remove('show');
+                            return;
+                        }
+                        
+                        // 1. Update Colors (Visibility)
+                        const traceIdx = (currentMode === 'mag') ? 1 : (currentMode === 'date' ? 2 : 3);
+                        Plotly.restyle(gd, { visible: [false, false, false] }, [1, 2, 3]);
+                        Plotly.restyle(gd, { visible: [true] }, [traceIdx]);
+                        
+                        // 2. Update Histogram
+                        renderHistogram();
+                        
+                        // 3. Update Structural Planes
+                        if (planesEnabled) {
+                            await syncPlanes();
+                        } else {
+                            Plotly.restyle(gd, { visible: [false] }, [4]);
+                            persistentPlanesMap.clear();
+                            lastAccumIdx = -1;
+                        }
+
+                        // 4. Final render update
+                        updateView(currentStepIdx);
+
+                    } catch (err) {
+                        console.error("Apply Changes Error:", err);
+                        if (typeof showStatusToast === 'function') showStatusToast('Error applying changes.');
+                    } finally {
+                        filterLoader.classList.remove('show');
+                    }
+                }, 30);
+            }
+
+            const applyBtn = document.getElementById('apply-anim-btn');
+            if (applyBtn) applyBtn.onclick = applyAllChanges;
 
             // Add the Plane Trace (Trace 4)
             Plotly.addTraces(gd, {
@@ -679,5 +748,15 @@
             } else {
                 document.getElementById('structural-settings-group').style.display = 'none';
             }
+
+            // Sync UI state and finally hide loader
+            hideInitLoader();
+        }
+
+        window.addEventListener('load', function() {
+            initAnimation().catch(err => {
+                console.error('Failed to load animation data:', err);
+                if (typeof showStatusToast === 'function') showStatusToast('Failed to load data.');
+            });
         });
         </script>

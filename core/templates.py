@@ -35,8 +35,13 @@ def _ensure_templates_loaded() -> None:
             TEMPLATE_CACHE[key] = ""
 
 
-def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = False, is_3d: bool = False, back_button: bool = True, earthquake_data: dict[str, Any] | None = None, is_fallback: bool = False) -> str:
-    """Convert a Plotly figure to a full HTML string with custom overlays and cached templates."""
+def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = False, is_3d: bool = False, back_button: bool = True, earthquake_data: dict[str, Any] | None = None, is_fallback: bool = False, data_url: str = "") -> str:
+    """Convert a Plotly figure to a full HTML string with custom overlays and cached templates.
+    
+    When data_url is provided, the template uses async fetch() to load data from the
+    FastAPI REST endpoint instead of inlining JSON directly in the HTML. This reduces
+    HTML file size dramatically and enables GZip-compressed data transfer.
+    """
     _ensure_templates_loaded()
 
     html_content = fig.to_html(
@@ -63,19 +68,16 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
     extra_scripts = TEMPLATE_CACHE.get('common', "")
 
     if is_animated:
-        quakes_json = json.dumps(earthquake_data) if earthquake_data else "{}"
-        anim_content = TEMPLATE_CACHE.get('animated', "").replace('__QUAKES_JSON__', quakes_json)
+        anim_content = TEMPLATE_CACHE.get('animated', "").replace('__DATA_URL__', data_url)
         anim_content = anim_content.replace('__ANIMATION_BASE_DURATION_MS__', str(ANIMATION_BASE_DURATION_MS))
         extra_scripts += anim_content
 
     elif is_cluster:
-        quakes_json = json.dumps(earthquake_data) if earthquake_data else "{}"
-        cluster_content = TEMPLATE_CACHE.get('cluster', "").replace('__QUAKES_JSON__', quakes_json)
+        cluster_content = TEMPLATE_CACHE.get('cluster', "").replace('__DATA_URL__', data_url)
         extra_scripts += cluster_content
 
     elif earthquake_data:
-        quakes_json = json.dumps(earthquake_data)
-        static_content = TEMPLATE_CACHE.get('static', "").replace('__QUAKES_JSON__', quakes_json)
+        static_content = TEMPLATE_CACHE.get('static', "").replace('__DATA_URL__', data_url)
         extra_scripts += static_content
 
     # Contextual loading message
@@ -95,7 +97,7 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
     if is_fallback:
         extra_scripts += f"<script>window.addEventListener('load', () => {{ showStatusToast('Offline: Map tiles unavailable.'); }});</script>"
 
-    if earthquake_data:
+    if earthquake_data or data_url:
         # Inject is_3d flag for UI logic
         extra_scripts += f"\n<script>window.IS_3D_VIEW = {'true' if is_3d else 'false'};</script>"
 

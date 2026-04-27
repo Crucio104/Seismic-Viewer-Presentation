@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 import engine
-from core.config import BASE_DIR, VIZ_TMP_DIR, get_http_port
+from core.config import BASE_DIR, VIZ_TMP_DIR, get_http_port, store_session_data, clear_session_data
 from core.history import get_recent_files, save_recent_file, clear_history
 
 class Api:
@@ -21,6 +21,13 @@ class Api:
         self._data: dict[str, Any] | None = None
         self._csv_info: dict[str, Any] | None = None
         self._html_cache: dict[tuple[Any, ...], str] = {}  # (csv_path, view_style, ...) -> rel_path
+        self._socket_manager: Any = None
+        self._event_loop: Any = None
+
+    def set_socket_manager(self, manager: Any, loop: Any = None) -> None:
+        """Set the FastAPI WebSocket manager and the event loop for progress push."""
+        self._socket_manager = manager
+        self._event_loop = loop
 
     # ── Helpers ──────────────────────────────────────────────────────
 
@@ -29,10 +36,26 @@ class Api:
         port = get_http_port()
         return f'http://127.0.0.1:{port}/{rel_path.replace(os.sep, "/")}'
 
-
+    def _make_data_url(self, session_id: str) -> str:
+        """Build the REST API URL for fetching session data."""
+        port = get_http_port()
+        return f'http://127.0.0.1:{port}/api/data/{session_id}'
 
     def _push_progress(self, msg: str) -> None:
-        """Send a progress message to the hub overlay via JS."""
+        """Send a progress message to the hub overlay via WebSocket or JS fallback."""
+        # 1. Try WebSocket (Fast & Async)
+        if self._socket_manager and self._event_loop:
+            import asyncio
+            try:
+                # Use the stored event loop from uvicorn to schedule the broadcast
+                asyncio.run_coroutine_threadsafe(
+                    self._socket_manager.broadcast({"type": "progress", "msg": msg}),
+                    self._event_loop
+                )
+            except Exception:
+                pass
+        
+        # 2. Fallback to pywebview evaluate_js
         try:
             safe_msg = msg.replace('\\', '\\\\').replace("'", "\\'")
             self._window().evaluate_js(
@@ -130,6 +153,10 @@ class Api:
                 self._window().load_url(self._make_url(rel_path))
                 return
 
+            # Generate a unique session ID for the data endpoint
+            session_id = uuid.uuid4().hex[:12]
+            data_url = self._make_data_url(session_id)
+
             logger.info(f"Generating view {view_style}…")
             res = engine.build_view_html(
                 self._data, view_style,
@@ -137,12 +164,15 @@ class Api:
                 anim_mode=anim_mode, 
                 window_days=window_days,
                 clustering_method=clustering_method,
-                clustering_params=clustering_params
+                clustering_params=clustering_params,
+                data_url=data_url,
+                session_id=session_id,
             )
             html, is_fallback = res
 
             fname = f'view_{uuid.uuid4().hex[:8]}.html'
             fpath = os.path.join(VIZ_TMP_DIR, fname)
+            os.makedirs(VIZ_TMP_DIR, exist_ok=True)
             with open(fpath, 'w', encoding='utf-8') as f:
                 f.write(html)
 
@@ -260,11 +290,11 @@ class Api:
             self._html_cache.clear()
             build_map_mesh.cache_clear()
             
-            # Also clear the recent files history
+            # Also clear the recent files history and session data
             clear_history()
+            clear_session_data()
             
             return True
         except Exception as e:
             traceback.print_exc()
             return str(e)
-

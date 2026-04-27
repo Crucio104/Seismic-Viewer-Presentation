@@ -78,11 +78,33 @@
         </div>
 
         <script>
-        const quakeData = __QUAKES_JSON__;
+        const DATA_URL = '__DATA_URL__';
 
+        async function initVisualization() {
+            // Parallel fetch: Metadata (JSON) + Numerical Data (Binary)
+            const [respJson, respBin] = await Promise.all([
+                fetch(DATA_URL),
+                fetch(DATA_URL + '/bin')
+            ]);
+            
+            if (!respJson.ok || !respBin.ok) throw new Error("Data fetch failed");
+            
+            const quakeData = await respJson.json();
+            const buffer = await respBin.arrayBuffer();
+            
+            // Unpack Binary Buffer (Float32)
+            const f32 = new Float32Array(buffer);
+            const count = Math.round(f32[0]);
+            const clusterCount = Math.round(f32[1]);
+            
+            // Map subarrays (Zero-copy) - Data starts at index 2 (8 bytes)
+            quakeData.longitude = f32.subarray(2, 2 + count);
+            quakeData.latitude  = f32.subarray(2 + count, 2 + 2 * count);
+            quakeData.magnitude = f32.subarray(2 + 2 * count, 2 + 3 * count);
+            quakeData.depth     = f32.subarray(2 + 3 * count, 2 + 4 * count);
+            quakeData.dates_num = f32.subarray(2 + 4 * count, 2 + 5 * count);
+            // Ignore cluster labels in static view
 
-
-        window.addEventListener('load', function() {
             const gd = document.querySelector('.plotly-graph-div');
             const startInput = document.getElementById('filter-start');
             const endInput = document.getElementById('filter-end');
@@ -327,6 +349,17 @@
                     { startDate: quakeData.start_date }
                 );
             }
+
+            // Finally hide the loader once everything is ready
+            hideInitLoader();
+        }
+
+        window.addEventListener('load', function() {
+            initVisualization().catch(err => {
+                console.error('Failed to load visualization data:', err);
+                if (typeof showStatusToast === 'function') showStatusToast('Failed to load data.');
+            });
         });
 
         </script>
+

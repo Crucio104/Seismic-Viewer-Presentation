@@ -1,2 +1,4 @@
 # Core package for Seismic Viewer
-print("Core package imported")
+import multiprocessing
+if multiprocessing.current_process().name == 'MainProcess':
+    print("Core package imported")

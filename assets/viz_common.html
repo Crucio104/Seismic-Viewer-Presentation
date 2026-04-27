@@ -49,7 +49,82 @@
 
 
 <script>
-    // --- Message Synchronization ---
+    // --- Message Synchronization & WebSocket ---
+    class SeismicSocket {
+        constructor() {
+            this.socket = null;
+            this.requests = new Map();
+            this.requestId = 0;
+            this.handlers = new Map();
+            this.init();
+        }
+
+        init() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            this.socket = new WebSocket(`${protocol}//${host}/ws`);
+
+            this.socket.onopen = () => {
+                console.info("SeismicSocket: Connected to backend.");
+            };
+
+            this.socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    this.handleMessage(data);
+                } catch (e) {
+                    console.error("Socket Message Error:", e);
+                }
+            };
+
+            this.socket.onclose = () => {
+                console.warn("WebSocket disconnected. Retrying in 2s...");
+                setTimeout(() => this.init(), 2000);
+            };
+        }
+
+        handleMessage(data) {
+            if (data.type === 'progress') {
+                updateProgress(data.msg);
+            } else if (data.type === 'rpc_response') {
+                const resolve = this.requests.get(data.id);
+                if (resolve) {
+                    resolve(data.result);
+                    this.requests.delete(data.id);
+                }
+            }
+            // Custom handlers
+            const handler = this.handlers.get(data.type);
+            if (handler) handler(data);
+        }
+
+        /**
+         * Send an RPC-like request and await the response.
+         */
+        sendRequest(type, params) {
+            return new Promise((resolve, reject) => {
+                if (this.socket.readyState !== WebSocket.OPEN) {
+                    // Try to wait a bit if connecting
+                    if (this.socket.readyState === WebSocket.CONNECTING) {
+                        setTimeout(() => this.sendRequest(type, params).then(resolve).catch(reject), 500);
+                        return;
+                    }
+                    return reject(new Error("Socket not connected"));
+                }
+                const id = this.requestId++;
+                this.requests.set(id, resolve);
+                this.socket.send(JSON.stringify({ type, id, params }));
+            });
+        }
+        
+        on(type, handler) {
+            this.handlers.set(type, handler);
+        }
+    }
+
+    // Initialize global socket
+    window.seismicSocket = new SeismicSocket();
+
     function updateProgress(msg) {
         // Update the injected init-loader from Python templates
         const initLoaderText = document.querySelector('#init-loader .loader-text');
@@ -137,7 +212,7 @@
     };
     document.onclick = () => document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
 
-    window.addEventListener('load', hideInitLoader);
+    // Manual loader control only. Templates must call hideInitLoader() explicitly.
 
 
     const COLORS_MAP = {
