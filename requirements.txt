@@ -6,6 +6,5 @@ smopy
 Pillow
 pywebview
 scikit-learn
-matplotlib
 fastapi
 uvicorn[standard]

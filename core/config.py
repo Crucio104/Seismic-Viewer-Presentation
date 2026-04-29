@@ -4,7 +4,6 @@ from typing import Any
 # ─── Paths ───────────────────────────────────────────────────────────
 CORE_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.dirname(CORE_DIR)
-VIZ_TMP_DIR = os.path.join(BASE_DIR, '.viz_tmp')
 
 INDEX_REL = 'assets/index.html'
 
@@ -40,5 +39,21 @@ def get_session_data(session_id: str) -> Any | None:
 
 def clear_session_data() -> None:
     """Clear all stored session data."""
-    global _data_store
     _data_store.clear()
+    _html_store.clear()
+
+# ─── HTML View Store ───────────────────────────────────────────────
+_html_store: dict[str, str] = {}
+
+def store_viz_html(viz_id: str, html: str) -> None:
+    """Store generated HTML for a view, evicting old entries."""
+    global _html_store
+    # Keep at most 6 views to bound memory usage
+    while len(_html_store) >= 6:
+        oldest_key = next(iter(_html_store))
+        del _html_store[oldest_key]
+    _html_store[viz_id] = html
+
+def get_viz_html(viz_id: str) -> str | None:
+    """Retrieve stored HTML for a view."""
+    return _html_store.get(viz_id)

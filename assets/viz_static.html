@@ -95,7 +95,6 @@
             // Unpack Binary Buffer (Float32)
             const f32 = new Float32Array(buffer);
             const count = Math.round(f32[0]);
-            const clusterCount = Math.round(f32[1]);
             
             // Map subarrays (Zero-copy) - Data starts at index 2 (8 bytes)
             quakeData.longitude = f32.subarray(2, 2 + count);
@@ -229,10 +228,12 @@
             function applyFilterWithLoader() {
                 if (is3D) {
                     filterLoader.classList.add('show');
+                    // Increased timeout to ensure browser paints the loader before heavy Plotly restyle
                     setTimeout(() => {
                         try { applyFilter(); } catch (e) { console.error('Filter Error:', e); }
-                        filterLoader.classList.remove('show');
-                    }, 10);
+                        // Small delay after apply to let the user see the "work" being done
+                        setTimeout(() => filterLoader.classList.remove('show'), 100);
+                    }, 50);
                 } else {
                     try { applyFilter(); } catch (e) { console.error('Filter Error:', e); }
                 }

@@ -16,7 +16,7 @@ logging.basicConfig(
 logger = logging.getLogger("SeismicViewer")
 
 # ─── Core Imports ────────────────────────────────────────────────────
-from core.config import BASE_DIR, VIZ_TMP_DIR, INDEX_REL, set_http_port, get_session_data
+from core.config import BASE_DIR, INDEX_REL, set_http_port, get_session_data, clear_session_data
 from core.bridge import Api
 
 # ─── FastAPI Server ─────────────────────────────────────────────────
@@ -29,7 +29,7 @@ def _create_fastapi_app() -> Any:
     """Build the FastAPI application with static file serving and API endpoints."""
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect
     from fastapi.staticfiles import StaticFiles
-    from fastapi.responses import JSONResponse, Response
+    from fastapi.responses import JSONResponse, Response, HTMLResponse
     from starlette.middleware.gzip import GZipMiddleware
     import json
     import asyncio
@@ -115,13 +115,21 @@ def _create_fastapi_app() -> Any:
         data = get_session_data(session_id)
         if data is None:
             return JSONResponse({"error": "Session not found"}, status_code=404)
-        import json
         content = json.dumps(data, separators=(',', ':'))
         return Response(
             content=content,
             media_type="application/json",
             headers={"Cache-Control": "no-store"}
         )
+
+    # ── API endpoint: serve HTML visualization from memory ──
+    @app.get("/viz/{viz_id}")
+    async def get_viz(viz_id: str) -> HTMLResponse:
+        from core.config import get_viz_html
+        html = get_viz_html(viz_id)
+        if html is None:
+            return HTMLResponse("<h1>View expired or not found</h1>", status_code=404)
+        return HTMLResponse(content=html)
 
     # ── API endpoint: serve numerical data as binary Float32 buffer ──
     @app.get("/api/data/{session_id}/bin")
@@ -183,8 +191,6 @@ def _create_fastapi_app() -> Any:
             return Response(status_code=500)
 
     # ── Static file mounts ──
-    os.makedirs(VIZ_TMP_DIR, exist_ok=True)
-    app.mount("/.viz_tmp", StaticFiles(directory=VIZ_TMP_DIR), name="viz_tmp")
     assets_dir = os.path.join(BASE_DIR, 'assets')
     app.mount("/assets", StaticFiles(directory=assets_dir, html=True), name="assets")
 
@@ -235,21 +241,10 @@ def _stop_http_server() -> None:
 # ─── Cleanup ────────────────────────────────────────────────────────
 
 def _cleanup() -> None:
-    """Fast cleanup: stop server and remove temp files."""
-    import multiprocessing
-    # ONLY cleanup if we are in the main process!
-    if multiprocessing.current_process().name != 'MainProcess':
-        return
-
+    """Fast cleanup: stop server and clear memory."""
     try:
         _stop_http_server()
-        if os.path.exists(VIZ_TMP_DIR):
-            import shutil
-            if os.name == 'nt':
-                import subprocess
-                subprocess.run(['cmd', '/c', f'del /f /q "{VIZ_TMP_DIR}\\*.html"'], capture_output=True)
-            else:
-                shutil.rmtree(VIZ_TMP_DIR)
+        clear_session_data()
     except Exception:
         pass
 

@@ -1,7 +1,10 @@
 import os
 import json
+import logging
 import plotly.graph_objects as go
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 ANIMATION_BASE_DURATION_MS = 1000
 
@@ -31,7 +34,7 @@ def _ensure_templates_loaded() -> None:
             with open(path, 'r', encoding='utf-8') as f:
                 TEMPLATE_CACHE[key] = f.read()
         except Exception as e:
-            print(f"Warning: Failed to load template {filename}: {e}")
+            logger.warning(f"Failed to load template {filename}: {e}")
             TEMPLATE_CACHE[key] = ""
 
 

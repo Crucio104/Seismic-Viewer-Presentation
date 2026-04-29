@@ -1,4 +1,3 @@
-import os
 import json
 from pathlib import Path
 
@@ -11,7 +10,7 @@ def get_recent_files():
         with open(HISTORY_FILE, "r") as f:
             paths = json.load(f)
             # Filter only existing files
-            return [p for p in paths if os.path.exists(p)]
+            return [p for p in paths if Path(p).exists()]
     except Exception:
         return []
 

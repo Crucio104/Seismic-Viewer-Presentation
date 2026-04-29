@@ -165,7 +165,7 @@
             const planeRadius = document.getElementById('plane-radius');
             const planeMinPts = document.getElementById('plane-min-pts');
             const accumulatePlanesCheck = document.getElementById('accumulate-planes');
-            const updatePlanesBtn = document.getElementById('update-planes-btn');
+
 
             let isPlaying = false;
             let currentStepIdx = 0;
@@ -175,7 +175,7 @@
             
             let planesEnabled = false;
             let accumulatePlanes = false;
-            let structuralPlanes = quakeData.preloaded_planes || null; // Mapping date -> planes
+            let structuralPlanes = null; // Mapping date -> planes, loaded on demand via WebSocket
             let persistentPlanesMap = new Map(); // grid_id -> plane_data (for accumulation)
             let lastAccumIdx = -1;
             
@@ -355,15 +355,6 @@
                     const dayStart = (idx > 0) ? quakeData.date_to_cum[dates[idx-1]] : 0;
                     updateHUD(start, end, dayStart, dayEnd);
                 });
-
-                // Update Histogram Bars
-                const bars = histogramMap.children;
-                if (bars.length > 0) {
-                    for (let i = 0; i < bars.length; i++) {
-                        if (i === idx) bars[i].classList.add('active');
-                        else bars[i].classList.remove('active');
-                    }
-                }
             }
 
             function renderHistogram() {

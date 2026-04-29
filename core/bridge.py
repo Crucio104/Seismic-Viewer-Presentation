@@ -1,7 +1,6 @@
 import os
 import uuid
 import threading
-import traceback
 import webview
 import logging
 import numpy as np
@@ -9,7 +8,7 @@ from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 import engine
-from core.config import BASE_DIR, VIZ_TMP_DIR, get_http_port, store_session_data, clear_session_data
+from core.config import BASE_DIR, get_http_port, store_session_data, clear_session_data
 from core.history import get_recent_files, save_recent_file, clear_history
 
 class Api:
@@ -31,10 +30,10 @@ class Api:
 
     # ── Helpers ──────────────────────────────────────────────────────
 
-    def _make_url(self, rel_path: str) -> str:
-        """Build an HTTP URL from a path relative to BASE_DIR."""
+    def _make_url(self, viz_id: str) -> str:
+        """Build an HTTP URL for the dynamic visualization endpoint."""
         port = get_http_port()
-        return f'http://127.0.0.1:{port}/{rel_path.replace(os.sep, "/")}'
+        return f'http://127.0.0.1:{port}/viz/{viz_id}'
 
     def _make_data_url(self, session_id: str) -> str:
         """Build the REST API URL for fetching session data."""
@@ -170,19 +169,16 @@ class Api:
             )
             html, is_fallback = res
 
-            fname = f'view_{uuid.uuid4().hex[:8]}.html'
-            fpath = os.path.join(VIZ_TMP_DIR, fname)
-            os.makedirs(VIZ_TMP_DIR, exist_ok=True)
-            with open(fpath, 'w', encoding='utf-8') as f:
-                f.write(html)
+            viz_id = uuid.uuid4().hex[:8]
+            from core.config import store_viz_html
+            store_viz_html(viz_id, html)
 
-            rel_path = os.path.relpath(fpath, BASE_DIR)
             if not is_fallback:
-                self._html_cache[cache_key] = rel_path
+                self._html_cache[cache_key] = viz_id
 
             self._push_progress("Opening visualization…")
-            self._window().load_url(self._make_url(rel_path))
-            logger.info(f"View {view_style} loaded.")
+            self._window().load_url(self._make_url(viz_id))
+            logger.info(f"View {view_style} loaded via API.")
         except Exception as e:
             logger.error(f"Failed to generate view {view_style}", exc_info=True)
             self._push_progress(f"Error: {e}")
@@ -249,8 +245,9 @@ class Api:
             return updated_traces
 
         except Exception as e:
-            traceback.print_exc()
+            logger.error("Bridge error", exc_info=True)
             return {'error': str(e)}
+
 
 
     def get_structural_planes(self, radius_km: float, min_pts: int, window_days: int) -> dict[str, Any]:
@@ -265,8 +262,9 @@ class Api:
             )
             return planes_mapping
         except Exception as e:
-            traceback.print_exc()
+            logger.error("Bridge error", exc_info=True)
             return {'error': str(e)}
+
 
 
     def change_file(self) -> bool:
@@ -296,5 +294,5 @@ class Api:
             
             return True
         except Exception as e:
-            traceback.print_exc()
+            logger.error("Error in clear_map_cache", exc_info=True)
             return str(e)

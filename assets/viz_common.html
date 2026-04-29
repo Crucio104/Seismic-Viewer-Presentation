@@ -81,6 +81,8 @@
                 console.warn("WebSocket disconnected. Retrying in 2s...");
                 setTimeout(() => this.init(), 2000);
             };
+
+            this.socket.onerror = () => this.socket.close();
         }
 
         handleMessage(data) {

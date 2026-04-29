@@ -1,6 +1,11 @@
+import os
+import socket
+import concurrent.futures
+from datetime import datetime, timedelta
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+from plotly.colors import qualitative as _pq
 import logging
 from typing import Any, Callable
 
@@ -12,7 +17,6 @@ from core.loader import load_csv
 from core.geo_utils import build_map_mesh, MESH_HD_SIZE
 from core.templates import generate_html, ANIMATION_BASE_DURATION_MS
 
-N_CLUSTERS = 3
 
 # ─── Visual Constants ──────────────────────────────────────────────────
 
@@ -319,7 +323,7 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
             display_labels[np.where(idx)[0][dists > max_d]] = -1
 
     # --- 4. TRACE GENERATION ---
-    cluster_colors = px.colors.qualitative.Plotly
+    cluster_colors = _pq.Plotly
     traces = []
 
     # A. Wireframe Hulls (Based on full cluster groups)
@@ -564,10 +568,6 @@ def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnit
 
     _report("Packaging animation data...")
     
-    # We no longer pre-calculate all planes here to ensure instant loading.
-    # Planes will be requested on-demand or in background via WebSocket.
-    preloaded_planes = {}
-
     anim_data = {
         'lon': longitude,
         'lat': latitude,
@@ -584,7 +584,6 @@ def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnit
         'dep_range': dep_range,
         'start_date': times[0][:10] if times else "",
         'date_counts': vpack.get('date_counts', []),
-        'preloaded_planes': preloaded_planes
     }
 
     apply_3d_style(fig, [x_high[0], x_high[-1]], [y_high[-1], y_high[0]], [min_depth, 0])
@@ -609,8 +608,6 @@ def build_view_html(data: dict[str, Any], view_style: int, back_button: bool = T
 
     def strip_data(fig_obj, data_dict):
         """Removes heavy numerical data from seismic traces but PRESERVES the map mesh."""
-        import numpy as np
-        import plotly.graph_objects as go
         for trace in fig_obj.data:
             # Preservation criteria:
             # 1. Any Surface trace (usually the terrain map)
@@ -651,7 +648,6 @@ def build_view_html(data: dict[str, Any], view_style: int, back_button: bool = T
     # 3. View Routing
     if view_style == 0:
         _report("Generating 2D map…")
-        import socket
         try:
             socket.create_connection(("a.tile.openstreetmap.org", 80), timeout=1.0)
             is_fallback = False
@@ -956,10 +952,6 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
     """
     Calculates structural planes for every step of the animation using Optimized Multiprocessing.
     """
-    import concurrent.futures
-    import os
-    from datetime import datetime, timedelta
-
     lon = np.array(data['longitude'], dtype=np.float32)
     lat = np.array(data['latitude'], dtype=np.float32)
     dep = np.array(data['depth'], dtype=np.float32)
