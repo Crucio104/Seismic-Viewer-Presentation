@@ -51,7 +51,7 @@ def _get_cache_path(bbox: tuple[float, float, float, float], resolution: int) ->
 def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] | None:
     """Low-level fetch from Smopy with error handling for offline usage."""
     try:
-        logger.info("Downloading map tiles (first time for this area)...")
+        logger.info(f"Downloading map tiles for area {bbox}...")
         map_obj = smopy.Map(bbox)
         return {
             'img': map_obj.to_pil(),
@@ -66,9 +66,9 @@ def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] 
 
 def _compute_grid(w: int, h: int, scale: float, ts: int, xmin: float, ymin: float, n: int) -> tuple[np.ndarray, np.ndarray]:
     """Vectorized coordinate grid calculation using NumPy."""
-    js = np.arange(w)
+    js = np.arange(w, dtype=np.float32)
     x = (((js * scale) / ts + xmin) / n) * 360.0 - 180.0
-    is_arr = np.arange(h)
+    is_arr = np.arange(h, dtype=np.float32)
     lat_rad = np.pi * (1 - 2 * ((is_arr * scale) / ts + ymin) / n)
     y = np.degrees(np.arctan(np.sinh(lat_rad)))
     return x, y
@@ -129,7 +129,7 @@ def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> 
 
         # 2. Grid calculation
         x, y = _compute_grid(new_w, new_h, scale, ts, map_data['xmin'], map_data['ymin'], n)
-        z = np.zeros(matrix.shape)
+        z = np.zeros(matrix.shape, dtype=np.float32)
 
     result = (x, y, z, matrix, cscale, map_data)
 
@@ -138,7 +138,7 @@ def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> 
     if map_data is not None:
         try:
             with open(cache_path, 'wb') as f:
-                pickle.dump(result, f)
+                pickle.dump(result, f, protocol=pickle.HIGHEST_PROTOCOL)
         except Exception as e:
             logger.error(f"Failed to cache mesh: {e}")
 

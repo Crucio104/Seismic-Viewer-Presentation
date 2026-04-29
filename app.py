@@ -1,9 +1,7 @@
 import os
-import shutil
 import threading
 import atexit
 import webview
-import pathlib
 import logging
 from typing import Any
 
@@ -35,6 +33,7 @@ def _create_fastapi_app() -> Any:
     import asyncio
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
 
     # Capture the loop for bridge communication
     global _uvicorn_loop
@@ -90,18 +89,16 @@ def _create_fastapi_app() -> Any:
                     await manager.send_personal_message({"type": "pong", "id": request_id}, websocket)
                 
                 elif msg_type == "get_cluster_update":
-                    if _api_ref:
-                        loop = asyncio.get_running_loop()
-                        p = message.get("params", {})
-                        result = await loop.run_in_executor(None, _api_ref.get_cluster_update, p.get("method"), p.get("params"))
-                        await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
+                    p = message.get("params", {})
+                    # Recalculate clusters in a separate thread (CPU bound)
+                    result = await asyncio.to_thread(_api_ref.get_cluster_update, p.get("method"), p.get("params"))
+                    await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
 
                 elif msg_type == "get_structural_planes":
-                    if _api_ref:
-                        loop = asyncio.get_running_loop()
-                        p = message.get("params", {})
-                        result = await loop.run_in_executor(None, _api_ref.get_structural_planes, p.get("radius_km"), p.get("min_pts"), p.get("window_days"))
-                        await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
+                    p = message.get("params", {})
+                    # Process blocking calls in a thread to keep the event loop responsive
+                    result = await asyncio.to_thread(_api_ref.get_structural_planes, p.get("radius_km"), p.get("min_pts"), p.get("window_days"))
+                    await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
 
         except WebSocketDisconnect:
             manager.disconnect(websocket)
@@ -261,7 +258,8 @@ def main() -> None:
 
     api = Api(win_ref)
 
-    start_url = pathlib.Path(os.path.join(BASE_DIR, INDEX_REL)).as_uri()
+    abs_index = os.path.abspath(os.path.join(BASE_DIR, INDEX_REL))
+    start_url = 'file://' + abs_index.replace(os.sep, '/')
     window = webview.create_window(
         'Seismic Viewer',
         url=start_url,

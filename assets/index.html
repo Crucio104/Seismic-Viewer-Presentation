@@ -32,6 +32,10 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                 Import Dataset
             </button>
+            <button class="btn-pick" id="online-pick-btn" onclick="openOnlineImportModal()" style="margin-top: 0.75rem; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.2);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                Import Online (INGV)
+            </button>
 
             <div id="recent-files-section" style="display:none; margin-top: 1.5rem; animation: fadeIn 0.8s ease-out;">
                 <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05rem; color: rgba(255,255,255,0.4); margin-bottom: 0.75rem; font-weight: 600;">Lastly opened</div>
@@ -150,6 +154,74 @@
             <div class="modal-actions">
                 <button class="glass-btn btn-cancel" onclick="closeAnimModal()">Cancel</button>
                 <button class="glass-btn btn-primary" onclick="launchAnimation()">Start</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Online Import Modal -->
+    <div id="online-import-modal" class="glass-modal">
+        <div class="modal-content" style="max-width: 35rem;">
+            <h2 style="color:#fff; text-align:center;">Import Online (GOSSIP)</h2>
+            <p style="margin-bottom: 1.500rem; font-size: 0.812rem; text-align:center;">Download data from terremoti.ov.ingv.it/gossip</p>
+            
+            <div class="setting-group" style="display: flex; gap: 1rem;">
+                <div style="flex: 1;">
+                    <label style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Area:</label>
+                    <select id="online-area" class="glass-input">
+                        <option value="">Select an area</option>
+                        <option value="flegrei">Campi Flegrei</option>
+                        <option value="vesuvio">Vesuvio</option>
+                        <option value="ischia">Isola d'Ischia</option>
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Event Level:</label>
+                    <select id="online-livello" class="glass-input">
+                        <option value="0" selected="selected">All</option>
+                        <option value="1">Reviewed</option>
+                        <option value="2">Bulletin</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="setting-group" style="display: flex; gap: 1rem;">
+                <div style="flex: 1;">
+                    <label style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Min Magnitude:</label>
+                    <input type="number" id="online-mag-min" class="glass-input" placeholder="0.0" step="0.1">
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Max Magnitude:</label>
+                    <input type="number" id="online-mag-max" class="glass-input" step="0.1">
+                </div>
+            </div>
+
+            <div class="setting-group" style="display: flex; gap: 1rem;">
+                <div style="flex: 1;">
+                    <label style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Start (UTC):</label>
+                    <input type="date" id="online-date-start" class="glass-input">
+                    <input type="time" id="online-time-start" class="glass-input" style="margin-top: 0.5rem;" step="1" value="00:00:00">
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">End (UTC):</label>
+                    <input type="date" id="online-date-end" class="glass-input">
+                    <input type="time" id="online-time-end" class="glass-input" style="margin-top: 0.5rem;" step="1" value="23:59:59">
+                </div>
+            </div>
+
+            <div class="setting-group" style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                <label class="radio-label" style="display: inline-flex; align-items: center; gap: 0.5rem; margin: 0; padding: 0.5rem 1rem;">
+                    <input type="checkbox" id="online-solo-localizzati" checked>
+                    <span style="font-size: 0.812rem; color: #cbd5e1;">Only localized</span>
+                </label>
+                <label class="radio-label" style="display: inline-flex; align-items: center; gap: 0.5rem; margin: 0; padding: 0.5rem 1rem;">
+                    <input type="checkbox" id="online-exclude-missing" checked>
+                    <span style="font-size: 0.812rem; color: #cbd5e1;">Exclude missing data</span>
+                </label>
+            </div>
+
+            <div class="modal-actions">
+                <button class="glass-btn btn-cancel" onclick="closeOnlineImportModal()">Cancel</button>
+                <button class="glass-btn btn-primary" onclick="submitOnlineImport()">Search & Import</button>
             </div>
         </div>
     </div>
@@ -402,6 +474,84 @@
 
     function openAnimModal() { document.getElementById('anim-modal').classList.add('show'); }
     function closeAnimModal() { document.getElementById('anim-modal').classList.remove('show'); }
+    
+    function openOnlineImportModal() { 
+        // Set default dates if empty
+        const startInput = document.getElementById('online-date-start');
+        const endInput = document.getElementById('online-date-end');
+        if (!startInput.value || !endInput.value) {
+            const now = new Date();
+            const lastYear = new Date();
+            lastYear.setFullYear(now.getFullYear() - 1);
+            
+            endInput.value = now.toISOString().split('T')[0];
+            startInput.value = lastYear.toISOString().split('T')[0];
+        }
+        document.getElementById('online-import-modal').classList.add('show'); 
+    }
+    function closeOnlineImportModal() { document.getElementById('online-import-modal').classList.remove('show'); }
+    
+    async function submitOnlineImport() {
+        const params = {
+            network: document.getElementById('online-area').value,
+            minmag: document.getElementById('online-mag-min').value || 0.0,
+            maxmag: document.getElementById('online-mag-max').value || 10.0,
+            startdate: document.getElementById('online-date-start').value,
+            starttime: document.getElementById('online-time-start').value,
+            enddate: document.getElementById('online-date-end').value,
+            endtime: document.getElementById('online-time-end').value,
+            level: document.getElementById('online-livello').value,
+            located: document.getElementById('online-solo-localizzati').checked,
+            excludeMissing: document.getElementById('online-exclude-missing').checked
+        };
+
+        if (!params.network) {
+            showToast('Please select a geographic area.', 'error');
+            return;
+        }
+        if (!params.startdate || !params.enddate) {
+            showToast('Please enter valid start and end dates.', 'error');
+            return;
+        }
+
+        closeOnlineImportModal();
+        
+        const btn = document.getElementById('online-pick-btn');
+        const loader = document.getElementById('loader');
+        const progressBar = document.getElementById('progress-bar');
+        
+        btn.disabled = true;
+        loader.style.display = 'block';
+        document.getElementById('recent-files-section').style.display = 'none';
+        progressBar.style.width = '10%';
+        updateProgress('Connecting to INGV...');
+
+        try {
+            const result = await pywebview.api.download_online_data(params);
+            if (result && !result.error) {
+                document.getElementById('fi-name').textContent = result.filename;
+                document.getElementById('fi-count').textContent = result.event_count.toLocaleString() + ' quakes imported';
+                document.getElementById('fi-range').textContent = result.date_range;
+                
+                progressBar.style.width = '100%';
+                setTimeout(() => {
+                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events');
+                    btn.disabled = false;
+                }, 400);
+            } else {
+                showToast(result?.error || 'Import failed', 'error');
+                btn.disabled = false;
+                loader.style.display = 'none';
+                refreshRecentFiles();
+            }
+        } catch(e) {
+            showToast('System error: ' + e, 'error');
+            btn.disabled = false;
+            loader.style.display = 'none';
+            refreshRecentFiles();
+        }
+    }
+
     function toggleWindowInput() {
         const mode = document.querySelector('input[name="anim_mode"]:checked').value;
         const group = document.getElementById('window_input_group');

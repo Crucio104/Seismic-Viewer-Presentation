@@ -8,6 +8,8 @@ import plotly.express as px
 from plotly.colors import qualitative as _pq
 import logging
 from typing import Any, Callable
+from scipy.spatial import KDTree, ConvexHull
+from scipy.linalg import svd
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,7 @@ COMMON_LAYOUT = dict(
     plot_bgcolor='rgba(0,0,0,0)',
     margin=dict(l=0, r=0, b=0, t=0),
     showlegend=False,
-    uirevision=True
+    uirevision='constant'
 )
 
 def apply_3d_style(fig: go.Figure, x_range: list[float], y_range: list[float], z_range: list[float]) -> None:
@@ -254,7 +256,6 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
     """
     from sklearn.preprocessing import StandardScaler
     from sklearn.cluster import MiniBatchKMeans, DBSCAN
-    from scipy.spatial import ConvexHull
 
     params = params or {}
     longitude, latitude, depth = np.array(longitude), np.array(latitude), np.array(depth)
@@ -756,7 +757,10 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
     Robust plane fitting using RANSAC for 3D points (Total Least Squares).
     Returns: (normal, centroid, planarity)
     """
-    from scipy.linalg import svd
+    """
+    Robust plane fitting using RANSAC for 3D points (Total Least Squares).
+    Returns: (normal, centroid, planarity)
+    """
     n_points = points.shape[0]
     if n_points < min_inliers:
         return None, None, 0.0
@@ -845,15 +849,17 @@ def calculate_structural_planes(longitude: np.ndarray, latitude: np.ndarray, dep
     planes = []
     ransac_threshold = max(0.02, radius_km * 0.1) # 10% of radius, min 20m
 
-    # 3. Fitting
+    # 3. Spatial Indexing (Vectorized Neighborhood Search)
+    tree = KDTree(pts_km[:, :2]) # 2D index (X, Y)
+    
+    # 4. Fitting
     for ix, cx in enumerate(grid_x):
         for iy, cy in enumerate(grid_y):
-            # Mask points in cylinder
-            dists_sq = (x_km - cx)**2 + (y_km - cy)**2
-            mask = dists_sq <= radius_km**2
+            # Query the tree for points within the radius (Cylinder search)
+            indices = tree.query_ball_point([cx, cy], radius_km)
             
-            if np.sum(mask) >= min_pts:
-                subset = pts_km[mask]
+            if len(indices) >= min_pts:
+                subset = pts_km[indices]
                 
                 # Robust Fitting via RANSAC
                 normal, centroid, planarity = fit_plane_ransac(subset, threshold=ransac_threshold, min_inliers=min_pts)

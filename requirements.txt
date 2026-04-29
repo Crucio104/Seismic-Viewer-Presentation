@@ -8,3 +8,4 @@ pywebview
 scikit-learn
 fastapi
 uvicorn[standard]
+requests

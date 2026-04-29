@@ -68,6 +68,12 @@
                 console.info("SeismicSocket: Connected to backend.");
             };
 
+            this.socket.onopen = () => {
+                console.log("WebSocket connected.");
+                const ind = document.getElementById('ws-status');
+                if (ind) { ind.classList.add('connected'); ind.title = 'Server Connected'; }
+            };
+
             this.socket.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
@@ -79,6 +85,8 @@
 
             this.socket.onclose = () => {
                 console.warn("WebSocket disconnected. Retrying in 2s...");
+                const ind = document.getElementById('ws-status');
+                if (ind) { ind.classList.remove('connected'); ind.title = 'Server Disconnected'; }
                 setTimeout(() => this.init(), 2000);
             };
 
@@ -88,6 +96,9 @@
         handleMessage(data) {
             if (data.type === 'progress') {
                 updateProgress(data.msg);
+                // Flash indicator on activity
+                const ind = document.getElementById('ws-status');
+                if (ind) { ind.classList.add('activity'); setTimeout(() => ind.classList.remove('activity'), 200); }
             } else if (data.type === 'rpc_response') {
                 const resolve = this.requests.get(data.id);
                 if (resolve) {
@@ -356,7 +367,8 @@
             // Update Background "Skybox"
             const bgX = 50 + 10 * Math.cos(cinemaAngle);
             const bgY = 50 + 10 * Math.sin(cinemaAngle);
-            document.body.style.background = `radial-gradient(circle at ${bgX}% ${bgY}%, #1a1a2e 0%, #0f0f1a 100%)`;
+            document.body.style.setProperty('--bg-x', `${bgX}%`);
+            document.body.style.setProperty('--bg-y', `${bgY}%`);
 
 
             const update = {

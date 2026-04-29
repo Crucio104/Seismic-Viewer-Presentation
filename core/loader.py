@@ -1,40 +1,46 @@
-import pandas as pd
 import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-MIN_MAGNITUDE: float = 0.5
+MIN_MAGNITUDE: float = -10.0
 
-def _make_hover(df: pd.DataFrame) -> list[str]:
-    """Generate descriptive hover text strings from a DataFrame using vectorized operations."""
+def _make_hover(df) -> list[str]:
+    """Generate descriptive hover text strings using vectorized operations."""
+    import pandas as pd
+    import numpy as np
+
+    # Vectorized check for missing flags (if we added them during load)
+    mag_labels = df['mag'].astype(str)
+    if 'mag_is_missing' in df.columns:
+        mag_labels = np.where(df['mag_is_missing'], "N.D. (missing)", df['mag'].astype(str))
+    
+    dep_labels = df['depth'].abs().map('{:.4f}'.format) + " km"
+    if 'depth_is_missing' in df.columns:
+        dep_labels = np.where(df['depth_is_missing'], "N.D. (missing)", dep_labels)
+
     return (
-        "Date: " + pd.to_datetime(df['time']).dt.strftime('%d-%m-%Y %H:%M') + "<br>" +
-        "Magnitude: " + df['mag'].astype(str) + "<br>" +
+        "Date: " + df['time_dt'].dt.strftime('%d-%m-%Y %H:%M') + "<br>" +
+        "Magnitude: " + mag_labels + "<br>" +
         "Latitude: " + df['lat'].map('{:.4f}'.format) + "<br>" +
         "Longitude: " + df['lon'].map('{:.4f}'.format) + "<br>" +
-        "Depth: " + df['depth'].abs().map('{:.4f}'.format) + " km"
+        "Depth: " + dep_labels
     ).tolist()
 
-def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
+def precompute_visual_data(df) -> dict[str, Any]:
     """Pre-calculate expensive data structures for visualizations."""
     logger.info("Packaging visualization data...")
     
     # 1. Hover Strings
     all_hover = _make_hover(df)
     
-    # 2. Date grouping for animation
+    # 2. Date grouping for animation (Vectorized)
     df['date_str'] = df['time_dt'].dt.strftime('%Y-%m-%d')
-    unique_dates = sorted(df['date_str'].unique())
-    # Count events per unique date
-    counts_map = df.groupby('date_str').size().to_dict()
-    date_counts = [int(counts_map.get(d, 0)) for d in unique_dates]
+    counts = df.groupby('date_str').size().sort_index()
     
-    cum = 0
-    date_to_cum = {}
-    for d in unique_dates:
-        cum += int(counts_map.get(d, 0))
-        date_to_cum[d] = cum
+    unique_dates = counts.index.tolist()
+    date_counts = counts.tolist()
+    date_to_cum = counts.cumsum().to_dict()
         
     return {
         'hover': all_hover,
@@ -48,16 +54,12 @@ def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
     }
 
 def load_csv(source_file: str) -> dict[str, Any]:
-    """Parse a seismic CSV and return extracted data arrays.
-
-    Returns a dict with keys: latitude, longitude, depth, magnitude, times,
-    dates_num, and a summary dict with event_count, date_range.
-    Raises ValueError if the CSV is invalid or has no qualifying events.
-    """
+    """Parse a seismic CSV and return extracted data arrays."""
+    import pandas as pd
     try:
-        # 1. Read header to detect columns by name
-        df_full = pd.read_csv(source_file, header=0)
-        cols = df_full.columns.tolist()
+        # 1. Read ONLY the header first to detect columns
+        header_df = pd.read_csv(source_file, header=0, nrows=0)
+        cols = header_df.columns.tolist()
 
         # Mapping dictionary for common earthquake CSV headers
         mapping = {
@@ -78,10 +80,13 @@ def load_csv(source_file: str) -> dict[str, Any]:
                     found_mapping[internal_name] = cols_clean[alias.lower()]
                     break
         
-        # If we found all 5 columns by name, use them
+        # If we found all 5 columns by name, use them for optimized read
         if len(found_mapping) == 5:
-            df = df_full[[found_mapping[k] for k in ['time', 'lat', 'lon', 'depth', 'mag']]]
-            df.columns = ['time', 'lat', 'lon', 'depth', 'mag']
+            # Re-read ONLY the necessary columns to save memory
+            df = pd.read_csv(source_file, usecols=list(found_mapping.values()))
+            # Rename for internal consistency
+            rename_map = {v: k for k, v in found_mapping.items()}
+            df = df.rename(columns=rename_map)
         else:
             # Fallback to positional indices if names don't match
             # Expecting: [1]Time, [2]Lat, [3]Lon, [4]Depth, [5]Mag
@@ -96,8 +101,19 @@ def load_csv(source_file: str) -> dict[str, Any]:
         logger.error(f"Failed to read CSV: {e}")
         raise ValueError(f"Failed to read CSV: {e}")
 
-    # Drop malformed rows and filter by magnitude
-    df = df.dropna()
+    # Drop rows ONLY if they are missing essential coordinates or time
+    essential_cols = ['lat', 'lon', 'time']
+    df = df.dropna(subset=[c for c in essential_cols if c in df.columns])
+    
+    # Flag missing depth/magnitude BEFORE filling them
+    if 'depth' in df.columns:
+        df['depth_is_missing'] = df['depth'].isna()
+        df['depth'] = df['depth'].fillna(0.0)
+    if 'mag' in df.columns:
+        df['mag_is_missing'] = df['mag'].isna()
+        df['mag'] = df['mag'].fillna(0.1)
+
+    # Filter by magnitude (now using the permissive -10.0 default)
     df = df[df['mag'] >= MIN_MAGNITUDE]
 
     if df.empty:

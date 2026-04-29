@@ -78,36 +78,35 @@ class Api:
                 return None  # user cancelled
 
             path = result[0] if isinstance(result, (list, tuple)) else result
+            return self._process_csv_load(path)
 
-            data = engine.load_csv(path)
-            self._csv_path = path
-            self._data = data
-            self._csv_info = {
-                'filename': os.path.basename(path),
-                'event_count': data['summary']['event_count'],
-                'date_range': data['summary']['date_range'],
-            }
-            self._html_cache.clear()  # new CSV → invalidate cache
-            save_recent_file(path)
-            return self._csv_info
-
-        except ValueError as e:
-            return {'error': str(e)}
         except Exception as e:
-            logger.error("Unexpected error in select_csv", exc_info=True)
-            return {'error': f'Unexpected error: {e}'}
+            logger.error("Error in select_csv", exc_info=True)
+            return {'error': str(e)}
 
-    def get_history(self) -> list[dict[str, str]]:
-        """Return a list of recent files with their names and paths."""
-        paths = get_recent_files()
-        return [{'name': os.path.basename(p), 'path': p} for p in paths]
-
-    def load_recent_file(self, path: str) -> dict[str, Any] | None:
-        """Load a file directly from path without dialog."""
+    def download_online_data(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Fetch data from INGV, save to CSV, and load it."""
         try:
-            if not os.path.exists(path):
-                return {'error': 'File no longer exists.'}
+            self._push_progress("Connecting to INGV servers...")
+            from core.online_importer import fetch_ingv_data
             
+            # Run in a separate thread to avoid blocking the UI
+            csv_path = fetch_ingv_data(params)
+            self._push_progress("Processing downloaded data...")
+            return self._process_csv_load(csv_path)
+            
+        except Exception as e:
+            logger.error(f"Online import failed: {e}", exc_info=True)
+            return {'error': str(e)}
+
+    def _process_csv_load(self, path: str) -> dict[str, Any]:
+        """Centralized logic to load and process a CSV file."""
+        try:
+            # OPTIMIZATION: Skip if already loaded
+            if self._csv_path == path and self._data is not None:
+                logger.info(f"File {os.path.basename(path)} already in memory, skipping reload.")
+                return self._csv_info
+
             data = engine.load_csv(path)
             self._csv_path = path
             self._data = data
@@ -119,8 +118,22 @@ class Api:
             self._html_cache.clear()
             save_recent_file(path)
             return self._csv_info
-        except Exception as e:
+        except ValueError as e:
             return {'error': str(e)}
+        except Exception as e:
+            logger.error(f"Failed to load CSV: {path}", exc_info=True)
+            return {'error': f'Failed to load CSV: {e}'}
+
+    def get_history(self) -> list[dict[str, str]]:
+        """Return a list of recent files with their names and paths."""
+        paths = get_recent_files()
+        return [{'name': os.path.basename(p), 'path': p} for p in paths]
+
+    def load_recent_file(self, path: str) -> dict[str, Any] | None:
+        """Load a file directly from path without dialog."""
+        if not os.path.exists(path):
+            return {'error': 'File no longer exists.'}
+        return self._process_csv_load(path)
 
     # ── Navigation ───────────────────────────────────────────────────
 
@@ -174,6 +187,10 @@ class Api:
             store_viz_html(viz_id, html)
 
             if not is_fallback:
+                # Keep cache bounded to 10 entries
+                if len(self._html_cache) >= 10:
+                    oldest_key = next(iter(self._html_cache))
+                    del self._html_cache[oldest_key]
                 self._html_cache[cache_key] = viz_id
 
             self._push_progress("Opening visualization…")
@@ -276,15 +293,21 @@ class Api:
         return True
 
     def clear_map_cache(self) -> bool | str:
-        """Delete and recreate the map cache directory and clear in-memory caches."""
+        """Delete and recreate the map cache directory, delete temp files, and clear in-memory caches."""
         from core.geo_utils import MAP_CACHE_DIR, build_map_mesh
         import shutil
         try:
+            # 1. Clear Map Cache
             if os.path.exists(MAP_CACHE_DIR):
                 shutil.rmtree(MAP_CACHE_DIR)
             os.makedirs(MAP_CACHE_DIR, exist_ok=True)
             
-            # CRITICAL: Clear both the HTML path cache and the memory mesh cache
+            # 2. Clear Online Import Temp Files
+            temp_dir = os.path.join(os.getcwd(), "temp")
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+            
+            # 3. CRITICAL: Clear both the HTML path cache and the memory mesh cache
             self._html_cache.clear()
             build_map_mesh.cache_clear()
             
