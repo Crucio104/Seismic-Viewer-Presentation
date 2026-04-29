@@ -1,10 +1,17 @@
 import requests
-import json
 import logging
-import os
 import csv
 from datetime import datetime
 from typing import Any
+from core.config import (
+    GOSSIP_BASE_URL, 
+    TEMP_DIR, 
+    DEFAULT_LOCATED_ONLY, 
+    DEFAULT_EXCLUDE_MISSING,
+    MISSING_MAG_VALUE,
+    CSV_CANONICAL_HEADER
+)
+from core.utils import parse_seismic_date
 
 logger = logging.getLogger(__name__)
 
@@ -17,17 +24,21 @@ def fetch_ingv_data(params: dict[str, Any]) -> str:
     if not network:
         raise ValueError("Geographic area is required.")
 
-    start_dt = datetime.strptime(f"{params['startdate']} {params['starttime']}", "%Y-%m-%d %H:%M:%S")
-    end_dt = datetime.strptime(f"{params['enddate']} {params['endtime']}", "%Y-%m-%d %H:%M:%S")
+    # Using the new robust date parser for start/end
+    start_dt = parse_seismic_date(f"{params['startdate']} {params['starttime']}")
+    end_dt = parse_seismic_date(f"{params['enddate']} {params['endtime']}")
     
+    if not start_dt or not end_dt:
+        raise ValueError("Invalid start or end date format.")
+
     min_mag = float(params.get('minmag', 0.0))
     max_mag = float(params.get('maxmag', 10.0))
     level = int(params.get('level', 0))
-    only_located = params.get('located', True)
+    only_located = params.get('located', DEFAULT_LOCATED_ONLY)
+    exclude_missing = params.get('excludeMissing', DEFAULT_EXCLUDE_MISSING)
 
-    # The INGV site loads events.json files for each year.
-    # Base URL pattern: https://terremoti.ov.ingv.it/gossip/network/year/events.json
-    base_url = f"https://terremoti.ov.ingv.it/gossip/{network}"
+    # Base URL from config
+    base_url = f"{GOSSIP_BASE_URL}/{network}"
     
     years = range(start_dt.year, end_dt.year + 1)
     all_events = []
@@ -55,18 +66,9 @@ def fetch_ingv_data(params: dict[str, Any]) -> str:
     exclude_missing = params.get('excludeMissing', True)
 
     for e in all_events:
-        # 1. Date/Time filter
-        date_str = e.get('date')
-        if not date_str:
-            reject_reasons["parse"] += 1
-            continue
-            
-        try:
-            if '.' in date_str:
-                e_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S.%f")
-            else:
-                e_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
+        # Date/Time filter
+        e_dt = parse_seismic_date(e.get('date'))
+        if not e_dt:
             reject_reasons["parse"] += 1
             continue
 
@@ -133,16 +135,14 @@ def fetch_ingv_data(params: dict[str, Any]) -> str:
     filtered_events.sort(key=lambda x: x['date'])
 
     # Generate CSV (following the INGV format)
-    # Header: #EventID,Time,Latitude,Longitude,Depth,MD,MD Error,Area,Type,Level
-    temp_dir = os.path.join(os.getcwd(), "temp")
-    os.makedirs(temp_dir, exist_ok=True)
+    TEMP_DIR.mkdir(parents=True, exist_ok=True)
     
     filename = f"ingv_{network}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-    filepath = os.path.join(temp_dir, filename)
+    filepath = TEMP_DIR / filename
 
     with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["#EventID", "Time", "Latitude", "Longitude", "Depth", "MD", "MD Error", "Area", "Type", "Level"])
+        writer.writerow(CSV_CANONICAL_HEADER)
         
         for e in filtered_events:
             loc = e.get('location', {})
@@ -152,7 +152,7 @@ def fetch_ingv_data(params: dict[str, Any]) -> str:
                 md = md_list[0]
             
             # Helper to safely format numbers or return empty string
-            def fmt(val, precision):
+            def fmt(val: Any, precision: int) -> str:
                 try:
                     return f"{float(val):.{precision}f}"
                 except (ValueError, TypeError):
@@ -172,4 +172,4 @@ def fetch_ingv_data(params: dict[str, Any]) -> str:
             ]
             writer.writerow(row)
 
-    return filepath
+    return str(filepath)

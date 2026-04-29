@@ -1,7 +1,6 @@
-import os
 import socket
 import concurrent.futures
-from datetime import datetime, timedelta
+from datetime import datetime
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
@@ -16,7 +15,8 @@ logger = logging.getLogger(__name__)
 
 # Import from our new core modules
 from core.loader import load_csv
-from core.geo_utils import build_map_mesh, MESH_HD_SIZE
+from core.geo_utils import build_map_mesh
+from core.config import MESH_HD_SIZE
 from core.templates import generate_html, ANIMATION_BASE_DURATION_MS
 
 
@@ -115,7 +115,17 @@ def view_2d(longitude: list[float], latitude: list[float], magnitude: list[float
 
 
 
-def get_3d_static_figure(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], times: list[str], dates_num: list[float] | None = None, bbox: tuple[float, float, float, float] | None = None, visual_pack: dict[str, Any] | None = None, map_grids: tuple[Any, ...] | None = None) -> go.Figure:
+def get_3d_static_figure(
+    longitude: list[float], 
+    latitude: list[float], 
+    magnitude: list[float], 
+    depth: list[float], 
+    times: list[str], 
+    dates_num: list[float] | None = None, 
+    bbox: tuple[float, float, float, float] | None = None, 
+    visual_pack: dict[str, Any] | None = None, 
+    map_grids: tuple[Any, ...] | None = None
+) -> go.Figure:
     """Generate a high-quality 3D static view with pre-calculated hover and map mesh."""
     if bbox is None:
         bbox = (min(latitude), min(longitude), max(latitude), max(longitude))
@@ -488,8 +498,19 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
 
 
 
-def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], times: list[str],
-                           on_progress: Callable[[str], None] | None = None, anim_mode: str = 'accumulation', window_days: int = 5, data: dict[str, Any] | None = None, bbox: tuple[float, float, float, float] | None = None, map_grids: tuple[Any, ...] | None = None) -> tuple[go.Figure, dict[str, Any]]:
+def get_3d_animated_figure(
+    longitude: list[float], 
+    latitude: list[float], 
+    magnitude: list[float], 
+    depth: list[float], 
+    times: list[str],
+    on_progress: Callable[[str], None] | None = None, 
+    anim_mode: str = 'accumulation', 
+    window_days: int = 5, 
+    data: dict[str, Any] | None = None, 
+    bbox: tuple[float, float, float, float] | None = None, 
+    map_grids: tuple[Any, ...] | None = None
+) -> tuple[go.Figure, dict[str, Any]]:
     """Generate a 3D figure for animation with timeline interaction."""
     def _report(msg):
         logger.info(msg)
@@ -592,10 +613,18 @@ def get_3d_animated_figure(longitude: list[float], latitude: list[float], magnit
 
 
 
-def build_view_html(data: dict[str, Any], view_style: int, back_button: bool = True, on_progress: Callable[[str], None] | None = None,
-                    anim_mode: str = 'accumulation', window_days: int = 5, clustering_method: str = 'kmeans',
-                    clustering_params: dict[str, Any] | None = None,
-                    data_url: str = "", session_id: str = "") -> tuple[str, bool]:
+def build_view_html(
+    data: dict[str, Any], 
+    view_style: int, 
+    back_button: bool = True, 
+    on_progress: Callable[[str], None] | None = None,
+    anim_mode: str = 'accumulation', 
+    window_days: int = 5, 
+    clustering_method: str = 'kmeans',
+    clustering_params: dict[str, Any] | None = None,
+    data_url: str = "", 
+    session_id: str = ""
+) -> tuple[str, bool]:
     """Orchestrate view generation and return final HTML.
     
     When data_url and session_id are provided, visualization data is stored in the
@@ -757,10 +786,6 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
     Robust plane fitting using RANSAC for 3D points (Total Least Squares).
     Returns: (normal, centroid, planarity)
     """
-    """
-    Robust plane fitting using RANSAC for 3D points (Total Least Squares).
-    Returns: (normal, centroid, planarity)
-    """
     n_points = points.shape[0]
     if n_points < min_inliers:
         return None, None, 0.0
@@ -808,150 +833,94 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
     return normal, centroid, planarity
 
 
-def calculate_structural_planes(longitude: np.ndarray, latitude: np.ndarray, depth: np.ndarray, 
-                               radius_km: float, min_pts: int, overlap: float = 0.2,
-                               global_context: dict[str, Any] | None = None,
-                               date_tag: str = "") -> list[dict[str, Any]]:
+def calculate_structural_planes(
+    pts_km: np.ndarray, 
+    active_grid: list[tuple],
+    radius_km: float, 
+    min_pts: int, 
+    valid_range: tuple[int, int] | None = None,
+    origin_lon: float = 0, 
+    origin_lat: float = 0,
+    lon_to_km: float = 1,
+    date_tag: str = ""
+) -> list[dict[str, Any]]:
     """
     Fits planes to points within overlapping vertical cylinders using RANSAC.
+    Only iterates over 'active' cylinders identified during pre-processing.
     """
-    if len(longitude) < min_pts:
-        return []
-
-    # 1. Coordinate Transformation using stable origin
-    if global_context and global_context.get('bounds') is not None:
-        origin_lat = global_context['origin_lat']
-        origin_lon = global_context['origin_lon']
-        gx_min, gx_max, gy_min, gy_max = global_context['bounds']
-    else:
-        origin_lat = global_context['origin_lat'] if global_context else np.mean(latitude)
-        origin_lon = global_context['origin_lon'] if global_context else np.mean(longitude)
-        gx_min, gx_max, gy_min, gy_max = None, None, None, None
-
-    lat_to_km = 111.32
-    lon_to_km = 111.32 * np.cos(np.radians(origin_lat))
-    
-    x_km = (longitude - origin_lon) * lon_to_km
-    y_km = (latitude - origin_lat) * lat_to_km
-    pts_km = np.column_stack((x_km, y_km, depth))
-
-    # 2. Grid Generation
-    if gx_min is None:
-        gx_min, gx_max = np.min(x_km), np.max(x_km)
-        gy_min, gy_max = np.min(y_km), np.max(y_km)
-        if global_context:
-            global_context['bounds'] = (gx_min, gx_max, gy_min, gy_max)
-    
-    spacing = radius_km * (2.0 - overlap)
-    grid_x = np.arange(gx_min, gx_max + spacing, spacing)
-    grid_y = np.arange(gy_min, gy_max + spacing, spacing)
-
     planes = []
-    ransac_threshold = max(0.02, radius_km * 0.1) # 10% of radius, min 20m
+    ransac_threshold = max(0.02, radius_km * 0.1)
+    start_idx, end_idx = valid_range if valid_range else (0, len(pts_km))
 
-    # 3. Spatial Indexing (Vectorized Neighborhood Search)
-    tree = KDTree(pts_km[:, :2]) # 2D index (X, Y)
-    
-    # 4. Fitting
-    for ix, cx in enumerate(grid_x):
-        for iy, cy in enumerate(grid_y):
-            # Query the tree for points within the radius (Cylinder search)
-            indices = tree.query_ball_point([cx, cy], radius_km)
+    for ix, iy, cx, cy, global_indices in active_grid:
+        # Filter indices that fall within the current time window
+        valid_indices = [i for i in global_indices if start_idx <= i < end_idx]
+        
+        if len(valid_indices) >= min_pts:
+            subset = pts_km[valid_indices]
+            normal, centroid, planarity = fit_plane_ransac(subset, threshold=ransac_threshold, min_inliers=min_pts)
+                
+            if normal is None or centroid is None:
+                continue
+
+            c_lon = (centroid[0] / lon_to_km) + origin_lon
+            c_lat = (centroid[1] / 111.32) + origin_lat # simplified lat conversion
+
+            strike_val, dip_val, dd_val = get_strike_dip(normal)
+            u = np.cross(normal, [0, 0, 1])
+            if np.linalg.norm(u) < 1e-6: u = np.array([1, 0, 0])
+            else: u /= np.linalg.norm(u)
+            v = np.cross(normal, u)
+            v /= np.linalg.norm(v)
             
-            if len(indices) >= min_pts:
-                subset = pts_km[indices]
-                
-                # Robust Fitting via RANSAC
-                normal, centroid, planarity = fit_plane_ransac(subset, threshold=ransac_threshold, min_inliers=min_pts)
-                
-                if normal is None or centroid is None:
-                    continue
+            r = radius_km
+            sq_verts_km = np.array([
+                centroid - r*u - r*v,
+                centroid + r*u - r*v,
+                centroid + r*u + r*v,
+                centroid - r*u + r*v
+            ])
+            
+            v_lon = (sq_verts_km[:, 0] / lon_to_km) + origin_lon
+            v_lat = (sq_verts_km[:, 1] / 111.32) + origin_lat
+            v_z = sq_verts_km[:, 2]
 
-                # Conversion back to lon/lat for the centroid (for metadata, though geometry is local)
-                c_lon = (centroid[0] / lon_to_km) + origin_lon
-                c_lat = (centroid[1] / lat_to_km) + origin_lat
+            eq_a = normal[0] * lon_to_km
+            eq_b = normal[1] * 111.32
+            eq_c = normal[2]
+            eq_d = -(eq_a * c_lon + eq_b * c_lat + eq_c * centroid[2])
 
-                # --- GEOMETRY GENERATION ---
-                # Geological Parameters
-                strike_val, dip_val, dd_val = get_strike_dip(normal)
-
-                # Calculate Orientation for rendering
-                # Strike (u): Horizontal vector on the plane
-                u = np.cross(normal, [0, 0, 1])
-                if np.linalg.norm(u) < 1e-6: # Near-horizontal plane
-                    u = np.array([1, 0, 0])
-                else:
-                    u /= np.linalg.norm(u)
-                
-                # Dip (v): Vector along the maximum slope of the plane
-                v = np.cross(normal, u)
-                v /= np.linalg.norm(v)
-                
-                # Vertices for a Square (side = 2 * radius_km)
-                # Centered at centroid, using strike and dip for orientation
-                r = radius_km
-                sq_verts_km = np.array([
-                    centroid - r*u - r*v,
-                    centroid + r*u - r*v,
-                    centroid + r*u + r*v,
-                    centroid - r*u + r*v
-                ])
-                
-                # Convert vertices back to Lon/Lat/Depth
-                v_lon = (sq_verts_km[:, 0] / lon_to_km) + origin_lon
-                v_lat = (sq_verts_km[:, 1] / lat_to_km) + origin_lat
-                v_z = sq_verts_km[:, 2]
-
-                # Plane Equation: ax + by + cz + d = 0 (in Lon/Lat/Depth space)
-                # a = nx * lon_to_km, b = ny * lat_to_km, c = nz
-                eq_a = normal[0] * lon_to_km
-                eq_b = normal[1] * lat_to_km
-                eq_c = normal[2]
-                eq_d = -(eq_a * c_lon + eq_b * c_lat + eq_c * centroid[2])
-
-                planes.append({
-                    'x': v_lon.tolist(),
-                    'y': v_lat.tolist(),
-                    'z': v_z.tolist(),
-                    'planarity': float(planarity),
-                    'strike': float(strike_val),
-                    'dip': float(dip_val),
-                    'dip_dir': float(dd_val),
-                    'grid_id': f"{ix}_{iy}_{date_tag}" if date_tag else f"{ix}_{iy}",
-                    'equation': { 'a': float(eq_a), 'b': float(eq_b), 'c': float(eq_c), 'd': float(eq_d) }
-                })
-                     
-                    
+            planes.append({
+                'x': v_lon.tolist(), 'y': v_lat.tolist(), 'z': v_z.tolist(),
+                'planarity': float(planarity), 'strike': float(strike_val),
+                'dip': float(dip_val), 'dip_dir': float(dd_val),
+                'grid_id': f"{ix}_{iy}_{date_tag}" if date_tag else f"{ix}_{iy}",
+                'equation': { 'a': float(eq_a), 'b': float(eq_b), 'c': float(eq_c), 'd': float(eq_d) }
+            })
     return planes
 
 
 # ─── Multiprocessing Worker Logic ──────────────────────────────────────
 _worker_data = {}
 
-def _init_worker(lon, lat, dep):
+def _init_worker(pts_km: np.ndarray) -> None:
     """Initialize worker process with shared data once to avoid per-task serialization."""
     global _worker_data
-    _worker_data['lon'] = lon
-    _worker_data['lat'] = lat
-    _worker_data['dep'] = dep
+    _worker_data['pts_km'] = pts_km
 
-def _worker_calculate_planes(args):
+def _worker_calculate_planes(args: tuple) -> tuple[str, list[dict[str, Any]]]:
     """Worker function using pre-shared global data."""
-    date_str, start_idx, end_idx, radius_km, min_pts, global_ctx = args
+    date_str, start_idx, end_idx, active_grid, radius_km, min_pts, origin_lon, origin_lat, lon_to_km = args
     
-    # Access shared data from global scope
-    lon = _worker_data['lon']
-    lat = _worker_data['lat']
-    dep = _worker_data['dep']
+    pts_km = _worker_data['pts_km']
     
-    s_lon = lon[start_idx:end_idx]
-    s_lat = lat[start_idx:end_idx]
-    s_dep = dep[start_idx:end_idx]
-    
-    if len(s_lon) >= min_pts:
-        planes = calculate_structural_planes(s_lon, s_lat, s_dep, radius_km, min_pts, global_context=global_ctx, date_tag=date_str)
-        return date_str, planes
-    return date_str, []
+    planes = calculate_structural_planes(
+        pts_km, active_grid, radius_km, min_pts, 
+        valid_range=(start_idx, end_idx),
+        origin_lon=origin_lon, origin_lat=origin_lat, 
+        lon_to_km=lon_to_km, date_tag=date_str
+    )
+    return date_str, planes
 
 
 def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, window_days: int) -> dict[str, list[dict[str, Any]]]:
@@ -969,40 +938,54 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
     origin_lon = np.mean(lon)
     lat_to_km = 111.32
     lon_to_km = 111.32 * np.cos(np.radians(origin_lat))
-    
     all_x = (lon - origin_lon) * lon_to_km
-    all_y = (lat - origin_lat) * lat_to_km
-    global_ctx = {
-        'origin_lat': float(origin_lat),
-        'origin_lon': float(origin_lon),
-        'bounds': (float(np.min(all_x)), float(np.max(all_x)), float(np.min(all_y)), float(np.max(all_y)))
-    }
-
-    w_days = max(1, int(window_days))
-    parsed_dates = [datetime.strptime(d, '%Y-%m-%d') for d in dates_unique]
+    all_y = (lat - origin_lat) * 111.32
     
+    # 1. Pre-calculate Active Grid (Cylinders that have points in the whole dataset)
+    overlap = 0.2
+    spacing = radius_km * (2.0 - overlap)
+    grid_x = np.arange(np.min(all_x), np.max(all_x) + spacing, spacing)
+    grid_y = np.arange(np.min(all_y), np.max(all_y) + spacing, spacing)
+
+    pts_km = np.column_stack((all_x, all_y, dep))
+    tree = KDTree(pts_km[:, :2])
+    
+    active_grid = []
+    for ix, cx in enumerate(grid_x):
+        for iy, cy in enumerate(grid_y):
+            indices = tree.query_ball_point([cx, cy], radius_km)
+            if len(indices) >= min_pts:
+                active_grid.append((ix, iy, cx, cy, indices))
+    
+    logger.info(f"Active grid filtering: {len(active_grid)} active cylinders out of {len(grid_x)*len(grid_y)} total.")
+
     tasks = []
+    # 2. Vectorized search for time window indices
+    dates_ts = np.array([datetime.strptime(d, '%Y-%m-%d').timestamp() for d in dates_unique])
+    
     for i, date_str in enumerate(dates_unique):
         end_idx = date_to_cum[date_str]
-        curr_dt = parsed_dates[i]
-        cutoff_dt = curr_dt - timedelta(days=w_days - 1)
-        
+        cutoff_ts = dates_ts[i] - (window_days - 1) * 86400
+        start_date_idx = np.searchsorted(dates_ts, cutoff_ts)
         start_idx = 0
-        for j in range(i, -1, -1):
-            if j < len(parsed_dates) and parsed_dates[j] < cutoff_dt:
-                start_idx = date_to_cum[dates_unique[j]]
-                break
+        if start_date_idx > 0:
+            prev_date_str = dates_unique[start_date_idx - 1]
+            start_idx = date_to_cum[prev_date_str]
         
-        tasks.append((date_str, start_idx, end_idx, radius_km, min_pts, global_ctx))
+        tasks.append((
+            date_str, start_idx, end_idx, active_grid, radius_km, min_pts, 
+            float(origin_lon), float(origin_lat), float(lon_to_km)
+        ))
 
     results = {}
+    import os
     max_workers = min(os.cpu_count() or 4, 8)
     
     # Use initializer to share data ONCE per worker
     with concurrent.futures.ProcessPoolExecutor(
         max_workers=max_workers,
         initializer=_init_worker,
-        initargs=(lon, lat, dep)
+        initargs=(pts_km,)
     ) as executor:
         for date_str, planes in executor.map(_worker_calculate_planes, tasks):
             results[date_str] = planes

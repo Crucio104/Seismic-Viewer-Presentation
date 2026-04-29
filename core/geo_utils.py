@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import hashlib
 import pickle
 import numpy as np
@@ -9,17 +9,16 @@ import PIL.Image
 import logging
 from functools import lru_cache
 from typing import Any
+from core.config import PALETTE_COLORS, MAP_CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
 # --- Network & SSL Configuration for Maps ---
-# Fix for macOS/Hotspot SSL Certificate errors
 try:
     context = ssl._create_unverified_context()
 except AttributeError:
     context = None
 
-# Set a User-Agent and increase timeout
 if context:
     opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=context))
 else:
@@ -28,24 +27,13 @@ else:
 opener.addheaders = [('User-Agent', 'SeismicViewer/1.0')]
 urllib.request.install_opener(opener)
 
-
-MESH_HD_SIZE = 500
-
-PALETTE_COLORS = 128
-
-
-MAP_CACHE_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    'resources', '.map_cache'
-)
-
-def _get_cache_path(bbox: tuple[float, float, float, float], resolution: int) -> str:
+def _get_cache_path(bbox: tuple[float, float, float, float], resolution: int) -> Path:
     """Generate a deterministic cache path from the bounding box and resolution."""
     # Round bbox to 5 decimal places to avoid tiny float differences breaking cache
     rounded_bbox: tuple[float, float, float, float] = tuple(round(v, 5) for v in bbox)
     key_str = f"{rounded_bbox}_{resolution}"
     key = hashlib.md5(key_str.encode()).hexdigest()
-    return os.path.join(MAP_CACHE_DIR, f'mesh_{key}.pkl')
+    return MAP_CACHE_DIR / f'mesh_{key}.pkl'
 
 
 def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] | None:
@@ -82,10 +70,10 @@ def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> 
     Caches the FINAL processed mesh (grids + texture) to disk.
     Returns (x_grid, y_grid, z_grid, matrix, cscale, map_data).
     """
-    os.makedirs(MAP_CACHE_DIR, exist_ok=True)
+    MAP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_path = _get_cache_path(bbox, resolution)
 
-    if os.path.exists(cache_path):
+    if cache_path.exists():
         logger.info(f"Loading processed map mesh ({resolution}px) from cache...")
         try:
             with open(cache_path, 'rb') as f:

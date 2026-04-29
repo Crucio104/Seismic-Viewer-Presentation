@@ -1,15 +1,16 @@
 import logging
+import pandas as pd
+import numpy as np
 from typing import Any
+from core.config import (
+    MIN_MAGNITUDE, MISSING_MAG_VALUE, MISSING_DEPTH_VALUE, CSV_SCHEMA
+)
+from core.utils import parse_seismic_date
 
 logger = logging.getLogger(__name__)
 
-MIN_MAGNITUDE: float = -10.0
-
-def _make_hover(df) -> list[str]:
+def _make_hover(df: pd.DataFrame) -> list[str]:
     """Generate descriptive hover text strings using vectorized operations."""
-    import pandas as pd
-    import numpy as np
-
     # Vectorized check for missing flags (if we added them during load)
     mag_labels = df['mag'].astype(str)
     if 'mag_is_missing' in df.columns:
@@ -27,7 +28,7 @@ def _make_hover(df) -> list[str]:
         "Depth: " + dep_labels
     ).tolist()
 
-def precompute_visual_data(df) -> dict[str, Any]:
+def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
     """Pre-calculate expensive data structures for visualizations."""
     logger.info("Packaging visualization data...")
     
@@ -50,31 +51,20 @@ def precompute_visual_data(df) -> dict[str, Any]:
         'dep_range': [float((-df['depth']).min()), float((-df['depth']).max())],
         'date_range': [float(df['dates_num'].min()), float(df['dates_num'].max())],
         'date_counts': date_counts,
-
     }
 
 def load_csv(source_file: str) -> dict[str, Any]:
     """Parse a seismic CSV and return extracted data arrays."""
-    import pandas as pd
     try:
         # 1. Read ONLY the header first to detect columns
         header_df = pd.read_csv(source_file, header=0, nrows=0)
         cols = header_df.columns.tolist()
 
-        # Mapping dictionary for common earthquake CSV headers
-        mapping = {
-            'time': ['time', 'date', 'datetime', 'utc', 'time_utc', 'origintime'],
-            'lat': ['lat', 'latitude'],
-            'lon': ['lon', 'longitude'],
-            'depth': ['depth', 'depth_km'],
-            'mag': ['mag', 'magnitude', 'md', 'ml', 'mw']
-        }
-
         # Robust case-insensitive and stripped matching
         cols_clean = {c.strip().lower(): c for c in cols if isinstance(c, str)}
 
         found_mapping = {}
-        for internal_name, aliases in mapping.items():
+        for internal_name, aliases in CSV_SCHEMA.items():
             for alias in aliases:
                 if alias.lower() in cols_clean:
                     found_mapping[internal_name] = cols_clean[alias.lower()]
@@ -108,10 +98,10 @@ def load_csv(source_file: str) -> dict[str, Any]:
     # Flag missing depth/magnitude BEFORE filling them
     if 'depth' in df.columns:
         df['depth_is_missing'] = df['depth'].isna()
-        df['depth'] = df['depth'].fillna(0.0)
+        df['depth'] = df['depth'].fillna(MISSING_DEPTH_VALUE)
     if 'mag' in df.columns:
         df['mag_is_missing'] = df['mag'].isna()
-        df['mag'] = df['mag'].fillna(0.1)
+        df['mag'] = df['mag'].fillna(MISSING_MAG_VALUE)
 
     # Filter by magnitude (now using the permissive -10.0 default)
     df = df[df['mag'] >= MIN_MAGNITUDE]
@@ -123,6 +113,23 @@ def load_csv(source_file: str) -> dict[str, Any]:
     df['time_dt'] = pd.to_datetime(df['time'], errors='coerce')
     df = df.dropna(subset=['time_dt'])
     
+    # --- SANITY CHECKS ---
+    initial_count = len(df)
+    
+    # 1. Geographic Bounds Check
+    df = df[(df['lat'].between(-90, 90)) & (df['lon'].between(-180, 180))]
+    
+    # 2. Temporal Bounds Check (No future dates)
+    from datetime import datetime
+    df = df[df['time_dt'] <= datetime.now()]
+    
+    # 3. Depth check (Reasonable range: -10km to 800km)
+    df = df[df['depth'].between(-10, 800)]
+    
+    removed = initial_count - len(df)
+    if removed > 0:
+        logger.warning(f"Sanity check: removed {removed} invalid records (out of bounds, future dates, or impossible depth).")
+
     # Sort for visualization consistency
     df = df.sort_values('time_dt').reset_index(drop=True)
 

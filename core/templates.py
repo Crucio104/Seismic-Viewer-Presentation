@@ -1,12 +1,11 @@
-import os
+from pathlib import Path
 import json
 import logging
 import plotly.graph_objects as go
 from typing import Any
+from core.config import BASE_DIR, ANIMATION_BASE_DURATION_MS
 
 logger = logging.getLogger(__name__)
-
-ANIMATION_BASE_DURATION_MS = 1000
 
 # ─── Template Caching ────────────────────────────────────────────────
 # Assets are loaded once at startup to improve visualization generation speed.
@@ -17,8 +16,7 @@ def _ensure_templates_loaded() -> None:
     if TEMPLATE_CACHE:
         return
 
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    assets_dir = os.path.join(base_dir, 'assets')
+    assets_dir = BASE_DIR / 'assets'
     
     # Files to cache
     files = {
@@ -29,7 +27,7 @@ def _ensure_templates_loaded() -> None:
     }
     
     for key, filename in files.items():
-        path = os.path.join(assets_dir, filename)
+        path = assets_dir / filename
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 TEMPLATE_CACHE[key] = f.read()

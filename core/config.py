@@ -1,11 +1,40 @@
-import os
+from pathlib import Path
 from typing import Any
 
 # ─── Paths ───────────────────────────────────────────────────────────
-CORE_DIR = os.path.dirname(os.path.abspath(__file__))
-BASE_DIR = os.path.dirname(CORE_DIR)
+CORE_DIR = Path(__file__).parent.absolute()
+BASE_DIR = CORE_DIR.parent
 
-INDEX_REL = 'assets/index.html'
+INDEX_REL = Path('assets/index.html')
+TEMP_DIR = BASE_DIR / 'temp'
+HISTORY_FILE = Path.home() / ".seismic_viewer_history.json"
+
+# ─── CSV Schema ──────────────────────────────────────────────────────
+# Standardized mapping for seismic data columns
+CSV_SCHEMA = {
+    'time': ['time', 'date', 'datetime', 'utc', 'time_utc', 'origintime'],
+    'lat': ['lat', 'latitude'],
+    'lon': ['lon', 'longitude'],
+    'depth': ['depth', 'depth_km'],
+    'mag': ['mag', 'magnitude', 'md', 'ml', 'mw']
+}
+# Canonical header for exported files
+CSV_CANONICAL_HEADER = ["#EventID", "Time", "Latitude", "Longitude", "Depth", "MD", "MD Error", "Area", "Type", "Level"]
+MIN_MAGNITUDE = -10.0
+MISSING_MAG_VALUE = 0.1
+MISSING_DEPTH_VALUE = 0.0
+
+# ─── Online Import (INGV GOSSIP) ───────────────────────────────────
+GOSSIP_BASE_URL = "https://terremoti.ov.ingv.it/gossip"
+DEFAULT_LOCATED_ONLY = True
+DEFAULT_EXCLUDE_MISSING = True
+
+ANIMATION_BASE_DURATION_MS = 1000
+
+# ─── Mapping & Resolution ──────────────────────────────────────────
+MESH_HD_SIZE = 500
+PALETTE_COLORS = 128
+MAP_CACHE_DIR = BASE_DIR / 'resources' / '.map_cache'
 
 # ─── Global State ───────────────────────────────────────────────────
 # Note: These are populated at runtime in app.py

@@ -1,15 +1,20 @@
-import os
+from pathlib import Path
 import uuid
 import threading
 import webview
 import logging
 import numpy as np
+import asyncio
 from typing import Any, Callable
+from core.config import (
+    BASE_DIR, get_http_port, store_session_data, 
+    clear_session_data, TEMP_DIR
+)
+from core.history import get_recent_files, save_recent_file, clear_history
+from core.online_importer import fetch_ingv_data
+import engine
 
 logger = logging.getLogger(__name__)
-import engine
-from core.config import BASE_DIR, get_http_port, store_session_data, clear_session_data
-from core.history import get_recent_files, save_recent_file, clear_history
 
 class Api:
     """Python ↔ JS bridge exposed via pywebview."""
@@ -44,7 +49,6 @@ class Api:
         """Send a progress message to the hub overlay via WebSocket or JS fallback."""
         # 1. Try WebSocket (Fast & Async)
         if self._socket_manager and self._event_loop:
-            import asyncio
             try:
                 # Use the stored event loop from uvicorn to schedule the broadcast
                 asyncio.run_coroutine_threadsafe(
@@ -88,7 +92,6 @@ class Api:
         """Fetch data from INGV, save to CSV, and load it."""
         try:
             self._push_progress("Connecting to INGV servers...")
-            from core.online_importer import fetch_ingv_data
             
             # Run in a separate thread to avoid blocking the UI
             csv_path = fetch_ingv_data(params)
@@ -104,14 +107,14 @@ class Api:
         try:
             # OPTIMIZATION: Skip if already loaded
             if self._csv_path == path and self._data is not None:
-                logger.info(f"File {os.path.basename(path)} already in memory, skipping reload.")
+                logger.info(f"File {Path(path).name} already in memory, skipping reload.")
                 return self._csv_info
 
             data = engine.load_csv(path)
             self._csv_path = path
             self._data = data
             self._csv_info = {
-                'filename': os.path.basename(path),
+                'filename': Path(path).name,
                 'event_count': data['summary']['event_count'],
                 'date_range': data['summary']['date_range'],
             }
@@ -127,11 +130,11 @@ class Api:
     def get_history(self) -> list[dict[str, str]]:
         """Return a list of recent files with their names and paths."""
         paths = get_recent_files()
-        return [{'name': os.path.basename(p), 'path': p} for p in paths]
+        return [{'name': Path(p).name, 'path': p} for p in paths]
 
     def load_recent_file(self, path: str) -> dict[str, Any] | None:
         """Load a file directly from path without dialog."""
-        if not os.path.exists(path):
+        if not Path(path).exists():
             return {'error': 'File no longer exists.'}
         return self._process_csv_load(path)
 
@@ -298,14 +301,13 @@ class Api:
         import shutil
         try:
             # 1. Clear Map Cache
-            if os.path.exists(MAP_CACHE_DIR):
+            if MAP_CACHE_DIR.exists():
                 shutil.rmtree(MAP_CACHE_DIR)
-            os.makedirs(MAP_CACHE_DIR, exist_ok=True)
+            MAP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
             
             # 2. Clear Online Import Temp Files
-            temp_dir = os.path.join(os.getcwd(), "temp")
-            if os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir)
+            if TEMP_DIR.exists():
+                shutil.rmtree(TEMP_DIR)
             
             # 3. CRITICAL: Clear both the HTML path cache and the memory mesh cache
             self._html_cache.clear()

@@ -1,9 +1,17 @@
-import os
 import threading
 import atexit
 import webview
 import logging
+import json
+import asyncio
+import socket
+import numpy as np
+import uvicorn
 from typing import Any
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, Response, HTMLResponse
+from starlette.middleware.gzip import GZipMiddleware
 
 # ─── Logging Setup ───────────────────────────────────────────────────
 logging.basicConfig(
@@ -14,7 +22,10 @@ logging.basicConfig(
 logger = logging.getLogger("SeismicViewer")
 
 # ─── Core Imports ────────────────────────────────────────────────────
-from core.config import BASE_DIR, INDEX_REL, set_http_port, get_session_data, clear_session_data
+from core.config import (
+    BASE_DIR, INDEX_REL, set_http_port, get_session_data, 
+    clear_session_data, get_viz_html
+)
 from core.bridge import Api
 
 # ─── FastAPI Server ─────────────────────────────────────────────────
@@ -25,15 +36,7 @@ _api_ref: Any = None
 
 def _create_fastapi_app() -> Any:
     """Build the FastAPI application with static file serving and API endpoints."""
-    from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-    from fastapi.staticfiles import StaticFiles
-    from fastapi.responses import JSONResponse, Response, HTMLResponse
-    from starlette.middleware.gzip import GZipMiddleware
-    import json
-    import asyncio
-
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-    app.add_middleware(GZipMiddleware, minimum_size=1000)
 
     # Capture the loop for bridge communication
     global _uvicorn_loop
@@ -44,10 +47,10 @@ def _create_fastapi_app() -> Any:
 
     # ── WebSocket Management ──
     class ConnectionManager:
-        def __init__(self):
+        def __init__(self) -> None:
             self.active_connections: list[WebSocket] = []
 
-        async def connect(self, websocket: WebSocket):
+        async def connect(self, websocket: WebSocket) -> None:
             await websocket.accept()
             self.active_connections.append(websocket)
 
@@ -58,7 +61,7 @@ def _create_fastapi_app() -> Any:
         async def send_personal_message(self, message: dict, websocket: WebSocket):
             await websocket.send_json(message)
 
-        async def broadcast(self, message: dict):
+        async def broadcast(self, message: dict) -> None:
             for connection in self.active_connections:
                 try:
                     await connection.send_json(message)
@@ -74,7 +77,7 @@ def _create_fastapi_app() -> Any:
 
     # ── WebSocket Endpoint ──
     @app.websocket("/ws")
-    async def websocket_endpoint(websocket: WebSocket):
+    async def websocket_endpoint(websocket: WebSocket) -> None:
         await manager.connect(websocket)
         try:
             while True:
@@ -122,7 +125,6 @@ def _create_fastapi_app() -> Any:
     # ── API endpoint: serve HTML visualization from memory ──
     @app.get("/viz/{viz_id}")
     async def get_viz(viz_id: str) -> HTMLResponse:
-        from core.config import get_viz_html
         html = get_viz_html(viz_id)
         if html is None:
             return HTMLResponse("<h1>View expired or not found</h1>", status_code=404)
@@ -135,7 +137,6 @@ def _create_fastapi_app() -> Any:
         if data is None:
             return Response(status_code=404)
         
-        import numpy as np
         try:
             # Flexible key mapping for both static and animated views
             lon_key = 'longitude' if 'longitude' in data else 'lon'
@@ -188,8 +189,8 @@ def _create_fastapi_app() -> Any:
             return Response(status_code=500)
 
     # ── Static file mounts ──
-    assets_dir = os.path.join(BASE_DIR, 'assets')
-    app.mount("/assets", StaticFiles(directory=assets_dir, html=True), name="assets")
+    assets_dir = BASE_DIR / 'assets'
+    app.mount("/assets", StaticFiles(directory=str(assets_dir), html=True), name="assets")
 
     return app
 
@@ -201,9 +202,7 @@ def _start_http_server(api_instance: Any = None) -> None:
         return 
 
     _api_ref = api_instance
-    import uvicorn
-    import socket
-
+    
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(('127.0.0.1', 0))
         port = s.getsockname()[1]
@@ -258,8 +257,8 @@ def main() -> None:
 
     api = Api(win_ref)
 
-    abs_index = os.path.abspath(os.path.join(BASE_DIR, INDEX_REL))
-    start_url = 'file://' + abs_index.replace(os.sep, '/')
+    abs_index = (BASE_DIR / INDEX_REL).absolute()
+    start_url = abs_index.as_uri()
     window = webview.create_window(
         'Seismic Viewer',
         url=start_url,
@@ -285,7 +284,7 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
     
-    print("Window closed. Freeing terminal...")
+    logger.info("Window closed. Freeing terminal...")
 
 if __name__ == '__main__':
     main()

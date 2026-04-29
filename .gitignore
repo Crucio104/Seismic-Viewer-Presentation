@@ -20,3 +20,4 @@ resources/.map_cache/
 *.toc
 
 .DS_Store
+temp/

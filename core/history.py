@@ -1,9 +1,8 @@
 import json
 from pathlib import Path
+from core.config import HISTORY_FILE
 
-HISTORY_FILE = Path.home() / ".seismic_viewer_history.json"
-
-def get_recent_files():
+def get_recent_files() -> list[str]:
     if not HISTORY_FILE.exists():
         return []
     try:
@@ -14,7 +13,7 @@ def get_recent_files():
     except Exception:
         return []
 
-def save_recent_file(path):
+def save_recent_file(path: str) -> None:
     recent = get_recent_files()
     # Remove if already exists to move it to top
     if path in recent:
@@ -28,7 +27,7 @@ def save_recent_file(path):
     except Exception:
         pass
 
-def clear_history():
+def clear_history() -> None:
     try:
         if HISTORY_FILE.exists():
             HISTORY_FILE.unlink()
