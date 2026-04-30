@@ -72,10 +72,15 @@
         <div id="filter-loader" class="glass-panel"><div class="loader-ring" style="width:1.875rem; height:1.875rem"></div></div>
         <div id="ws-status" title="Server Disconnected"></div>
 
-        <div id="filter-bar" class="glass-panel">
-            <input type="date" id="filter-start">
-            <span style="opacity:1; color:white;">to</span>
-            <input type="date" id="filter-end">
+        <div id="filter-bar" class="glass-panel" style="position: fixed; top: 2.5vh; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 0.75rem; padding: 0 0.8rem; height: 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.4rem; height: 100%;">
+                <span style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05rem; opacity: 0.6; font-weight: 600; line-height: 1; margin-top: 0.1rem;">From</span>
+                <input type="date" id="filter-start" class="glass-input" style="height: 1.8rem; font-size: 0.7rem; margin: 0; width: 7.2rem; text-align: center;">
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.4rem; height: 100%;">
+                <span style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05rem; opacity: 0.6; font-weight: 600; line-height: 1; margin-top: 0.1rem;">To</span>
+                <input type="date" id="filter-end" class="glass-input" style="height: 1.8rem; font-size: 0.7rem; margin: 0; width: 7.2rem; text-align: center;">
+            </div>
         </div>
 
         <script>

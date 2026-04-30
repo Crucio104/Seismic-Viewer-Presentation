@@ -246,8 +246,12 @@
                 
                 // If hover is still empty (generated now), populate it for this slice
                 if (sliceHover.length > 0 && sliceHover[0] === "") {
+                    const startD = new Date(quakeData.start_date);
                     for (let i = 0; i < sliceHover.length; i++) {
-                        sliceHover[i] = `Mag: ${sliceMag[i].toFixed(1)}<br>Dep: ${Math.abs(sliceDep[i]).toFixed(1)} km`;
+                        const d = new Date(startD);
+                        d.setDate(d.getDate() + Math.round(sliceDnum[i]));
+                        const dStr = `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+                        sliceHover[i] = `Date: ${dStr}<br>Mag: ${sliceMag[i].toFixed(1)}<br>Dep: ${Math.abs(sliceDep[i]).toFixed(1)} km`;
                     }
                 }
 
@@ -448,7 +452,10 @@
                     const bgColor = hex;
                     
                     // Format Equation and Geological Params for Hover
-                    let hoverText = "Structural Plane";
+                    const dateParts = p.grid_id.split('_').pop().split('-');
+                    const dateFmt = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : p.grid_id.split('_').pop();
+                    
+                    let hoverText = `Structural Plane (${dateFmt})`;
                     const strikeStr = p.strike !== undefined ? `Strike: ${p.strike.toFixed(1)}°<br>` : '';
                     const dipStr = p.dip !== undefined ? `Dip: ${p.dip.toFixed(1)}°<br>` : '';
                     const ddStr = p.dip_dir !== undefined ? `Dip Dir: ${p.dip_dir.toFixed(1)}°<br>` : '';
