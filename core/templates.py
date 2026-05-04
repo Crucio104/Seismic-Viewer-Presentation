@@ -66,7 +66,7 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
         '<link rel="stylesheet" href="/assets/style.css">'
     )
     
-    html_content = html_content.replace('<html>', '<html lang="en-GB">')
+    html_content = html_content.replace('<html>', '<html lang="en-GB" style="background:#050510;">')
     html_content = html_content.replace('<head>', '<head>\n' + loader_css)
     
     extra_scripts = TEMPLATE_CACHE.get('common', "")
@@ -106,10 +106,14 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
         # Inject is_3d flag for UI logic
         extra_scripts += f"\n<script>window.IS_3D_VIEW = {'true' if is_3d else 'false'};</script>"
 
+    # Force dark background on body via inline style to prevent white flash
+    # This is critical because the <head> CSS may not be parsed before the body renders
+    html_content = html_content.replace('<body>', '<body style="background:#050510;margin:0;padding:0;">')
+
     if extra_scripts:
-        html_content = html_content.replace('<body>', '<body>\n' + loader_html + '\n' + extra_scripts)
+        html_content = html_content.replace('<body style="background:#050510;margin:0;padding:0;">', '<body style="background:#050510;margin:0;padding:0;">\n' + loader_html + '\n' + extra_scripts)
 
     else:
-        html_content = html_content.replace('<body>', '<body>\n' + loader_html)
+        html_content = html_content.replace('<body style="background:#050510;margin:0;padding:0;">', '<body style="background:#050510;margin:0;padding:0;">\n' + loader_html)
 
     return html_content

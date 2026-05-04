@@ -177,7 +177,7 @@ body {
     max-height: calc(100vh - 14rem); /* Increased gap for playback bar */
     pointer-events: auto;
     overflow: visible; /* Crucial for fixed-position menus to pop out */
-    padding: 1rem;
+    padding: 1rem 1rem 1.75rem 1rem;
 }
 
 #settings-bar {
@@ -459,13 +459,13 @@ body {
     position: fixed;
     inset: 0;
     z-index: 250000;
-    background: rgba(15, 12, 41, 0.4);
-    backdrop-filter: blur(0.6rem);
-    -webkit-backdrop-filter: blur(0.6rem);
+    background: rgba(15, 12, 41, 0.6); /* Slightly more opaque */
+    backdrop-filter: blur(0.8rem);
+    -webkit-backdrop-filter: blur(0.8rem);
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 0.750rem;
+    border-radius: 0; /* Remove rounded corners */
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease;

@@ -165,6 +165,18 @@ class Api:
             if cache_key in self._html_cache:
                 self._push_progress("Loading from cache…")
                 rel_path = self._html_cache[cache_key]
+                # Dark overlay before navigation to prevent white flash
+                import time
+                try:
+                    self._window().evaluate_js(
+                        "document.body.style.cssText='background:#050510 !important;';"
+                        "var _ov=document.createElement('div');"
+                        "_ov.style.cssText='position:fixed;inset:0;z-index:9999999;background:#050510;';"
+                        "document.body.appendChild(_ov);"
+                    )
+                    time.sleep(0.05)
+                except Exception:
+                    pass
                 self._window().load_url(self._make_url(rel_path))
                 return
 
@@ -197,6 +209,19 @@ class Api:
                 self._html_cache[cache_key] = viz_id
 
             self._push_progress("Opening visualization…")
+            # Inject a dark overlay on the CURRENT page before navigating to prevent white flash.
+            # The browser will paint this overlay first, then load_url replaces the page.
+            import time
+            try:
+                self._window().evaluate_js(
+                    "document.body.style.cssText='background:#050510 !important;';"
+                    "var _ov=document.createElement('div');"
+                    "_ov.style.cssText='position:fixed;inset:0;z-index:9999999;background:#050510;';"
+                    "document.body.appendChild(_ov);"
+                )
+                time.sleep(0.05)  # Let the browser paint the dark overlay
+            except Exception:
+                pass
             self._window().load_url(self._make_url(viz_id))
             logger.info(f"View {view_style} loaded via API.")
         except Exception as e:
