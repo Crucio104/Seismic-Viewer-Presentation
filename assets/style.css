@@ -174,18 +174,35 @@ body {
     flex-direction: column;
     gap: 2vh;
     width: 13.5rem;
-    max-height: 85vh;
-    pointer-events: none;
-    overflow: visible;
+    max-height: calc(100vh - 14rem); /* Increased gap for playback bar */
+    pointer-events: auto;
+    overflow: visible; /* Crucial for fixed-position menus to pop out */
+    padding: 1rem;
 }
 
 #settings-bar {
-    position: relative !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    pointer-events: auto;
-    padding: 1.5vmin;
+    position: relative;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    max-height: 100%;
+    overflow-y: auto;
+    overflow-x: visible;
+}
+
+#settings-bar::-webkit-scrollbar {
+    width: 4px;
+}
+#settings-bar::-webkit-scrollbar-track {
+    background: transparent;
+}
+#settings-bar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+#settings-bar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 #stats-hud {
@@ -200,13 +217,6 @@ body {
     padding: 0.6rem 1rem;
     width: auto !important;
     pointer-events: auto;
-}
-
-#settings-bar {
-    display: flex;
-    flex-direction: column;
-    gap: 0.625rem;
-    overflow: visible;
 }
 
 .settings-group {
@@ -291,8 +301,6 @@ body {
 
 .glass-menu {
     position: absolute;
-    left: calc(100% + 0.938rem);
-    top: 0;
     display: none;
     flex-direction: column;
     gap: 0.125rem;
@@ -300,6 +308,7 @@ body {
     min-width: 8.750rem;
     z-index: 100001;
     border-radius: 0.750rem;
+    pointer-events: auto;
 }
 
 .glass-menu.show {

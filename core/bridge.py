@@ -285,6 +285,21 @@ class Api:
             logger.error("Bridge error", exc_info=True)
             return {'error': str(e)}
 
+    def get_animated_clustering(self, method: str, params: dict[str, Any], step_frames: int) -> dict[str, Any]:
+        """Precalculate clustering and planes for the animation timeline."""
+        if self._data is None: return {'error': 'No data'}
+        try:
+            cluster_mapping = engine.get_animation_clustering(
+                self._data, 
+                method=method, 
+                params=params, 
+                step_frames=int(step_frames)
+            )
+            return cluster_mapping
+        except Exception as e:
+            logger.error("Bridge error", exc_info=True)
+            return {'error': str(e)}
+
 
 
     def change_file(self) -> bool:

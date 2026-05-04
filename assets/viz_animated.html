@@ -10,8 +10,8 @@
             </div>
         </div>
 
-        <div id="left-panel-wrapper">
-            <div id="settings-bar" class="glass-panel">
+        <div id="left-panel-wrapper" class="glass-panel">
+            <div id="settings-bar">
             <div class="settings-group">
                 <div class="label">Playback Speed</div>
                 <button class="settings-btn" id="speed-toggle">1x ▾</button>
@@ -54,7 +54,7 @@
                 Invert Scale
             </label>
 
-            <div class="settings-group" id="structural-settings-group" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem; display:none;">
+            <div class="settings-group" id="structural-settings-group" style="display:none;">
                 <div class="label">Structural Analysis</div>
                 <label class="glass-checkbox">
                     <input type="checkbox" id="show-planes">
@@ -77,10 +77,55 @@
                         Accumulate Planes
                     </label>
                 </div>
+                <button id="apply-struct-btn" class="priority-btn" style="margin-top:1.25rem; font-size:0.75rem; height:2.2rem; width:100%; display:flex; justify-content:center; align-items:center; background:rgba(99, 102, 241, 0.2); border:1px solid rgba(99, 102, 241, 0.4); border-radius:0.5rem; color:#fff; cursor:pointer; font-family:inherit; font-weight:600; transition:all 0.2s; flex-shrink: 0;">
+                    Apply Changes
+                </button>
             </div>
-            <button class="settings-btn priority-btn" id="apply-anim-btn" style="margin-top:0.1rem; font-size:0.75rem; height:2.2rem; justify-content:center; background:rgba(99, 102, 241, 0.2); border-color:rgba(99, 102, 241, 0.4);">
-                Apply Changes
-            </button>
+            <div class="settings-group" id="clustering-settings-group">
+                <div class="label">Clustering & Planes</div>
+                <label class="glass-checkbox">
+                    <input type="checkbox" id="anim-show-clustering">
+                    Enable Clustering
+                </label>
+
+                <div id="anim-clustering-controls" style="display:none; margin-top:0.75rem;">
+                    <div class="label" style="font-size:0.6rem; opacity:0.7;">Method</div>
+                    <button class="settings-btn" id="anim-method-toggle" style="width:100%; margin-bottom:0.5rem;">K-Means ▾</button>
+                    <div class="glass-panel glass-menu" id="anim-method-menu">
+                        <div class="menu-item active" data-val="kmeans">K-Means</div>
+                        <div class="menu-item" data-val="dbscan">DBSCAN</div>
+                    </div>
+
+                    <div id="anim-kmeans-params">
+                        <div class="label" style="font-size:0.6rem; opacity:0.7;">Clusters Count</div>
+                        <input type="number" class="glass-input" id="anim-param-clusters" value="3" min="1" max="10" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
+                        <div class="label" style="font-size:0.6rem; opacity:0.7;">Centroid Max Dist (m)</div>
+                        <input type="number" class="glass-input" id="anim-param-dist" value="0" min="0" step="10" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                    </div>
+
+                    <div id="anim-dbscan-params" style="display:none">
+                        <div class="label" style="font-size:0.6rem; opacity:0.7;">Epsilon (meters)</div>
+                        <input type="number" class="glass-input" id="anim-param-eps" value="500" step="10" min="1" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
+                        <div class="label" style="font-size:0.6rem; opacity:0.7;">Min Samples</div>
+                        <input type="number" class="glass-input" id="anim-param-min-samples" value="5" min="1" step="1" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                    </div>
+
+                    <div style="margin-top: 0.75rem; padding-top: 0.5rem;">
+                        <label class="glass-checkbox">
+                            <input type="checkbox" id="anim-show-cluster-planes">
+                            Show Cluster Planes
+                        </label>
+                    </div>
+                    <div id="anim-calc-frames-container" style="display: none; margin-top: 1rem;">
+                        <div class="label" style="font-size:0.6rem; opacity:0.7;">Frames between calculations</div>
+                        <input type="number" class="glass-input" id="anim-calc-frames" value="5" min="1" step="1" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                    </div>
+                </div>
+
+                <button id="apply-anim-btn" class="priority-btn" style="margin-top:1.25rem; font-size:0.75rem; height:2.2rem; width:100%; display:flex; justify-content:center; align-items:center; background:rgba(99, 102, 241, 0.2); border:1px solid rgba(99, 102, 241, 0.4); border-radius:0.5rem; color:#fff; cursor:pointer; font-family:inherit; font-weight:600; transition:all 0.2s; flex-shrink: 0;">
+                    Apply Changes
+                </button>
+            </div>
         </div>
 
 
@@ -179,6 +224,13 @@
             let structuralPlanes = null; // Mapping date -> planes, loaded on demand via WebSocket
             let persistentPlanesMap = new Map(); // grid_id -> plane_data (for accumulation)
             let lastAccumIdx = -1;
+
+            // Clustering state
+            let animClusteringEnabled = false;
+            let animClustersMap = null; // Mapping date -> {labels: [], planes: []}
+            let currentAnimClustMethod = 'kmeans';
+            let showAnimClusterPlanes = false;
+            const clusterColors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'];
             
             let baseDelay = 1000; 
             let speedMult = 1;
@@ -292,7 +344,44 @@
                 };
                 const traceIndices = [visibleTraceIdx];
 
-                if (planesEnabled && structuralPlanes) {
+                let clusterData = null;
+                if (animClusteringEnabled && animClustersMap) {
+                    for (let i = idx; i >= 0; i--) {
+                        if (animClustersMap[dates[i]]) {
+                            clusterData = animClustersMap[dates[i]];
+                            break;
+                        }
+                    }
+                    if (clusterData) {
+                        const labels = clusterData.labels;
+                        const currentCount = sliceLon.length;
+                        const colorArr = new Array(currentCount).fill('#888888');
+                        for (let i = 0; i < Math.min(currentCount, labels.length); i++) {
+                            const lbl = labels[i];
+                            colorArr[i] = lbl >= 0 ? clusterColors[lbl % clusterColors.length] : '#888888';
+                        }
+                        bulkUpdate['marker.color'] = [colorArr];
+                        bulkUpdate['marker.colorscale'] = [null];
+                        bulkUpdate['marker.cmin'] = [null];
+                        bulkUpdate['marker.cmax'] = [null];
+                    }
+                }
+
+                if (animClusteringEnabled && showAnimClusterPlanes && clusterData) {
+                    const meshData = generatePlaneMesh(clusterData.planes);
+                    bulkUpdate.x.push(meshData.x[0]);
+                    bulkUpdate.y.push(meshData.y[0]);
+                    bulkUpdate.z.push(meshData.z[0]);
+                    bulkUpdate.i = [null, meshData.i[0]];
+                    bulkUpdate.j = [null, meshData.j[0]];
+                    bulkUpdate.k = [null, meshData.k[0]];
+                    bulkUpdate.facecolor = [null, meshData.facecolor[0]];
+                    bulkUpdate.text = [null, meshData.text[0]];
+                    bulkUpdate.hovertext = [sliceHover, null];
+                    bulkUpdate['hoverlabel.bgcolor'] = [null, meshData.bgcolor[0]];
+                    bulkUpdate.visible = [true, true];
+                    traceIndices.push(4);
+                } else if (planesEnabled && structuralPlanes) {
                     // Accumulation Logic
                     if (accumulatePlanes) {
                         // If we jumped backwards, reset the map and the accumulation index
@@ -347,14 +436,36 @@
                     slider.value = idx;
 
                     // Update Glass Legend
-                    updateGlassLegend(
-                        true,
-                        barTitle,
-                        currentColorScale,
-                        invertScale,
-                        limits,
-                        { startDate: quakeData.start_date }
-                    );
+                    if (animClusteringEnabled && animClustersMap) {
+                        // Get n_clusters from the current clusterData or most recent one
+                        let n_clust = 0;
+                        if (clusterData) {
+                            n_clust = Math.max(...clusterData.labels) + 1;
+                        } else {
+                            // Search back for n_clusters
+                            for (let i = idx; i >= 0; i--) {
+                                if (animClustersMap[dates[i]]) {
+                                    n_clust = Math.max(...animClustersMap[dates[i]].labels) + 1;
+                                    break;
+                                }
+                            }
+                        }
+                        updateClusterLegend(n_clust);
+                    } else {
+                        const container = document.getElementById('legend-container');
+                        const clusterList = document.getElementById('cluster-legend-list');
+                        if (container) container.style.display = 'flex';
+                        if (clusterList) clusterList.style.display = 'none';
+                        
+                        updateGlassLegend(
+                            true,
+                            barTitle,
+                            currentColorScale,
+                            invertScale,
+                            limits,
+                            { startDate: quakeData.start_date }
+                        );
+                    }
 
                     const dayEnd = quakeData.date_to_cum[dates[idx]];
                     const dayStart = (idx > 0) ? quakeData.date_to_cum[dates[idx-1]] : 0;
@@ -426,6 +537,39 @@
                 return colors[Math.min(colors.length - 1, Math.max(0, idx))];
             }
 
+            // Build custom glass legend for clusters
+            function updateClusterLegend(n_clusters) {
+                const legend = document.getElementById('glass-legend');
+                const container = document.getElementById('legend-container');
+                if (!legend || !container) return;
+                
+                container.style.display = 'none'; // Hide gradient container
+                
+                let clusterList = document.getElementById('cluster-legend-list');
+                if (!clusterList) {
+                    clusterList = document.createElement('div');
+                    clusterList.id = 'cluster-legend-list';
+                    clusterList.className = 'legend-list'; // Use standard class
+                    clusterList.style.marginTop = '0.25rem'; // Minimal margin
+                    legend.appendChild(clusterList);
+                }
+                
+                clusterList.style.display = 'flex';
+                document.getElementById('legend-title').textContent = 'Clusters';
+                
+                let html = '';
+                for (let i = 0; i < n_clusters; i++) {
+                    const color = clusterColors[i % clusterColors.length];
+                    html += `
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:1.000rem; flex-shrink:0;">
+                            <span style="font-family:\'Segoe UI\',system-ui,sans-serif;font-size:0.750rem;font-weight:600;color:#fff;opacity:0.85;">Cluster ${i + 1}</span>
+                            <div style="width:0.875rem;height:0.875rem;border-radius:50%;background-color:${color};border:1px solid rgba(255,255,255,0.4);box-shadow:0 0 0.375rem ${color}80;"></div>
+                        </div>
+                    `;
+                }
+                clusterList.innerHTML = html;
+            }
+
             function generatePlaneMesh(planes) {
                 if (!planes || planes.length === 0) {
                 return { x: [[]], y: [[]], z: [[]], i: [[]], j: [[]], k: [[]], facecolor: [[]], text: [[]], bgcolor: [[]] };
@@ -439,17 +583,29 @@
                 let vertOffset = 0;
 
                 planes.forEach(p => {
-                    // Color by Date using the Selected Color Scale
-                    const dateStr = p.grid_id.split('_').pop();
-                    const dIdx = Math.max(0, dates.indexOf(dateStr));
-                    const val01 = dates.length > 1 ? dIdx / (dates.length - 1) : 0.5;
-                    const hex = getHexFromScale(currentColorScale, val01);
-                    
-                    const r = parseInt(hex.slice(1, 3), 16);
-                    const g = parseInt(hex.slice(3, 5), 16);
-                    const b = parseInt(hex.slice(5, 7), 16);
-                    const color = `rgba(${r}, ${g}, ${b}, 0.6)`; // Uniform Opacity
-                    const bgColor = hex;
+                    let hex, color, bgColor;
+                    if (p.grid_id.startsWith('cluster_')) {
+                        const parts = p.grid_id.split('_');
+                        const clusterIdx = parseInt(parts[1]);
+                        hex = clusterColors[clusterIdx % clusterColors.length];
+                        const r = parseInt(hex.slice(1, 3), 16);
+                        const g = parseInt(hex.slice(3, 5), 16);
+                        const b = parseInt(hex.slice(5, 7), 16);
+                        color = `rgba(${r}, ${g}, ${b}, 0.6)`;
+                        bgColor = hex;
+                    } else {
+                        // Color by Date using the Selected Color Scale
+                        const dateStr = p.grid_id.split('_').pop();
+                        const dIdx = Math.max(0, dates.indexOf(dateStr));
+                        const val01 = dates.length > 1 ? dIdx / (dates.length - 1) : 0.5;
+                        hex = getHexFromScale(currentColorScale, val01);
+                        
+                        const r = parseInt(hex.slice(1, 3), 16);
+                        const g = parseInt(hex.slice(3, 5), 16);
+                        const b = parseInt(hex.slice(5, 7), 16);
+                        color = `rgba(${r}, ${g}, ${b}, 0.6)`; // Uniform Opacity
+                        bgColor = hex;
+                    }
                     
                     // Format Equation and Geological Params for Hover
                     const dateParts = p.grid_id.split('_').pop().split('-');
@@ -678,6 +834,63 @@
                 if (planeMinPts.value < 3) planeMinPts.value = 3;
             };
 
+            // Animated Clustering Controls
+            const showAnimClustCheck = document.getElementById('anim-show-clustering');
+            const animClustControls = document.getElementById('anim-clustering-controls');
+            const animMethodToggle = document.getElementById('anim-method-toggle');
+            const animMethodMenu = document.getElementById('anim-method-menu');
+            const pClustersAnim = document.getElementById('anim-param-clusters');
+            const pDistAnim = document.getElementById('anim-param-dist');
+            const pEpsAnim = document.getElementById('anim-param-eps');
+            const pMinAnim = document.getElementById('anim-param-min-samples');
+            const showAnimPlanesCheck = document.getElementById('anim-show-cluster-planes');
+            const calcFramesAnim = document.getElementById('anim-calc-frames');
+            const animKmeansParams = document.getElementById('anim-kmeans-params');
+            const animDbscanParams = document.getElementById('anim-dbscan-params');
+
+            showAnimClustCheck.onchange = () => {
+                animClusteringEnabled = showAnimClustCheck.checked;
+                animClustControls.style.display = animClusteringEnabled ? 'block' : 'none';
+            };
+
+            const animCalcFramesContainer = document.getElementById('anim-calc-frames-container');
+            showAnimPlanesCheck.onchange = () => {
+                showAnimClusterPlanes = showAnimPlanesCheck.checked;
+                animCalcFramesContainer.style.display = showAnimPlanesCheck.checked ? 'block' : 'none';
+            };
+
+            SeismicUI.initMenu(animMethodToggle, animMethodMenu);
+            SeismicUI.bindMenu(animMethodMenu, (item) => {
+                currentAnimClustMethod = item.dataset.val;
+                animMethodToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                animKmeansParams.style.display = currentAnimClustMethod === 'kmeans' ? 'block' : 'none';
+                animDbscanParams.style.display = currentAnimClustMethod === 'dbscan' ? 'block' : 'none';
+            });
+
+            async function syncAnimatedClustering() {
+                try {
+                    const params = {
+                        kmeans_clusters: pClustersAnim.value,
+                        kmeans_max_dist: pDistAnim.value,
+                        dbscan_eps: pEpsAnim.value,
+                        dbscan_min_samples: pMinAnim.value,
+                        show_cluster_planes: showAnimPlanesCheck.checked
+                    };
+                    const res = await window.seismicSocket.sendRequest('get_animated_clustering', {
+                        method: currentAnimClustMethod,
+                        params: params,
+                        step_frames: parseInt(calcFramesAnim.value) || 5
+                    });
+                    if (res && !res.error) {
+                        animClustersMap = res;
+                    } else {
+                        console.error("Clustering Error:", res?.error);
+                    }
+                } catch (e) {
+                    console.error("Bridge Error:", e);
+                }
+            }
+
             const filterLoader = document.getElementById('filter-loader');
 
             async function applyAllChanges() {
@@ -700,12 +913,15 @@
                         renderHistogram();
                         
                         // 3. Update Structural Planes
-                        if (planesEnabled) {
+                        if (animClusteringEnabled) {
+                            await syncAnimatedClustering();
+                        } else if (planesEnabled) {
                             await syncPlanes();
                         } else {
                             Plotly.restyle(gd, { visible: [false] }, [4]);
                             persistentPlanesMap.clear();
                             lastAccumIdx = -1;
+                            animClustersMap = null;
                         }
 
                         // 4. Final render update
@@ -720,8 +936,9 @@
                 }, 30);
             }
 
-            const applyBtn = document.getElementById('apply-anim-btn');
-            if (applyBtn) applyBtn.onclick = applyAllChanges;
+            document.querySelectorAll('#apply-anim-btn, #apply-struct-btn').forEach(btn => {
+                btn.onclick = applyAllChanges;
+            });
 
             // Add the Plane Trace (Trace 4)
             Plotly.addTraces(gd, {
@@ -741,11 +958,13 @@
             renderHistogram();
             updateView(0);
 
-            // Show structural panel only if we have a real time window (not cumulative)
+            // Show structural panel only in window mode, and clustering only in cumulative mode
             if (quakeData.anim_mode === 'window') {
                 document.getElementById('structural-settings-group').style.display = 'block';
+                document.getElementById('clustering-settings-group').style.display = 'none';
             } else {
                 document.getElementById('structural-settings-group').style.display = 'none';
+                document.getElementById('clustering-settings-group').style.display = 'block';
             }
 
             // Sync UI state and finally hide loader

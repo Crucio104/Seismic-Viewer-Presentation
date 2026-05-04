@@ -55,7 +55,10 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
 
     # Standardized Loader Injection
     loader_css = (
-
+        '<style>'
+        'html,body,.js-plotly-plot,.plotly-graph-div{background:#050510 !important;margin:0;padding:0;overflow:hidden;height:100%;width:100%}'
+        '#init-loader{background:#050510 !important;}'
+        '</style>'
         '<script src="/assets/plotly.min.js"></script>'
         '<link rel="preconnect" href="https://fonts.googleapis.com">'
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
@@ -89,10 +92,11 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
         loader_msg = 'Rendering Cluster Analysis...'
     
     loader_html = (
-        f'<div id="init-loader">'
-        f'  <div class="loader-ring"></div>'
-        f'  <p class="loader-text">{loader_msg}</p>'
+        f'<div id="init-loader" style="position:fixed;inset:0;z-index:999999;background:#050510;display:flex;flex-direction:column;align-items:center;justify-content:center;">'
+        f'  <div class="loader-ring" style="width:4rem;height:4rem;border:0.188rem solid rgba(255,255,255,0.1);border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;"></div>'
+        f'  <p class="loader-text" style="margin-top:1.5rem;font-size:1rem;font-weight:500;color:#e2e8f0;text-align:center;">{loader_msg}</p>'
         f'</div>'
+        f'<style>@keyframes spin{{to{{transform:rotate(360deg)}}}}</style>'
     )
 
     if is_fallback:

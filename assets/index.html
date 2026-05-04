@@ -167,31 +167,51 @@
             <div class="setting-group" style="display: flex; gap: 1rem;">
                 <div style="flex: 1;">
                     <label style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Area:</label>
-                    <select id="online-area" class="glass-input">
-                        <option value="">Select an area</option>
-                        <option value="flegrei">Campi Flegrei</option>
-                        <option value="vesuvio">Vesuvio</option>
-                        <option value="ischia">Isola d'Ischia</option>
-                    </select>
+                    <div class="dropdown-container">
+                        <button class="settings-btn" id="online-area-toggle" onclick="toggleDropdown(event, 'online-area-menu')">Select an area</button>
+                        <div class="glass-menu" id="online-area-menu">
+                            <div class="menu-item active" onclick="selectOption('online-area', '', 'Select an area', 'online-area-toggle', 'online-area-menu')">Select an area</div>
+                            <div class="menu-item" onclick="selectOption('online-area', 'flegrei', 'Campi Flegrei', 'online-area-toggle', 'online-area-menu')">Campi Flegrei</div>
+                            <div class="menu-item" onclick="selectOption('online-area', 'vesuvio', 'Vesuvio', 'online-area-toggle', 'online-area-menu')">Vesuvio</div>
+                            <div class="menu-item" onclick="selectOption('online-area', 'ischia', 'Isola d\'Ischia', 'online-area-toggle', 'online-area-menu')">Isola d'Ischia</div>
+                        </div>
+                        <input type="hidden" id="online-area" value="">
+                    </div>
                 </div>
                 <div style="flex: 1;">
                     <label style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Event Level:</label>
-                    <select id="online-livello" class="glass-input">
-                        <option value="0" selected="selected">All</option>
-                        <option value="1">Reviewed</option>
-                        <option value="2">Bulletin</option>
-                    </select>
+                    <div class="dropdown-container">
+                        <button class="settings-btn" id="online-livello-toggle" onclick="toggleDropdown(event, 'online-livello-menu')">All</button>
+                        <div class="glass-menu" id="online-livello-menu">
+                            <div class="menu-item active" onclick="selectOption('online-livello', '0', 'All', 'online-livello-toggle', 'online-livello-menu')">All</div>
+                            <div class="menu-item" onclick="selectOption('online-livello', '1', 'Reviewed', 'online-livello-toggle', 'online-livello-menu')">Reviewed</div>
+                            <div class="menu-item" onclick="selectOption('online-livello', '2', 'Bulletin', 'online-livello-toggle', 'online-livello-menu')">Bulletin</div>
+                        </div>
+                        <input type="hidden" id="online-livello" value="0">
+                    </div>
                 </div>
             </div>
 
             <div class="setting-group" style="display: flex; gap: 1rem;">
                 <div style="flex: 1;">
                     <label style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Min Magnitude:</label>
-                    <input type="number" id="online-mag-min" class="glass-input" placeholder="0.0" step="0.1">
+                    <div class="number-input-container">
+                        <input type="number" id="online-mag-min" class="glass-input" placeholder="0.0" step="0.1">
+                        <div class="spin-buttons">
+                            <button class="spin-btn" onclick="stepValue('online-mag-min', 0.1)">▲</button>
+                            <button class="spin-btn" onclick="stepValue('online-mag-min', -0.1)">▼</button>
+                        </div>
+                    </div>
                 </div>
                 <div style="flex: 1;">
                     <label style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Max Magnitude:</label>
-                    <input type="number" id="online-mag-max" class="glass-input" step="0.1">
+                    <div class="number-input-container">
+                        <input type="number" id="online-mag-max" class="glass-input" step="0.1" value="10.0">
+                        <div class="spin-buttons">
+                            <button class="spin-btn" onclick="stepValue('online-mag-max', 0.1)">▲</button>
+                            <button class="spin-btn" onclick="stepValue('online-mag-max', -0.1)">▼</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -227,6 +247,44 @@
     </div>
 
 <script>
+    // --- Custom Dropdown Logic ---
+    function toggleDropdown(event, menuId) {
+        event.stopPropagation();
+        const menu = document.getElementById(menuId);
+        const allMenus = document.querySelectorAll('.glass-menu');
+        allMenus.forEach(m => {
+            if (m.id !== menuId) m.classList.remove('show');
+        });
+        menu.classList.toggle('show');
+    }
+
+    function selectOption(hiddenId, value, label, toggleId, menuId) {
+        document.getElementById(hiddenId).value = value;
+        document.getElementById(toggleId).textContent = label;
+        
+        // Update active state
+        const menu = document.getElementById(menuId);
+        const items = menu.querySelectorAll('.menu-item');
+        items.forEach(item => {
+            if (item.textContent === label) item.classList.add('active');
+            else item.classList.remove('active');
+        });
+        
+        menu.classList.remove('show');
+    }
+
+    function stepValue(id, amount) {
+        const input = document.getElementById(id);
+        const val = parseFloat(input.value) || 0;
+        input.value = (val + amount).toFixed(1);
+        input.dispatchEvent(new Event('change'));
+    }
+
+    // Close dropdowns on outside click
+    window.addEventListener('click', () => {
+        document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+    });
+
     // --- Message Synchronization ---
     function updateProgress(msg) {
         // Update the overlay message used during heavy operations

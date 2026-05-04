@@ -192,8 +192,16 @@
             if (!btn || !menu) return;
             btn.onclick = (e) => {
                 e.stopPropagation();
-                document.querySelectorAll('.glass-menu').forEach(m => { if (m !== menu) m.classList.remove('show'); });
-                menu.classList.toggle('show');
+                const wasShowing = menu.classList.contains('show');
+                document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+                
+                if (!wasShowing) {
+                    const rect = btn.getBoundingClientRect();
+                    menu.style.position = 'fixed';
+                    menu.style.top = rect.top + 'px';
+                    menu.style.left = (rect.right + 15) + 'px';
+                    menu.classList.add('show');
+                }
             };
         },
         bindMenu(menu, callback) {

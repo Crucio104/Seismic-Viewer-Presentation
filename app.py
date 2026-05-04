@@ -103,6 +103,11 @@ def _create_fastapi_app() -> Any:
                     result = await asyncio.to_thread(_api_ref.get_structural_planes, p.get("radius_km"), p.get("min_pts"), p.get("window_days"))
                     await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
 
+                elif msg_type == "get_animated_clustering":
+                    p = message.get("params", {})
+                    result = await asyncio.to_thread(_api_ref.get_animated_clustering, p.get("method"), p.get("params"), p.get("step_frames", 5))
+                    await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
+
         except WebSocketDisconnect:
             manager.disconnect(websocket)
         except Exception as e:

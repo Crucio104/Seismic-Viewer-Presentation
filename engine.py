@@ -991,3 +991,157 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
             results[date_str] = planes
             
     return results
+
+
+def _worker_calculate_clustering(args: tuple) -> tuple[str, list[int], list[dict[str, Any]]]:
+    """Worker function for clustering using pre-shared global data."""
+    date_str, start_idx, end_idx, method, params, origin_lon, origin_lat, lon_to_km = args
+    pts_km = _worker_data['pts_km']
+    pts_subset = pts_km[start_idx:end_idx]
+    
+    if len(pts_subset) == 0:
+        return date_str, [], []
+    
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.cluster import MiniBatchKMeans, DBSCAN
+    
+    # 1. Clustering
+    if method == 'dbscan':
+        eps_km = float(params.get('dbscan_eps', 500)) / 1000.0
+        min_samples = int(params.get('dbscan_min_samples', 5))
+        db = DBSCAN(eps=eps_km, min_samples=min_samples, metric='euclidean').fit(pts_subset)
+        labels = db.labels_
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        if n_clusters == 0:
+            n_clusters = 1
+            labels = np.zeros(len(pts_subset), dtype=int)
+    else:
+        n_clusters_req = int(params.get('kmeans_clusters', 3))
+        if len(pts_subset) >= n_clusters_req:
+            X_scaled = StandardScaler().fit_transform(pts_subset)
+            kmeans = MiniBatchKMeans(n_clusters=n_clusters_req, random_state=42, n_init='auto').fit(X_scaled)
+            labels = kmeans.labels_
+            n_clusters = n_clusters_req
+        else:
+            labels = np.zeros(len(pts_subset), dtype=int)
+            n_clusters = 1
+
+    display_labels = labels.copy()
+    if method == 'kmeans' and float(params.get('kmeans_max_dist', 0)) > 0:
+        max_d = float(params.get('kmeans_max_dist', 0))
+        for i in range(n_clusters):
+            idx = (labels == i)
+            if not np.any(idx): continue
+            pts_km_c = pts_subset[idx]
+            center_km = np.mean(pts_km_c, axis=0)
+            dists = np.sqrt(np.sum((pts_km_c - center_km)**2, axis=1))
+            display_labels[np.where(idx)[0][dists > max_d]] = -1
+
+    planes = []
+    show_planes = params.get('show_cluster_planes', False)
+    if show_planes:
+        for i in range(n_clusters):
+            idx = (display_labels == i)
+            pts = pts_subset[idx]
+            if len(pts) >= 4:
+                normal, centroid_km, planarity = fit_plane_ransac(pts, threshold=0.15)
+                if normal is not None and centroid_km is not None:
+                    avg_dist = np.mean(np.linalg.norm(pts - centroid_km, axis=1))
+                    side_length = 5 * avg_dist
+                    if side_length < 0.2: side_length = 0.2
+                    
+                    L = side_length
+                    H = side_length
+                    
+                    u = np.cross(normal, [0, 0, 1])
+                    if np.linalg.norm(u) < 1e-6: u = np.array([1, 0, 0])
+                    else: u /= np.linalg.norm(u)
+                    
+                    v = np.cross(normal, u)
+                    v /= np.linalg.norm(v)
+                    
+                    sq_verts_km = np.array([
+                        centroid_km - L*u - H*v,
+                        centroid_km + L*u - H*v,
+                        centroid_km + L*u + H*v,
+                        centroid_km - L*u + H*v
+                    ])
+                    
+                    v_lon = (sq_verts_km[:, 0] / lon_to_km) + origin_lon
+                    v_lat = (sq_verts_km[:, 1] / 111.32) + origin_lat
+                    v_z = sq_verts_km[:, 2]
+                    
+                    c_lon = (centroid_km[0] / lon_to_km) + origin_lon
+                    c_lat = (centroid_km[1] / 111.32) + origin_lat
+                    
+                    strike_val, dip_val, dd_val = get_strike_dip(normal)
+                    
+                    eq_a = normal[0] * lon_to_km
+                    eq_b = normal[1] * 111.32
+                    eq_c = normal[2]
+                    eq_d = -(eq_a * c_lon + eq_b * c_lat + eq_c * centroid_km[2])
+                    
+                    planes.append({
+                        'x': v_lon.tolist(), 'y': v_lat.tolist(), 'z': v_z.tolist(),
+                        'planarity': float(planarity), 'strike': float(strike_val),
+                        'dip': float(dip_val), 'dip_dir': float(dd_val),
+                        'grid_id': f"cluster_{i}_{date_str}",
+                        'equation': { 'a': float(eq_a), 'b': float(eq_b), 'c': float(eq_c), 'd': float(eq_d) }
+                    })
+    
+    return date_str, display_labels.tolist(), planes
+
+def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str, Any], step_frames: int) -> dict[str, Any]:
+    """
+    Calculates clustering and RANSAC planes for every step_frames step of the animation using Optimized Multiprocessing.
+    """
+    lon = np.array(data['longitude'], dtype=np.float32)
+    lat = np.array(data['latitude'], dtype=np.float32)
+    dep = np.array(data['depth'], dtype=np.float32)
+    dates_unique = data['visual_pack']['unique_dates']
+    date_to_cum = data['visual_pack']['date_to_cum']
+    anim_mode = data.get('anim_mode', 'accumulation')
+    window_days = data.get('window_days', 5)
+
+    origin_lat = np.mean(lat)
+    origin_lon = np.mean(lon)
+    lat_to_km = 111.32
+    lon_to_km = 111.32 * np.cos(np.radians(origin_lat))
+    all_x = (lon - origin_lon) * lon_to_km
+    all_y = (lat - origin_lat) * 111.32
+    pts_km = np.column_stack((all_x, all_y, dep))
+
+    tasks = []
+    dates_ts = np.array([datetime.strptime(d, '%Y-%m-%d').timestamp() for d in dates_unique])
+    
+    for i in range(0, len(dates_unique), step_frames):
+        date_str = dates_unique[i]
+        end_idx = date_to_cum[date_str]
+        
+        start_idx = 0
+        if anim_mode == 'window':
+            cutoff_ts = dates_ts[i] - (window_days - 1) * 86400
+            start_date_idx = np.searchsorted(dates_ts, cutoff_ts)
+            if start_date_idx > 0:
+                prev_date_str = dates_unique[start_date_idx - 1]
+                start_idx = date_to_cum[prev_date_str]
+        
+        tasks.append((
+            date_str, start_idx, end_idx, method, params, 
+            float(origin_lon), float(origin_lat), float(lon_to_km)
+        ))
+
+    results = {}
+    import os
+    import concurrent.futures
+    max_workers = min(os.cpu_count() or 4, 8)
+    
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=max_workers,
+        initializer=_init_worker,
+        initargs=(pts_km,)
+    ) as executor:
+        for date_str, labels, planes in executor.map(_worker_calculate_clustering, tasks):
+            results[date_str] = {'labels': labels, 'planes': planes}
+            
+    return results
