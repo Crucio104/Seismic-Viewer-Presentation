@@ -396,17 +396,40 @@
                                 const pixels = imageData.data;
 
                                 const matrix = [];
+                                const colorCounts = new Map();
                                 
-                                // Pre-generate a fixed 256-color scale (8x8x4)
-                                // This prevents Plotly crashing from too many colors
-                                const colorscale = [];
-                                for (let i = 0; i <= 255; i++) {
-                                    const r_val = ((i >> 5) & 7) * 36; // 0..252
-                                    const g_val = ((i >> 2) & 7) * 36; // 0..252
-                                    const b_val = (i & 3) * 85;        // 0..255
-                                    colorscale.push([i / 255, `rgb(${r_val},${g_val},${b_val})`]);
+                                // Step 1: Sample colors and count frequencies (quantized to 5 bits per channel)
+                                for (let i = 0; i < pixels.length; i += 4) {
+                                    if (pixels[i+3] < 128) continue; // Skip transparent
+                                    const qr = pixels[i] >> 3;
+                                    const qg = pixels[i+1] >> 3;
+                                    const qb = pixels[i+2] >> 3;
+                                    const key = (qr << 10) | (qg << 5) | qb;
+                                    colorCounts.set(key, (colorCounts.get(key) || 0) + 1);
                                 }
 
+                                // Step 2: Pick top 256 colors
+                                const sortedColors = Array.from(colorCounts.entries())
+                                    .sort((a, b) => b[1] - a[1])
+                                    .slice(0, 256);
+                                
+                                const palette = sortedColors.map(([key]) => [
+                                    (key >> 10) << 3,
+                                    ((key >> 5) & 31) << 3,
+                                    (key & 31) << 3
+                                ]);
+                                
+                                // If image has fewer than 2 colors, add a fallback
+                                if (palette.length < 2) palette.push([0,0,0], [255,255,255]);
+
+                                // Step 3: Build colorscale
+                                const maxIdx = palette.length - 1;
+                                const colorscale = palette.map((c, i) => [
+                                    i / maxIdx, 
+                                    `rgb(${c[0]},${c[1]},${c[2]})`
+                                ]);
+
+                                // Step 4: Map pixels to palette (nearest neighbor)
                                 for (let row = 0; row < gridRows; row++) {
                                     const matRow = [];
                                     for (let col = 0; col < gridCols; col++) {
@@ -415,24 +438,30 @@
                                         const g = pixels[idx + 1];
                                         const b = pixels[idx + 2];
                                         
-                                        // Fast 8-bit quantization
-                                        const r_idx = Math.floor(r / 32); // 0..7
-                                        const g_idx = Math.floor(g / 32); // 0..7
-                                        const b_idx = Math.floor(b / 64); // 0..3
-                                        
-                                        const color_idx = (r_idx << 5) | (g_idx << 2) | b_idx;
-                                        matRow.push(color_idx);
+                                        // Find closest color in palette (Euclidean distance)
+                                        let bestIdx = 0;
+                                        let minDist = Infinity;
+                                        for (let i = 0; i < palette.length; i++) {
+                                            const d = Math.pow(r - palette[i][0], 2) + 
+                                                      Math.pow(g - palette[i][1], 2) + 
+                                                      Math.pow(b - palette[i][2], 2);
+                                            if (d < minDist) {
+                                                minDist = d;
+                                                bestIdx = i;
+                                            }
+                                        }
+                                        matRow.push(bestIdx);
                                     }
                                     matrix.push(matRow);
                                 }
 
-                                console.log('[Overlay] Fixed 256-color palette applied. Matrix:', matrix.length, 'x', matrix[0].length);
+                                console.log('[Overlay] Dynamic palette applied with', palette.length, 'colors.');
 
                                 Plotly.restyle(gd, {
                                     surfacecolor: [matrix],
                                     colorscale: [colorscale],
                                     cmin: [0],
-                                    cmax: [255]
+                                    cmax: [maxIdx]
                                 }, [0]).then(function() {
                                     console.log('[Overlay] Restyle complete');
                                     btn.classList.add('active');
