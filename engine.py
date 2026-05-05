@@ -129,7 +129,7 @@ def get_3d_static_figure(
     """Generate a high-quality 3D static view with pre-calculated hover and map mesh."""
     if bbox is None:
         bbox = (min(latitude), min(longitude), max(latitude), max(longitude))
-    min_depth = min(depth)
+    min_depth = np.floor(np.min(depth)) if len(depth) > 0 else 0
 
     # 1. Map Mesh (Use provided grids or fallback)
     if map_grids:
@@ -200,7 +200,7 @@ def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitu
     """
     Generate the initial high-quality 3D Cluster figure.
     """
-    min_depth = np.min(depth)
+    min_depth = np.floor(np.min(depth)) if len(depth) > 0 else 0
     if bbox is None:
         bbox = (np.min(latitude), np.min(longitude), np.max(latitude), np.max(longitude))
 
@@ -522,7 +522,7 @@ def get_3d_animated_figure(
 
     if bbox is None:
         bbox = (min(latitude), min(longitude), max(latitude), max(longitude))
-    min_depth = min(depth)
+    min_depth = np.floor(np.min(depth)) if len(depth) > 0 else 0
 
     # 1. Map Mesh (Use provided grids or fallback)
     if map_grids:
@@ -606,6 +606,8 @@ def get_3d_animated_figure(
         'dep_range': dep_range,
         'start_date': times[0][:10] if times else "",
         'date_counts': vpack.get('date_counts', []),
+        'bbox': bbox,
+        'graph_bounds': data.get('graph_bounds') if data else None,
     }
 
     apply_3d_style(fig, [x_high[0], x_high[-1]], [y_high[-1], y_high[0]], [min_depth, 0])
@@ -674,6 +676,17 @@ def build_view_html(
         _report("Preparing map mesh…")
         map_grids = build_map_mesh(bbox, MESH_HD_SIZE)
         is_fallback = (map_grids[5] is None) # index 5 is map_data
+        
+        # Calculate precise graph boundaries from the generated mesh and floored depth
+        x_g, y_g = map_grids[0], map_grids[1]
+        graph_min_depth = float(np.floor(np.min(dep))) if len(dep) > 0 else 0.0
+        data['graph_bounds'] = [
+            float(np.min(y_g)),  # min_lat
+            float(np.min(x_g)),  # min_lon
+            float(np.max(y_g)),  # max_lat
+            float(np.max(x_g)),  # max_lon
+            graph_min_depth      # min_depth
+        ]
 
     # 3. View Routing
     if view_style == 0:

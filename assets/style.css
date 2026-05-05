@@ -107,7 +107,7 @@ body {
 #loader {
     position: fixed;
     inset: 0;
-    z-index: 200000;
+    z-index: 2000000;
     background: rgba(15, 12, 41, 0.7);
     backdrop-filter: blur(0.500rem);
     display: flex;
@@ -841,4 +841,128 @@ body {
     font-weight: 600;
     color: #fff;
     font-family: inherit;
+}
+
+/* Scene Information UI */
+.hidden-initially {
+    opacity: 0;
+    pointer-events: none;
+}
+.hidden-initially.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#info-btn {
+    position: fixed;
+    bottom: 1.25rem;
+    left: 1.25rem;
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(1.25rem) saturate(160%);
+    -webkit-backdrop-filter: blur(1.25rem) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1000001; 
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    font-family: serif;
+    font-weight: 800;
+    font-size: 1rem;
+    font-style: italic;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+#info-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1) rotate(5deg);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+#info-panel {
+    position: fixed;
+    bottom: 3.5rem;
+    left: 1.25rem;
+    width: 10rem;
+    padding: 0.85rem;
+    background: rgba(255, 255, 255, 0.05); /* Same as .glass-panel */
+    backdrop-filter: blur(1.250rem) saturate(160%);
+    -webkit-backdrop-filter: blur(1.250rem) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    color: #fff;
+    z-index: 1000002;
+    display: none;
+    flex-direction: column;
+    gap: 0.65rem;
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6);
+    animation: infoSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#info-panel.show {
+    display: flex;
+}
+
+#info-panel .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#info-panel .info-label {
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    opacity: 0.5;
+    letter-spacing: 0.05rem;
+    font-weight: 700;
+}
+
+#info-panel .info-value {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #f8fafc;
+}
+
+@keyframes infoSlideUp {
+    from { opacity: 0; transform: translateY(0.5rem) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+#overlay-btn {
+    position: fixed;
+    bottom: 1.25rem;
+    left: 3.5rem;
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(1.25rem) saturate(160%);
+    -webkit-backdrop-filter: blur(1.25rem) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1000001;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    padding: 0;
+}
+
+#overlay-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+#overlay-btn.active {
+    background: rgba(99, 102, 241, 0.35);
+    border-color: rgba(99, 102, 241, 0.6);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
 }

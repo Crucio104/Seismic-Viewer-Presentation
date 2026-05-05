@@ -104,7 +104,7 @@
             
             if (!respJson.ok || !respBin.ok) throw new Error("Data fetch failed");
             
-            const quakeData = await respJson.json();
+            window.quakeData = await respJson.json();
             const buffer = await respBin.arrayBuffer();
 
             // Unpack Binary Buffer (Float32)

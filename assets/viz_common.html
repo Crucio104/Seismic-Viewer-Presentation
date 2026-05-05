@@ -45,6 +45,40 @@
     </button>
 </div>
 
+<!-- Scene Info UI -->
+<button id="info-btn" class="hidden-initially" onclick="SeismicUI.toggleInfoPanel(event)" title="Scene Information">i</button>
+<button id="overlay-btn" class="hidden-initially" onclick="SeismicUI._overlayActive ? SeismicUI.restoreOriginalMap() : document.getElementById('overlay-input').click()" title="Upload Image Overlay">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:0.9rem;height:0.9rem;">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+    </svg>
+</button>
+<input type="file" id="overlay-input" accept="image/*" style="display:none" onchange="SeismicUI.handleOverlayUpload(this)">
+<div id="info-panel" class="glass-panel">
+    <div class="label" style="text-align: center; margin-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem; font-size: 0.6rem;">Scene Bounds</div>
+    <div class="info-row">
+        <span class="info-label">Min Lat</span>
+        <span class="info-value" id="info-min-lat">-</span>
+    </div>
+    <div class="info-row">
+        <span class="info-label">Max Lat</span>
+        <span class="info-value" id="info-max-lat">-</span>
+    </div>
+    <div class="info-row">
+        <span class="info-label">Min Lon</span>
+        <span class="info-value" id="info-min-lon">-</span>
+    </div>
+    <div class="info-row">
+        <span class="info-label">Max Lon</span>
+        <span class="info-value" id="info-max-lon">-</span>
+    </div>
+    <div class="info-row" style="margin-top: 0.25rem; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem;">
+        <span class="info-label">Max Depth</span>
+        <span class="info-value" id="info-max-depth">-</span>
+    </div>
+</div>
+
 <div id="toast-container"></div>
 
 
@@ -168,7 +202,13 @@
         if (il) {
             if (initLoaderTimeout) clearTimeout(initLoaderTimeout);
             il.style.opacity = '0';
-            initLoaderTimeout = setTimeout(() => { il.style.display = 'none'; }, 100);
+            initLoaderTimeout = setTimeout(() => { 
+                il.style.display = 'none';
+                const infoBtn = document.getElementById('info-btn');
+                if (infoBtn) infoBtn.classList.add('visible');
+                const overlayBtn = document.getElementById('overlay-btn');
+                if (overlayBtn) overlayBtn.classList.add('visible');
+            }, 300);
         }
     }
 
@@ -229,9 +269,241 @@
             if (!el) return;
             if (disabled) el.classList.add('disabled');
             else el.classList.remove('disabled');
+        },
+        toggleInfoPanel(e) {
+            if (e) e.stopPropagation();
+            const panel = document.getElementById('info-panel');
+            if (!panel) return;
+
+            const isShowing = panel.classList.contains('show');
+            
+            // Close other menus
+            document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+
+            if (!isShowing) {
+                // Populate data from global quakeData if available
+                const qd = window.quakeData;
+                if (qd) {
+                    if (qd.graph_bounds) {
+                        const gb = qd.graph_bounds; // [min_lat, min_lon, max_lat, max_lon, min_depth]
+                        document.getElementById('info-min-lat').textContent = gb[0].toFixed(4) + '°';
+                        document.getElementById('info-min-lon').textContent = gb[1].toFixed(4) + '°';
+                        document.getElementById('info-max-lat').textContent = gb[2].toFixed(4) + '°';
+                        document.getElementById('info-max-lon').textContent = gb[3].toFixed(4) + '°';
+                        document.getElementById('info-max-depth').textContent = Math.abs(gb[4]).toFixed(1) + ' km';
+                    } else if (qd.bbox) {
+                        const b = qd.bbox; // [lat_min, lon_min, lat_max, lon_max]
+                        document.getElementById('info-min-lat').textContent = b[0].toFixed(4) + '°';
+                        document.getElementById('info-max-lat').textContent = b[2].toFixed(4) + '°';
+                        document.getElementById('info-min-lon').textContent = b[1].toFixed(4) + '°';
+                        document.getElementById('info-max-lon').textContent = b[3].toFixed(4) + '°';
+                        
+                        const depths = qd.depth || qd.dep;
+                        if (depths && depths.length > 0) {
+                            let minVal = depths[0];
+                            for (let i = 1; i < depths.length; i++) {
+                                if (depths[i] < minVal) minVal = depths[i];
+                            }
+                            const maxDep = Math.abs(minVal);
+                            document.getElementById('info-max-depth').textContent = maxDep.toFixed(1) + ' km';
+                        } else if (qd.dep_limit) {
+                            document.getElementById('info-max-depth').textContent = Math.abs(qd.dep_limit[0]).toFixed(1) + ' km';
+                        }
+                    }
+                }
+                panel.classList.add('show');
+            } else {
+                panel.classList.remove('show');
+            }
+        },
+
+        _originalMapData: null,
+        _overlayActive: false,
+
+        handleOverlayUpload(input) {
+            try {
+                if (!input.files || !input.files[0]) return;
+                const file = input.files[0];
+                const btn = document.getElementById('overlay-btn');
+                const loader = document.getElementById('loader');
+
+                const gd = document.querySelector('.plotly-graph-div');
+                if (!gd || !gd.data || !gd.data[0]) {
+                    showStatusToast('No 3D scene found');
+                    input.value = '';
+                    return;
+                }
+
+                // Access via _fullData for guaranteed property availability
+                const traceData = gd._fullData ? gd._fullData[0] : gd.data[0];
+                const traceInput = gd.data[0]; // For restyle targeting
+                
+                console.log('[Overlay] Trace type:', traceData.type);
+                console.log('[Overlay] Has surfacecolor:', !!traceData.surfacecolor);
+                console.log('[Overlay] x type:', typeof traceData.x, 'length:', traceData.x ? traceData.x.length : 'N/A');
+                console.log('[Overlay] y type:', typeof traceData.y, 'length:', traceData.y ? traceData.y.length : 'N/A');
+
+                // Get grid dimensions from the 1D x/y arrays (always reliable)
+                const gridCols = traceData.x ? traceData.x.length : 0;
+                const gridRows = traceData.y ? traceData.y.length : 0;
+
+                if (!gridRows || !gridCols) {
+                    showStatusToast('Cannot detect surface dimensions');
+                    console.error('[Overlay] No x/y dimensions found');
+                    input.value = '';
+                    return;
+                }
+
+                console.log('[Overlay] Grid:', gridCols, 'x', gridRows);
+
+                // Save original map data on first use
+                if (!this._originalMapData && traceData.surfacecolor) {
+                    try {
+                        this._originalMapData = {
+                            surfacecolor: JSON.parse(JSON.stringify(traceData.surfacecolor)),
+                            colorscale: JSON.parse(JSON.stringify(traceData.colorscale)),
+                            cmin: traceData.cmin,
+                            cmax: traceData.cmax
+                        };
+                        console.log('[Overlay] Original map data saved');
+                    } catch (e) {
+                        console.error('[Overlay] Failed to save original:', e);
+                    }
+                }
+
+                // Show blurred loader
+                const loaderText = loader ? loader.querySelector('.loader-text') : null;
+                if (loaderText) loaderText.textContent = 'Applying image overlay…';
+                if (loader) loader.classList.add('show');
+
+                const self = this; // Capture reference for callbacks
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        setTimeout(function() {
+                            try {
+                                console.log('[Overlay] Processing image:', img.width, 'x', img.height, '→', gridCols, 'x', gridRows);
+                                
+                                const canvas = document.createElement('canvas');
+                                canvas.width = gridCols;
+                                canvas.height = gridRows;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0, gridCols, gridRows);
+
+                                const imageData = ctx.getImageData(0, 0, gridCols, gridRows);
+                                const pixels = imageData.data;
+
+                                const matrix = [];
+                                
+                                // Pre-generate a fixed 256-color scale (8x8x4)
+                                // This prevents Plotly crashing from too many colors
+                                const colorscale = [];
+                                for (let i = 0; i <= 255; i++) {
+                                    const r_val = ((i >> 5) & 7) * 36; // 0..252
+                                    const g_val = ((i >> 2) & 7) * 36; // 0..252
+                                    const b_val = (i & 3) * 85;        // 0..255
+                                    colorscale.push([i / 255, `rgb(${r_val},${g_val},${b_val})`]);
+                                }
+
+                                for (let row = 0; row < gridRows; row++) {
+                                    const matRow = [];
+                                    for (let col = 0; col < gridCols; col++) {
+                                        const idx = (row * gridCols + col) * 4;
+                                        const r = pixels[idx];
+                                        const g = pixels[idx + 1];
+                                        const b = pixels[idx + 2];
+                                        
+                                        // Fast 8-bit quantization
+                                        const r_idx = Math.floor(r / 32); // 0..7
+                                        const g_idx = Math.floor(g / 32); // 0..7
+                                        const b_idx = Math.floor(b / 64); // 0..3
+                                        
+                                        const color_idx = (r_idx << 5) | (g_idx << 2) | b_idx;
+                                        matRow.push(color_idx);
+                                    }
+                                    matrix.push(matRow);
+                                }
+
+                                console.log('[Overlay] Fixed 256-color palette applied. Matrix:', matrix.length, 'x', matrix[0].length);
+
+                                Plotly.restyle(gd, {
+                                    surfacecolor: [matrix],
+                                    colorscale: [colorscale],
+                                    cmin: [0],
+                                    cmax: [255]
+                                }, [0]).then(function() {
+                                    console.log('[Overlay] Restyle complete');
+                                    btn.classList.add('active');
+                                    self._overlayActive = true;
+                                    if (loader) loader.classList.remove('show');
+                                }).catch(function(err) {
+                                    console.error('[Overlay] Restyle failed:', err);
+                                    if (loader) loader.classList.remove('show');
+                                    showStatusToast('Failed to apply overlay');
+                                });
+                            } catch (err) {
+                                console.error('[Overlay] Processing error:', err);
+                                if (loader) loader.classList.remove('show');
+                                showStatusToast('Error: ' + err.message);
+                            }
+                        }, 150);
+                    };
+                    img.onerror = function() {
+                        if (loader) loader.classList.remove('show');
+                        showStatusToast('Failed to load image');
+                    };
+                    img.src = e.target.result;
+                };
+                reader.onerror = function() {
+                    if (loader) loader.classList.remove('show');
+                    showStatusToast('Failed to read file');
+                };
+                reader.readAsDataURL(file);
+                input.value = '';
+            } catch (err) {
+                console.error('[Overlay] Top-level error:', err);
+                showStatusToast('Error: ' + err.message);
+                const loader = document.getElementById('loader');
+                if (loader) loader.classList.remove('show');
+            }
+        },
+
+        restoreOriginalMap() {
+            if (!this._originalMapData) return;
+            const gd = document.querySelector('.plotly-graph-div');
+            if (!gd) return;
+
+            const loader = document.getElementById('loader');
+            const loaderText = loader ? loader.querySelector('.loader-text') : null;
+            if (loaderText) loaderText.textContent = 'Restoring original map…';
+            if (loader) loader.classList.add('show');
+
+            const self = this;
+            setTimeout(function() {
+                Plotly.restyle(gd, {
+                    surfacecolor: [self._originalMapData.surfacecolor],
+                    colorscale: [self._originalMapData.colorscale],
+                    cmin: [self._originalMapData.cmin !== undefined ? self._originalMapData.cmin : null],
+                    cmax: [self._originalMapData.cmax !== undefined ? self._originalMapData.cmax : null]
+                }, [0]).then(function() {
+                    const btn = document.getElementById('overlay-btn');
+                    btn.classList.remove('active');
+                    self._overlayActive = false;
+                    if (loader) loader.classList.remove('show');
+                }).catch(function() {
+                    if (loader) loader.classList.remove('show');
+                    showStatusToast('Failed to restore map');
+                });
+            }, 100);
         }
     };
-    document.onclick = () => document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+    document.onclick = () => {
+        document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+        const infoPanel = document.getElementById('info-panel');
+        if (infoPanel) infoPanel.classList.remove('show');
+    };
 
     // Manual loader control only. Templates must call hideInitLoader() explicitly.
 
@@ -311,18 +583,24 @@
     function findPlotlyGraph() {
         if (!plotlyId) {
             const gd = document.querySelector('.plotly-graph-div');
-            if (gd) {
+            if (gd && gd.id) {
+                plotlyId = gd.id;
+            } else if (gd) {
+                // If ID is missing, assign a temporary one
+                gd.id = 'plotly-graph-gen-' + Math.random().toString(36).substr(2, 9);
                 plotlyId = gd.id;
             }
         }
 
-        // Show camera controls instantly if we know it's a 3D view
+        // Show camera controls if we know it's a 3D view or if we found a scene
         if (window.IS_3D_VIEW) {
-            document.getElementById('camera-controls').style.display = 'flex';
+            const controls = document.getElementById('camera-controls');
+            if (controls) controls.style.display = 'flex';
         } else if (plotlyId) {
             const gd = document.getElementById(plotlyId);
             if (gd && gd.layout && gd.layout.scene) {
-                document.getElementById('camera-controls').style.display = 'flex';
+                const controls = document.getElementById('camera-controls');
+                if (controls) controls.style.display = 'flex';
             }
         }
     }
@@ -347,16 +625,20 @@
 
         if (cinemaModeActive) {
             btn.classList.add('active');
-            // Reset "Up" vector to Z axis to ensure horizontal rotation 
-            // even if we were in Top View (where Up was Y)
-            Plotly.relayout(gd, { 'scene.camera.up': { x: 0, y: 0, z: 1 } });
-            try {
-                const eye = gd.layout.scene.camera.eye || { x: 1.25, y: 1.25, z: 1.25 };
-                cinemaAngle = Math.atan2(eye.y, eye.x);
-            } catch (e) {
-                cinemaAngle = 0;
-            }
-            animateCinema();
+            
+            // Perform a fluid transition to the standard position before starting rotation
+            snapToView('reset').then(() => {
+                // Ensure we are still in cinema mode after transition
+                if (!cinemaModeActive) return;
+                
+                try {
+                    const eye = gd.layout.scene.camera.eye || { x: 1.25, y: 1.25, z: 1.25 };
+                    cinemaAngle = Math.atan2(eye.y, eye.x);
+                } catch (e) {
+                    cinemaAngle = 0;
+                }
+                animateCinema();
+            });
         } else {
             btn.classList.remove('active');
             if (cinemaReqId) cancelAnimationFrame(cinemaReqId);
@@ -397,22 +679,24 @@
     let smoothCameraReqId = null;
 
     function snapToView(view) {
-        if (cinemaModeActive) toggleCinemaMode(); // Stop cinema mode on manual snap
+        if (cinemaModeActive && view !== 'reset' && view !== 'cinema_reset') toggleCinemaMode(); // Stop cinema mode on manual snap
         if (!plotlyId) findPlotlyGraph();
         const gd = document.getElementById(plotlyId);
-        if (!gd || !gd.layout || !gd.layout.scene) return;
+        if (!gd || !gd.layout || !gd.layout.scene) return Promise.resolve();
+
+        return new Promise((resolve) => {
 
         let targetEye = { x: 1.25, y: 1.25, z: 1.25 };
-        let targetUp = { x: 0, y: 0, z: 1 }; // Default Up is Z
+        let targetUp = { x: 0, y: 0, z: 1 };
+        let targetCenter = { x: 0, y: 0, z: 0 };
 
         if (view === 'top') {
-            targetEye = { x: 0, y: 0, z: 1.8 };
-            targetUp = { x: 0, y: 1, z: 0 };  // Y is Up (Latitude), X is Right (Longitude)
+            // Adding a tiny Y offset (-0.01) avoids the 90deg rotation bug 
+            // by giving Plotly a clear "North" direction to align with the screen "Up"
+            targetEye = { x: 0, y: -0.01, z: 2.1 };
+            targetUp = { x: 0, y: 0, z: 1 };
         } else if (view === 'side') {
             targetEye = { x: 0, y: -1.8, z: 0.15 };
-            targetUp = { x: 0, y: 0, z: 1 };  // Z is Up (Depth), X is Right (Longitude)
-        } else if (view === 'reset') {
-            targetEye = { x: 1.25, y: 1.25, z: 1.25 };
             targetUp = { x: 0, y: 0, z: 1 };
         }
 
@@ -421,14 +705,14 @@
         let cam = gd.layout.scene.camera || {};
         let startEye = cam.eye || { x: 1.25, y: 1.25, z: 1.25 };
         let startUp  = cam.up || { x: 0, y: 0, z: 1 };
+        let startCenter = cam.center || { x: 0, y: 0, z: 0 };
 
-        const duration = 800; // ms transition duration
+        const duration = 800;
         const startTime = performance.now();
 
         function step(now) {
             const elapsed = now - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            // Cubic ease-out for smooth deceleration
             const ease = 1 - Math.pow(1 - progress, 3);
 
             const currentEye = {
@@ -441,18 +725,31 @@
                 y: startUp.y + (targetUp.y - startUp.y) * ease,
                 z: startUp.z + (targetUp.z - startUp.z) * ease
             };
+            const currentCenter = {
+                x: startCenter.x + (targetCenter.x - startCenter.x) * ease,
+                y: startCenter.y + (targetCenter.y - startCenter.y) * ease,
+                z: startCenter.z + (targetCenter.z - startCenter.z) * ease
+            };
 
-            Plotly.relayout(gd, {
-                'scene.camera.eye': currentEye,
-                'scene.camera.up': currentUp
-            });
-
-            if (progress < 1) {
+            if (progress >= 1) {
+                Plotly.relayout(gd, {
+                    'scene.camera.eye': targetEye,
+                    'scene.camera.up': targetUp,
+                    'scene.camera.center': targetCenter,
+                    'scene.dragmode': 'turntable'
+                }).then(() => resolve());
+            } else {
+                Plotly.relayout(gd, {
+                    'scene.camera.eye': currentEye,
+                    'scene.camera.up': currentUp,
+                    'scene.camera.center': currentCenter
+                });
                 smoothCameraReqId = requestAnimationFrame(step);
             }
         }
         
         smoothCameraReqId = requestAnimationFrame(step);
+        });
     }
 
     function setGlobalInterfaceLock(locked) {
@@ -478,7 +775,9 @@
 
 
     // Auto-detect plot and show UI controls immediately
+    setInterval(findPlotlyGraph, 500); // More aggressive periodic check
     findPlotlyGraph();
     window.addEventListener('load', findPlotlyGraph);
-    setTimeout(findPlotlyGraph, 100); // Small backup for slow DOM
+    setTimeout(findPlotlyGraph, 100); 
+    window.IS_3D_VIEW = true; // Force flag since this is viz_common
 </script>
