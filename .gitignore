@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 venv/
 .venv/
+.agent/
 
 # Project specific
 .viz_tmp/

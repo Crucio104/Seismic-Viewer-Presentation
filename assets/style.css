@@ -869,7 +869,7 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    z-index: 1000001; 
+    z-index: 90000; 
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     font-family: serif;
     font-weight: 800;
@@ -949,7 +949,7 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    z-index: 1000001;
+    z-index: 90000;
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     padding: 0;

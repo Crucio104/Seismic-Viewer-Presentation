@@ -8,7 +8,7 @@ from core.config import (
     TEMP_DIR, 
     DEFAULT_LOCATED_ONLY, 
     DEFAULT_EXCLUDE_MISSING,
-    MISSING_MAG_VALUE,
+
     CSV_CANONICAL_HEADER
 )
 from core.utils import parse_seismic_date

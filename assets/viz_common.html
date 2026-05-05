@@ -656,20 +656,23 @@
             btn.classList.add('active');
             
             // Perform a fluid transition to the standard position before starting rotation
-            snapToView('reset').then(() => {
-                // Ensure we are still in cinema mode after transition
+            window._cinemaStartTime = null; 
+            snapToView('cinema_reset').then(() => {
                 if (!cinemaModeActive) return;
+                window._cinemaStartTime = performance.now();
                 
                 try {
-                    const eye = gd.layout.scene.camera.eye || { x: 1.25, y: 1.25, z: 1.25 };
+                    const gd = document.getElementById(plotlyId);
+                    const eye = gd.layout.scene.camera.eye || { x: 1.27, y: 1.27, z: 1.0 };
                     cinemaAngle = Math.atan2(eye.y, eye.x);
                 } catch (e) {
-                    cinemaAngle = 0;
+                    cinemaAngle = Math.PI / 4;
                 }
                 animateCinema();
             });
         } else {
             btn.classList.remove('active');
+            window._cinemaStartTime = null;
             if (cinemaReqId) cancelAnimationFrame(cinemaReqId);
         }
     }
@@ -679,7 +682,12 @@
         const gd = document.getElementById(plotlyId);
         if (!gd || !gd.layout || !gd.layout.scene) return;
 
-        cinemaAngle += 0.005; // Speed adjustment
+        // Smooth speed ramp-up
+        if (!window._cinemaStartTime) window._cinemaStartTime = performance.now();
+        const elapsed = performance.now() - window._cinemaStartTime;
+        const ramp = Math.min(elapsed / 1500, 1); // 1.5s ramp up
+        
+        cinemaAngle += 0.005 * ramp;
         const radius = 1.8;
 
         try {
@@ -720,13 +728,11 @@
         let targetCenter = { x: 0, y: 0, z: 0 };
 
         if (view === 'top') {
-            // Adding a tiny Y offset (-0.01) avoids the 90deg rotation bug 
-            // by giving Plotly a clear "North" direction to align with the screen "Up"
             targetEye = { x: 0, y: -0.01, z: 2.1 };
-            targetUp = { x: 0, y: 0, z: 1 };
         } else if (view === 'side') {
             targetEye = { x: 0, y: -1.8, z: 0.15 };
-            targetUp = { x: 0, y: 0, z: 1 };
+        } else if (view === 'cinema_reset') {
+            targetEye = { x: 1.27, y: 1.27, z: 1.0 };
         }
 
         if (smoothCameraReqId) cancelAnimationFrame(smoothCameraReqId);
@@ -741,8 +747,9 @@
 
         function step(now) {
             const elapsed = now - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            const ease = 1 - Math.pow(1 - progress, 3);
+            const t = Math.min(elapsed / duration, 1);
+            // Ease-in-out cubic
+            const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
             const currentEye = {
                 x: startEye.x + (targetEye.x - startEye.x) * ease,
@@ -760,7 +767,7 @@
                 z: startCenter.z + (targetCenter.z - startCenter.z) * ease
             };
 
-            if (progress >= 1) {
+            if (t >= 1) {
                 Plotly.relayout(gd, {
                     'scene.camera.eye': targetEye,
                     'scene.camera.up': targetUp,

@@ -5,7 +5,7 @@ from typing import Any
 from core.config import (
     MIN_MAGNITUDE, MISSING_MAG_VALUE, MISSING_DEPTH_VALUE, CSV_SCHEMA
 )
-from core.utils import parse_seismic_date
+
 
 logger = logging.getLogger(__name__)
 

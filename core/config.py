@@ -24,6 +24,10 @@ MIN_MAGNITUDE = -10.0
 MISSING_MAG_VALUE = 0.1
 MISSING_DEPTH_VALUE = 0.0
 
+# ─── Geography ──────────────────────────────────────────────────────
+KM_PER_DEGREE = 111.32
+SECONDS_PER_DAY = 86400
+
 # ─── Online Import (INGV GOSSIP) ───────────────────────────────────
 GOSSIP_BASE_URL = "https://terremoti.ov.ingv.it/gossip"
 DEFAULT_LOCATED_ONLY = True

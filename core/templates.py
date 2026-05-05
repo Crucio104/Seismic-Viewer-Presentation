@@ -1,5 +1,3 @@
-from pathlib import Path
-import json
 import logging
 import plotly.graph_objects as go
 from typing import Any
@@ -37,12 +35,7 @@ def _ensure_templates_loaded() -> None:
 
 
 def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = False, is_3d: bool = False, back_button: bool = True, earthquake_data: dict[str, Any] | None = None, is_fallback: bool = False, data_url: str = "") -> str:
-    """Convert a Plotly figure to a full HTML string with custom overlays and cached templates.
-    
-    When data_url is provided, the template uses async fetch() to load data from the
-    FastAPI REST endpoint instead of inlining JSON directly in the HTML. This reduces
-    HTML file size dramatically and enables GZip-compressed data transfer.
-    """
+    """Convert a Plotly figure to a full HTML string with custom overlays and cached templates."""
     _ensure_templates_loaded()
 
     html_content = fig.to_html(
@@ -53,8 +46,28 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
         default_height='100%'
     )
 
-    # Standardized Loader Injection
-    loader_css = (
+    html_content = _inject_head_assets(html_content)
+    
+    # 1. Prepare Content
+    loader_msg = _get_loader_message(is_animated, is_cluster)
+    loader_html = _get_loader_html(loader_msg)
+    
+    scripts = TEMPLATE_CACHE.get('common', "")
+    scripts += _get_view_scripts(is_animated, is_cluster, earthquake_data, data_url, is_fallback, is_3d)
+
+    # 2. Inject into Body
+    body_tag = '<body style="background:#050510;margin:0;padding:0;">'
+    html_content = html_content.replace('<html>', '<html lang="en-GB" style="background:#050510;">')
+    html_content = html_content.replace('<body>', body_tag)
+    
+    injection = f"\n{loader_html}\n{scripts}"
+    html_content = html_content.replace(body_tag, f"{body_tag}{injection}")
+
+    return html_content
+
+def _inject_head_assets(html: str) -> str:
+    """Inject CSS and fonts into the <head>."""
+    head_css = (
         '<style>'
         'html,body,.js-plotly-plot,.plotly-graph-div{background:#050510 !important;margin:0;padding:0;overflow:hidden;height:100%;width:100%}'
         '#init-loader{background:#050510 !important;}'
@@ -65,55 +78,38 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
         '<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">'
         '<link rel="stylesheet" href="/assets/style.css">'
     )
-    
-    html_content = html_content.replace('<html>', '<html lang="en-GB" style="background:#050510;">')
-    html_content = html_content.replace('<head>', '<head>\n' + loader_css)
-    
-    extra_scripts = TEMPLATE_CACHE.get('common', "")
+    return html.replace('<head>', f'<head>\n{head_css}')
 
+def _get_loader_message(is_animated: bool, is_cluster: bool) -> str:
     if is_animated:
-        anim_content = TEMPLATE_CACHE.get('animated', "").replace('__DATA_URL__', data_url)
-        anim_content = anim_content.replace('__ANIMATION_BASE_DURATION_MS__', str(ANIMATION_BASE_DURATION_MS))
-        extra_scripts += anim_content
+        return 'Rendering Animation...'
+    if is_cluster:
+        return 'Rendering Cluster Analysis...'
+    return 'Rendering Visualization...'
 
-    elif is_cluster:
-        cluster_content = TEMPLATE_CACHE.get('cluster', "").replace('__DATA_URL__', data_url)
-        extra_scripts += cluster_content
-
-    elif earthquake_data:
-        static_content = TEMPLATE_CACHE.get('static', "").replace('__DATA_URL__', data_url)
-        extra_scripts += static_content
-
-    # Contextual loading message
-    loader_msg = 'Rendering Visualization...'
-    if is_animated:
-        loader_msg = 'Rendering Animation...'
-    elif is_cluster:
-        loader_msg = 'Rendering Cluster Analysis...'
-    
-    loader_html = (
+def _get_loader_html(msg: str) -> str:
+    return (
         f'<div id="init-loader" style="position:fixed;inset:0;z-index:999999;background:#050510;display:flex;flex-direction:column;align-items:center;justify-content:center;">'
         f'  <div class="loader-ring" style="width:4rem;height:4rem;border:0.188rem solid rgba(255,255,255,0.1);border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;"></div>'
-        f'  <p class="loader-text" style="margin-top:1.5rem;font-size:1rem;font-weight:500;color:#e2e8f0;text-align:center;">{loader_msg}</p>'
+        f'  <p class="loader-text" style="margin-top:1.5rem;font-size:1rem;font-weight:500;color:#e2e8f0;text-align:center;">{msg}</p>'
         f'</div>'
         f'<style>@keyframes spin{{to{{transform:rotate(360deg)}}}}</style>'
     )
 
+def _get_view_scripts(is_animated: bool, is_cluster: bool, earthquake_data: Any, data_url: str, is_fallback: bool, is_3d: bool) -> str:
+    scripts = ""
+    if is_animated:
+        content = TEMPLATE_CACHE.get('animated', "").replace('__DATA_URL__', data_url)
+        scripts += content.replace('__ANIMATION_BASE_DURATION_MS__', str(ANIMATION_BASE_DURATION_MS))
+    elif is_cluster:
+        scripts += TEMPLATE_CACHE.get('cluster', "").replace('__DATA_URL__', data_url)
+    elif earthquake_data:
+        scripts += TEMPLATE_CACHE.get('static', "").replace('__DATA_URL__', data_url)
+
     if is_fallback:
-        extra_scripts += f"<script>window.addEventListener('load', () => {{ showStatusToast('Offline: Map tiles unavailable.'); }});</script>"
-
+        scripts += "<script>window.addEventListener('load', () => { showStatusToast('Offline: Map tiles unavailable.'); });</script>"
+    
     if earthquake_data or data_url:
-        # Inject is_3d flag for UI logic
-        extra_scripts += f"\n<script>window.IS_3D_VIEW = {'true' if is_3d else 'false'};</script>"
-
-    # Force dark background on body via inline style to prevent white flash
-    # This is critical because the <head> CSS may not be parsed before the body renders
-    html_content = html_content.replace('<body>', '<body style="background:#050510;margin:0;padding:0;">')
-
-    if extra_scripts:
-        html_content = html_content.replace('<body style="background:#050510;margin:0;padding:0;">', '<body style="background:#050510;margin:0;padding:0;">\n' + loader_html + '\n' + extra_scripts)
-
-    else:
-        html_content = html_content.replace('<body style="background:#050510;margin:0;padding:0;">', '<body style="background:#050510;margin:0;padding:0;">\n' + loader_html)
-
-    return html_content
+        scripts += f"\n<script>window.IS_3D_VIEW = {'true' if is_3d else 'false'};</script>"
+    
+    return scripts
