@@ -422,18 +422,19 @@
         btn.disabled = true;
         status.innerHTML = '';
         card.style.display = 'none';
-        document.getElementById('recent-files-section').style.display = 'none';
-
         try {
             const result = await pywebview.api.select_csv();
             if (!result) {
                 btn.disabled = false;
+                document.getElementById('recent-files-section').style.display = 'block'; // Ensure it's still there
                 return;
             }
+            document.getElementById('recent-files-section').style.display = 'none';
             if (result.error) {
                 status.className = 'status-msg status-error';
                 status.textContent = result.error;
                 btn.disabled = false;
+                document.getElementById('recent-files-section').style.display = 'block';
                 return;
             }
 

@@ -74,7 +74,7 @@ class Api:
         try:
             result = self._window().create_file_dialog(
                 webview.FileDialog.OPEN,
-                directory=BASE_DIR,
+                directory=str(BASE_DIR),
                 allow_multiple=False,
                 file_types=('CSV Files (*.csv)',),
             )

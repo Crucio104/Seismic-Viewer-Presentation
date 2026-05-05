@@ -18,6 +18,7 @@ resources/.map_cache/
 *.log
 *.out
 *.toc
+*.csv
 
 .DS_Store
 temp/
