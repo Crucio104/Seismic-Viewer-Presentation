@@ -32,7 +32,25 @@ COMMON_LAYOUT = dict(
 )
 
 def apply_3d_style(fig: go.Figure, x_range: list[float], y_range: list[float], z_range: list[float]) -> None:
-    """Unified style application for 3D scenes."""
+    """Unified style application for 3D scenes with proportional aspect ratio."""
+    
+    # Calculate physical dimensions to prevent stretching
+    lon_dist = abs(x_range[1] - x_range[0])
+    lat_dist = abs(y_range[1] - y_range[0])
+    
+    # Longitude km varies by latitude
+    avg_lat = (y_range[0] + y_range[1]) / 2
+    lon_km = lon_dist * 111.32 * np.cos(np.radians(avg_lat))
+    lat_km = lat_dist * 111.32
+    
+    # Normalize x,y to a max of 1.0
+    max_hw = max(lon_km, lat_km)
+    if max_hw == 0: max_hw = 1
+    
+    ratio_x = lon_km / max_hw
+    ratio_y = lat_km / max_hw
+    ratio_z = 0.5 # Maintain vertical exaggeration
+
     fig.update_layout(
         **COMMON_LAYOUT,
         scene=dict(
@@ -58,7 +76,7 @@ def apply_3d_style(fig: go.Figure, x_range: list[float], y_range: list[float], z
                 gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color='rgba(255,255,255,0.6)')
             ),
             aspectmode='manual',
-            aspectratio=dict(x=1, y=1, z=0.5),
+            aspectratio=dict(x=ratio_x, y=ratio_y, z=ratio_z),
         )
     )
 

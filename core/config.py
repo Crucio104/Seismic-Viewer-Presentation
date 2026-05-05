@@ -32,8 +32,8 @@ DEFAULT_EXCLUDE_MISSING = True
 ANIMATION_BASE_DURATION_MS = 1000
 
 # ─── Mapping & Resolution ──────────────────────────────────────────
-MESH_HD_SIZE = 500
-PALETTE_COLORS = 128
+MESH_HD_SIZE = 1024
+PALETTE_COLORS = 256
 MAP_CACHE_DIR = BASE_DIR / 'resources' / '.map_cache'
 
 # ─── Global State ───────────────────────────────────────────────────

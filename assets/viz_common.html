@@ -409,8 +409,10 @@
 
                                 for (let row = 0; row < gridRows; row++) {
                                     const matRow = [];
+                                    // Flip vertically: Canvas y=0 is North, but matrix[0] is South (min_lat)
+                                    const canvasRow = (gridRows - 1) - row;
                                     for (let col = 0; col < gridCols; col++) {
-                                        const idx = (row * gridCols + col) * 4;
+                                        const idx = (canvasRow * gridCols + col) * 4;
                                         const r = pixels[idx];
                                         const g = pixels[idx + 1];
                                         const b = pixels[idx + 2];
