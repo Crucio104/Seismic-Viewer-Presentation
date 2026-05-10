@@ -407,6 +407,7 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     next_label_id = 0
     prev_centroids = None
     has_initialized_labels = False
+    last_valid_planes = []
 
     # Get filters
     min_mag = float(params.get('mag_min', -10.0))
@@ -475,9 +476,9 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
 
         final_labels[mask] = matched_labels
 
-        # 3. Structural Planes
-        planes = []
+        # 3. Structural Planes (Persistent between steps)
         if (i % plane_step == 0):
+            current_planes = []
             unique_matched = [l for l in np.unique(matched_labels) if l != -1]
             for cluster_idx in unique_matched:
                 cl_mask = (matched_labels == cluster_idx)
@@ -493,8 +494,10 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
                             c_lon, c_lat, lon_to_km, max(0.2, 5 * np.mean(np.linalg.norm(pts - centroid_km, axis=1)))
                         )
                         plane_data['grid_id'] = f"cluster_{cluster_idx}_{date_str}"
-                        planes.append(plane_data)
+                        current_planes.append(plane_data)
+            last_valid_planes = current_planes
         
-        results[date_str] = {'labels': final_labels.tolist(), 'planes': planes}
+        # Use the latest valid planes to fill the gap frames
+        results[date_str] = {'labels': final_labels.tolist(), 'planes': last_valid_planes}
             
     return results

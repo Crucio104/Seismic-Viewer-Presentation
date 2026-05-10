@@ -54,7 +54,25 @@
                 Invert Scale
             </label>
 
-            <div class="settings-group" id="structural-settings-group" style="display:none;">
+            <div class="settings-group">
+                <div class="label">Magnitude Filter</div>
+                <div class="settings-row" style="gap:0.5rem;">
+                    <input type="number" id="anim-mag-min" class="glass-input" step="0.1" value="-10.0" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                    <span style="color:rgba(255,255,255,0.5); font-size:0.7rem;">to</span>
+                    <input type="number" id="anim-mag-max" class="glass-input" step="0.1" value="10.0" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="label">Depth Filter (km)</div>
+                <div class="settings-row" style="gap:0.5rem;">
+                    <input type="number" id="anim-dep-min" class="glass-input" step="1" value="-100" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                    <span style="color:rgba(255,255,255,0.5); font-size:0.7rem;">to</span>
+                    <input type="number" id="anim-dep-max" class="glass-input" step="1" value="1000" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                </div>
+            </div>
+
+            <div class="settings-group" id="structural-settings-group">
                 <div class="label">Structural Analysis</div>
                 <label class="glass-checkbox">
                     <input type="checkbox" id="show-planes">
@@ -80,23 +98,6 @@
                 <button id="apply-struct-btn" class="priority-btn" style="margin-top:1.25rem; font-size:0.75rem; height:2.2rem; width:100%; display:flex; justify-content:center; align-items:center; background:rgba(99, 102, 241, 0.2); border:1px solid rgba(99, 102, 241, 0.4); border-radius:0.5rem; color:#fff; cursor:pointer; font-family:inherit; font-weight:600; transition:all 0.2s; flex-shrink: 0;">
                     Apply Changes
                 </button>
-            </div>
-            <div class="settings-group">
-                <div class="label">Magnitude Filter</div>
-                <div class="settings-row" style="gap:0.5rem;">
-                    <input type="number" id="anim-mag-min" class="glass-input" step="0.1" value="-10.0" style="width:100%; height:1.8rem; font-size:0.75rem;">
-                    <span style="color:rgba(255,255,255,0.5); font-size:0.7rem;">to</span>
-                    <input type="number" id="anim-mag-max" class="glass-input" step="0.1" value="10.0" style="width:100%; height:1.8rem; font-size:0.75rem;">
-                </div>
-            </div>
-
-            <div class="settings-group">
-                <div class="label">Depth Filter (km)</div>
-                <div class="settings-row" style="gap:0.5rem;">
-                    <input type="number" id="anim-dep-min" class="glass-input" step="1" value="-100" style="width:100%; height:1.8rem; font-size:0.75rem;">
-                    <span style="color:rgba(255,255,255,0.5); font-size:0.7rem;">to</span>
-                    <input type="number" id="anim-dep-max" class="glass-input" step="1" value="1000" style="width:100%; height:1.8rem; font-size:0.75rem;">
-                </div>
             </div>
 
             <div class="settings-group" id="clustering-settings-group">
