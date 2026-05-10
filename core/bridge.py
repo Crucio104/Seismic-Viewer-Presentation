@@ -235,7 +235,8 @@ class Api:
                 magnitude=mags.tolist(),
                 depth=d['depth'][start_idx:end_idx],
                 hover=d['visual_pack']['hover'][start_idx:end_idx],
-                clustering_method=method, clustering_params=params, viz_mask=viz_mask
+                clustering_method=method, clustering_params=params, viz_mask=viz_mask,
+                origin_lat=d.get('origin_lat'), origin_lon=d.get('origin_lon')
             )
         except Exception as e:
             logger.error("Cluster update failed", exc_info=True)
@@ -246,10 +247,10 @@ class Api:
             return {'error': 'No data'}
         return engine.get_animation_planes(self._data, radius_km=radius_km, min_pts=min_pts, window_days=window_days)
 
-    def get_animated_clustering(self, method: str = 'kmeans', params: dict[str, Any] | None = None, step_frames: int = 5) -> dict[str, Any]:
+    def get_animated_clustering(self, method: str = 'kmeans', params: dict[str, Any] | None = None, plane_step: int = 5) -> dict[str, Any]:
         if not self._data:
             return {'error': 'No data'}
-        return engine.get_animation_clustering(self._data, method=method, params=params, step_frames=step_frames)
+        return engine.get_animation_clustering(self._data, method=method, params=params, plane_step=plane_step)
 
     def change_file(self) -> bool:
         self._csv_path = self._data = self._csv_info = None

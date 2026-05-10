@@ -140,7 +140,11 @@ def build_view_html(
         html = generate_html(fig, is_animated=True, is_3d=True, back_button=back_button, earthquake_data=anim_data, is_fallback=is_fallback, data_url=data_url)
 
     elif view_style == 3:
-        fig, labels, n_clusters = get_3d_cluster_figure(lon, lat, mag, dep, clustering_method=clustering_method, clustering_params=clustering_params, bbox=bbox, visual_pack=vpack, map_grids=map_grids)
+        fig, labels, n_clusters = get_3d_cluster_figure(
+            lon, lat, mag, dep, clustering_method=clustering_method, clustering_params=clustering_params, 
+            bbox=bbox, visual_pack=vpack, map_grids=map_grids,
+            origin_lat=data.get('origin_lat'), origin_lon=data.get('origin_lon')
+        )
         cluster_data = data.copy()
         cluster_data.update({
             'cluster': labels.tolist(),

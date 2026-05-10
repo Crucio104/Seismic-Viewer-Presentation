@@ -95,6 +95,11 @@ def load_csv(source_file: str) -> dict[str, Any]:
     essential_cols = ['lat', 'lon', 'time']
     df = df.dropna(subset=[c for c in essential_cols if c in df.columns])
     
+    # Ensure chronological order - CRITICAL for animation slicing
+    df['time_dt'] = pd.to_datetime(df['time'], errors='coerce')
+    df = df.dropna(subset=['time_dt'])
+    df = df.sort_values('time_dt').reset_index(drop=True)
+
     # Flag missing depth/magnitude BEFORE filling them
     if 'depth' in df.columns:
         df['depth_is_missing'] = df['depth'].isna()
@@ -162,6 +167,8 @@ def load_csv(source_file: str) -> dict[str, Any]:
         'dates_num': dates_num,
         'bbox': bbox,
         'visual_pack': visual_pack,
+        'origin_lat': float(df['lat'].mean()),
+        'origin_lon': float(df['lon'].mean()),
         'summary': {
             'event_count': len(df),
             'date_range': date_range,

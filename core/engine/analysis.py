@@ -250,34 +250,47 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
 
 # --- Clustering Analysis ---
 
-def perform_clustering(pts_km: np.ndarray, method: str = 'kmeans', params: dict[str, Any] | None = None) -> tuple[np.ndarray, int]:
-    """Perform clustering (KMeans or DBSCAN) on 3D points."""
+def perform_clustering(pts_km: np.ndarray, method: str = 'kmeans', params: dict[str, Any] | None = None, prev_centroids: np.ndarray | None = None) -> tuple[np.ndarray, int, np.ndarray | None]:
+    """
+    Perform clustering (KMeans or DBSCAN) on 3D points.
+    Returns: (labels, n_clusters, centroids)
+    """
     from sklearn.preprocessing import StandardScaler
     from sklearn.cluster import MiniBatchKMeans, DBSCAN
     
     params = params or {}
     if len(pts_km) == 0:
-        return np.array([]), 0
+        return np.array([]), 0, None
 
+    centroids = None
     if method == 'dbscan':
         eps_km = float(params.get('dbscan_eps', 500)) / 1000.0
         min_samples = int(params.get('dbscan_min_samples', 5))
         db = DBSCAN(eps=eps_km, min_samples=min_samples, metric='euclidean').fit(pts_km)
         labels = db.labels_
         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        if n_clusters == 0:
-            n_clusters = 1
-            labels = np.zeros(len(pts_km), dtype=int)
+        
+        # DBSCAN doesn't have true centroids, but we can return mean of points for tracking
+        if n_clusters > 0:
+            centroids = np.array([np.mean(pts_km[labels == i], axis=0) for i in range(n_clusters)])
     else:
         n_clusters_req = int(params.get('kmeans_clusters', 3))
         if len(pts_km) >= n_clusters_req:
-            X_scaled = StandardScaler().fit_transform(pts_km)
-            kmeans = MiniBatchKMeans(n_clusters=n_clusters_req, random_state=42, n_init='auto').fit(X_scaled)
+            # For stabilization, we use previous centroids as initialization
+            init_val = 'k-means++'
+            n_init_val = 'auto'
+            if prev_centroids is not None and prev_centroids.shape == (n_clusters_req, pts_km.shape[1]):
+                init_val = prev_centroids
+                n_init_val = 1
+            
+            kmeans = MiniBatchKMeans(n_clusters=n_clusters_req, random_state=42, init=init_val, n_init=n_init_val).fit(pts_km)
             labels = kmeans.labels_
             n_clusters = n_clusters_req
+            centroids = kmeans.cluster_centers_
         else:
             labels = np.zeros(len(pts_km), dtype=int)
             n_clusters = 1
+            centroids = np.array([np.mean(pts_km, axis=0)]) if len(pts_km) > 0 else None
 
     display_labels = labels.copy()
     if method == 'kmeans' and float(params.get('kmeans_max_dist', 0)) > 0:
@@ -286,11 +299,22 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'kmeans', params: dict[
             idx = (labels == i)
             if not np.any(idx):
                 continue
-            center_km = np.mean(pts_km[idx], axis=0)
+            center_km = centroids[i]
             dists = np.sqrt(np.sum((pts_km[idx] - center_km)**2, axis=1))
             display_labels[np.where(idx)[0][dists > max_d]] = -1
             
-    return display_labels, n_clusters
+    return display_labels, n_clusters, centroids
+
+def project_to_km(lon: np.ndarray, lat: np.ndarray, dep: np.ndarray, origin_lat: float, origin_lon: float) -> np.ndarray:
+    """Standardized projection from Lon/Lat/Dep to KM space."""
+    from core.config import KM_PER_DEGREE
+    lon_to_km = KM_PER_DEGREE * np.cos(np.radians(origin_lat))
+    lat_to_km = KM_PER_DEGREE
+    return np.column_stack((
+        (lon - origin_lon) * lon_to_km,
+        (lat - origin_lat) * lat_to_km,
+        dep
+    ))
 
 def _worker_calculate_clustering(args: tuple) -> tuple[str, list[int], list[dict[str, Any]]]:
     date_str, start_idx, end_idx, method, params, origin_lon, origin_lat, lon_to_km = args
@@ -300,7 +324,7 @@ def _worker_calculate_clustering(args: tuple) -> tuple[str, list[int], list[dict
     if len(pts_subset) == 0:
         return date_str, [], []
     
-    display_labels, n_clusters = perform_clustering(pts_subset, method, params)
+    display_labels, n_clusters, _ = perform_clustering(pts_subset, method, params)
 
     planes = []
     show_planes = params.get('show_cluster_planes', False)
@@ -326,50 +350,151 @@ def _worker_calculate_clustering(args: tuple) -> tuple[str, list[int], list[dict
     
     return date_str, display_labels.tolist(), planes
 
-def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str, Any], step_frames: int) -> dict[str, Any]:
-    """Calculates clustering and planes for animation steps."""
-    lon = np.array(data['longitude'], dtype=np.float32)
-    lat = np.array(data['latitude'], dtype=np.float32)
-    dep = np.array(data['depth'], dtype=np.float32)
+def match_labels_globally(current_labels: np.ndarray, current_global_indices: np.ndarray, 
+                          prev_labels_map: np.ndarray, next_label_id: int) -> tuple[np.ndarray, int]:
+    """
+    Matches current labels to previous ones using global array mapping for extreme speed.
+    """
+    new_labels = np.full_like(current_labels, -1)
+    unique_curr = [l for l in np.unique(current_labels) if l != -1]
+    
+    for l in unique_curr:
+        mask = (current_labels == l)
+        l_indices = current_global_indices[mask]
+        
+        # Vectorized lookup in the global labels map
+        matched_prev = prev_labels_map[l_indices]
+        valid_prev = matched_prev[matched_prev != -1]
+        
+        if valid_prev.size > 0:
+            # Majority vote
+            vals, counts = np.unique(valid_prev, return_counts=True)
+            best_prev_label = int(vals[np.argmax(counts)])
+            new_labels[mask] = best_prev_label
+        else:
+            new_labels[mask] = next_label_id
+            next_label_id += 1
+            
+    return new_labels, next_label_id
+
+def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str, Any], plane_step: int = 5) -> dict[str, Any]:
+    """
+    Calculates clustering for EVERY frame with temporal label stability.
+    Uses global index matching for extreme performance.
+    """
     dates_unique = data['visual_pack']['unique_dates']
     date_to_cum = data['visual_pack']['date_to_cum']
     anim_mode = data.get('anim_mode', 'accumulation')
     window_days = data.get('window_days', 5)
 
-    origin_lat = np.mean(lat)
-    origin_lon = np.mean(lon)
-    lon_to_km = KM_PER_DEGREE * np.cos(np.radians(origin_lat))
-    lon_km = (lon - origin_lon) * lon_to_km
-    lat_km = (lat - origin_lat) * KM_PER_DEGREE
-    pts_km = np.column_stack((lon_km, lat_km, dep))
-
-    tasks = []
-    dates_ts = np.array([datetime.strptime(d, '%Y-%m-%d').timestamp() for d in dates_unique])
+    # Pre-convert all data to numpy for speed
+    lon = np.array(data['longitude'])
+    lat = np.array(data['latitude'])
+    dep = np.array(data['depth'])
+    mags = np.array(data['magnitude'])
     
-    for i in range(0, len(dates_unique), step_frames):
-        date_str = dates_unique[i]
-        end_idx = date_to_cum[date_str]
-        start_idx = 0
-        if anim_mode == 'window':
-            cutoff_ts = dates_ts[i] - (window_days - 1) * SECONDS_PER_DAY
-            start_date_idx = np.searchsorted(dates_ts, cutoff_ts)
-            if start_date_idx > 0:
-                prev_date_str = dates_unique[start_date_idx - 1]
-                start_idx = date_to_cum[prev_date_str]
-        
-        tasks.append((
-            date_str, start_idx, end_idx, method, params, 
-            float(origin_lon), float(origin_lat), float(lon_to_km)
-        ))
+    origin_lat = data.get('origin_lat', np.mean(lat))
+    origin_lon = data.get('origin_lon', np.mean(lon))
+    
+    from core.config import KM_PER_DEGREE
+    lon_to_km = KM_PER_DEGREE * np.cos(np.radians(origin_lat))
+    pts_km = project_to_km(lon, lat, dep, origin_lat, origin_lon)
 
     results = {}
-    max_workers = min(os.cpu_count() or 4, 8)
-    with concurrent.futures.ProcessPoolExecutor(
-        max_workers=max_workers,
-        initializer=_init_worker,
-        initargs=(pts_km,)
-    ) as executor:
-        for date_str, labels, planes in executor.map(_worker_calculate_clustering, tasks):
-            results[date_str] = {'labels': labels, 'planes': planes}
+    
+    # Fast Stability State: use a fixed-size array instead of a dict
+    global_labels_map = np.full(len(pts_km), -1, dtype=int)
+    next_label_id = 0
+    prev_centroids = None
+    has_initialized_labels = False
+
+    # Get filters
+    min_mag = float(params.get('mag_min', -10.0))
+    max_mag = float(params.get('mag_max', 10.0))
+    max_dep = float(params.get('dep_max', 1000.0))
+    min_dep = float(params.get('dep_min', -100.0))
+
+    # Optimization: pre-calculate indices for all dates
+    date_indices = []
+    if anim_mode == 'accumulation':
+        for d in dates_unique:
+            date_indices.append((0, date_to_cum[d]))
+    else:
+        # Window mode pre-calculation
+        from datetime import datetime, timedelta
+        dt_objs = [datetime.strptime(d, '%Y-%m-%d') for d in dates_unique]
+        for i, date_str in enumerate(dates_unique):
+            curr_dt = dt_objs[i]
+            cutoff_dt = curr_dt - timedelta(days=window_days-1)
+            cutoff_str = cutoff_dt.strftime('%Y-%m-%d')
+            
+            s_idx = 0
+            for j, d in enumerate(dates_unique):
+                if d >= cutoff_str:
+                    s_idx = date_to_cum[dates_unique[j-1]] if j > 0 else 0
+                    break
+            date_indices.append((s_idx, date_to_cum[date_str]))
+
+    for i, (start_idx, end_idx) in enumerate(date_indices):
+        date_str = dates_unique[i]
+        
+        pts_raw = pts_km[start_idx:end_idx]
+        mag_raw = mags[start_idx:end_idx]
+        dep_raw = dep[start_idx:end_idx]
+        indices_raw = np.arange(start_idx, end_idx)
+        
+        mask = (mag_raw >= min_mag) & (mag_raw <= max_mag) & (dep_raw >= min_dep) & (dep_raw <= max_dep)
+        
+        pts_subset = pts_raw[mask]
+        global_indices = indices_raw[mask]
+        final_labels = np.full(len(pts_raw), -1)
+        
+        if len(pts_subset) < 3:
+            results[date_str] = {'labels': final_labels.tolist(), 'planes': []}
+            global_labels_map[global_indices] = -1
+            continue
+
+        # 1. Perform Raw Clustering
+        labels, n_clusters, centroids = perform_clustering(pts_subset, method, params, prev_centroids=prev_centroids)
+        prev_centroids = centroids
+        
+        # 2. Match Labels for Stability
+        if n_clusters > 0 and not has_initialized_labels:
+            next_label_id = n_clusters
+            matched_labels = labels
+            global_labels_map[global_indices] = labels
+            has_initialized_labels = True
+        elif has_initialized_labels:
+            matched_labels, next_label_id = match_labels_globally(
+                labels, global_indices, global_labels_map, next_label_id
+            )
+            global_labels_map[global_indices] = matched_labels
+        else:
+            matched_labels = labels
+            global_labels_map[global_indices] = labels
+
+        final_labels[mask] = matched_labels
+
+        # 3. Structural Planes
+        planes = []
+        if (i % plane_step == 0):
+            unique_matched = [l for l in np.unique(matched_labels) if l != -1]
+            for cluster_idx in unique_matched:
+                cl_mask = (matched_labels == cluster_idx)
+                pts = pts_subset[cl_mask]
+                if len(pts) >= 4:
+                    normal, centroid_km, planarity = fit_plane_ransac(pts, threshold=0.15)
+                    if normal is not None and centroid_km is not None:
+                        c_lon = (centroid_km[0] / lon_to_km) + origin_lon
+                        c_lat = (centroid_km[1] / KM_PER_DEGREE) + origin_lat
+                        
+                        plane_data = _format_plane_geometry(
+                            normal, centroid_km, planarity,
+                            c_lon, c_lat, lon_to_km, max(0.2, 5 * np.mean(np.linalg.norm(pts - centroid_km, axis=1)))
+                        )
+                        plane_data['grid_id'] = f"cluster_{cluster_idx}_{date_str}"
+                        planes.append(plane_data)
+        
+        results[date_str] = {'labels': final_labels.tolist(), 'planes': planes}
             
     return results

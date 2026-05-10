@@ -738,6 +738,8 @@ body {
     height: 2rem;
     margin-bottom: -0.3rem;
     padding: 0 0.3rem;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 .hist-bar {

@@ -162,7 +162,9 @@ def get_3d_static_figure(
 
 def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float],
                             clustering_method: str = 'kmeans', clustering_params: dict[str, Any] | None = None,
-                            bbox: tuple[float, float, float, float] | None = None, visual_pack: dict[str, Any] | None = None, map_grids: tuple[Any, ...] | None = None) -> tuple[go.Figure, np.ndarray, int]:
+                            bbox: tuple[float, float, float, float] | None = None, visual_pack: dict[str, Any] | None = None, 
+                            map_grids: tuple[Any, ...] | None = None,
+                            origin_lat: float | None = None, origin_lon: float | None = None) -> tuple[go.Figure, np.ndarray, int]:
     """Generate the initial high-quality 3D Cluster figure."""
     min_depth = np.floor(np.min(depth)) if len(depth) > 0 else 0
     if bbox is None:
@@ -176,7 +178,8 @@ def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitu
     result = _generate_cluster_traces(
         longitude, latitude, magnitude, depth, 
         visual_pack.get('hover', []) if visual_pack else [],
-        clustering_method, clustering_params, viz_mask=None
+        clustering_method, clustering_params, viz_mask=None,
+        origin_lat=origin_lat, origin_lon=origin_lon
     )
     
     fig = go.Figure()
@@ -194,11 +197,13 @@ def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitu
     return fig, result['labels'], result['n_clusters']
 
 def get_cluster_update_traces(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], hover: list[str],
-                               clustering_method: str = 'kmeans', clustering_params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None) -> dict[str, Any]:
+                               clustering_method: str = 'kmeans', clustering_params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
+                               origin_lat: float | None = None, origin_lon: float | None = None) -> dict[str, Any]:
     """Perform clustering and return a JSON-ready package for async updates."""
     result = _generate_cluster_traces(
         longitude, latitude, magnitude, depth, hover,
-        clustering_method, clustering_params, viz_mask=viz_mask
+        clustering_method, clustering_params, viz_mask=viz_mask,
+        origin_lat=origin_lat, origin_lon=origin_lon
     )
     json_traces = [t.to_plotly_json() for t in result['traces']]
     return {
@@ -208,7 +213,8 @@ def get_cluster_update_traces(longitude: list[float], latitude: list[float], mag
     }
 
 def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list[float] | np.ndarray, magnitude: list[float] | np.ndarray, depth: list[float] | np.ndarray, hover: list[str],
-                             method: str = 'kmeans', params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None) -> dict[str, Any]:
+                             method: str = 'kmeans', params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
+                             origin_lat: float | None = None, origin_lon: float | None = None) -> dict[str, Any]:
     """Shared helper to perform clustering and generate Plotly trace objects."""
     params = params or {}
     longitude, latitude, depth = np.array(longitude), np.array(latitude), np.array(depth)
@@ -224,14 +230,17 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
     if len(f_lon) == 0:
         return {'traces': [], 'labels': np.array([]), 'n_clusters': 0}
 
-    origin_lat, origin_lon = np.mean(f_lat), np.mean(f_lon)
-    lat_to_km = KM_PER_DEGREE
-    lon_to_km = KM_PER_DEGREE * np.cos(np.radians(origin_lat))
+    # Use provided global origin if available, otherwise fallback to local mean
+    if origin_lat is None: origin_lat = np.mean(f_lat)
+    if origin_lon is None: origin_lon = np.mean(f_lon)
     
-    X_km = np.column_stack(((f_lon - origin_lon) * lon_to_km, (f_lat - origin_lat) * lat_to_km, f_dep))
+    from .analysis import project_to_km
+    from core.config import KM_PER_DEGREE
+    lon_to_km = KM_PER_DEGREE * np.cos(np.radians(origin_lat))
+    X_km = project_to_km(f_lon, f_lat, f_dep, origin_lat, origin_lon)
     X_orig_f = np.column_stack((f_lon, f_lat, f_dep))
 
-    display_labels, n_clusters = perform_clustering(X_km, method, params)
+    display_labels, n_clusters, _ = perform_clustering(X_km, method, params)
     labels = display_labels # For return consistency
 
     cluster_colors = _pq.Plotly

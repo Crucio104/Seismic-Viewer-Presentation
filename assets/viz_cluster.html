@@ -93,7 +93,11 @@
 
         <script>
         const DATA_URL = '__DATA_URL__';
-        const clusterColors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'];
+        const clusterColors = [
+            '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52',
+            '#00b8d4', '#ff1744', '#00e676', '#d500f9', '#ff9100', '#2979ff', '#ff5252', '#00e5ff', '#76ff03', '#f50057',
+            '#3d5afe', '#ffea00', '#64ffda', '#ff3d00', '#1de9b6', '#c6ff00', '#ff6d00', '#00b0ff', '#f4ff81', '#ff5722'
+        ];
 
         async function initCluster() {
             // Parallel fetch: Metadata (JSON) + Numerical Data (Binary)
