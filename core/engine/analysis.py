@@ -255,7 +255,6 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'kmeans', params: dict[
     Perform clustering (KMeans or DBSCAN) on 3D points.
     Returns: (labels, n_clusters, centroids)
     """
-    from sklearn.preprocessing import StandardScaler
     from sklearn.cluster import MiniBatchKMeans, DBSCAN
     
     params = params or {}
@@ -356,10 +355,10 @@ def match_labels_globally(current_labels: np.ndarray, current_global_indices: np
     Matches current labels to previous ones using global array mapping for extreme speed.
     """
     new_labels = np.full_like(current_labels, -1)
-    unique_curr = [l for l in np.unique(current_labels) if l != -1]
+    unique_curr = [label_id for label_id in np.unique(current_labels) if label_id != -1]
     
-    for l in unique_curr:
-        mask = (current_labels == l)
+    for label_id in unique_curr:
+        mask = (current_labels == label_id)
         l_indices = current_global_indices[mask]
         
         # Vectorized lookup in the global labels map
@@ -382,122 +381,111 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     Calculates clustering for EVERY frame with temporal label stability.
     Uses global index matching for extreme performance.
     """
+    # 1. Initialization & Pre-conversion
+    lon, lat, dep = np.array(data['longitude']), np.array(data['latitude']), np.array(data['depth'])
+    mags = np.array(data['magnitude'])
     dates_unique = data['visual_pack']['unique_dates']
     date_to_cum = data['visual_pack']['date_to_cum']
     anim_mode = data.get('anim_mode', 'accumulation')
     window_days = data.get('window_days', 5)
-
-    # Pre-convert all data to numpy for speed
-    lon = np.array(data['longitude'])
-    lat = np.array(data['latitude'])
-    dep = np.array(data['depth'])
-    mags = np.array(data['magnitude'])
     
     origin_lat = data.get('origin_lat', np.mean(lat))
     origin_lon = data.get('origin_lon', np.mean(lon))
-    
-    from core.config import KM_PER_DEGREE
-    lon_to_km = KM_PER_DEGREE * np.cos(np.radians(origin_lat))
     pts_km = project_to_km(lon, lat, dep, origin_lat, origin_lon)
 
+    # 2. Pre-calculate Temporal Windows
+    date_indices = _get_frame_indices(dates_unique, date_to_cum, anim_mode, window_days)
+
+    # 3. Processing Loop
     results = {}
-    
-    # Fast Stability State: use a fixed-size array instead of a dict
     global_labels_map = np.full(len(pts_km), -1, dtype=int)
-    next_label_id = 0
-    prev_centroids = None
+    next_label_id, prev_centroids = 0, None
     has_initialized_labels = False
     last_valid_planes = []
 
-    # Get filters
-    min_mag = float(params.get('mag_min', -10.0))
-    max_mag = float(params.get('mag_max', 10.0))
-    max_dep = float(params.get('dep_max', 1000.0))
-    min_dep = float(params.get('dep_min', -100.0))
-
-    # Optimization: pre-calculate indices for all dates
-    date_indices = []
-    if anim_mode == 'accumulation':
-        for d in dates_unique:
-            date_indices.append((0, date_to_cum[d]))
-    else:
-        # Window mode pre-calculation
-        from datetime import datetime, timedelta
-        dt_objs = [datetime.strptime(d, '%Y-%m-%d') for d in dates_unique]
-        for i, date_str in enumerate(dates_unique):
-            curr_dt = dt_objs[i]
-            cutoff_dt = curr_dt - timedelta(days=window_days-1)
-            cutoff_str = cutoff_dt.strftime('%Y-%m-%d')
-            
-            s_idx = 0
-            for j, d in enumerate(dates_unique):
-                if d >= cutoff_str:
-                    s_idx = date_to_cum[dates_unique[j-1]] if j > 0 else 0
-                    break
-            date_indices.append((s_idx, date_to_cum[date_str]))
+    # Filter params
+    f_min_mag, f_max_mag = float(params.get('mag_min', -10)), float(params.get('mag_max', 10))
+    f_min_dep, f_max_dep = float(params.get('dep_min', -100)), float(params.get('dep_max', 1000))
 
     for i, (start_idx, end_idx) in enumerate(date_indices):
         date_str = dates_unique[i]
         
+        # Slice & Mask
         pts_raw = pts_km[start_idx:end_idx]
-        mag_raw = mags[start_idx:end_idx]
-        dep_raw = dep[start_idx:end_idx]
-        indices_raw = np.arange(start_idx, end_idx)
-        
-        mask = (mag_raw >= min_mag) & (mag_raw <= max_mag) & (dep_raw >= min_dep) & (dep_raw <= max_dep)
+        mag_mask = (mags[start_idx:end_idx] >= f_min_mag) & (mags[start_idx:end_idx] <= f_max_mag)
+        dep_mask = (dep[start_idx:end_idx] >= f_min_dep) & (dep[start_idx:end_idx] <= f_max_dep)
+        mask = mag_mask & dep_mask
         
         pts_subset = pts_raw[mask]
-        global_indices = indices_raw[mask]
+        global_indices = np.arange(start_idx, end_idx)[mask]
         final_labels = np.full(len(pts_raw), -1)
         
         if len(pts_subset) < 3:
-            results[date_str] = {'labels': final_labels.tolist(), 'planes': []}
+            results[date_str] = {'labels': final_labels.tolist(), 'planes': last_valid_planes}
             global_labels_map[global_indices] = -1
             continue
 
-        # 1. Perform Raw Clustering
-        labels, n_clusters, centroids = perform_clustering(pts_subset, method, params, prev_centroids=prev_centroids)
+        # 4. Clustering & Label Matching
+        labels, n_clusters, centroids = perform_clustering(pts_subset, method, params, prev_centroids)
         prev_centroids = centroids
         
-        # 2. Match Labels for Stability
         if n_clusters > 0 and not has_initialized_labels:
             next_label_id = n_clusters
             matched_labels = labels
-            global_labels_map[global_indices] = labels
             has_initialized_labels = True
         elif has_initialized_labels:
-            matched_labels, next_label_id = match_labels_globally(
-                labels, global_indices, global_labels_map, next_label_id
-            )
-            global_labels_map[global_indices] = matched_labels
+            matched_labels, next_label_id = match_labels_globally(labels, global_indices, global_labels_map, next_label_id)
         else:
             matched_labels = labels
-            global_labels_map[global_indices] = labels
 
+        global_labels_map[global_indices] = matched_labels
         final_labels[mask] = matched_labels
 
-        # 3. Structural Planes (Persistent between steps)
+        # 5. Structural Planes (sampled)
         if (i % plane_step == 0):
-            current_planes = []
-            unique_matched = [l for l in np.unique(matched_labels) if l != -1]
-            for cluster_idx in unique_matched:
-                cl_mask = (matched_labels == cluster_idx)
-                pts = pts_subset[cl_mask]
-                if len(pts) >= 4:
-                    normal, centroid_km, planarity = fit_plane_ransac(pts, threshold=0.15)
-                    if normal is not None and centroid_km is not None:
-                        c_lon = (centroid_km[0] / lon_to_km) + origin_lon
-                        c_lat = (centroid_km[1] / KM_PER_DEGREE) + origin_lat
-                        
-                        plane_data = _format_plane_geometry(
-                            normal, centroid_km, planarity,
-                            c_lon, c_lat, lon_to_km, max(0.2, 5 * np.mean(np.linalg.norm(pts - centroid_km, axis=1)))
-                        )
-                        plane_data['grid_id'] = f"cluster_{cluster_idx}_{date_str}"
-                        current_planes.append(plane_data)
-            last_valid_planes = current_planes
+            last_valid_planes = _calculate_frame_planes(matched_labels, pts_subset, date_str, origin_lon, origin_lat, pts_km.shape[1])
         
-        # Use the latest valid planes to fill the gap frames
         results[date_str] = {'labels': final_labels.tolist(), 'planes': last_valid_planes}
             
     return results
+
+def _get_frame_indices(dates, date_to_cum, mode, window_days):
+    indices = []
+    if mode == 'accumulation':
+        return [(0, date_to_cum[d]) for d in dates]
+    
+    from datetime import datetime, timedelta
+    dt_objs = [datetime.strptime(d, '%Y-%m-%d') for d in dates]
+    for i, d_str in enumerate(dates):
+        cutoff = dt_objs[i] - timedelta(days=window_days-1)
+        s_idx = 0
+        for j, d in enumerate(dates):
+            if d >= cutoff.strftime('%Y-%m-%d'):
+                s_idx = date_to_cum[dates[j-1]] if j > 0 else 0
+                break
+        indices.append((s_idx, date_to_cum[d_str]))
+    return indices
+
+def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat, dim):
+    from core.config import KM_PER_DEGREE
+    lon_to_km = KM_PER_DEGREE * np.cos(np.radians(origin_lat))
+    planes = []
+    unique_ids = [lid for lid in np.unique(labels) if lid != -1]
+    
+    for lid in unique_ids:
+        cluster_pts = points[labels == lid]
+        if len(cluster_pts) < 4:
+            continue
+        
+        normal, centroid, planarity = fit_plane_ransac(cluster_pts, threshold=0.15)
+        if normal is not None and centroid is not None:
+            c_lon = (centroid[0] / lon_to_km) + origin_lon
+            c_lat = (centroid[1] / KM_PER_DEGREE) + origin_lat
+            
+            p_data = _format_plane_geometry(
+                normal, centroid, planarity, c_lon, c_lat, lon_to_km, 
+                max(0.2, 5 * np.mean(np.linalg.norm(cluster_pts - centroid, axis=1)))
+            )
+            p_data['grid_id'] = f"cluster_{lid}_{date_str}"
+            planes.append(p_data)
+    return planes

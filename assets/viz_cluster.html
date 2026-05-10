@@ -15,20 +15,20 @@
                 <div class="label" style="color: #fff;">Cluster Config</div>
                 
                 <div id="kmeans-params">
-                    <div class="label" style="font-size:0.6rem; opacity:0.7;">Clusters Count</div>
-                    <input type="number" class="glass-input" id="param-clusters" value="3" min="1" max="10">
+                    <label class="label" for="param-clusters" style="font-size:0.6rem; opacity:0.7; display: block;">Clusters Count</label>
+                    <input type="number" class="glass-input" id="param-clusters" value="3" min="1" max="10" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
                     
-                    <div class="label" style="font-size:0.6rem; opacity:0.7; margin-top:0.75rem;">Centroid Max Dist (m)</div>
-                    <input type="number" class="glass-input" id="param-dist" value="0" min="0" step="10">
+                    <label class="label" for="param-dist" style="font-size:0.6rem; opacity:0.7; margin-top:0.75rem; display: block;">Centroid Max Dist (m)</label>
+                    <input type="number" class="glass-input" id="param-dist" value="0" min="0" step="10" style="width:100%; height:1.8rem; font-size:0.75rem;">
                     <div style="font-size:0.688rem; color:#fff; margin-top:0.250rem; font-weight: 500;">0 = no distance limits</div>
                 </div>
 
                 <div id="dbscan-params" style="display:none">
-                    <div class="label" style="font-size:0.6rem; opacity:0.7;">Epsilon (meters)</div>
-                    <input type="number" class="glass-input" id="param-eps" value="500" step="10" min="1">
+                    <label class="label" for="param-eps" style="font-size:0.6rem; opacity:0.7; display: block;">Epsilon (meters)</label>
+                    <input type="number" class="glass-input" id="param-eps" value="500" step="10" min="1" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
                     
-                    <div class="label" style="font-size:0.6rem; opacity:0.7; margin-top:0.75rem;">Min Samples</div>
-                    <input type="number" class="glass-input" id="param-min-samples" value="5" min="1" step="1">
+                    <label class="label" for="param-min-samples" style="font-size:0.6rem; opacity:0.7; margin-top:0.75rem; display: block;">Min Samples</label>
+                    <input type="number" class="glass-input" id="param-min-samples" value="5" min="1" step="1" style="width:100%; height:1.8rem; font-size:0.75rem;">
                 </div>
             </div>
 
@@ -44,19 +44,21 @@
             </div>
 
             <div class="settings-group">
-                <div class="label">Magnitude Range</div>
+                <label class="label" for="mag-min">Magnitude Range</label>
                 <div class="settings-row">
                     <input type="number" class="glass-input" id="mag-min" step="0.1" placeholder="Min">
                     <span style="opacity:1; color:white;">to</span>
+                    <label class="sr-only" for="mag-max" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Max Magnitude</label>
                     <input type="number" class="glass-input" id="mag-max" step="0.1" placeholder="Max">
                 </div>
             </div>
 
             <div class="settings-group">
-                <div class="label">Depth Range (km)</div>
+                <label class="label" for="dep-min">Depth Range (km)</label>
                 <div class="settings-row">
                     <input type="number" class="glass-input" id="dep-min" step="1" placeholder="Min">
                     <span style="opacity:1; color:white;">to</span>
+                    <label class="sr-only" for="dep-max" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Max Depth</label>
                     <input type="number" class="glass-input" id="dep-max" step="1" placeholder="Max">
                 </div>
             </div>
@@ -82,11 +84,11 @@
 
         <div id="filter-bar" class="glass-panel" style="position: fixed; top: 2.5vh; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 0.75rem; padding: 0 0.8rem; height: 2.5rem;">
             <div style="display: flex; align-items: center; gap: 0.4rem; height: 100%;">
-                <span style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05rem; opacity: 0.6; font-weight: 600; line-height: 1; margin-top: 0.1rem;">From</span>
+                <label for="filter-start" style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05rem; opacity: 0.6; font-weight: 600; line-height: 1; margin-top: 0.1rem; cursor: pointer;">From</label>
                 <input type="date" id="filter-start" class="glass-input" style="height: 1.8rem; font-size: 0.7rem; margin: 0; width: 7.2rem; text-align: center;">
             </div>
             <div style="display: flex; align-items: center; gap: 0.4rem; height: 100%;">
-                <span style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05rem; opacity: 0.6; font-weight: 600; line-height: 1; margin-top: 0.1rem;">To</span>
+                <label for="filter-end" style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05rem; opacity: 0.6; font-weight: 600; line-height: 1; margin-top: 0.1rem; cursor: pointer;">To</label>
                 <input type="date" id="filter-end" class="glass-input" style="height: 1.8rem; font-size: 0.7rem; margin: 0; width: 7.2rem; text-align: center;">
             </div>
         </div>

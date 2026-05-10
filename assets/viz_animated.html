@@ -5,6 +5,7 @@
             </div>
             <div class="slider-container">
                 <div id="histogram-map" class="histogram-container"></div>
+                <label for="time-slider" class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Time Animation Progress</label>
                 <input type="range" id="time-slider" class="slider" min="0" max="100" value="0">
                 <div id="current-date">Timeline initializing</div>
             </div>
@@ -55,19 +56,21 @@
             </label>
 
             <div class="settings-group">
-                <div class="label">Magnitude Filter</div>
+                <label class="label" for="anim-mag-min">Magnitude Filter</label>
                 <div class="settings-row" style="gap:0.5rem;">
                     <input type="number" id="anim-mag-min" class="glass-input" step="0.1" value="-10.0" style="width:100%; height:1.8rem; font-size:0.75rem;">
                     <span style="color:rgba(255,255,255,0.5); font-size:0.7rem;">to</span>
+                    <label class="sr-only" for="anim-mag-max" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Max Magnitude</label>
                     <input type="number" id="anim-mag-max" class="glass-input" step="0.1" value="10.0" style="width:100%; height:1.8rem; font-size:0.75rem;">
                 </div>
             </div>
 
             <div class="settings-group">
-                <div class="label">Depth Filter (km)</div>
+                <label class="label" for="anim-dep-min">Depth Filter (km)</label>
                 <div class="settings-row" style="gap:0.5rem;">
                     <input type="number" id="anim-dep-min" class="glass-input" step="1" value="-100" style="width:100%; height:1.8rem; font-size:0.75rem;">
                     <span style="color:rgba(255,255,255,0.5); font-size:0.7rem;">to</span>
+                    <label class="sr-only" for="anim-dep-max" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Max Depth</label>
                     <input type="number" id="anim-dep-max" class="glass-input" step="1" value="1000" style="width:100%; height:1.8rem; font-size:0.75rem;">
                 </div>
             </div>
@@ -80,12 +83,12 @@
                 </label>
                 
                 <div id="plane-controls" style="display:none; margin-top:0.75rem;">
-                    <div class="label" style="font-size:0.6rem; opacity:0.7;">Cylinder Radius (km)</div>
+                    <label class="label" for="plane-radius" style="font-size:0.6rem; opacity:0.7; display: block;">Cylinder Radius (km)</label>
                     <div class="settings-row" style="margin-bottom:0.5rem;">
                         <input type="number" id="plane-radius" class="glass-input" min="0.1" max="10.0" step="0.1" value="0.5" style="width:100%; height:1.8rem; font-size:0.75rem;">
                     </div>
                     
-                    <div class="label" style="font-size:0.6rem; opacity:0.7;">Min Points</div>
+                    <label class="label" for="plane-min-pts" style="font-size:0.6rem; opacity:0.7; display: block;">Min Points</label>
                     <div class="settings-row" style="margin-bottom:0.75rem;">
                         <input type="number" id="plane-min-pts" class="glass-input" min="3" max="50" value="4" style="width:100%; height:1.8rem; font-size:0.75rem;">
                     </div>
@@ -116,16 +119,16 @@
                     </div>
 
                     <div id="anim-kmeans-params">
-                        <div class="label" style="font-size:0.6rem; opacity:0.7;">Clusters Count</div>
+                        <label class="label" for="anim-param-clusters" style="font-size:0.6rem; opacity:0.7; display: block;">Clusters Count</label>
                         <input type="number" class="glass-input" id="anim-param-clusters" value="3" min="1" max="10" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
-                        <div class="label" style="font-size:0.6rem; opacity:0.7;">Centroid Max Dist (m)</div>
+                        <label class="label" for="anim-param-dist" style="font-size:0.6rem; opacity:0.7; display: block;">Centroid Max Dist (m)</label>
                         <input type="number" class="glass-input" id="anim-param-dist" value="0" min="0" step="10" style="width:100%; height:1.8rem; font-size:0.75rem;">
                     </div>
 
                     <div id="anim-dbscan-params" style="display:none">
-                        <div class="label" style="font-size:0.6rem; opacity:0.7;">Epsilon (meters)</div>
+                        <label class="label" for="anim-param-eps" style="font-size:0.6rem; opacity:0.7; display: block;">Epsilon (meters)</label>
                         <input type="number" class="glass-input" id="anim-param-eps" value="500" step="10" min="1" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
-                        <div class="label" style="font-size:0.6rem; opacity:0.7;">Min Samples</div>
+                        <label class="label" for="anim-param-min-samples" style="font-size:0.6rem; opacity:0.7; display: block;">Min Samples</label>
                         <input type="number" class="glass-input" id="anim-param-min-samples" value="5" min="1" step="1" style="width:100%; height:1.8rem; font-size:0.75rem;">
                     </div>
 
@@ -136,7 +139,7 @@
                         </label>
                     </div>
                     <div id="anim-calc-frames-container" style="display: none; margin-top: 1rem;">
-                        <div class="label" style="font-size:0.6rem; opacity:0.7;">Frames between plane updates</div>
+                        <label class="label" for="anim-calc-frames" style="font-size:0.6rem; opacity:0.7; display: block;">Frames between plane updates</label>
                         <input type="number" id="anim-calc-frames" class="glass-input" value="5" min="1" step="1" style="width:100%; height:1.8rem; font-size:0.75rem;">
                     </div>
                 </div>
@@ -150,6 +153,7 @@
 
 
         <div id="jump-bar" class="glass-panel">
+            <label for="jump-date" class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Jump to Date</label>
             <input type="date" id="jump-date" class="glass-input">
             <button class="settings-btn" id="jump-btn">Go</button>
         </div>

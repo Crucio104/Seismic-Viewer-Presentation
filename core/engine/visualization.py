@@ -231,8 +231,10 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
         return {'traces': [], 'labels': np.array([]), 'n_clusters': 0}
 
     # Use provided global origin if available, otherwise fallback to local mean
-    if origin_lat is None: origin_lat = np.mean(f_lat)
-    if origin_lon is None: origin_lon = np.mean(f_lon)
+    if origin_lat is None:
+        origin_lat = np.mean(f_lat)
+    if origin_lon is None:
+        origin_lon = np.mean(f_lon)
     
     from .analysis import project_to_km
     from core.config import KM_PER_DEGREE
