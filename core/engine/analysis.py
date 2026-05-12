@@ -293,7 +293,7 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'kmeans', params: dict[
 
     display_labels = labels.copy()
     if method == 'kmeans' and float(params.get('kmeans_max_dist', 0)) > 0:
-        max_d = float(params.get('kmeans_max_dist', 0))
+        max_d = float(params.get('kmeans_max_dist', 0)) / 1000.0
         for i in range(n_clusters):
             idx = (labels == i)
             if not np.any(idx):
@@ -352,25 +352,39 @@ def _worker_calculate_clustering(args: tuple) -> tuple[str, list[int], list[dict
 def match_labels_globally(current_labels: np.ndarray, current_global_indices: np.ndarray, 
                           prev_labels_map: np.ndarray, next_label_id: int) -> tuple[np.ndarray, int]:
     """
-    Matches current labels to previous ones using global array mapping for extreme speed.
+    Matches current labels to previous ones using global array mapping.
+    Allows splitting: if multiple current clusters match the same previous label,
+    only the best match keeps it, others get a new ID.
     """
     new_labels = np.full_like(current_labels, -1)
     unique_curr = [label_id for label_id in np.unique(current_labels) if label_id != -1]
     
+    used_prev_labels = set()
+    
+    # First pass: try to match clusters that have a clear majority previous label
     for label_id in unique_curr:
         mask = (current_labels == label_id)
         l_indices = current_global_indices[mask]
         
-        # Vectorized lookup in the global labels map
         matched_prev = prev_labels_map[l_indices]
         valid_prev = matched_prev[matched_prev != -1]
         
         if valid_prev.size > 0:
-            # Majority vote
             vals, counts = np.unique(valid_prev, return_counts=True)
-            best_prev_label = int(vals[np.argmax(counts)])
-            new_labels[mask] = best_prev_label
+            # Sort by frequency
+            sorted_indices = np.argsort(-counts)
+            for idx in sorted_indices:
+                candidate = int(vals[idx])
+                if candidate not in used_prev_labels:
+                    new_labels[mask] = candidate
+                    used_prev_labels.add(candidate)
+                    break
+            else:
+                # This cluster is a split from a label already claimed by another cluster
+                new_labels[mask] = next_label_id
+                next_label_id += 1
         else:
+            # Entirely new cluster
             new_labels[mask] = next_label_id
             next_label_id += 1
             
