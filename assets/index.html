@@ -638,7 +638,7 @@
         3: 'Rendering Cluster Analysis...' 
     };
 
-    async function loadView(style, anim_mode='accumulation', window_days=5, clustering_method='kmeans') {
+    async function loadView(style, anim_mode='accumulation', window_days=5, clustering_method='dbscan') {
         if (loading) return;
         loading = true;
 

@@ -54,6 +54,12 @@
         <polyline points="21 15 16 10 5 21"/>
     </svg>
 </button>
+<button id="screenshot-btn" class="hidden-initially" onclick="SeismicUI.captureScreenshot()" title="Take Screenshot">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:0.9rem;height:0.9rem;">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+        <circle cx="12" cy="13" r="4"/>
+    </svg>
+</button>
 <label for="overlay-input" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Upload Image Overlay</label>
 <input type="file" id="overlay-input" accept="image/*" style="display:none" onchange="SeismicUI.handleOverlayUpload(this)">
 <div id="info-panel" class="glass-panel">
@@ -209,6 +215,8 @@
                 if (infoBtn) infoBtn.classList.add('visible');
                 const overlayBtn = document.getElementById('overlay-btn');
                 if (overlayBtn) overlayBtn.classList.add('visible');
+                const screenshotBtn = document.getElementById('screenshot-btn');
+                if (screenshotBtn) screenshotBtn.classList.add('visible');
             }, 300);
         }
     }
@@ -527,6 +535,71 @@
                     showStatusToast('Failed to restore map');
                 });
             }, 100);
+        },
+
+        async captureScreenshot() {
+            const gd = document.querySelector('.plotly-graph-div');
+            if (!gd) {
+                showStatusToast('No visualization found to capture');
+                return;
+            }
+
+            // Elements to hide during capture
+            const elementsToHide = [
+                '#back-btn',
+                '#camera-controls',
+                '#info-btn',
+                '#overlay-btn',
+                '#screenshot-btn',
+                '#glass-legend',
+                '#info-panel',
+                '#left-panel-wrapper',
+                '#filter-bar',
+                '#ws-status',
+                '.timeline-container',
+                '.playback-controls',
+                '#settings-bar'
+            ];
+
+            const hiddenElements = [];
+            elementsToHide.forEach(sel => {
+                const els = document.querySelectorAll(sel);
+                els.forEach(el => {
+                    if (el && el.style.visibility !== 'hidden' && getComputedStyle(el).display !== 'none') {
+                        el.style.visibility = 'hidden';
+                        hiddenElements.push(el);
+                    }
+                });
+            });
+
+            // Show a "Processing" loader
+            showInitLoader('Capturing scene...');
+
+            try {
+                // Use Plotly.toImage to get high-res screenshot
+                const dataUrl = await Plotly.toImage(gd, {
+                    format: 'png',
+                    width: window.innerWidth * 2,
+                    height: window.innerHeight * 2,
+                    scale: 2
+                });
+
+                // Call Python API to save the file
+                const result = await pywebview.api.save_screenshot(dataUrl);
+                
+                if (result.status === 'success') {
+                    showStatusToast('Screenshot saved: ' + result.path.split(/[/\\]/).pop());
+                } else if (result.error) {
+                    showStatusToast('Save failed: ' + result.error);
+                }
+            } catch (err) {
+                console.error('[Screenshot] Error:', err);
+                showStatusToast('Capture failed: ' + err.message);
+            } finally {
+                // Restore hidden elements
+                hiddenElements.forEach(el => el.style.visibility = 'visible');
+                hideInitLoader();
+            }
         }
     };
     document.onclick = () => {

@@ -3,10 +3,10 @@
 
             <div class="settings-group">
                 <div class="label">Clustering Method</div>
-                <button class="settings-btn" id="method-toggle">K-Means ▾</button>
+                <button class="settings-btn" id="method-toggle">DBSCAN ▾</button>
                 <div class="glass-panel glass-menu" id="method-menu">
-                    <div class="menu-item active" data-val="kmeans">K-Means</div>
-                    <div class="menu-item" data-val="dbscan">DBSCAN</div>
+                    <div class="menu-item" data-val="kmeans">K-Means</div>
+                    <div class="menu-item active" data-val="dbscan">DBSCAN</div>
                 </div>
             </div>
 
@@ -14,7 +14,7 @@
             <div class="settings-group" style="padding: 0.6rem; background: rgba(255,255,255,0.03); border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.05);">
                 <div class="label" style="color: #fff;">Cluster Config</div>
                 
-                <div id="kmeans-params">
+                <div id="kmeans-params" style="display:none">
                     <label class="label" for="param-clusters" style="font-size:0.6rem; opacity:0.7; display: block;">Clusters Count</label>
                     <input type="number" class="glass-input" id="param-clusters" value="3" min="1" max="10" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
                     
@@ -23,7 +23,7 @@
                     <div style="font-size:0.688rem; color:#fff; margin-top:0.250rem; font-weight: 500;">0 = no distance limits</div>
                 </div>
 
-                <div id="dbscan-params" style="display:none">
+                <div id="dbscan-params" style="display:block">
                     <label class="label" for="param-eps" style="font-size:0.6rem; opacity:0.7; display: block;">Epsilon (meters)</label>
                     <input type="number" class="glass-input" id="param-eps" value="500" step="10" min="1" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
                     
@@ -163,7 +163,7 @@
             depMax.value = Math.ceil(Math.max(...allDeps));
 
             let currentDisplayMode = 'wireframe';
-            let currentMethod = quakeData.clustering_method || 'kmeans';
+            let currentMethod = quakeData.clustering_method || 'dbscan';
 
             // Recover previous display mode if set in params
             if (quakeData.clustering_params && quakeData.clustering_params.display_mode) {

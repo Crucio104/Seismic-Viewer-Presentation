@@ -112,20 +112,20 @@
 
                 <div id="anim-clustering-controls" style="display:none; margin-top:0.75rem;">
                     <div class="label" style="font-size:0.6rem; opacity:0.7;">Method</div>
-                    <button class="settings-btn" id="anim-method-toggle" style="width:100%; margin-bottom:0.5rem;">K-Means ▾</button>
+                    <button class="settings-btn" id="anim-method-toggle" style="width:100%; margin-bottom:0.5rem;">DBSCAN ▾</button>
                     <div class="glass-panel glass-menu" id="anim-method-menu">
-                        <div class="menu-item active" data-val="kmeans">K-Means</div>
-                        <div class="menu-item" data-val="dbscan">DBSCAN</div>
+                        <div class="menu-item" data-val="kmeans">K-Means</div>
+                        <div class="menu-item active" data-val="dbscan">DBSCAN</div>
                     </div>
 
-                    <div id="anim-kmeans-params">
+                    <div id="anim-kmeans-params" style="display:none">
                         <label class="label" for="anim-param-clusters" style="font-size:0.6rem; opacity:0.7; display: block;">Clusters Count</label>
                         <input type="number" class="glass-input" id="anim-param-clusters" value="3" min="1" max="10" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
                         <label class="label" for="anim-param-dist" style="font-size:0.6rem; opacity:0.7; display: block;">Centroid Max Dist (m)</label>
                         <input type="number" class="glass-input" id="anim-param-dist" value="0" min="0" step="10" style="width:100%; height:1.8rem; font-size:0.75rem;">
                     </div>
 
-                    <div id="anim-dbscan-params" style="display:none">
+                    <div id="anim-dbscan-params" style="display:block">
                         <label class="label" for="anim-param-eps" style="font-size:0.6rem; opacity:0.7; display: block;">Epsilon (meters)</label>
                         <input type="number" class="glass-input" id="anim-param-eps" value="500" step="10" min="1" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
                         <label class="label" for="anim-param-min-samples" style="font-size:0.6rem; opacity:0.7; display: block;">Min Samples</label>
@@ -137,11 +137,36 @@
                             <input type="checkbox" id="anim-show-cluster-planes">
                             Show Cluster Planes
                         </label>
+                        <div id="anim-calc-frames-container" style="display: none; margin-top: 0.5rem; margin-bottom: 0.5rem; padding-left: 1.25rem;">
+                            <label class="label" for="anim-calc-frames" style="font-size:0.6rem; opacity:0.7; display: block;">Update Interval (frames)</label>
+                            <input type="number" id="anim-calc-frames" class="glass-input" value="5" min="1" step="1" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                        </div>
+                        <div id="anim-accumulate-planes-container" style="display: none; padding-left: 1.25rem; padding-right: 0.5rem;">
+                            <label class="glass-checkbox" style="margin-top: 0.75rem;">
+                                <input type="checkbox" id="anim-accumulate-planes">
+                                Accumulate Planes
+                            </label>
+                        </div>
                     </div>
-                    <div id="anim-calc-frames-container" style="display: none; margin-top: 1rem;">
-                        <label class="label" for="anim-calc-frames" style="font-size:0.6rem; opacity:0.7; display: block;">Frames between plane updates</label>
-                        <input type="number" id="anim-calc-frames" class="glass-input" value="5" min="1" step="1" style="width:100%; height:1.8rem; font-size:0.75rem;">
+
+                    <div style="margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <label class="glass-checkbox">
+                            <input type="checkbox" id="anim-use-cylinders">
+                            Cylinder Division
+                        </label>
+                        <div id="anim-cylinder-options" style="display:none; margin-top:0.5rem; padding-left:1.25rem;">
+                            <label class="label" for="anim-cylinder-radius" style="font-size:0.6rem; opacity:0.7; display: block;">Cylinder Radius (km)</label>
+                            <input type="number" id="anim-cylinder-radius" class="glass-input" min="0.1" max="10.0" step="0.1" value="0.5" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
+                            
+                            <label class="label" for="anim-cylinder-depth" style="font-size:0.6rem; opacity:0.7; display: block;">Depth Step (km) [0 = Off]</label>
+                            <input type="number" id="anim-cylinder-depth" class="glass-input" min="0" max="20.0" step="0.5" value="0" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
+                            <label class="glass-checkbox" style="padding-right: 0.5rem;">
+                                <input type="checkbox" id="anim-cluster-in-cylinder">
+                                Clustering inside Cylinder
+                            </label>
+                        </div>
                     </div>
+
                 </div>
 
                 <button id="apply-anim-btn" class="priority-btn" style="margin-top:1.25rem; font-size:0.75rem; height:2.2rem; width:100%; display:flex; justify-content:center; align-items:center; background:rgba(99, 102, 241, 0.2); border:1px solid rgba(99, 102, 241, 0.4); border-radius:0.5rem; color:#fff; cursor:pointer; font-family:inherit; font-weight:600; transition:all 0.2s; flex-shrink: 0;">
@@ -251,7 +276,7 @@
             // Clustering state
             let animClusteringEnabled = false;
             let animClustersMap = null; // Mapping date -> {labels: [], planes: []}
-            let currentAnimClustMethod = 'kmeans';
+            let currentAnimClustMethod = 'dbscan';
             let showAnimClusterPlanes = false;
             const clusterColors = [
                 '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52',
@@ -331,6 +356,27 @@
                         d.setDate(d.getDate() + Math.round(sliceDnum[i]));
                         const dStr = `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
                         sliceHover[i] = `Date: ${dStr}<br>Mag: ${sliceMag[i].toFixed(1)}<br>Dep: ${Math.abs(sliceDep[i]).toFixed(1)} km`;
+                        
+                        // Add Cluster info if available
+                        if (animClusteringEnabled && animClustersMap && clusterData) {
+                            const lbl = clusterData.labels[i];
+                            if (lbl >= 0) {
+                                if (lbl >= 100) {
+                                    const cyl = Math.floor(lbl / 1000) || Math.floor(lbl / 100);
+                                    const rem = lbl % 1000;
+                                    const dep = Math.floor(rem / 100);
+                                    const grp = rem % 100;
+                                    
+                                    if (lbl >= 1000) {
+                                        sliceHover[i] += `<br><b>Cyl ${cyl} - D${dep} - Gr ${grp}</b>`;
+                                    } else {
+                                        sliceHover[i] += `<br><b>Cyl ${Math.floor(lbl/100)} - Gr ${lbl%100}</b>`;
+                                    }
+                                } else {
+                                    sliceHover[i] += `<br><b>Cluster ${lbl}</b>`;
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -372,20 +418,16 @@
                 const traceIndices = [visibleTraceIdx];
 
                 let clusterData = null;
-                if (animClusteringEnabled && animClustersMap) {
-                    for (let i = idx; i >= 0; i--) {
-                        if (animClustersMap[dates[i]]) {
-                            clusterData = animClustersMap[dates[i]];
-                            break;
-                        }
-                    }
-                    if (clusterData) {
+                if (animClusteringEnabled && animClustersMap && dates[idx]) {
+                    clusterData = animClustersMap[dates[idx]];
+                    
+                    if (clusterData && clusterData.labels) {
                         const labels = clusterData.labels;
                         const currentCount = sliceLon.length;
                         const colorArr = new Array(currentCount).fill('#888888');
                         for (let i = 0; i < Math.min(currentCount, labels.length); i++) {
                             const lbl = labels[i];
-                            colorArr[i] = lbl >= 0 ? clusterColors[lbl % clusterColors.length] : '#888888';
+                            colorArr[i] = (lbl >= 0 && clusterColors) ? clusterColors[lbl % clusterColors.length] : '#888888';
                         }
                         bulkUpdate['marker.color'] = [colorArr];
                         bulkUpdate['marker.colorscale'] = [null];
@@ -395,7 +437,21 @@
                 }
 
                 if (animClusteringEnabled && showAnimClusterPlanes && clusterData) {
-                    const meshData = generatePlaneMesh(clusterData.planes);
+                    let planesToRender = clusterData.planes;
+                    if (accumulatePlanes) {
+                        if (idx < lastAccumIdx) {
+                            persistentPlanesMap.clear();
+                            lastAccumIdx = -1;
+                        }
+                        for (let i = Math.max(0, lastAccumIdx + 1); i <= idx; i++) {
+                            const daily = (animClustersMap[dates[i]] || {}).planes || [];
+                            daily.forEach(p => persistentPlanesMap.set(p.grid_id, p));
+                        }
+                        lastAccumIdx = idx;
+                        planesToRender = Array.from(persistentPlanesMap.values());
+                    }
+
+                    const meshData = generatePlaneMesh(planesToRender);
                     bulkUpdate.x.push(meshData.x[0]);
                     bulkUpdate.y.push(meshData.y[0]);
                     bulkUpdate.z.push(meshData.z[0]);
@@ -464,18 +520,7 @@
 
                     // Update Glass Legend
                     if (animClusteringEnabled && animClustersMap) {
-                        let activeLabels = [];
-                        if (clusterData) {
-                            activeLabels = clusterData.labels;
-                        } else {
-                            // Search back for labels
-                            for (let i = idx; i >= 0; i--) {
-                                if (animClustersMap[dates[i]]) {
-                                    activeLabels = animClustersMap[dates[i]].labels;
-                                    break;
-                                }
-                            }
-                        }
+                        const activeLabels = clusterData ? clusterData.labels : [];
                         updateClusterLegend(activeLabels);
                     } else {
                         const container = document.getElementById('legend-container');
@@ -608,11 +653,13 @@
                 
                 let html = '';
                 uniqueLabels.forEach((lbl, index) => {
-                    const color = clusterColors[lbl % clusterColors.length];
-                    // Numeriamo progressivamente da 1 a N per evitare ID enormi (es. Cluster 37)
+                    const color = clusterColors ? clusterColors[lbl % clusterColors.length] : '#fff';
+                    // Show sequential numbering (1, 2, 3...) for better readability
+                    let labelText = `Cluster ${index + 1}`;
+                    
                     html += `
                         <div class="legend-item-cluster" style="display:flex; align-items:center; justify-content:space-between; gap:1.000rem; flex-shrink:0; width:100%;">
-                            <span style="font-family:\'Segoe UI\',system-ui,sans-serif;font-size:0.750rem;font-weight:600;color:#fff;opacity:0.85;">Cluster ${index + 1}</span>
+                            <span style="font-family:\'Segoe UI\',system-ui,sans-serif;font-size:0.750rem;font-weight:600;color:#fff;opacity:0.85;">${labelText}</span>
                             <div style="width:0.875rem;height:0.875rem;border-radius:50%;background-color:${color};border:1px solid rgba(255,255,255,0.4);box-shadow:0 0 0.375rem ${color}80;"></div>
                         </div>
                     `;
@@ -897,6 +944,14 @@
             const calcFramesAnim = document.getElementById('anim-calc-frames');
             const animKmeansParams = document.getElementById('anim-kmeans-params');
             const animDbscanParams = document.getElementById('anim-dbscan-params');
+            const useCylindersCheck = document.getElementById('anim-use-cylinders');
+            const cylinderOptions = document.getElementById('anim-cylinder-options');
+            const clusterInCylinderCheck = document.getElementById('anim-cluster-in-cylinder');
+            const pCylinderRadius = document.getElementById('anim-cylinder-radius');
+
+            useCylindersCheck.onchange = () => {
+                cylinderOptions.style.display = useCylindersCheck.checked ? 'block' : 'none';
+            };
 
             showAnimClustCheck.onchange = () => {
                 animClusteringEnabled = showAnimClustCheck.checked;
@@ -904,10 +959,14 @@
             };
 
             const animCalcFramesContainer = document.getElementById('anim-calc-frames-container');
+            const animAccumulatePlanesContainer = document.getElementById('anim-accumulate-planes-container');
             showAnimPlanesCheck.onchange = () => {
                 showAnimClusterPlanes = showAnimPlanesCheck.checked;
-                animCalcFramesContainer.style.display = showAnimPlanesCheck.checked ? 'block' : 'none';
+                const isVisible = showAnimPlanesCheck.checked ? 'block' : 'none';
+                animCalcFramesContainer.style.display = isVisible;
+                animAccumulatePlanesContainer.style.display = isVisible;
             };
+            showAnimPlanesCheck.onchange();
 
             SeismicUI.initMenu(animMethodToggle, animMethodMenu);
             SeismicUI.bindMenu(animMethodMenu, (item) => {
@@ -928,7 +987,11 @@
                         mag_min: document.getElementById('anim-mag-min').value,
                         mag_max: document.getElementById('anim-mag-max').value,
                         dep_min: document.getElementById('anim-dep-min').value,
-                        dep_max: document.getElementById('anim-dep-max').value
+                        dep_max: document.getElementById('anim-dep-max').value,
+                        use_cylinders: useCylindersCheck.checked,
+                        cluster_in_cylinder: clusterInCylinderCheck.checked,
+                        cylinder_radius: pCylinderRadius.value,
+                        cylinder_depth_step: document.getElementById('anim-cylinder-depth').value
                     };
                     const res = await window.seismicSocket.sendRequest('get_animated_clustering', {
                         method: currentAnimClustMethod,

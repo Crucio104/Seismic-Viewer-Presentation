@@ -57,7 +57,7 @@ def build_view_html(
     on_progress: Callable[[str], None] | None = None,
     anim_mode: str = 'accumulation', 
     window_days: int = 5, 
-    clustering_method: str = 'kmeans',
+    clustering_method: str = 'dbscan',
     clustering_params: dict[str, Any] | None = None,
     data_url: str = "", 
     session_id: str = ""

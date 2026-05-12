@@ -250,7 +250,7 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
 
 # --- Clustering Analysis ---
 
-def perform_clustering(pts_km: np.ndarray, method: str = 'kmeans', params: dict[str, Any] | None = None, prev_centroids: np.ndarray | None = None) -> tuple[np.ndarray, int, np.ndarray | None]:
+def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[str, Any] | None = None, prev_centroids: np.ndarray | None = None) -> tuple[np.ndarray, int, np.ndarray | None]:
     """
     Perform clustering (KMeans or DBSCAN) on 3D points.
     Returns: (labels, n_clusters, centroids)
@@ -366,12 +366,24 @@ def match_labels_globally(current_labels: np.ndarray, current_global_indices: np
         mask = (current_labels == label_id)
         l_indices = current_global_indices[mask]
         
-        matched_prev = prev_labels_map[l_indices]
+        # OPTIMIZATION: Stochastic matching. 
+        # Sampling 200 points is more than enough to find the majority label 
+        # and it's VASTLY faster than analyzing thousands of points per frame.
+        if len(l_indices) > 200:
+            sample_indices = np.random.choice(l_indices, 200, replace=False)
+        else:
+            sample_indices = l_indices
+
+        matched_prev = prev_labels_map[sample_indices]
         valid_prev = matched_prev[matched_prev != -1]
         
         if valid_prev.size > 0:
-            vals, counts = np.unique(valid_prev, return_counts=True)
-            # Sort by frequency
+            vals, counts = np.bincount(valid_prev).nonzero(), np.bincount(valid_prev)
+            # Filter out zero counts and get unique values
+            nz = counts > 0
+            vals = np.arange(len(counts))[nz]
+            counts = counts[nz]
+            
             sorted_indices = np.argsort(-counts)
             for idx in sorted_indices:
                 candidate = int(vals[idx])
@@ -380,7 +392,6 @@ def match_labels_globally(current_labels: np.ndarray, current_global_indices: np
                     used_prev_labels.add(candidate)
                     break
             else:
-                # This cluster is a split from a label already claimed by another cluster
                 new_labels[mask] = next_label_id
                 next_label_id += 1
         else:
@@ -410,57 +421,127 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     # 2. Pre-calculate Temporal Windows
     date_indices = _get_frame_indices(dates_unique, date_to_cum, anim_mode, window_days)
 
-    # 3. Processing Loop
-    results = {}
-    global_labels_map = np.full(len(pts_km), -1, dtype=int)
-    next_label_id, prev_centroids = 0, None
-    has_initialized_labels = False
-    last_valid_planes = []
+    # 3. Pre-calculate Grid if cylinders are used
+    use_cylinders = params.get('use_cylinders', False)
+    grid_info = []
+    pt_cylinder_map = None # Spatial assignment optimization
+    if use_cylinders:
+        radius_km = float(params.get('cylinder_radius', 0.5))
+        overlap = 0.2
+        spacing = radius_km * (2.0 - overlap)
+        min_x, max_x = np.min(pts_km[:, 0]), np.max(pts_km[:, 0])
+        min_y, max_y = np.min(pts_km[:, 1]), np.max(pts_km[:, 1])
+        grid_x = np.arange(min_x, max_x + spacing, spacing)
+        grid_y = np.arange(min_y, max_y + spacing, spacing)
+        
+        centers = []
+        for ix, cx in enumerate(grid_x):
+            for iy, cy in enumerate(grid_y):
+                grid_info.append((ix, iy, cx, cy))
+                centers.append([cx, cy])
+        
+        if centers:
+            grid_tree = KDTree(np.array(centers))
+            # Pre-assign each point to its NEAREST cylinder center once
+            dists, pt_cylinder_map = grid_tree.query(pts_km[:, :2], distance_upper_bound=radius_km)
+            pt_cylinder_map[dists == np.inf] = -1 # Points too far from any cylinder
 
-    # Filter params
+    # 4. Filter params
     f_min_mag, f_max_mag = float(params.get('mag_min', -10)), float(params.get('mag_max', 10))
     f_min_dep, f_max_dep = float(params.get('dep_min', -100)), float(params.get('dep_max', 1000))
 
-    for i, (start_idx, end_idx) in enumerate(date_indices):
+    import time
+    t0 = time.time()
+    logger.info(f"Starting multi-process animated clustering ({len(dates_unique)} frames, method={method})...")
+
+    # Helper for the parallel worker
+    worker_data = {
+        'pts_km': pts_km,
+        'mags': mags,
+        'dep': dep,
+        'date_indices': date_indices,
+        'pt_cylinder_map': pt_cylinder_map,
+        'params': params,
+        'method': method,
+        'use_cylinders': use_cylinders,
+        'f_mag': (f_min_mag, f_max_mag),
+        'f_dep': (f_min_dep, f_max_dep),
+        'plane_step': plane_step,
+        'origin_lon': origin_lon,
+        'origin_lat': origin_lat
+    }
+
+    # Use max_workers to avoid saturating everything and allowing some room for the server
+    n_workers = min(os.cpu_count(), 8)
+    
+    # 5. Execute Parallel Clustering
+    frame_results = [None] * len(date_indices)
+    from concurrent.futures import ProcessPoolExecutor
+    with ProcessPoolExecutor(max_workers=n_workers) as executor:
+        # Submit in chunks if frames are many
+        futures = [executor.submit(_process_frame_worker, i, worker_data) for i in range(len(date_indices))]
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            frame_results[res[0]] = res
+
+    # 6. Sequential Post-processing (Matching & Renaming Planes)
+    results = {}
+    global_labels_map = np.full(len(pts_km), -1, dtype=int)
+    next_label_id, has_initialized_labels = 0, False
+    last_valid_planes = []
+    
+    for i, res in enumerate(frame_results):
         date_str = dates_unique[i]
-        
-        # Slice & Mask
-        pts_raw = pts_km[start_idx:end_idx]
-        mag_mask = (mags[start_idx:end_idx] >= f_min_mag) & (mags[start_idx:end_idx] <= f_max_mag)
-        dep_mask = (dep[start_idx:end_idx] >= f_min_dep) & (dep[start_idx:end_idx] <= f_max_dep)
-        mask = mag_mask & dep_mask
-        
-        pts_subset = pts_raw[mask]
-        global_indices = np.arange(start_idx, end_idx)[mask]
-        final_labels = np.full(len(pts_raw), -1)
-        
-        if len(pts_subset) < 3:
+        idx, labels, centroids, global_indices, mask, raw_len, frame_planes = res
+        final_labels = np.full(raw_len, -1)
+
+        if labels is None:
             results[date_str] = {'labels': final_labels.tolist(), 'planes': last_valid_planes}
             global_labels_map[global_indices] = -1
             continue
 
-        # 4. Clustering & Label Matching
-        labels, n_clusters, centroids = perform_clustering(pts_subset, method, params, prev_centroids)
-        prev_centroids = centroids
-        
-        if n_clusters > 0 and not has_initialized_labels:
-            next_label_id = n_clusters
+        # CYLINDER STABILITY: 
+        # 1. If single cluster per cylinder -> IDs are stable centers, bypass matching.
+        # 2. If inner clustering -> IDs (501, 502) are NOT stable (KMeans swaps 0 and 1). Use matching.
+        use_inner = params.get('cluster_in_cylinder', False)
+        if use_cylinders and not use_inner:
             matched_labels = labels
-            has_initialized_labels = True
         elif has_initialized_labels:
             matched_labels, next_label_id = match_labels_globally(labels, global_indices, global_labels_map, next_label_id)
         else:
             matched_labels = labels
+            # Ensure next_label_id is high enough to not collide with cylinder IDs if needed
+            # but for consistency we just use the unique count
+            next_label_id = int(np.max(labels) + 1) if (use_cylinders and len(labels)>0) else len(np.unique(labels[labels != -1]))
+            has_initialized_labels = True
 
         global_labels_map[global_indices] = matched_labels
         final_labels[mask] = matched_labels
 
-        # 5. Structural Planes (sampled)
-        if (i % plane_step == 0):
-            last_valid_planes = _calculate_frame_planes(matched_labels, pts_subset, date_str, origin_lon, origin_lat, pts_km.shape[1])
+        if frame_planes:
+            # RENAME planes with matched global labels
+            # We need a map from local labels to matched labels for this frame
+            local_to_global = {}
+            unique_local = np.unique(labels[labels != -1])
+            for l_id in unique_local:
+                # Find first instance of local label and get its global counterpart
+                first_idx = np.where(labels == l_id)[0][0]
+                local_to_global[l_id] = int(matched_labels[first_idx])
+            
+            # Update grid_ids in planes
+            last_valid_planes = []
+            for p in frame_planes:
+                # grid_id format: cluster_{lid}_TMP
+                parts = p['grid_id'].split('_')
+                local_lid = int(parts[1])
+                global_lid = local_to_global.get(local_lid, -1)
+                if global_lid != -1:
+                    p['grid_id'] = f"cluster_{global_lid}_{date_str}"
+                    last_valid_planes.append(p)
         
         results[date_str] = {'labels': final_labels.tolist(), 'planes': last_valid_planes}
             
+    logger.info(f"Parallel clustering completed in {time.time() - t0:.2f}s")
     return results
 
 def _get_frame_indices(dates, date_to_cum, mode, window_days):
@@ -487,19 +568,122 @@ def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat, di
     unique_ids = [lid for lid in np.unique(labels) if lid != -1]
     
     for lid in unique_ids:
-        cluster_pts = points[labels == lid]
+        mask = (labels == lid)
+        cluster_pts = points[mask]
         if len(cluster_pts) < 4:
             continue
         
-        normal, centroid, planarity = fit_plane_ransac(cluster_pts, threshold=0.15)
+        # PERFORMANCE: Sample points if cluster is huge
+        if len(cluster_pts) > 300:
+            fit_pts = cluster_pts[np.random.choice(len(cluster_pts), 300, replace=False)]
+        else:
+            fit_pts = cluster_pts
+
+        normal, centroid, planarity = fit_plane_ransac(fit_pts, threshold=0.15)
         if normal is not None and centroid is not None:
             c_lon = (centroid[0] / lon_to_km) + origin_lon
             c_lat = (centroid[1] / KM_PER_DEGREE) + origin_lat
             
+            # Dynamic plane size: proportional to the spatial spread (std) of the cluster
+            spread = np.std(np.linalg.norm(cluster_pts - centroid, axis=1))
+            plane_radius = max(0.3, 2.5 * spread)
+            
             p_data = _format_plane_geometry(
-                normal, centroid, planarity, c_lon, c_lat, lon_to_km, 
-                max(0.2, 5 * np.mean(np.linalg.norm(cluster_pts - centroid, axis=1)))
+                normal, centroid, planarity, c_lon, c_lat, lon_to_km, plane_radius
             )
             p_data['grid_id'] = f"cluster_{lid}_{date_str}"
             planes.append(p_data)
     return planes
+
+def _perform_cylinder_clustering(pts_subset, curr_pt_cylinder_map, method, params):
+    """Partitions points into cylinders and optionally clusters within them."""
+    use_inner_clustering = params.get('cluster_in_cylinder', False)
+    labels = np.full(len(pts_subset), -1, dtype=int)
+    
+    if len(pts_subset) == 0:
+        return labels, 0
+
+    # VECTORIZED GROUPING: Avoid O(Cylinders * Points) loop
+    sort_idx = np.argsort(curr_pt_cylinder_map)
+    sorted_maps = curr_pt_cylinder_map[sort_idx]
+    
+    # Find where cylinder IDs change
+    splits = np.where(np.diff(sorted_maps) != 0)[0] + 1
+    
+    pt_groups = np.split(pts_subset[sort_idx], splits)
+    map_groups = np.split(sorted_maps, splits)
+    idx_groups = np.split(sort_idx, splits)
+    
+    for i, g_idx in enumerate(idx_groups):
+        if len(g_idx) < 5: # MIN THRESHOLD to avoid forced/ghost clusters
+            continue
+            
+        cylinder_idx = sorted_maps[splits[i-1] if i > 0 else 0]
+        if cylinder_idx == -1:
+            continue
+            
+        if use_inner_clustering:
+            # Local clustering within cylinder
+            pts_in_cyl = pts_subset[g_idx]
+            c_labels, n_c, _ = perform_clustering(pts_in_cyl, method, params, None)
+            
+            if n_c > 0:
+                valid_mask = c_labels != -1
+                labels[g_idx[valid_mask]] = int(cylinder_idx) * 100 + c_labels[valid_mask]
+        else:
+            # Just one cluster per cylinder
+            labels[g_idx] = int(cylinder_idx)
+            
+    valid_labels = labels[labels != -1]
+    return labels, len(np.unique(valid_labels)) if len(valid_labels) > 0 else 0
+
+def _process_frame_worker(idx, data):
+    """Worker function for ProcessPoolExecutor."""
+    start_idx, end_idx = data['date_indices'][idx]
+    pts_km = data['pts_km']
+    mags = data['mags']
+    dep = data['dep']
+    pt_cylinder_map = data['pt_cylinder_map']
+    params = data['params']
+    method = data['method']
+    use_cylinders = data['use_cylinders']
+    f_mag = data['f_mag']
+    f_dep = data['f_dep']
+    plane_step = data['plane_step']
+    origin_lon = data['origin_lon']
+    origin_lat = data['origin_lat']
+
+    pts_raw = pts_km[start_idx:end_idx]
+    mask = (mags[start_idx:end_idx] >= f_mag[0]) & (mags[start_idx:end_idx] <= f_mag[1]) & \
+           (dep[start_idx:end_idx] >= f_dep[0]) & (dep[start_idx:end_idx] <= f_dep[1])
+    
+    pts_subset = pts_raw[mask]
+    global_indices = np.arange(start_idx, end_idx)[mask]
+    
+    if len(pts_subset) < 3:
+        return idx, None, None, global_indices, mask, len(pts_raw), []
+
+    if use_cylinders:
+        curr_pt_cylinder_map = pt_cylinder_map[start_idx:end_idx][mask]
+        depth_step = float(params.get('cylinder_depth_step', 0))
+        
+        if depth_step > 0:
+            # Partition by depth as well
+            depths = dep[start_idx:end_idx][mask]
+            # Use floor division for stable vertical levels
+            depth_idx = np.floor(np.abs(depths) / depth_step).astype(int)
+            # Combine: (Cyl * 1000) + DepthLevel
+            combined_map = (curr_pt_cylinder_map * 1000) + depth_idx
+        else:
+            combined_map = curr_pt_cylinder_map
+
+        labels, n_clusters = _perform_cylinder_clustering(pts_subset, combined_map, method, params)
+        centroids = None
+    else:
+        labels, n_clusters, centroids = perform_clustering(pts_subset, method, params, None)
+        
+    frame_planes = []
+    if (idx % plane_step == 0) and labels is not None:
+        frame_planes = _calculate_frame_planes(labels, pts_subset, "TMP", origin_lon, origin_lat, pts_km.shape[1])
+
+    return idx, labels, centroids, global_indices, mask, len(pts_raw), frame_planes

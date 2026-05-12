@@ -161,7 +161,7 @@ def get_3d_static_figure(
     return fig
 
 def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float],
-                            clustering_method: str = 'kmeans', clustering_params: dict[str, Any] | None = None,
+                            clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None,
                             bbox: tuple[float, float, float, float] | None = None, visual_pack: dict[str, Any] | None = None, 
                             map_grids: tuple[Any, ...] | None = None,
                             origin_lat: float | None = None, origin_lon: float | None = None) -> tuple[go.Figure, np.ndarray, int]:
@@ -197,7 +197,7 @@ def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitu
     return fig, result['labels'], result['n_clusters']
 
 def get_cluster_update_traces(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], hover: list[str],
-                               clustering_method: str = 'kmeans', clustering_params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
+                               clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
                                origin_lat: float | None = None, origin_lon: float | None = None) -> dict[str, Any]:
     """Perform clustering and return a JSON-ready package for async updates."""
     result = _generate_cluster_traces(
@@ -213,7 +213,7 @@ def get_cluster_update_traces(longitude: list[float], latitude: list[float], mag
     }
 
 def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list[float] | np.ndarray, magnitude: list[float] | np.ndarray, depth: list[float] | np.ndarray, hover: list[str],
-                             method: str = 'kmeans', params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
+                             method: str = 'dbscan', params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
                              origin_lat: float | None = None, origin_lon: float | None = None) -> dict[str, Any]:
     """Shared helper to perform clustering and generate Plotly trace objects."""
     params = params or {}

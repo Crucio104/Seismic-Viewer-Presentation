@@ -94,6 +94,36 @@ class Api:
             logger.error("Error in select_csv", exc_info=True)
             return {'error': str(e)}
 
+    def save_screenshot(self, base64_data: str) -> dict[str, Any]:
+        """Open native save dialog and write the base64 image data to a file."""
+        try:
+            # Open save file dialog
+            result = self._window().create_file_dialog(
+                webview.FileDialog.SAVE,
+                directory=str(Path.home()),
+                save_filename='seismic_viewer_export.png',
+                file_types=('PNG Image (*.png)',),
+            )
+            
+            if not result:
+                return {'status': 'cancelled'}
+            
+            save_path = result[0] if isinstance(result, (list, tuple)) else result
+            
+            # Decode base64 data
+            import base64
+            header, encoded = base64_data.split(",", 1)
+            data = base64.b64decode(encoded)
+            
+            # Write to file
+            with open(save_path, 'wb') as f:
+                f.write(data)
+                
+            return {'status': 'success', 'path': save_path}
+        except Exception as e:
+            logger.error("Error in save_screenshot", exc_info=True)
+            return {'error': str(e)}
+
     def download_online_data(self, params: dict[str, Any]) -> dict[str, Any]:
         """Fetch data from INGV servers."""
         try:
@@ -139,7 +169,7 @@ class Api:
 
     # --- Visualization Navigation ---
 
-    def load_view(self, view_style: int, anim_mode: str = 'accumulation', window_days: int = 5, clustering_method: str = 'kmeans', clustering_params: dict[str, Any] | None = None) -> None:
+    def load_view(self, view_style: int, anim_mode: str = 'accumulation', window_days: int = 5, clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None) -> None:
         """Background thread for view generation."""
         if self._data is None:
             return {'error': 'No CSV loaded.'}
@@ -247,7 +277,7 @@ class Api:
             return {'error': 'No data'}
         return engine.get_animation_planes(self._data, radius_km=radius_km, min_pts=min_pts, window_days=window_days)
 
-    def get_animated_clustering(self, method: str = 'kmeans', params: dict[str, Any] | None = None, plane_step: int = 5) -> dict[str, Any]:
+    def get_animated_clustering(self, method: str = 'dbscan', params: dict[str, Any] | None = None, plane_step: int = 5) -> dict[str, Any]:
         if not self._data:
             return {'error': 'No data'}
         return engine.get_animation_clustering(self._data, method=method, params=params, plane_step=plane_step)

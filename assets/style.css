@@ -872,10 +872,10 @@ body {
     position: fixed;
     bottom: 1.25rem;
     left: 1.25rem;
-    width: 1.8rem;
-    height: 1.8rem;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.08);
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.75rem;
+    background: rgba(15, 15, 25, 0.7);
     backdrop-filter: blur(1.25rem) saturate(160%);
     -webkit-backdrop-filter: blur(1.25rem) saturate(160%);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -884,13 +884,13 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    z-index: 90000; 
+    z-index: 110000; 
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     font-family: serif;
     font-weight: 800;
-    font-size: 1rem;
+    font-size: 1.1rem;
     font-style: italic;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 #info-btn:hover {
@@ -950,12 +950,12 @@ body {
 
 #overlay-btn {
     position: fixed;
-    bottom: 1.25rem;
-    left: 3.5rem;
-    width: 1.8rem;
-    height: 1.8rem;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.08);
+    bottom: 4.0rem;
+    left: 1.25rem;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.75rem;
+    background: rgba(15, 15, 25, 0.7);
     backdrop-filter: blur(1.25rem) saturate(160%);
     -webkit-backdrop-filter: blur(1.25rem) saturate(160%);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -964,15 +964,43 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    z-index: 90000;
+    z-index: 110000;
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    padding: 0;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 #overlay-btn:hover {
     background: rgba(255, 255, 255, 0.2);
     transform: scale(1.1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+
+
+#screenshot-btn {
+    position: fixed;
+    bottom: 6.75rem;
+    left: 1.25rem;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.75rem;
+    background: rgba(15, 15, 25, 0.7);
+    backdrop-filter: blur(1.25rem) saturate(160%);
+    -webkit-backdrop-filter: blur(1.25rem) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 110000;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+#screenshot-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1) rotate(-5deg);
     border-color: rgba(255, 255, 255, 0.3);
 }
 
