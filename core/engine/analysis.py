@@ -334,8 +334,8 @@ def _worker_calculate_clustering(args: tuple) -> tuple[str, list[int], list[dict
             if len(pts) >= 4:
                 normal, centroid_km, planarity = fit_plane_ransac(pts, threshold=0.15)
                 if normal is not None and centroid_km is not None:
-                    avg_dist = np.mean(np.linalg.norm(pts - centroid_km, axis=1))
-                    radius_eff = max(0.2, 5 * avg_dist)
+                    dists = np.linalg.norm(pts - centroid_km, axis=1)
+                    radius_eff = max(0.2, float(np.percentile(dists, 90)))
                     
                     c_lon = (centroid_km[0] / lon_to_km) + origin_lon
                     c_lat = (centroid_km[1] / KM_PER_DEGREE) + origin_lat
@@ -584,12 +584,11 @@ def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat, di
             c_lon = (centroid[0] / lon_to_km) + origin_lon
             c_lat = (centroid[1] / KM_PER_DEGREE) + origin_lat
             
-            # Dynamic plane size: proportional to the spatial spread (std) of the cluster
-            spread = np.std(np.linalg.norm(cluster_pts - centroid, axis=1))
-            plane_radius = max(0.3, 2.5 * spread)
+            dists = np.linalg.norm(cluster_pts - centroid, axis=1)
+            radius_eff = max(0.2, float(np.percentile(dists, 90)))
             
             p_data = _format_plane_geometry(
-                normal, centroid, planarity, c_lon, c_lat, lon_to_km, plane_radius
+                normal, centroid, planarity, c_lon, c_lat, lon_to_km, radius_eff
             )
             p_data['grid_id'] = f"cluster_{lid}_{date_str}"
             planes.append(p_data)
