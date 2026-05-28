@@ -315,8 +315,11 @@
                             }
                             const maxDep = Math.abs(minVal);
                             document.getElementById('info-max-depth').textContent = maxDep.toFixed(1) + ' km';
-                        } else if (qd.dep_range) {
-                            document.getElementById('info-max-depth').textContent = Math.abs(qd.dep_range[0]).toFixed(1) + ' km';
+                        } else {
+                            const limits = qd.dep_limit || qd.dep_range;
+                            if (limits) {
+                                document.getElementById('info-max-depth').textContent = Math.abs(limits[0]).toFixed(1) + ' km';
+                            }
                         }
                     }
                 }

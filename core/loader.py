@@ -157,7 +157,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
     longitude = df['lon'].tolist()
     depth = (-df['depth']).tolist() # Store as negative for depth
     magnitude = df['mag'].tolist()
-    times = df['time_dt'].dt.strftime('%d-%m-%Y %H:%M:%S').tolist()
+    times = df['time_dt'].dt.strftime('%Y-%m-%d %H:%M:%S').tolist()
     dates_num = df['dates_num'].tolist()
 
     date_range = f"{df['time_dt'].iloc[0].strftime('%d-%m-%Y')} → {df['time_dt'].iloc[-1].strftime('%d-%m-%Y')}"

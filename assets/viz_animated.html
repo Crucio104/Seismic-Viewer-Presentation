@@ -406,17 +406,17 @@
                 if (currentMode === 'mag') {
                     sliceColor = sliceMag;
                     visibleTraceIdx = 1;
-                    limits = quakeData.mag_range;
+                    limits = quakeData.mag_range || quakeData.mag_limit;
                     barTitle = 'Magnitude';
                 } else if (isDate) {
                     sliceColor = sliceDnum;
                     visibleTraceIdx = 2;
-                    limits = quakeData.date_range;
+                    limits = quakeData.date_range || quakeData.date_limit;
                     barTitle = 'Date';
                 } else {
                     sliceColor = sliceDep;
                     visibleTraceIdx = 3;
-                    limits = quakeData.dep_range;
+                    limits = quakeData.dep_range || quakeData.dep_limit;
                     barTitle = 'Depth';
                 }
 

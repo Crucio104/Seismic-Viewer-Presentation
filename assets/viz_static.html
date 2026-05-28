@@ -193,13 +193,11 @@
             SeismicUI.bindMenu(colorMenu, (item) => {
                 currentColorMode = item.dataset.mode;
                 colorToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                if (!is3D) applyFilterWithLoader();
             });
 
             SeismicUI.bindMenu(scaleMenu, (item) => {
                 currentColorScale = item.dataset.val;
                 scaleToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                if (!is3D) applyFilterWithLoader();
             });
 
             if (viewModeMenu) {
@@ -210,16 +208,14 @@
                     SeismicUI.setGroupDisabled(scaleToggle.closest('.settings-group'), isHeatmap);
                     SeismicUI.setGroupDisabled(colorToggle.closest('.settings-group'), isHeatmap);
                     SeismicUI.setGroupDisabled(invertCheck.closest('.glass-checkbox'), isHeatmap);
-                    if (!is3D) applyFilterWithLoader();
                 });
             }
 
 
-            const rangeApplyCallback = is3D ? null : applyFilterWithLoader;
+            const rangeApplyCallback = null;
 
             invertCheck.onchange = () => {
                 invertScale = invertCheck.checked;
-                if (!is3D) applyFilterWithLoader();
             };
 
             // Range input sanitization
@@ -253,13 +249,11 @@
                 applyBtn.onclick = applyFilterWithLoader;
                 // Manually trigger initial legend update for 3D
                 setTimeout(() => {
-                    updateGlassLegend(true, 'Depth', currentColorScale, invertScale, quakeData.dep_range, { startDate: quakeData.start_date });
+                    updateGlassLegend(true, 'Depth', currentColorScale, invertScale, quakeData.dep_limit || quakeData.dep_range, { startDate: quakeData.start_date });
                 }, 10);
             } else {
-                applyBtn.style.display = 'none';
-                magMin.oninput = magMax.oninput = applyFilterWithLoader;
-                depMin.oninput = depMax.oninput = applyFilterWithLoader;
-                startInput.onchange = endInput.onchange = applyFilterWithLoader;
+                applyBtn.style.display = 'flex';
+                applyBtn.onclick = applyFilterWithLoader;
                 applyFilterWithLoader();
             }
 
@@ -294,15 +288,15 @@
 
                 let limits, colorArr, barTitle;
                 if (isDep) {
-                    limits = quakeData.dep_range;
+                    limits = quakeData.dep_limit || quakeData.dep_range;
                     colorArr = filtered.dep;
                     barTitle = 'Depth';
                 } else if (isMag) {
-                    limits = quakeData.mag_range;
+                    limits = quakeData.mag_limit || quakeData.mag_range;
                     colorArr = filtered.mag;
                     barTitle = 'Magnitude';
                 } else {
-                    limits = quakeData.date_range;
+                    limits = quakeData.date_limit || quakeData.date_range;
                     colorArr = filtered.dnum;
                     barTitle = 'Date';
                 }
