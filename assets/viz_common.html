@@ -315,8 +315,8 @@
                             }
                             const maxDep = Math.abs(minVal);
                             document.getElementById('info-max-depth').textContent = maxDep.toFixed(1) + ' km';
-                        } else if (qd.dep_limit) {
-                            document.getElementById('info-max-depth').textContent = Math.abs(qd.dep_limit[0]).toFixed(1) + ' km';
+                        } else if (qd.dep_range) {
+                            document.getElementById('info-max-depth').textContent = Math.abs(qd.dep_range[0]).toFixed(1) + ' km';
                         }
                     }
                 }
