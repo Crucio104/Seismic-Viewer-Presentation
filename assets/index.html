@@ -73,7 +73,7 @@
          ========================================= -->
     <div id="view-hub" class="view-section">
         <header class="hub-header">
-            <h1 class="hub-title">Visualization Hub</h1>
+            <h2 class="hub-title">Visualization Hub</h2>
             <div class="csv-badge" id="csv-badge">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                 <span id="badge-text">Synchronizing dataset...</span>
@@ -144,10 +144,14 @@
                     <input type="radio" name="anim_mode" value="window" onchange="toggleWindowInput()">
                     <span>Time Window</span>
                 </label>
+                <label class="radio-label">
+                    <input type="radio" name="anim_mode" value="block" onchange="toggleWindowInput()">
+                    <span>Blocks</span>
+                </label>
             </div>
             
             <div class="setting-group" id="window_input_group" style="opacity: 0.4; pointer-events: none;">
-                <label for="window_days" style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Days to show:</label>
+                <label id="duration_label" for="window_days" style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Days to show:</label>
                 <input type="number" id="window_days" class="glass-input" value="5" min="1" max="365">
             </div>
 
@@ -616,9 +620,15 @@
     function toggleWindowInput() {
         const mode = document.querySelector('input[name="anim_mode"]:checked').value;
         const group = document.getElementById('window_input_group');
+        const label = document.getElementById('duration_label');
         if (mode === 'window') {
             group.style.opacity = '1';
             group.style.pointerEvents = 'auto';
+            label.textContent = 'Days to show:';
+        } else if (mode === 'block') {
+            group.style.opacity = '1';
+            group.style.pointerEvents = 'auto';
+            label.textContent = 'Block duration (days):';
         } else {
             group.style.opacity = '0.4';
             group.style.pointerEvents = 'none';

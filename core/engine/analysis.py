@@ -56,6 +56,7 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
     rng = np.random.RandomState(seed)
     
     best_inliers = []
+    best_loss = float('inf')
     
     # RANSAC Loop
     for _ in range(max_iterations):
@@ -76,8 +77,13 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
         
         # Calculate orthogonal distances to plane
         dists = np.abs(np.dot(points, normal) - np.dot(sample[0], normal))
+        
+        # Loss function: radice del quadrato della distanza media dal piano dei punti
+        loss = np.sqrt(np.mean(dists)**2)
+        
         inliers = np.where(dists < threshold)[0]
-        if len(inliers) > len(best_inliers):
+        if len(inliers) >= min_inliers and loss < best_loss:
+            best_loss = loss
             best_inliers = inliers
             
     if len(best_inliers) < min_inliers:
@@ -411,8 +417,8 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     mags = np.array(data['magnitude'])
     dates_unique = data['visual_pack']['unique_dates']
     date_to_cum = data['visual_pack']['date_to_cum']
-    anim_mode = data.get('anim_mode', 'accumulation')
-    window_days = data.get('window_days', 5)
+    anim_mode = params.get('anim_mode', data.get('anim_mode', 'accumulation'))
+    window_days = int(params.get('window_days', data.get('window_days', 5)))
     
     origin_lat = data.get('origin_lat', np.mean(lat))
     origin_lon = data.get('origin_lon', np.mean(lon))
@@ -551,6 +557,22 @@ def _get_frame_indices(dates, date_to_cum, mode, window_days):
     
     from datetime import datetime, timedelta
     dt_objs = [datetime.strptime(d, '%Y-%m-%d') for d in dates]
+    
+    if mode == 'block':
+        d0 = dt_objs[0]
+        for i, d_str in enumerate(dates):
+            t_i = (dt_objs[i] - d0).days
+            b_i = t_i // window_days
+            cutoff = d0 + timedelta(days=b_i * window_days)
+            cutoff_str = cutoff.strftime('%Y-%m-%d')
+            s_idx = 0
+            for j, d in enumerate(dates):
+                if d >= cutoff_str:
+                    s_idx = date_to_cum[dates[j-1]] if j > 0 else 0
+                    break
+            indices.append((s_idx, date_to_cum[d_str]))
+        return indices
+    
     for i, d_str in enumerate(dates):
         cutoff = dt_objs[i] - timedelta(days=window_days-1)
         s_idx = 0
@@ -609,8 +631,6 @@ def _perform_cylinder_clustering(pts_subset, curr_pt_cylinder_map, method, param
     # Find where cylinder IDs change
     splits = np.where(np.diff(sorted_maps) != 0)[0] + 1
     
-    pt_groups = np.split(pts_subset[sort_idx], splits)
-    map_groups = np.split(sorted_maps, splits)
     idx_groups = np.split(sort_idx, splits)
     
     for i, g_idx in enumerate(idx_groups):

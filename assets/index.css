@@ -174,7 +174,7 @@
         flex-shrink: 0;
     }
 
-    h1.hub-title {
+    .hub-title {
         font-size: 2.250rem; font-weight: 800; letter-spacing: -1px; margin-bottom: 0.750rem;
         background: linear-gradient(to right, #fff, #a5b4fc);
         -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
@@ -203,7 +203,7 @@
             max-width: 25rem;
             padding-right: 0;
         }
-        h1.hub-title { font-size: 2.5rem; }
+        .hub-title { font-size: 2.5rem; }
     }
     .vcard {
         background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(1.250rem) saturate(160%);

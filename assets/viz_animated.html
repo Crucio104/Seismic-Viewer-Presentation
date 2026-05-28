@@ -325,6 +325,27 @@
                         }
                     }
                     if (foundIdx > 0) startIdx = quakeData.date_to_cum[dates[foundIdx - 1]];
+                } else if (quakeData.anim_mode === 'block') {
+                    const d0 = new Date(dates[0]);
+                    const currDate = new Date(date);
+                    const msDiff = currDate.getTime() - d0.getTime();
+                    const daysDiff = Math.floor(msDiff / 86400000);
+                    const blockIdx = Math.floor(daysDiff / quakeData.window_days);
+                    const cutoffDate = new Date(d0.getTime() + blockIdx * quakeData.window_days * 86400000);
+                    const cutoffStr = cutoffDate.toISOString().slice(0, 10);
+
+                    let low = 0, high = dates.length - 1;
+                    let foundIdx = 0;
+                    while (low <= high) {
+                        let mid = (low + high) >>> 1;
+                        if (dates[mid] >= cutoffStr) {
+                            foundIdx = mid;
+                            high = mid - 1;
+                        } else {
+                            low = mid + 1;
+                        }
+                    }
+                    if (foundIdx > 0) startIdx = quakeData.date_to_cum[dates[foundIdx - 1]];
                 }
                 return [startIdx, endIdx];
             }
@@ -979,6 +1000,8 @@
             async function syncAnimatedClustering() {
                 try {
                     const params = {
+                        anim_mode: quakeData.anim_mode,
+                        window_days: quakeData.window_days,
                         kmeans_clusters: pClustersAnim.value,
                         kmeans_max_dist: pDistAnim.value,
                         dbscan_eps: pEpsAnim.value,
