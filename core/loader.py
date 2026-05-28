@@ -56,8 +56,12 @@ def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
 def load_csv(source_file: str) -> dict[str, Any]:
     """Parse a seismic CSV and return extracted data arrays."""
     try:
+        with open(source_file, 'r', encoding='utf-8', errors='ignore') as f:
+            first_line = f.readline()
+            sep = ';' if ';' in first_line else ','
+
         # 1. Read ONLY the header first to detect columns
-        header_df = pd.read_csv(source_file, header=0, nrows=0)
+        header_df = pd.read_csv(source_file, sep=sep, header=0, nrows=0)
         cols = header_df.columns.tolist()
 
         # Robust case-insensitive and stripped matching
@@ -73,7 +77,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
         # If we found all 5 columns by name, use them for optimized read
         if len(found_mapping) == 5:
             # Re-read ONLY the necessary columns to save memory
-            df = pd.read_csv(source_file, usecols=list(found_mapping.values()))
+            df = pd.read_csv(source_file, sep=sep, usecols=list(found_mapping.values()))
             # Rename for internal consistency
             rename_map = {v: k for k, v in found_mapping.items()}
             df = df.rename(columns=rename_map)
@@ -83,6 +87,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
             logger.warning("Column names not recognized, falling back to positional indices.")
             df = pd.read_csv(
                 source_file, 
+                sep=sep,
                 usecols=[1, 2, 3, 4, 5],
                 names=['time', 'lat', 'lon', 'depth', 'mag'],
                 header=0
@@ -96,7 +101,10 @@ def load_csv(source_file: str) -> dict[str, Any]:
     df = df.dropna(subset=[c for c in essential_cols if c in df.columns])
     
     # Ensure chronological order - CRITICAL for animation slicing
-    df['time_dt'] = pd.to_datetime(df['time'], errors='coerce')
+    if df['time'].astype(str).str.match(r'^\d+(\.\d+)?$').all():
+        df['time_dt'] = pd.to_datetime(pd.to_numeric(df['time']), origin='1899-12-30', unit='D')
+    else:
+        df['time_dt'] = pd.to_datetime(df['time'], errors='coerce')
     df = df.dropna(subset=['time_dt'])
     df = df.sort_values('time_dt').reset_index(drop=True)
 
@@ -114,9 +122,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
     if df.empty:
         raise ValueError(f"No seismic events found with M ≥ {MIN_MAGNITUDE}.")
 
-    # Fast datetime parsing
-    df['time_dt'] = pd.to_datetime(df['time'], errors='coerce')
-    df = df.dropna(subset=['time_dt'])
+    # Fast datetime parsing (removed redundant second parsing)
     
     # --- SANITY CHECKS ---
     initial_count = len(df)
@@ -151,7 +157,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
     longitude = df['lon'].tolist()
     depth = (-df['depth']).tolist() # Store as negative for depth
     magnitude = df['mag'].tolist()
-    times = df['time'].tolist()
+    times = df['time_dt'].dt.strftime('%d-%m-%Y %H:%M:%S').tolist()
     dates_num = df['dates_num'].tolist()
 
     date_range = f"{df['time_dt'].iloc[0].strftime('%d-%m-%Y')} → {df['time_dt'].iloc[-1].strftime('%d-%m-%Y')}"
