@@ -195,7 +195,7 @@ def _worker_calculate_planes(args: tuple) -> tuple[str, list[dict[str, Any]]]:
     )
     return date_str, planes
 
-def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, window_days: int) -> dict[str, list[dict[str, Any]]]:
+def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, window_days: int, anim_mode: str = 'accumulation') -> dict[str, list[dict[str, Any]]]:
     """Calculates structural planes for animation using multiprocessing."""
     lon = np.array(data['longitude'], dtype=np.float32)
     lat = np.array(data['latitude'], dtype=np.float32)
@@ -225,16 +225,12 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
                 active_grid.append((ix, iy, cx, cy, indices))
     
     tasks = []
-    dates_ts = np.array([datetime.strptime(d, '%Y-%m-%d').timestamp() for d in dates_unique])
+    
+    # Get frame indices using the same logic as clustering
+    date_indices = _get_frame_indices(dates_unique, date_to_cum, anim_mode, window_days)
     
     for i, date_str in enumerate(dates_unique):
-        end_idx = date_to_cum[date_str]
-        cutoff_ts = dates_ts[i] - (window_days - 1) * SECONDS_PER_DAY
-        start_date_idx = np.searchsorted(dates_ts, cutoff_ts)
-        start_idx = 0
-        if start_date_idx > 0:
-            prev_date_str = dates_unique[start_date_idx - 1]
-            start_idx = date_to_cum[prev_date_str]
+        start_idx, end_idx = date_indices[i]
         
         tasks.append((
             date_str, start_idx, end_idx, active_grid, radius_km, min_pts, 
@@ -507,10 +503,8 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
             continue
 
         # CYLINDER STABILITY: 
-        # 1. If single cluster per cylinder -> IDs are stable centers, bypass matching.
-        # 2. If inner clustering -> IDs (501, 502) are NOT stable (KMeans swaps 0 and 1). Use matching.
-        use_inner = params.get('cluster_in_cylinder', False)
-        if use_cylinders and not use_inner:
+        # IDs are stable centers, bypass matching.
+        if use_cylinders:
             matched_labels = labels
         elif has_initialized_labels:
             matched_labels, next_label_id = match_labels_globally(labels, global_indices, global_labels_map, next_label_id)
@@ -617,8 +611,7 @@ def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat, di
     return planes
 
 def _perform_cylinder_clustering(pts_subset, curr_pt_cylinder_map, method, params):
-    """Partitions points into cylinders and optionally clusters within them."""
-    use_inner_clustering = params.get('cluster_in_cylinder', False)
+    """Partitions points into cylinders."""
     labels = np.full(len(pts_subset), -1, dtype=int)
     
     if len(pts_subset) == 0:
@@ -641,17 +634,8 @@ def _perform_cylinder_clustering(pts_subset, curr_pt_cylinder_map, method, param
         if cylinder_idx == -1:
             continue
             
-        if use_inner_clustering:
-            # Local clustering within cylinder
-            pts_in_cyl = pts_subset[g_idx]
-            c_labels, n_c, _ = perform_clustering(pts_in_cyl, method, params, None)
-            
-            if n_c > 0:
-                valid_mask = c_labels != -1
-                labels[g_idx[valid_mask]] = int(cylinder_idx) * 100 + c_labels[valid_mask]
-        else:
-            # Just one cluster per cylinder
-            labels[g_idx] = int(cylinder_idx)
+        # Just one cluster per cylinder
+        labels[g_idx] = int(cylinder_idx)
             
     valid_labels = labels[labels != -1]
     return labels, len(np.unique(valid_labels)) if len(valid_labels) > 0 else 0

@@ -55,7 +55,7 @@ async def handle_websocket_messages(websocket: WebSocket, manager: ConnectionMan
 
             elif msg_type == "get_structural_planes":
                 p = message.get("params", {})
-                result = await asyncio.to_thread(api_ref.get_structural_planes, p.get("radius_km"), p.get("min_pts"), p.get("window_days"))
+                result = await asyncio.to_thread(api_ref.get_structural_planes, p.get("radius_km"), p.get("min_pts"), p.get("window_days"), p.get("anim_mode", "accumulation"))
                 await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
 
             elif msg_type == "get_animated_clustering":

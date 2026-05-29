@@ -272,10 +272,10 @@ class Api:
             logger.error("Cluster update failed", exc_info=True)
             return {'error': str(e)}
 
-    def get_structural_planes(self, radius_km: float = 2.0, min_pts: int = 10, window_days: int = 5) -> dict[str, Any]:
+    def get_structural_planes(self, radius_km: float = 2.0, min_pts: int = 10, window_days: int = 5, anim_mode: str = 'accumulation') -> dict[str, Any]:
         if not self._data:
             return {'error': 'No data'}
-        return engine.get_animation_planes(self._data, radius_km=radius_km, min_pts=min_pts, window_days=window_days)
+        return engine.get_animation_planes(self._data, radius_km=radius_km, min_pts=min_pts, window_days=window_days, anim_mode=anim_mode)
 
     def get_animated_clustering(self, method: str = 'dbscan', params: dict[str, Any] | None = None, plane_step: int = 5) -> dict[str, Any]:
         if not self._data:
