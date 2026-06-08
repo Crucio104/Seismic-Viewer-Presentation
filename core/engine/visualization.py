@@ -335,10 +335,31 @@ def get_cluster_update_traces(longitude: list[float], latitude: list[float], mag
             traces.insert(0, bg_trace)
 
     json_traces = [t.to_plotly_json() for t in traces]
+    
+    # Build cluster_indices mapping global indices to labels
+    # actual_viz_mask indicates which points were clustered
+    cluster_indices = {}
+    if actual_viz_mask is not None:
+        global_idx = np.where(actual_viz_mask)[0]
+        for i, lbl in enumerate(result['labels']):
+            if lbl >= 0:
+                lbl_int = int(lbl)
+                if lbl_int not in cluster_indices:
+                    cluster_indices[lbl_int] = []
+                cluster_indices[lbl_int].append(int(global_idx[i]))
+    else:
+        for i, lbl in enumerate(result['labels']):
+            if lbl >= 0:
+                lbl_int = int(lbl)
+                if lbl_int not in cluster_indices:
+                    cluster_indices[lbl_int] = []
+                cluster_indices[lbl_int].append(int(i))
+                
     return {
         'traces': json_traces,
         'labels': result['labels'].tolist(),
-        'n_clusters': result['n_clusters']
+        'n_clusters': result['n_clusters'],
+        'cluster_indices': cluster_indices
     }
 
 def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list[float] | np.ndarray, magnitude: list[float] | np.ndarray, depth: list[float] | np.ndarray, hover: list[str],
