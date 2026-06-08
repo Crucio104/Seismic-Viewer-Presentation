@@ -182,18 +182,40 @@ class Api:
         }
         threading.Thread(target=self._generate_and_navigate, args=(view_style,), kwargs=kwargs, daemon=True).start()
 
+    def load_subcluster_view(self, indices: list[int], context_indices: list[int] | None = None, clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None) -> None:
+        """Background thread for sub-cluster view generation."""
+        if self._data is None:
+            return
+        
+        kwargs = {
+            'clustering_method': clustering_method,
+            'clustering_params': clustering_params or {},
+            'target_indices': indices,
+            'context_indices': context_indices
+        }
+        threading.Thread(target=self._generate_and_navigate, args=(4,), kwargs=kwargs, daemon=True).start()
+
     def _generate_and_navigate(self, view_style: int, **kwargs) -> None:
         """Generate HTML and navigate the window."""
         try:
             # 1. Check Cache
             c_params = kwargs.get('clustering_params')
             c_params_frozen = frozenset(c_params.items()) if c_params else None
-            cache_key = (self._csv_path, view_style, kwargs.get('anim_mode'), kwargs.get('window_days'), kwargs.get('clustering_method'), c_params_frozen)
+            
+            t_idx = kwargs.get('target_indices')
+            t_idx_frozen = tuple(t_idx) if t_idx else None
+            
+            c_idx = kwargs.get('context_indices')
+            c_idx_frozen = tuple(c_idx) if c_idx else None
+
+            cache_key = (self._csv_path, view_style, kwargs.get('anim_mode'), kwargs.get('window_days'), kwargs.get('clustering_method'), c_params_frozen, t_idx_frozen, c_idx_frozen)
 
             if cache_key in self._html_cache:
                 self._push_progress("Loading from cache…")
                 self._inject_dark_overlay()
-                self._window().load_url(self._make_url(self._html_cache[cache_key]))
+                import time
+                url = self._make_url(self._html_cache[cache_key]) + f"?t={int(time.time()*1000)}"
+                self._window().load_url(url)
                 return
 
             # 2. Generate New View
@@ -259,15 +281,49 @@ class Api:
             viz_mask = (mags >= float(params.get('mag_min', 0))) & (mags <= float(params.get('mag_max', 10))) & \
                        (deps >= float(params.get('dep_min', 0))) & (deps <= float(params.get('dep_max', 10000)))
 
-            return engine.get_cluster_update_traces(
+            target_mask = None
+            if 'subcluster_target_indices' in params:
+                target_mask = np.zeros(len(d['longitude']), dtype=bool)
+                target_mask[params['subcluster_target_indices']] = True
+                target_mask = target_mask[start_idx:end_idx]
+
+            context_mask = None
+            if 'subcluster_context_indices' in params and params['subcluster_context_indices'] is not None:
+                context_mask = np.zeros(len(d['longitude']), dtype=bool)
+                context_mask[params['subcluster_context_indices']] = True
+                context_mask = context_mask[start_idx:end_idx]
+
+            actual_mask = viz_mask
+            if target_mask is not None:
+                actual_mask = viz_mask & target_mask
+
+            res = engine.get_cluster_update_traces(
                 longitude=d['longitude'][start_idx:end_idx],
                 latitude=d['latitude'][start_idx:end_idx],
                 magnitude=mags.tolist(),
                 depth=d['depth'][start_idx:end_idx],
                 hover=d['visual_pack']['hover'][start_idx:end_idx],
                 clustering_method=method, clustering_params=params, viz_mask=viz_mask,
-                origin_lat=d.get('origin_lat'), origin_lon=d.get('origin_lon')
+                origin_lat=d.get('origin_lat'), origin_lon=d.get('origin_lon'),
+                subcluster_target_mask=target_mask,
+                subcluster_context_mask=context_mask
             )
+
+            # Map the returned labels back to global indices
+            labels = np.array(res['labels'])
+            global_indices = np.where(actual_mask)[0] + start_idx
+            
+            cluster_indices = {}
+            # labels length should match global_indices length
+            if len(labels) == len(global_indices):
+                for i, g_idx in enumerate(global_indices):
+                    lbl = int(labels[i])
+                    if lbl not in cluster_indices:
+                        cluster_indices[lbl] = []
+                    cluster_indices[lbl].append(int(g_idx))
+            
+            res['cluster_indices'] = cluster_indices
+            return res
         except Exception as e:
             logger.error("Cluster update failed", exc_info=True)
             return {'error': str(e)}

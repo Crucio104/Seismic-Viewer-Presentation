@@ -13,7 +13,8 @@ from core.templates import generate_html
 # Sub-engine modules
 from core.engine.visualization import (
     view_2d, get_3d_static_figure, get_3d_cluster_figure, 
-    get_3d_animated_figure, get_cluster_update_traces
+    get_3d_animated_figure, get_cluster_update_traces,
+    get_3d_subcluster_figure
 )
 from core.engine.analysis import (
     get_animation_planes, get_animation_clustering
@@ -60,7 +61,8 @@ def build_view_html(
     clustering_method: str = 'dbscan',
     clustering_params: dict[str, Any] | None = None,
     data_url: str = "", 
-    session_id: str = ""
+    session_id: str = "",
+    **kwargs
 ) -> tuple[str, bool]:
     """Orchestrate view generation and return final HTML."""
     
@@ -145,9 +147,19 @@ def build_view_html(
             bbox=bbox, visual_pack=vpack, map_grids=map_grids,
             origin_lat=data.get('origin_lat'), origin_lon=data.get('origin_lon')
         )
+        
+        cluster_indices = {}
+        for i, lbl in enumerate(labels):
+            if lbl >= 0:
+                lbl_int = int(lbl)
+                if lbl_int not in cluster_indices:
+                    cluster_indices[lbl_int] = []
+                cluster_indices[lbl_int].append(int(i))
+
         cluster_data = data.copy()
         cluster_data.update({
             'cluster': labels.tolist(),
+            'cluster_indices': cluster_indices,
             'hover': vpack.get('hover', []),
             'mag_limit': vpack.get('mag_range', [0, 10]),
             'date_limit': vpack.get('date_range', [0, 0]),
@@ -155,6 +167,49 @@ def build_view_html(
             'n_clusters': n_clusters,
             'clustering_method': clustering_method,
             'clustering_params': clustering_params,
+            'start_date': times[0][:10] if times else ""
+        })
+
+        if session_id:
+            store_session_data(session_id, cluster_data.copy())
+            strip_data(fig, cluster_data)
+        html = generate_html(fig, is_cluster=True, is_3d=True, back_button=back_button, earthquake_data=cluster_data, is_fallback=is_fallback, data_url=data_url)
+
+    elif view_style == 4:
+        target_indices = kwargs.get('target_indices', [])
+        context_indices = kwargs.get('context_indices', None)
+        fig, labels, n_clusters = get_3d_subcluster_figure(
+            lon, lat, mag, dep, target_indices, context_indices=context_indices,
+            clustering_method=clustering_method, clustering_params=clustering_params, 
+            bbox=bbox, visual_pack=vpack, map_grids=map_grids,
+            origin_lat=data.get('origin_lat'), origin_lon=data.get('origin_lon')
+        )
+        
+        full_labels = np.full(len(lon), -1, dtype=int)
+        if len(target_indices) > 0 and len(labels) == len(target_indices):
+            full_labels[target_indices] = labels
+
+        cluster_indices = {}
+        for i, lbl in enumerate(full_labels):
+            if lbl >= 0:
+                lbl_int = int(lbl)
+                if lbl_int not in cluster_indices:
+                    cluster_indices[lbl_int] = []
+                cluster_indices[lbl_int].append(int(i))
+
+        cluster_data = data.copy()
+        cluster_data.update({
+            'cluster': full_labels.tolist(),
+            'cluster_indices': cluster_indices,
+            'hover': vpack.get('hover', []),
+            'mag_limit': vpack.get('mag_range', [0, 10]),
+            'date_limit': vpack.get('date_range', [0, 0]),
+            'dep_limit': vpack.get('dep_range', [0, 0]),
+            'n_clusters': n_clusters,
+            'clustering_method': clustering_method,
+            'clustering_params': clustering_params,
+            'subcluster_target_indices': target_indices,
+            'subcluster_context_indices': context_indices,
             'start_date': times[0][:10] if times else ""
         })
 

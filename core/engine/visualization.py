@@ -196,16 +196,145 @@ def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitu
     apply_3d_style(fig, [x_grid[0], x_grid[-1]], [y_grid[-1], y_grid[0]], [min_depth, 0])
     return fig, result['labels'], result['n_clusters']
 
-def get_cluster_update_traces(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], hover: list[str],
-                               clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
-                               origin_lat: float | None = None, origin_lon: float | None = None) -> dict[str, Any]:
-    """Perform clustering and return a JSON-ready package for async updates."""
+def get_3d_subcluster_figure(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], target_indices: list[int],
+                            clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None,
+                            bbox: tuple[float, float, float, float] | None = None, visual_pack: dict[str, Any] | None = None, 
+                            map_grids: tuple[Any, ...] | None = None,
+                            origin_lat: float | None = None, origin_lon: float | None = None) -> tuple[go.Figure, np.ndarray, int]:
+    """Generate the 3D Sub-Cluster figure, showing non-target points as gray and re-clustering the target points."""
+    min_depth = np.floor(np.min(depth)) if len(depth) > 0 else 0
+    if bbox is None:
+        bbox = (np.min(latitude), np.min(longitude), np.max(latitude), np.max(longitude))
+
+def get_3d_subcluster_figure(
+    longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], 
+    target_indices: list[int], context_indices: list[int] | None = None,
+    clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None,
+    bbox: tuple[float, float, float, float] | None = None,
+    visual_pack: dict[str, Any] | None = None, map_grids: tuple | None = None,
+    origin_lat: float | None = None, origin_lon: float | None = None
+) -> tuple[go.Figure, np.ndarray, int]:
+    
+    n_points = len(longitude)
+    viz_mask = np.zeros(n_points, dtype=bool)
+    if len(target_indices) > 0:
+        viz_mask[target_indices] = True
+        
+    # Re-use the existing cluster generation but with the target mask
     result = _generate_cluster_traces(
-        longitude, latitude, magnitude, depth, hover,
-        clustering_method, clustering_params, viz_mask=viz_mask,
+        longitude, latitude, magnitude, depth,
+        visual_pack.get('hover', []) if visual_pack else [],
+        clustering_method, clustering_params, viz_mask,
         origin_lat=origin_lat, origin_lon=origin_lon
     )
-    json_traces = [t.to_plotly_json() for t in result['traces']]
+
+    fig = go.Figure()
+
+    # Add Map Surface
+    min_depth = float(np.min(depth)) if len(depth) > 0 else 0
+    if map_grids:
+        x_grid, y_grid, z_grid_mesh, surfacecolor, colorscale, _ = map_grids
+    else:
+        from core.geo_utils import build_map_mesh
+        from core.config import MESH_HD_SIZE
+        if bbox is None:
+            bbox = (np.min(latitude), np.min(longitude), np.max(latitude), np.max(longitude))
+        x_grid, y_grid, z_grid_mesh, surfacecolor, colorscale, _ = build_map_mesh(bbox, MESH_HD_SIZE)
+
+    fig.add_trace(go.Surface(
+        x=x_grid, y=y_grid, z=z_grid_mesh,
+        surfacecolor=surfacecolor, colorscale=colorscale,
+        opacity=0.9, showscale=False,
+        hoverinfo='skip', name='Map Terrain',
+        lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0)
+    ))
+
+    # Add context points if available, otherwise just use ~viz_mask
+    if context_indices is not None:
+        bg_mask = np.zeros(n_points, dtype=bool)
+        bg_mask[context_indices] = True
+        bg_mask = bg_mask & (~viz_mask)
+    else:
+        bg_mask = ~viz_mask
+
+    lon_bg = np.array(longitude)[bg_mask]
+    lat_bg = np.array(latitude)[bg_mask]
+    dep_bg = np.array(depth)[bg_mask]
+    
+    if len(lon_bg) > 0:
+        fig.add_trace(go.Scatter3d(
+            x=lon_bg.tolist(), y=lat_bg.tolist(), z=dep_bg.tolist(),
+            mode='markers',
+            marker=dict(
+                size=5,
+                color='#888888',
+                line=dict(width=1, color='rgba(50,50,50,0.8)'),
+                opacity=0.9
+            ),
+            hoverinfo='skip',
+            showlegend=False,
+            name='Other Events'
+        ))
+
+    # Add cluster traces
+    for t in result['traces']:
+        fig.add_trace(t)
+
+    apply_3d_style(fig, [x_grid[0], x_grid[-1]], [y_grid[-1], y_grid[0]], [min_depth, 0])
+    return fig, result['labels'], result['n_clusters']
+
+def get_cluster_update_traces(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], hover: list[str],
+                               clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
+                               origin_lat: float | None = None, origin_lon: float | None = None, 
+                               subcluster_target_mask: np.ndarray | None = None, subcluster_context_mask: np.ndarray | None = None) -> dict[str, Any]:
+    """Perform clustering and return a JSON-ready package for async updates."""
+    actual_viz_mask = viz_mask
+    if subcluster_target_mask is not None:
+        if actual_viz_mask is not None:
+            actual_viz_mask = actual_viz_mask & subcluster_target_mask
+        else:
+            actual_viz_mask = subcluster_target_mask
+
+    result = _generate_cluster_traces(
+        longitude, latitude, magnitude, depth, hover,
+        clustering_method, clustering_params, actual_viz_mask,
+        origin_lat=origin_lat, origin_lon=origin_lon
+    )
+    
+    traces = result['traces']
+    
+    # Add context points if available, or if target mask is set
+    if subcluster_context_mask is not None:
+        bg_mask = subcluster_context_mask & (~actual_viz_mask)
+    elif subcluster_target_mask is not None:
+        bg_mask = ~subcluster_target_mask
+        if viz_mask is not None:
+            bg_mask = bg_mask & viz_mask
+    else:
+        bg_mask = None
+
+    if bg_mask is not None:
+        lon_bg = np.array(longitude)[bg_mask]
+        lat_bg = np.array(latitude)[bg_mask]
+        dep_bg = np.array(depth)[bg_mask]
+        
+        if len(lon_bg) > 0:
+            bg_trace = go.Scatter3d(
+                x=lon_bg.tolist(), y=lat_bg.tolist(), z=dep_bg.tolist(),
+                mode='markers',
+                marker=dict(
+                    size=5,
+                    color='#888888',
+                    line=dict(width=1, color='rgba(50,50,50,0.8)'),
+                    opacity=0.9
+                ),
+                hoverinfo='skip',
+                showlegend=False,
+                name='Other Events'
+            )
+            traces.insert(0, bg_trace)
+
+    json_traces = [t.to_plotly_json() for t in traces]
     return {
         'traces': json_traces,
         'labels': result['labels'].tolist(),

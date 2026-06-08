@@ -703,14 +703,59 @@
                     let labelText = `Cluster ${index + 1}`;
                     
                     html += `
-                        <div class="legend-item-cluster" style="display:flex; align-items:center; justify-content:space-between; gap:1.000rem; flex-shrink:0; width:100%;">
+                        <div class="legend-item-cluster" style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; flex-shrink:0; width:100%; margin-bottom: 0.25rem;">
                             <span style="font-family:\'Segoe UI\',system-ui,sans-serif;font-size:0.750rem;font-weight:600;color:#fff;opacity:0.85;">${labelText}</span>
-                            <div style="width:0.875rem;height:0.875rem;border-radius:50%;background-color:${color};border:1px solid rgba(255,255,255,0.4);box-shadow:0 0 0.375rem ${color}80;"></div>
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <button onclick="analyzeCluster(${lbl})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:4px; font-size:0.6rem; padding:2px 6px; cursor:pointer; transition:background 0.2s;">Analyze</button>
+                                <div style="width:0.875rem;height:0.875rem;border-radius:50%;background-color:${color};border:1px solid rgba(255,255,255,0.4);box-shadow:0 0 0.375rem ${color}80;"></div>
+                            </div>
                         </div>
                     `;
                 });
                 clusterList.innerHTML = html;
             }
+
+            window.analyzeCluster = async function(lbl) {
+                // In animated view, we need to extract the indices of points that belong to this label *in the current frame*.
+                const overlay = document.getElementById('filter-loader');
+                overlay.classList.add('show');
+
+                let targetIndices = [];
+                let contextIndices = [];
+                // Find current frame's cluster data
+                if (animClustersMap && typeof currentStepIdx !== 'undefined') {
+                    const dateStr = dates[currentStepIdx];
+                    const frameData = animClustersMap[dateStr];
+                    if (frameData && frameData.labels && frameData.indices) {
+                        contextIndices = frameData.indices;
+                        for (let i = 0; i < frameData.labels.length; i++) {
+                            if (frameData.labels[i] === lbl) {
+                                targetIndices.push(frameData.indices[i]);
+                            }
+                        }
+                    }
+                }
+
+                if (targetIndices.length === 0) {
+                    console.error("No points found for cluster " + lbl + " in current frame.");
+                    overlay.classList.remove('show');
+                    return;
+                }
+
+                try {
+                    const params = {
+                        kmeans_clusters: pClustersAnim.value,
+                        kmeans_max_dist: pDistAnim.value,
+                        dbscan_eps: pEpsAnim.value,
+                        dbscan_min_samples: pMinAnim.value
+                    };
+                    await pywebview.api.load_subcluster_view(targetIndices, contextIndices, currentAnimClustMethod, params);
+                } catch(e) {
+                    console.error("Failed to load subcluster view:", e);
+                    if (typeof showStatusToast === 'function') showStatusToast('Engine failure: ' + e);
+                }
+                setTimeout(() => overlay.classList.remove('show'), 2000);
+            };
 
                        function generatePlaneTraces(planes, activeLabels = []) {
                 if (!planes || planes.length === 0) return [];

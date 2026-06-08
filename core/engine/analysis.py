@@ -539,7 +539,11 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
                     p['grid_id'] = f"cluster_{global_lid}_{date_str}"
                     last_valid_planes.append(p)
         
-        results[date_str] = {'labels': final_labels.tolist(), 'planes': last_valid_planes}
+        results[date_str] = {
+            'labels': final_labels.tolist(), 
+            'planes': last_valid_planes,
+            'indices': global_indices.tolist()
+        }
             
     logger.info(f"Parallel clustering completed in {time.time() - t0:.2f}s")
     return results
