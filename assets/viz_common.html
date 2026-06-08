@@ -214,7 +214,13 @@
                 const infoBtn = document.getElementById('info-btn');
                 if (infoBtn) infoBtn.classList.add('visible');
                 const overlayBtn = document.getElementById('overlay-btn');
-                if (overlayBtn) overlayBtn.classList.add('visible');
+                if (overlayBtn) {
+                    overlayBtn.classList.add('visible');
+                    if (window.IS_3D_VIEW === false) {
+                        overlayBtn.style.pointerEvents = 'none';
+                        overlayBtn.style.opacity = '0.4';
+                    }
+                }
                 const screenshotBtn = document.getElementById('screenshot-btn');
                 if (screenshotBtn) screenshotBtn.classList.add('visible');
             }, 300);
@@ -672,12 +678,18 @@
 
     function showStatusToast(msg) {
         const container = document.getElementById('toast-container');
+        container.innerHTML = ''; // Clear previous notifications
+        container.style.zIndex = '9999999';
         const toast = document.createElement('div');
         toast.className = 'toast';
         toast.innerHTML = `<span>⚠️ ${msg}</span>`;
         container.appendChild(toast);
 
-        setTimeout(() => toast.classList.add('show'), 100);
+        setTimeout(() => toast.classList.add('show'), 10);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
     }
 
     /* ─── 3D Camera & Cinema Mode Logic ─── */

@@ -78,7 +78,7 @@
             <div class="settings-group" id="structural-settings-group">
                 <div class="label">Structural Analysis</div>
                 <label class="glass-checkbox">
-                    <input type="checkbox" id="show-planes">
+                    <input type="radio" name="analysis_mode" id="show-planes">
                     Enable Planes
                 </label>
                 
@@ -103,7 +103,7 @@
             <div class="settings-group" id="clustering-settings-group">
                 <div class="label">Clustering & Planes</div>
                 <label class="glass-checkbox">
-                    <input type="checkbox" id="anim-show-clustering">
+                    <input type="radio" name="analysis_mode" id="anim-show-clustering">
                     Enable Clustering
                 </label>
 
@@ -272,7 +272,7 @@
             let currentAnimClustMethod = 'dbscan';
             let showAnimClusterPlanes = false;
             function getClusterColor(lbl) {
-                if (lbl < 0) return 'rgba(255, 255, 255, 0.05)';
+                if (lbl < 0) return '#888888';
                 const predefined = [
                     '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52',
                     '#00b8d4', '#ff1744', '#00e676', '#d500f9', '#ff9100', '#2979ff', '#ff5252', '#00e5ff', '#76ff03', '#f50057',
@@ -382,9 +382,66 @@
                     quakeData.hover = new Array(quakeData.lon.length).fill("");
                 }
                 
+                // --- 1. Fetch Cluster Data ---
+                let clusterData = null;
+                if (animClusteringEnabled && animClustersMap && dates[idx]) {
+                    clusterData = animClustersMap[dates[idx]];
+                }
+
+                // --- 2. Fetch Planes to Render ---
+                let planesToRender = [];
+                if (animClusteringEnabled && showAnimClusterPlanes && clusterData) {
+                    planesToRender = clusterData.planes || [];
+                    if (accumulatePlanes) {
+                        persistentPlanesMap.clear();
+                        for (let i = 0; i <= idx; i++) {
+                            const daily = (animClustersMap[dates[i]] || {}).planes || [];
+                            daily.forEach(p => persistentPlanesMap.set(p.grid_id, p));
+                        }
+                        planesToRender = Array.from(persistentPlanesMap.values());
+                    } else {
+                        if ((!planesToRender || planesToRender.length === 0) && idx > 0) {
+                            for (let i = idx - 1; i >= 0; i--) {
+                                const pastPlanes = (animClustersMap[dates[i]] || {}).planes;
+                                if (pastPlanes && pastPlanes.length > 0) {
+                                    planesToRender = pastPlanes;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- 3. Compute Global Unique Labels ---
+                const visibleLabelsSet = new Set();
+                if (clusterData && clusterData.labels) {
+                    clusterData.labels.forEach(l => {
+                        if (l !== -1 && l !== undefined && l !== null) visibleLabelsSet.add(l);
+                    });
+                }
+                planesToRender.forEach(p => {
+                    if (p.grid_id.startsWith('cluster_')) {
+                        const rawId = parseInt(p.grid_id.split('_')[1]);
+                        if (!isNaN(rawId)) visibleLabelsSet.add(rawId);
+                    }
+                });
+                const globalUniqueLabels = [...visibleLabelsSet].sort((a, b) => a - b);
+
+                function getDisplayLabel(lbl) {
+                    if (lbl >= 100) {
+                        const cyl = Math.floor(lbl / 1000) || Math.floor(lbl / 100);
+                        const rem = lbl % 1000;
+                        const dep = Math.floor(rem / 100);
+                        const grp = rem % 100;
+                        if (lbl >= 1000) return `Cyl ${cyl} - D${dep} - Gr ${grp}`;
+                        return `Cyl ${Math.floor(lbl/100)} - Gr ${lbl%100}`;
+                    }
+                    const index = globalUniqueLabels.indexOf(lbl);
+                    return index >= 0 ? `Cluster ${index + 1}` : `Cluster ?`;
+                }
+
+                // --- 4. Populate Hover Text ---
                 let sliceHover = quakeData.hover.slice(start, end);
-                
-                // If hover is still empty (generated now), populate it for this slice
                 if (sliceHover.length > 0 && sliceHover[0] === "") {
                     const startD = new Date(quakeData.start_date);
                     for (let i = 0; i < sliceHover.length; i++) {
@@ -393,24 +450,10 @@
                         const dStr = `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
                         sliceHover[i] = `Date: ${dStr}<br>Mag: ${sliceMag[i].toFixed(1)}<br>Dep: ${Math.abs(sliceDep[i]).toFixed(1)} km`;
                         
-                        // Add Cluster info if available
-                        if (animClusteringEnabled && animClustersMap && clusterData) {
+                        if (clusterData && clusterData.labels) {
                             const lbl = clusterData.labels[i];
                             if (lbl >= 0) {
-                                if (lbl >= 100) {
-                                    const cyl = Math.floor(lbl / 1000) || Math.floor(lbl / 100);
-                                    const rem = lbl % 1000;
-                                    const dep = Math.floor(rem / 100);
-                                    const grp = rem % 100;
-                                    
-                                    if (lbl >= 1000) {
-                                        sliceHover[i] += `<br><b>Cyl ${cyl} - D${dep} - Gr ${grp}</b>`;
-                                    } else {
-                                        sliceHover[i] += `<br><b>Cyl ${Math.floor(lbl/100)} - Gr ${lbl%100}</b>`;
-                                    }
-                                } else {
-                                    sliceHover[i] += `<br><b>Cluster ${lbl}</b>`;
-                                }
+                                sliceHover[i] += `<br><b>${getDisplayLabel(lbl)}</b>`;
                             }
                         }
                     }
@@ -453,132 +496,77 @@
                 };
                 const traceIndices = [visibleTraceIdx];
 
-                let clusterData = null;
-                if (animClusteringEnabled && animClustersMap && dates[idx]) {
-                    clusterData = animClustersMap[dates[idx]];
-                    
-                    if (clusterData && clusterData.labels) {
-                        const labels = clusterData.labels;
-                        const currentCount = sliceLon.length;
-                        const colorArr = new Array(currentCount).fill('#888888');
-                        for (let i = 0; i < Math.min(currentCount, labels.length); i++) {
-                            const lbl = labels[i];
-                            colorArr[i] = getClusterColor(lbl);
-                        }
-                        bulkUpdate['marker.color'] = [colorArr];
-                        bulkUpdate['marker.colorscale'] = [null];
-                        bulkUpdate['marker.cmin'] = [null];
-                        bulkUpdate['marker.cmax'] = [null];
+                if (clusterData && clusterData.labels) {
+                    const labels = clusterData.labels;
+                    const currentCount = sliceLon.length;
+                    const colorArr = new Array(currentCount).fill('#888888');
+                    for (let i = 0; i < Math.min(currentCount, labels.length); i++) {
+                        colorArr[i] = getClusterColor(labels[i]);
                     }
+                    bulkUpdate['marker.color'] = [colorArr];
+                    bulkUpdate['marker.colorscale'] = [null];
+                    bulkUpdate['marker.cmin'] = [null];
+                    bulkUpdate['marker.cmax'] = [null];
                 }
+                // --- Mesh Trace Update (Traces 4+) ---
+                // Each plane gets its own mesh3d trace for independent hover detection.
+                let planeTraces = [];
 
                 if (animClusteringEnabled && showAnimClusterPlanes && clusterData) {
-                    let planesToRender = clusterData.planes;
-                    if (accumulatePlanes) {
-                        if (idx < lastAccumIdx) {
-                            persistentPlanesMap.clear();
-                            lastAccumIdx = -1;
-                        }
-                        for (let i = Math.max(0, lastAccumIdx + 1); i <= idx; i++) {
-                            const daily = (animClustersMap[dates[i]] || {}).planes || [];
-                            daily.forEach(p => persistentPlanesMap.set(p.grid_id, p));
-                        }
-                        lastAccumIdx = idx;
-                        planesToRender = Array.from(persistentPlanesMap.values());
-                    } else {
-                        // In non-accumulation mode, if the current frame has no planes (due to plane_step interval),
-                        // we must look backwards to find the last calculated planes to avoid flashing.
-                        if ((!planesToRender || planesToRender.length === 0) && idx > 0) {
-                            for (let i = idx - 1; i >= 0; i--) {
-                                const pastPlanes = (animClustersMap[dates[i]] || {}).planes;
-                                if (pastPlanes && pastPlanes.length > 0) {
-                                    planesToRender = pastPlanes;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    const meshData = generatePlaneMesh(planesToRender);
-                    bulkUpdate.x.push(meshData.x[0]);
-                    bulkUpdate.y.push(meshData.y[0]);
-                    bulkUpdate.z.push(meshData.z[0]);
-                    bulkUpdate.i = [null, meshData.i[0]];
-                    bulkUpdate.j = [null, meshData.j[0]];
-                    bulkUpdate.k = [null, meshData.k[0]];
-                    bulkUpdate.facecolor = [null, meshData.facecolor[0]];
-                    bulkUpdate.text = [null, meshData.text[0]];
-                    bulkUpdate.hovertext = [sliceHover, null];
-                    bulkUpdate['hoverlabel.bgcolor'] = [null, meshData.bgcolor[0]];
-                    bulkUpdate.visible = [true, true];
-                    traceIndices.push(4);
+                    planeTraces = generatePlaneTraces(planesToRender, globalUniqueLabels);
                 } else if (planesEnabled && structuralPlanes) {
-                    // Accumulation Logic
+                    let planesToDraw = [];
                     if (accumulatePlanes) {
-                        // If we jumped backwards, reset the map and the accumulation index
-                        if (idx < lastAccumIdx) {
-                            persistentPlanesMap.clear();
-                            lastAccumIdx = -1;
-                        }
-                        
-                        // Fill map from lastAccumIdx+1 to idx
-                        for (let i = Math.max(0, lastAccumIdx + 1); i <= idx; i++) {
+                        persistentPlanesMap.clear();
+                        for (let i = 0; i <= idx; i++) {
                             const daily = structuralPlanes[dates[i]] || [];
                             daily.forEach(p => persistentPlanesMap.set(p.grid_id, p));
                         }
-                        lastAccumIdx = idx;
-                        const meshData = generatePlaneMesh(Array.from(persistentPlanesMap.values()));
-                        bulkUpdate.x.push(meshData.x[0]);
-                        bulkUpdate.y.push(meshData.y[0]);
-                        bulkUpdate.z.push(meshData.z[0]);
-                        bulkUpdate.i = [null, meshData.i[0]];
-                        bulkUpdate.j = [null, meshData.j[0]];
-                        bulkUpdate.k = [null, meshData.k[0]];
-                        bulkUpdate.facecolor = [null, meshData.facecolor[0]];
-                        bulkUpdate.text = [null, meshData.text[0]];
-                        bulkUpdate.hovertext = [sliceHover, null];
-                        bulkUpdate['hoverlabel.bgcolor'] = [null, meshData.bgcolor[0]];
-                        bulkUpdate.visible = [true, true];
-                        traceIndices.push(4);
+                        planesToDraw = Array.from(persistentPlanesMap.values());
                     } else {
-                        let datePlanes = structuralPlanes[dates[idx]] || [];
-                        if (datePlanes.length === 0 && idx > 0) {
+                        planesToDraw = structuralPlanes[dates[idx]] || [];
+                        if (planesToDraw.length === 0 && idx > 0) {
                             for (let i = idx - 1; i >= 0; i--) {
                                 const pastPlanes = structuralPlanes[dates[i]];
                                 if (pastPlanes && pastPlanes.length > 0) {
-                                    datePlanes = pastPlanes;
+                                    planesToDraw = pastPlanes;
                                     break;
                                 }
                             }
                         }
-                        const meshData = generatePlaneMesh(datePlanes);
-                        bulkUpdate.x.push(meshData.x[0]);
-                        bulkUpdate.y.push(meshData.y[0]);
-                        bulkUpdate.z.push(meshData.z[0]);
-                        bulkUpdate.i = [null, meshData.i[0]];
-                        bulkUpdate.j = [null, meshData.j[0]];
-                        bulkUpdate.k = [null, meshData.k[0]];
-                        bulkUpdate.facecolor = [null, meshData.facecolor[0]];
-                        bulkUpdate.text = [null, meshData.text[0]];
-                        bulkUpdate.hovertext = [sliceHover, null];
-                        bulkUpdate['hoverlabel.bgcolor'] = [null, meshData.bgcolor[0]];
-                        bulkUpdate.visible = [true, true];
-                        traceIndices.push(4);
                     }
-                } else {
-                    bulkUpdate.visible = [true, false];
-                    traceIndices.push(4);
+                    planeTraces = generatePlaneTraces(planesToDraw, []);
                 }
 
                 currentStepIdx = idx;
+
+                // 1. Update scatter3d trace (points)
                 return Plotly.restyle(gd, bulkUpdate, traceIndices).then(() => {
+                    // 2. Delete all mesh traces (from index 4 onwards)
+                    const extraCount = gd.data.length - 4;
+                    if (extraCount > 0) {
+                        const indicesToDelete = [];
+                        for (let t = 4; t < gd.data.length; t++) indicesToDelete.push(t);
+                        Plotly.deleteTraces(gd, indicesToDelete);
+                    }
+                    // 3. Add one trace per plane (or a hidden placeholder)
+                    if (planeTraces.length > 0) {
+                        Plotly.addTraces(gd, planeTraces);
+                    } else {
+                        Plotly.addTraces(gd, {
+                            type: 'mesh3d', x: [], y: [], z: [],
+                            i: [], j: [], k: [],
+                            visible: false, showlegend: false,
+                            hoverinfo: 'text', name: 'Structural Planes'
+                        });
+                    }
+
                     dateDisplay.textContent = formatDate(dates[idx]);
                     slider.value = idx;
 
                     // Update Glass Legend
                     if (animClusteringEnabled && animClustersMap) {
-                        const activeLabels = clusterData ? clusterData.labels : [];
-                        updateClusterLegend(activeLabels);
+                        updateClusterLegend(globalUniqueLabels);
                     } else {
                         const container = document.getElementById('legend-container');
                         const clusterList = document.getElementById('cluster-legend-list');
@@ -711,7 +699,7 @@
                 let html = '';
                 uniqueLabels.forEach((lbl, index) => {
                     const color = getClusterColor(lbl);
-                    // Show sequential numbering (1, 2, 3...) for better readability
+                    // Show sequential numbering (1, 2, 3...) based on the global list
                     let labelText = `Cluster ${index + 1}`;
                     
                     html += `
@@ -724,20 +712,23 @@
                 clusterList.innerHTML = html;
             }
 
-            function generatePlaneMesh(planes) {
-                if (!planes || planes.length === 0) {
-                return { x: [[]], y: [[]], z: [[]], i: [[]], j: [[]], k: [[]], facecolor: [[]], text: [[]], bgcolor: [[]] };
+                       function generatePlaneTraces(planes, activeLabels = []) {
+                if (!planes || planes.length === 0) return [];
+
+                const uniqueLabels = [...new Set(activeLabels)]
+                    .filter(l => l !== -1 && l !== undefined && l !== null)
+                    .sort((a, b) => a - b);
+                    
+                function getDisplayLabel(lbl) {
+                    if (lbl >= 100) return `Cluster ${lbl}`;
+                    const index = uniqueLabels.indexOf(lbl);
+                    return index >= 0 ? `Cluster ${index + 1}` : `Cluster ?`;
                 }
 
-                const allX = [], allY = [], allZ = [];
-                const allI = [], allJ = [], allK = [];
-                const allColors = [];
-                const allTexts = [];
-                const allBgColors = [];
-                let vertOffset = 0;
+                const traces = [];
 
                 planes.forEach(p => {
-                    let hex, color, bgColor;
+                    let hex, color;
                     if (p.grid_id.startsWith('cluster_')) {
                         const parts = p.grid_id.split('_');
                         const clusterIdx = parseInt(parts[1]);
@@ -746,88 +737,91 @@
                         const g = parseInt(hex.slice(3, 5), 16);
                         const b = parseInt(hex.slice(5, 7), 16);
                         color = `rgba(${r}, ${g}, ${b}, 0.6)`;
-                        bgColor = hex;
                     } else {
-                        // Color by Date using the Selected Color Scale
                         const dateStr = p.grid_id.split('_').pop();
                         const dIdx = Math.max(0, dates.indexOf(dateStr));
                         const val01 = dates.length > 1 ? dIdx / (dates.length - 1) : 0.5;
                         hex = getHexFromScale(currentColorScale, val01);
-                        
                         const r = parseInt(hex.slice(1, 3), 16);
                         const g = parseInt(hex.slice(3, 5), 16);
                         const b = parseInt(hex.slice(5, 7), 16);
-                        color = `rgba(${r}, ${g}, ${b}, 0.6)`; // Uniform Opacity
-                        bgColor = hex;
+                        color = `rgba(${r}, ${g}, ${b}, 0.6)`;
                     }
                     
-                    // Format Equation and Geological Params for Hover
                     const dateParts = p.grid_id.split('_').pop().split('-');
                     const dateFmt = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : p.grid_id.split('_').pop();
                     
-                    let hoverText = `Structural Plane (${dateFmt})`;
-                    const strikeStr = p.strike !== undefined ? `Strike: ${p.strike.toFixed(1)}°<br>` : '';
-                    const dipStr = p.dip !== undefined ? `Dip: ${p.dip.toFixed(1)}°<br>` : '';
-                    const ddStr = p.dip_dir !== undefined ? `Dip Dir: ${p.dip_dir.toFixed(1)}°<br>` : '';
+                    let title;
+                    if (p.grid_id.startsWith('cluster_')) {
+                        const rawId = parseInt(p.grid_id.split('_')[1]);
+                        title = `${getDisplayLabel(rawId)} Plane`;
+                    } else {
+                        title = `Structural Plane (${dateFmt})`;
+                    }
+                    const strikeStr = p.strike !== undefined ? `Strike: ${p.strike.toFixed(1)}\u00b0<br>` : '';
+                    const dipStr = p.dip !== undefined ? `Dip: ${p.dip.toFixed(1)}\u00b0<br>` : '';
+                    const ddStr = p.dip_dir !== undefined ? `Dip Dir: ${p.dip_dir.toFixed(1)}\u00b0<br>` : '';
                     
+                    let innerText = '';
                     if (p.equation) {
                         const eq = p.equation;
                         const fmt = (val) => (val >= 0 ? '+' : '') + val.toFixed(2);
                         const eqStr = `${fmt(eq.a)}x ${fmt(eq.b)}y ${fmt(eq.c)}z ${fmt(eq.d)} = 0`;
-                        hoverText = `${strikeStr}${dipStr}${ddStr}Plane Equation:<br>${eqStr}<br>(x:Lon, y:Lat, z:Depth)`;
+                        innerText = `<b>${title}</b><br>${strikeStr}${dipStr}${ddStr}Plane Equation:<br>${eqStr}<br>(x:Lon, y:Lat, z:Depth)`;
                     } else {
-                        hoverText = `${strikeStr}${dipStr}${ddStr}`;
+                        innerText = `<b>${title}</b><br>${strikeStr}${dipStr}${ddStr}`;
                     }
 
-                    // Sub-mesh the 4-vertex plane into a 10x10 grid for better hover tracking
-                    const gridSize = 10;
+                    const gridSizeU = 20;
+                    const gridSizeV = 15;
+                    const vx = [], vy = [], vz = [], vText = [];
+                    const fi = [], fj = [], fk = [], fColors = [];
                     const v0 = {x: p.x[0], y: p.y[0], z: p.z[0]};
                     const v1 = {x: p.x[1], y: p.y[1], z: p.z[1]};
                     const v2 = {x: p.x[2], y: p.y[2], z: p.z[2]};
                     const v3 = {x: p.x[3], y: p.y[3], z: p.z[3]};
 
-                    for (let i = 0; i < gridSize; i++) {
-                        for (let j = 0; j < gridSize; j++) {
-                            const u = i / (gridSize - 1);
-                            const v = j / (gridSize - 1);
-                            
-                            const px = (1-u)*(1-v)*v0.x + u*(1-v)*v1.x + u*v*v2.x + (1-u)*v*v3.x;
-                            const py = (1-u)*(1-v)*v0.y + u*(1-v)*v1.y + u*v*v2.y + (1-u)*v*v3.y;
-                            const pz = (1-u)*(1-v)*v0.z + u*(1-v)*v1.z + u*v*v2.z + (1-u)*v*v3.z;
-                            
-                            allX.push(px);
-                            allY.push(py);
-                            allZ.push(pz);
-                            allTexts.push(hoverText);
-                            allBgColors.push(bgColor);
+                    for (let i = 0; i < gridSizeU; i++) {
+                        for (let j = 0; j < gridSizeV; j++) {
+                            const u = i / (gridSizeU - 1);
+                            const v = j / (gridSizeV - 1);
+                            vx.push((1-u)*(1-v)*v0.x + u*(1-v)*v1.x + u*v*v2.x + (1-u)*v*v3.x);
+                            vy.push((1-u)*(1-v)*v0.y + u*(1-v)*v1.y + u*v*v2.y + (1-u)*v*v3.y);
+                            vz.push((1-u)*(1-v)*v0.z + u*(1-v)*v1.z + u*v*v2.z + (1-u)*v*v3.z);
+                            vText.push(innerText);
                         }
                     }
 
-                    for (let i = 0; i < gridSize - 1; i++) {
-                        for (let j = 0; j < gridSize - 1; j++) {
-                            const p1 = vertOffset + i * gridSize + j;
+                    for (let i = 0; i < gridSizeU - 1; i++) {
+                        for (let j = 0; j < gridSizeV - 1; j++) {
+                            const p1 = i * gridSizeV + j;
                             const p2 = p1 + 1;
-                            const p3 = p1 + gridSize;
+                            const p3 = p1 + gridSizeV;
                             const p4 = p3 + 1;
-                            
-                            allI.push(p1, p2);
-                            allJ.push(p2, p4);
-                            allK.push(p3, p3);
-                            allColors.push(color, color);
+                            fi.push(p1, p2);
+                            fj.push(p2, p4);
+                            fk.push(p3, p3);
+                            fColors.push(color, color);
                         }
                     }
-                    
-                    vertOffset += gridSize * gridSize;
+
+                    traces.push({
+                        type: 'mesh3d',
+                        x: vx, y: vy, z: vz,
+                        i: fi, j: fj, k: fk,
+                        facecolor: fColors,
+                        text: vText,
+                        hoverinfo: 'text',
+                        hoverlabel: { bgcolor: hex, font: { color: 'white', size: 12 } },
+                        opacity: 0.8, visible: true, showlegend: false,
+                        name: title,
+                        lighting: { ambient: 0.9, diffuse: 0.5, specular: 0.1, roughness: 0.9, fresnel: 0.1 },
+                        flatshading: true
+                    });
                 });
 
-                return {
-                    x: [allX], y: [allY], z: [allZ],
-                    i: [allI], j: [allJ], k: [allK],
-                    facecolor: [allColors],
-                    text: [allTexts],
-                    bgcolor: [allBgColors]
-                };
-            }
+                return traces;
+            };
 
             async function syncPlanes() {
                 if (!planesEnabled) return;
@@ -982,10 +976,24 @@
             };
 
             // Plane Controls
-            showPlanesCheck.onchange = () => {
+            let lastCheckedAnalysis = null;
+            function syncAnalysisModes() {
                 planesEnabled = showPlanesCheck.checked;
                 planeControls.style.display = planesEnabled ? 'block' : 'none';
-            };
+                animClusteringEnabled = showAnimClustCheck.checked;
+                if (animClustControls) animClustControls.style.display = animClusteringEnabled ? 'block' : 'none';
+            }
+            function handleAnalysisRadioClick(e) {
+                if (lastCheckedAnalysis === this) {
+                    this.checked = false;
+                    lastCheckedAnalysis = null;
+                } else {
+                    lastCheckedAnalysis = this;
+                }
+                syncAnalysisModes();
+            }
+
+            showPlanesCheck.onclick = handleAnalysisRadioClick;
 
             accumulatePlanesCheck.onchange = () => {
                 accumulatePlanes = accumulatePlanesCheck.checked;
@@ -1020,10 +1028,7 @@
                 cylinderOptions.style.display = useCylindersCheck.checked ? 'block' : 'none';
             };
 
-            showAnimClustCheck.onchange = () => {
-                animClusteringEnabled = showAnimClustCheck.checked;
-                animClustControls.style.display = animClusteringEnabled ? 'block' : 'none';
-            };
+            showAnimClustCheck.onclick = handleAnalysisRadioClick;
 
             const animCalcFramesContainer = document.getElementById('anim-calc-frames-container');
             const animAccumulatePlanesContainer = document.getElementById('anim-accumulate-planes-container');
@@ -1115,7 +1120,19 @@
                         } else if (planesEnabled) {
                             await syncPlanes();
                         } else {
-                            Plotly.restyle(gd, { visible: [false] }, [4]);
+                            // Delete all plane traces (4+)
+                            const extra = gd.data.length - 4;
+                            if (extra > 0) {
+                                const ids = [];
+                                for (let t = 4; t < gd.data.length; t++) ids.push(t);
+                                Plotly.deleteTraces(gd, ids);
+                            }
+                            Plotly.addTraces(gd, {
+                                type: 'mesh3d', x: [], y: [], z: [],
+                                i: [], j: [], k: [],
+                                visible: false, showlegend: false,
+                                hoverinfo: 'text', name: 'Structural Planes'
+                            });
                             persistentPlanesMap.clear();
                             lastAccumIdx = -1;
                             animClustersMap = null;
@@ -1143,8 +1160,9 @@
                 opacity: 0.8,
                 color: '#00f3ff',
                 name: 'Structural Planes',
+                text: [],
                 hoverinfo: 'text',
-                // Removed hovertemplate to avoid %{text} literal issues
+                hoverlabel: { bgcolor: 'rgba(30,30,50,0.9)', font: { color: 'white', size: 12 } },
                 visible: false,
                 lighting: { ambient: 0.9, diffuse: 0.5, specular: 0.1, roughness: 0.9, fresnel: 0.1 },
                 flatshading: true

@@ -343,12 +343,12 @@ def _get_cluster_plane_trace(pts: np.ndarray, color: str, index: int, visible: b
     v = np.cross(normal, u)
     v /= np.linalg.norm(v)
     
-    grid_size = 5
+    grid_size_u, grid_size_v = 20, 15
     rect_verts_km = []
     i_idx, j_idx, k_idx = [], [], []
-    for r in range(grid_size):
-        for c in range(grid_size):
-            u_f, v_f = (r / (grid_size - 1)) - 0.5, (c / (grid_size - 1)) - 0.5
+    for r in range(grid_size_u):
+        for c in range(grid_size_v):
+            u_f, v_f = (r / (grid_size_u - 1)) - 0.5, (c / (grid_size_v - 1)) - 0.5
             rect_verts_km.append(centroid_km + u_f * size * u + v_f * size * v)
     rect_verts_km = np.array(rect_verts_km)
     
@@ -356,10 +356,10 @@ def _get_cluster_plane_trace(pts: np.ndarray, color: str, index: int, visible: b
     v_lat = (rect_verts_km[:, 1] / KM_PER_DEGREE) + origin_lat_c
     rect_verts = np.column_stack((v_lon, v_lat, rect_verts_km[:, 2]))
     
-    for r in range(grid_size - 1):
-        for c in range(grid_size - 1):
-            p1 = r * grid_size + c
-            p2, p3, p4 = p1 + 1, p1 + grid_size, p1 + grid_size + 1
+    for r in range(grid_size_u - 1):
+        for c in range(grid_size_v - 1):
+            p1 = r * grid_size_v + c
+            p2, p3, p4 = p1 + 1, p1 + grid_size_v, p1 + grid_size_v + 1
             i_idx.extend([p1, p2])
             j_idx.extend([p2, p4])
             k_idx.extend([p3, p3])
@@ -369,13 +369,14 @@ def _get_cluster_plane_trace(pts: np.ndarray, color: str, index: int, visible: b
     c_lat = (centroid_km[1] / KM_PER_DEGREE) + origin_lat_c
     eq_a, eq_b, eq_c = normal[0]*lon_to_km_c, normal[1]*KM_PER_DEGREE, normal[2]
     eq_d = -(eq_a*c_lon + eq_b*c_lat + eq_c*centroid_km[2])
+    hover_str = f"Cluster {index+1} Plane<br>Strike: {strike:.1f}°<br>Dip: {dip:.1f}°<br>Dip Dir: {dd:.1f}°<br>{eq_a:+.2f}x {eq_b:+.2f}y {eq_c:+.2f}z {eq_d:+.2f} = 0"
     
     return go.Mesh3d(
         x=rect_verts[:, 0].tolist(), y=rect_verts[:, 1].tolist(), z=rect_verts[:, 2].tolist(),
         i=i_idx, j=j_idx, k=k_idx, color=color, opacity=0.6,
         name=f'Cluster {index+1} Plane', visible=visible, showlegend=False,
-        hoverinfo='text', text=f"Cluster {index+1} Plane<br>Strike: {strike:.1f}°<br>Dip: {dip:.1f}°<br>Dip Dir: {dd:.1f}°<br>{eq_a:+.2f}x {eq_b:+.2f}y {eq_c:+.2f}z {eq_d:+.2f} = 0",
-        hoverlabel=dict(bgcolor=color)
+        hoverinfo='text', text=[hover_str] * len(rect_verts),
+        hoverlabel=dict(bgcolor=color, font=dict(color='white'))
     )
 
 def _get_cluster_marker_trace(lon: np.ndarray, lat: np.ndarray, dep: np.ndarray, hover: list[str], labels: np.ndarray, colors: list[str]) -> go.Scatter3d:
