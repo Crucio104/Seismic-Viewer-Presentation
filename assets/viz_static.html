@@ -51,6 +51,15 @@
             </div>
 
             <div class="settings-group">
+                <div class="label">Point Size</div>
+                <button class="settings-btn" id="size-toggle">Uniform ▾</button>
+                <div class="glass-panel glass-menu" id="size-menu">
+                    <div class="menu-item active" data-mode="uniform">Uniform</div>
+                    <div class="menu-item" data-mode="magnitude">Magnitude</div>
+                </div>
+            </div>
+
+            <div class="settings-group">
                 <label class="label" for="dep-min">Depth Range (km)</label>
                 <div class="settings-row">
                     <input type="number" class="glass-input" id="dep-min" step="1" placeholder="Min">
@@ -60,11 +69,11 @@
                 </div>
             </div>
 
-            <button class="settings-btn" id="apply-filters-btn" style="margin-top:0.75rem; justify-content:center; background: rgba(165, 180, 252, 0.2); border-color: rgba(165, 180, 252, 0.4);">
+            <button id="apply-filters-btn" class="priority-btn" style="margin-top:1.25rem; font-size:0.75rem; height:2.2rem; width:100%; display:flex; justify-content:center; align-items:center; background:rgba(99, 102, 241, 0.2); border:1px solid rgba(99, 102, 241, 0.4); border-radius:0.5rem; color:#fff; cursor:pointer; font-family:inherit; font-weight:600; transition:all 0.2s; flex-shrink: 0;">
                 Apply Filters
             </button>
 
-            <button class="settings-btn priority-btn" id="reset-camera" style="margin-top:0.35rem; justify-content:center; display:none; background: rgba(99, 102, 241, 0.2); border-color: rgba(99, 102, 241, 0.4);">
+            <button id="reset-camera" class="priority-btn" style="margin-top:0.5rem; font-size:0.75rem; height:2.2rem; width:100%; display:none; justify-content:center; align-items:center; background:rgba(165, 180, 252, 0.2); border:1px solid rgba(165, 180, 252, 0.4); border-radius:0.5rem; color:#fff; cursor:pointer; font-family:inherit; font-weight:600; transition:all 0.2s; flex-shrink: 0;">
                 Reset Camera
             </button>
 
@@ -212,6 +221,17 @@
             }
 
 
+            const sizeToggle = document.getElementById('size-toggle');
+            const sizeMenu = document.getElementById('size-menu');
+            let currentSizeMode = 'uniform';
+
+            SeismicUI.initMenu(sizeToggle, sizeMenu);
+            SeismicUI.bindMenu(sizeMenu, (item) => {
+                currentSizeMode = item.dataset.mode;
+                sizeToggle.textContent = item.textContent + ' ▾';
+                applyFilterWithLoader();
+            });
+
             const rangeApplyCallback = null;
 
             invertCheck.onchange = () => {
@@ -224,10 +244,7 @@
             SeismicUI.setupBoundsValidation(depMin, depMin.value, rangeApplyCallback);
             SeismicUI.setupBoundsValidation(depMax, depMax.value, rangeApplyCallback);
 
-
-
              const filterLoader = document.getElementById('filter-loader');
-
 
             function applyFilterWithLoader() {
                 if (is3D) {
@@ -242,8 +259,6 @@
                     try { applyFilter(); } catch (e) { console.error('Filter Error:', e); }
                 }
             }
-
-
 
             if (is3D) {
                 applyBtn.onclick = applyFilterWithLoader;
@@ -301,6 +316,8 @@
                     barTitle = 'Date';
                 }
 
+                const markerSizes = currentSizeMode === 'magnitude' ? filtered.mag.map(m => Math.max(8, Math.pow(Math.max(0, m), 2) * 1.5)) : [5];
+
                 if (is3D) {
                     // Trace 1 = Depth/Mag, Trace 2 = Date
                     const traceIdx = isDate ? 2 : 1;
@@ -309,7 +326,7 @@
                     Plotly.restyle(gd, { visible: [false] }, [otherIdx]);
                     Plotly.restyle(gd, {
                         x: [filtered.lon], y: [filtered.lat], z: [filtered.dep],
-                        'marker.size': [5],
+                        'marker.size': [markerSizes],
                         'marker.color': [colorArr],
                         'marker.cmin': [limits[0]],
                         'marker.cmax': [limits[1]],

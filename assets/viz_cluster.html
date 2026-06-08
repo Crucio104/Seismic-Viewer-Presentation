@@ -63,10 +63,26 @@
                 </div>
             </div>
 
+            <div class="settings-group">
+                <div class="label">Point Size</div>
+                <button class="settings-btn" id="size-toggle">Uniform ▾</button>
+                <div class="glass-panel glass-menu" id="size-menu">
+                    <div class="menu-item active" data-mode="uniform">Uniform</div>
+                    <div class="menu-item" data-mode="magnitude">Magnitude</div>
+                </div>
+            </div>
+
             <div class="settings-group" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
                 <label class="glass-checkbox">
                     <input type="checkbox" id="show-planes">
                     Show Cluster Planes
+                </label>
+            </div>
+
+            <div class="settings-group" id="context-points-group" style="display: none; padding-top: 0.5rem;">
+                <label class="glass-checkbox">
+                    <input type="checkbox" id="show-context-points" checked>
+                    Show Other Events
                 </label>
             </div>
 
@@ -143,6 +159,9 @@
             const methodMenu = document.getElementById('method-menu');
             const displayToggle = document.getElementById('display-toggle');
             const displayMenu = document.getElementById('display-menu');
+            const sizeToggle = document.getElementById('size-toggle');
+            const sizeMenu = document.getElementById('size-menu');
+            let currentSizeMode = 'uniform';
 
             function getArrayMinMax(arr) {
                 let min = Infinity, max = -Infinity;
@@ -215,6 +234,12 @@
             // Menus
             SeismicUI.initMenu(methodToggle, methodMenu);
             SeismicUI.initMenu(displayToggle, displayMenu);
+            SeismicUI.initMenu(sizeToggle, sizeMenu);
+
+            SeismicUI.bindMenu(sizeMenu, (item) => {
+                currentSizeMode = item.dataset.mode;
+                sizeToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+            });
 
             SeismicUI.bindMenu(methodMenu, (item) => {
                 currentMethod = item.dataset.val;
@@ -249,19 +274,14 @@
                     dbscan_eps: pEps.value,
                     dbscan_min_samples: pMin.value,
                     display_mode: currentDisplayMode,
+                    show_cluster_planes: document.getElementById('show-planes').checked,
+                    point_size_mode: currentSizeMode,
                     mag_min: magMin ? magMin.value : 0,
                     mag_max: magMax ? magMax.value : 10,
                     dep_min: depMin ? depMin.value : 0,
                     dep_max: depMax ? depMax.value : 1000,
                     start_date: startInput ? startInput.value : '',
-                    end_date: endInput ? endInput.value : '',
-                    
-                    kmeans_clusters: pClusters ? pClusters.value : 3,
-                    kmeans_max_dist: pDist ? pDist.value : 50,
-                    dbscan_eps: pEps ? pEps.value : 0.2,
-                    dbscan_min_samples: pMin ? pMin.value : 10,
-                    show_cluster_planes: document.getElementById('show-planes')?.checked || false,
-                    display_mode: currentDisplayMode
+                    end_date: endInput ? endInput.value : ''
                 };
 
                 if (quakeData.subcluster_target_indices) {
@@ -339,6 +359,8 @@
                 const showWire = (currentDisplayMode === 'wireframe' || currentDisplayMode === 'both');
                 const showSolid = (currentDisplayMode === 'solid' || currentDisplayMode === 'both');
                 const showPlanes = document.getElementById('show-planes').checked;
+                const showContextPointsCheck = document.getElementById('show-context-points');
+                const showContextPoints = showContextPointsCheck ? showContextPointsCheck.checked : true;
 
                 const update = { visible: [] };
                 const indices = [];
@@ -354,12 +376,21 @@
                     } else if (name.includes(' (Plane)')) {
                         indices.push(i);
                         update.visible.push(showPlanes);
+                    } else if (name === 'Other Events') {
+                        indices.push(i);
+                        update.visible.push(showContextPoints);
                     }
                 }
 
                 if (indices.length > 0) {
                     Plotly.restyle(gd, update, indices);
                 }
+            }
+
+            const isSubcluster = new URLSearchParams(window.location.search).get('subcluster') === 'true';
+            if (isSubcluster) {
+                const contextGroup = document.getElementById('context-points-group');
+                if (contextGroup) contextGroup.style.display = 'block';
             }
 
 

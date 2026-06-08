@@ -56,6 +56,15 @@
             </label>
 
             <div class="settings-group">
+                <div class="label">Point Size</div>
+                <button class="settings-btn" id="size-toggle">Uniform ▾</button>
+                <div class="glass-panel glass-menu" id="size-menu">
+                    <div class="menu-item active" data-mode="uniform">Uniform</div>
+                    <div class="menu-item" data-mode="magnitude">Magnitude</div>
+                </div>
+            </div>
+
+            <div class="settings-group">
                 <label class="label" for="anim-mag-min">Magnitude Filter</label>
                 <div class="settings-row" style="gap:0.5rem;">
                     <input type="number" id="anim-mag-min" class="glass-input" step="0.1" value="-10.0" style="width:100%; height:1.8rem; font-size:0.75rem;">
@@ -242,6 +251,9 @@
             const colorMenu = document.getElementById('color-menu');
             const scaleToggle = document.getElementById('scale-toggle');
             const scaleMenu = document.getElementById('scale-menu');
+            const sizeToggle = document.getElementById('size-toggle');
+            const sizeMenu = document.getElementById('size-menu');
+            let currentSizeMode = 'uniform';
             const invertCheck = document.getElementById('invert-scale');
             const jumpBtn = document.getElementById('jump-btn');
             const jumpDate = document.getElementById('jump-date');
@@ -370,12 +382,23 @@
                 if (idx >= dates.length) idx = dates.length - 1;
                 
                 const [start, end] = getActiveRange(idx);
-                
-                const sliceLon = quakeData.lon.slice(start, end);
-                const sliceLat = quakeData.lat.slice(start, end);
-                const sliceDep = quakeData.dep.slice(start, end);
-                const sliceMag = quakeData.mag.slice(start, end);
-                const sliceDnum = quakeData.dnum.slice(start, end);
+                const magMinVal = parseFloat(document.getElementById('anim-mag-min').value);
+                const magMaxVal = parseFloat(document.getElementById('anim-mag-max').value);
+                const depMinVal = parseFloat(document.getElementById('anim-dep-min').value);
+                const depMaxVal = parseFloat(document.getElementById('anim-dep-max').value);
+
+                const magMin = isNaN(magMinVal) ? -10 : magMinVal;
+                const magMax = isNaN(magMaxVal) ? 10 : magMaxVal;
+                const depMin = isNaN(depMinVal) ? -100 : depMinVal;
+                const depMax = isNaN(depMaxVal) ? 1000 : depMaxVal;
+
+                const sliceLon = [];
+                const sliceLat = [];
+                const sliceDep = [];
+                const sliceMag = [];
+                const sliceDnum = [];
+                const sliceHover = [];
+                const filteredLabels = [];
                 
                 // Fallback for missing hover data (stripped for optimization)
                 if (!quakeData.hover || quakeData.hover.length === 0) {
@@ -386,6 +409,36 @@
                 let clusterData = null;
                 if (animClusteringEnabled && animClustersMap && dates[idx]) {
                     clusterData = animClustersMap[dates[idx]];
+                }
+
+                const startD = new Date(quakeData.start_date);
+
+                for (let i = start; i < end; i++) {
+                    const m = quakeData.mag[i];
+                    const d = quakeData.dep[i];
+                    const absD = Math.abs(d);
+                    if (m >= magMin && m <= magMax && absD >= depMin && absD <= depMax) {
+                        sliceLon.push(quakeData.lon[i]);
+                        sliceLat.push(quakeData.lat[i]);
+                        sliceDep.push(quakeData.dep[i]);
+                        sliceMag.push(m);
+                        sliceDnum.push(quakeData.dnum[i]);
+
+                        let hText = quakeData.hover[i];
+                        if (!hText) {
+                            const dateObj = new Date(startD);
+                            dateObj.setDate(dateObj.getDate() + Math.round(quakeData.dnum[i]));
+                            const dStr = `${String(dateObj.getDate()).padStart(2, '0')}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${dateObj.getFullYear()}`;
+                            hText = `Date: ${dStr}<br>Mag: ${m.toFixed(1)}<br>Dep: ${Math.abs(d).toFixed(1)} km`;
+                        }
+
+                        let lbl = -1;
+                        if (clusterData && clusterData.labels) {
+                            lbl = clusterData.labels[i - start];
+                        }
+                        filteredLabels.push(lbl);
+                        sliceHover.push(hText);
+                    }
                 }
 
                 // --- 2. Fetch Planes to Render ---
@@ -414,11 +467,9 @@
 
                 // --- 3. Compute Global Unique Labels ---
                 const visibleLabelsSet = new Set();
-                if (clusterData && clusterData.labels) {
-                    clusterData.labels.forEach(l => {
-                        if (l !== -1 && l !== undefined && l !== null) visibleLabelsSet.add(l);
-                    });
-                }
+                filteredLabels.forEach(l => {
+                    if (l !== -1 && l !== undefined && l !== null) visibleLabelsSet.add(l);
+                });
                 planesToRender.forEach(p => {
                     if (p.grid_id.startsWith('cluster_')) {
                         const rawId = parseInt(p.grid_id.split('_')[1]);
@@ -441,21 +492,10 @@
                 }
 
                 // --- 4. Populate Hover Text ---
-                let sliceHover = quakeData.hover.slice(start, end);
-                if (sliceHover.length > 0 && sliceHover[0] === "") {
-                    const startD = new Date(quakeData.start_date);
-                    for (let i = 0; i < sliceHover.length; i++) {
-                        const d = new Date(startD);
-                        d.setDate(d.getDate() + Math.round(sliceDnum[i]));
-                        const dStr = `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
-                        sliceHover[i] = `Date: ${dStr}<br>Mag: ${sliceMag[i].toFixed(1)}<br>Dep: ${Math.abs(sliceDep[i]).toFixed(1)} km`;
-                        
-                        if (clusterData && clusterData.labels) {
-                            const lbl = clusterData.labels[i];
-                            if (lbl >= 0) {
-                                sliceHover[i] += `<br><b>${getDisplayLabel(lbl)}</b>`;
-                            }
-                        }
+                for (let j = 0; j < sliceHover.length; j++) {
+                    const lbl = filteredLabels[j];
+                    if (lbl >= 0) {
+                        sliceHover[j] += `<br><b>${getDisplayLabel(lbl)}</b>`;
                     }
                 }
 
@@ -478,12 +518,14 @@
                     barTitle = 'Depth';
                 }
 
+                const markerSizes = currentSizeMode === 'magnitude' ? sliceMag.map(m => Math.max(8, Math.pow(Math.max(0, m), 2) * 1.5)) : [5];
+
                 // --- Optimized Multi-Trace Update ---
                 const bulkUpdate = {
                     x: [sliceLon], 
                     y: [sliceLat], 
                     z: [sliceDep],
-                    'marker.size': [5],
+                    'marker.size': [markerSizes],
                     'marker.color': [sliceColor],
                     'marker.colorscale': [getPlotlyScale(currentColorScale)],
                     'marker.reversescale': [invertScale],
@@ -496,8 +538,8 @@
                 };
                 const traceIndices = [visibleTraceIdx];
 
-                if (clusterData && clusterData.labels) {
-                    const labels = clusterData.labels;
+                if (animClusteringEnabled && filteredLabels.length > 0) {
+                    const labels = filteredLabels;
                     const currentCount = sliceLon.length;
                     const colorArr = new Array(currentCount).fill('#888888');
                     for (let i = 0; i < Math.min(currentCount, labels.length); i++) {
@@ -986,6 +1028,12 @@
             SeismicUI.initMenu(speedToggle, speedMenu);
             SeismicUI.initMenu(colorToggle, colorMenu);
             SeismicUI.initMenu(scaleToggle, scaleMenu);
+            SeismicUI.initMenu(sizeToggle, sizeMenu);
+
+            SeismicUI.bindMenu(sizeMenu, (item) => {
+                currentSizeMode = item.dataset.mode;
+                sizeToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+            });
 
             SeismicUI.bindMenu(speedMenu, (item) => {
                 speedMult = parseFloat(item.dataset.val);

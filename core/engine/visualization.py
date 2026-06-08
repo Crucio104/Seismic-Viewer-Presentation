@@ -262,11 +262,18 @@ def get_3d_subcluster_figure(
     dep_bg = np.array(depth)[bg_mask]
     
     if len(lon_bg) > 0:
+        point_size_mode = clustering_params.get('point_size_mode', 'uniform') if clustering_params else 'uniform'
+        if point_size_mode == 'magnitude':
+            mag_bg = np.array(magnitude)[bg_mask]
+            bg_sizes = np.maximum(8, (np.maximum(0, mag_bg) ** 2) * 1.5).tolist()
+        else:
+            bg_sizes = 5
+
         fig.add_trace(go.Scatter3d(
             x=lon_bg.tolist(), y=lat_bg.tolist(), z=dep_bg.tolist(),
             mode='markers',
             marker=dict(
-                size=5,
+                size=bg_sizes,
                 color='#888888',
                 line=dict(width=1, color='rgba(50,50,50,0.8)'),
                 opacity=0.9
@@ -319,11 +326,18 @@ def get_cluster_update_traces(longitude: list[float], latitude: list[float], mag
         dep_bg = np.array(depth)[bg_mask]
         
         if len(lon_bg) > 0:
+            point_size_mode = clustering_params.get('point_size_mode', 'uniform') if clustering_params else 'uniform'
+            if point_size_mode == 'magnitude':
+                mag_bg = np.array(magnitude)[bg_mask]
+                bg_sizes = np.maximum(8, (np.maximum(0, mag_bg) ** 2) * 1.5).tolist()
+            else:
+                bg_sizes = 5
+
             bg_trace = go.Scatter3d(
                 x=lon_bg.tolist(), y=lat_bg.tolist(), z=dep_bg.tolist(),
                 mode='markers',
                 marker=dict(
-                    size=5,
+                    size=bg_sizes,
                     color='#888888',
                     line=dict(width=1, color='rgba(50,50,50,0.8)'),
                     opacity=0.9
@@ -415,7 +429,7 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
         traces.append(_get_cluster_plane_trace(pts, cluster_colors[i % len(cluster_colors)], i, show_planes, lon_to_km))
 
     # D. Earthquake Markers
-    traces.append(_get_cluster_marker_trace(f_lon, f_lat, f_dep, f_hover, display_labels, cluster_colors))
+    traces.append(_get_cluster_marker_trace(f_lon, f_lat, f_dep, f_mag, f_hover, display_labels, cluster_colors, params))
 
     # E. Centroids
     if method == 'kmeans':
@@ -529,12 +543,19 @@ def _get_cluster_plane_trace(pts: np.ndarray, color: str, index: int, visible: b
         hoverlabel=dict(bgcolor=color, font=dict(color='white'))
     )
 
-def _get_cluster_marker_trace(lon: np.ndarray, lat: np.ndarray, dep: np.ndarray, hover: list[str], labels: np.ndarray, colors: list[str]) -> go.Scatter3d:
+def _get_cluster_marker_trace(lon: np.ndarray, lat: np.ndarray, dep: np.ndarray, mag: np.ndarray, hover: list[str], labels: np.ndarray, colors: list[str], params: dict[str, Any]) -> go.Scatter3d:
     """Generate the earthquake marker trace with cluster coloring."""
     pt_colors = [colors[int(lbl) % len(colors)] if lbl >= 0 else '#888888' for lbl in labels]
+    
+    point_size_mode = params.get('point_size_mode', 'uniform')
+    if point_size_mode == 'magnitude':
+        sizes = np.maximum(8, (np.maximum(0, mag) ** 2) * 1.5).tolist()
+    else:
+        sizes = 5
+
     return go.Scatter3d(
         x=lon.tolist(), y=lat.tolist(), z=dep.tolist(), mode='markers', hovertext=hover,
-        marker=dict(size=5, color=pt_colors, line=dict(width=1, color='rgba(50,50,50,0.8)'), opacity=0.9),
+        marker=dict(size=sizes, color=pt_colors, line=dict(width=1, color='rgba(50,50,50,0.8)'), opacity=0.9),
         name='Earthquakes', visible=True, showlegend=False, hovertemplate='%{hovertext}<extra></extra>'
     )
 

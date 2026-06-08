@@ -661,8 +661,9 @@ def _process_frame_worker(idx, data):
     origin_lat = data['origin_lat']
 
     pts_raw = pts_km[start_idx:end_idx]
+    abs_dep = np.abs(dep[start_idx:end_idx])
     mask = (mags[start_idx:end_idx] >= f_mag[0]) & (mags[start_idx:end_idx] <= f_mag[1]) & \
-           (dep[start_idx:end_idx] >= f_dep[0]) & (dep[start_idx:end_idx] <= f_dep[1])
+           (abs_dep >= f_dep[0]) & (abs_dep <= f_dep[1])
     
     pts_subset = pts_raw[mask]
     global_indices = np.arange(start_idx, end_idx)[mask]

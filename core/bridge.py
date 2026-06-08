@@ -215,6 +215,8 @@ class Api:
                 self._inject_dark_overlay()
                 import time
                 url = self._make_url(self._html_cache[cache_key]) + f"?t={int(time.time()*1000)}"
+                if view_style == 4:
+                    url += "&subcluster=true"
                 self._window().load_url(url)
                 return
 
@@ -239,7 +241,10 @@ class Api:
             # 3. Navigate
             self._push_progress("Opening visualization…")
             self._inject_dark_overlay()
-            self._window().load_url(self._make_url(viz_id))
+            url = self._make_url(viz_id)
+            if view_style == 4:
+                url += "?subcluster=true"
+            self._window().load_url(url)
             
         except Exception as e:
             logger.error(f"Failed to generate view {view_style}", exc_info=True)
