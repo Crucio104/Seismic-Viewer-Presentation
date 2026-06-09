@@ -60,8 +60,8 @@ _data_store: dict[str, Any] = {}
 def store_session_data(session_id: str, data: Any) -> None:
     """Store visualization data for a session, evicting old entries."""
     global _data_store
-    # Keep at most 4 sessions to bound memory usage
-    while len(_data_store) >= 4:
+    # Keep at most 15 sessions to bound memory usage but prevent premature eviction
+    while len(_data_store) >= 15:
         oldest_key = next(iter(_data_store))
         del _data_store[oldest_key]
     _data_store[session_id] = data
@@ -81,8 +81,8 @@ _html_store: dict[str, str] = {}
 def store_viz_html(viz_id: str, html: str) -> None:
     """Store generated HTML for a view, evicting old entries."""
     global _html_store
-    # Keep at most 6 views to bound memory usage
-    while len(_html_store) >= 6:
+    # Keep at most 15 views to bound memory usage but prevent premature eviction
+    while len(_html_store) >= 15:
         oldest_key = next(iter(_html_store))
         del _html_store[oldest_key]
     _html_store[viz_id] = html

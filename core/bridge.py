@@ -346,6 +346,7 @@ class Api:
     def change_file(self) -> bool:
         self._csv_path = self._data = self._csv_info = None
         self._html_cache.clear()
+        clear_session_data()
         return True
 
     def clear_map_cache(self) -> bool | str:

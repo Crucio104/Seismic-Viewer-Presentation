@@ -139,6 +139,17 @@
                     </div>
 
                     <div style="margin-top: 0.75rem; padding-top: 0.5rem;">
+                        <div class="label" style="font-size:0.6rem; opacity:0.7;">Display Mode</div>
+                        <button class="settings-btn" id="anim-display-toggle" style="width:100%; margin-bottom:0.5rem;">Wireframe ▾</button>
+                        <div class="glass-panel glass-menu" id="anim-display-menu">
+                            <div class="menu-item active" data-mode="wireframe">Wireframe</div>
+                            <div class="menu-item" data-mode="solid">Solid</div>
+                            <div class="menu-item" data-mode="both">Both</div>
+                            <div class="menu-item" data-mode="points">Points Only</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 0.75rem; padding-top: 0.5rem;">
                         <label class="glass-checkbox">
                             <input type="checkbox" id="anim-show-cluster-planes">
                             Show Cluster Planes
@@ -324,6 +335,18 @@
             jumpDate.max = dates[dates.length - 1];
             jumpDate.value = dates[0];
 
+            const depMinInput = document.getElementById('anim-dep-min');
+            const depMaxInput = document.getElementById('anim-dep-max');
+            if (depMinInput && depMaxInput) {
+                let maxAbsDepth = 0;
+                for (let i = 0; i < quakeData.dep.length; i++) {
+                    const d = Math.abs(quakeData.dep[i]);
+                    if (d > maxAbsDepth) maxAbsDepth = d;
+                }
+                depMinInput.value = 0;
+                depMaxInput.value = Math.ceil(maxAbsDepth);
+            }
+
             function formatDate(isoStr) {
                 if (!isoStr) return '';
                 const parts = isoStr.split('-');
@@ -443,7 +466,8 @@
 
                 // --- 2. Fetch Planes to Render ---
                 let planesToRender = [];
-                if (animClusteringEnabled && showAnimClusterPlanes && clusterData) {
+                const needsHulls = (typeof currentAnimDisplayMode !== 'undefined') && (currentAnimDisplayMode !== 'points');
+                if (animClusteringEnabled && (showAnimClusterPlanes || needsHulls) && clusterData) {
                     planesToRender = clusterData.planes || [];
                     if (accumulatePlanes) {
                         persistentPlanesMap.clear();
@@ -554,8 +578,13 @@
                 // Each plane gets its own mesh3d trace for independent hover detection.
                 let planeTraces = [];
 
-                if (animClusteringEnabled && showAnimClusterPlanes && clusterData) {
-                    planeTraces = generatePlaneTraces(planesToRender, globalUniqueLabels);
+                if (animClusteringEnabled && clusterData) {
+                    if (showAnimClusterPlanes) {
+                        planeTraces.push(...generatePlaneTraces(planesToRender, globalUniqueLabels));
+                    }
+                    if (typeof currentAnimDisplayMode !== 'undefined' && currentAnimDisplayMode !== 'points') {
+                        planeTraces.push(...generateHullTraces(planesToRender, currentAnimDisplayMode));
+                    }
                 } else if (planesEnabled && structuralPlanes) {
                     let planesToDraw = [];
                     if (accumulatePlanes) {
@@ -910,6 +939,64 @@
                 return traces;
             };
 
+            function generateHullTraces(planes, mode) {
+                if (!planes || planes.length === 0) return [];
+                
+                const traces = [];
+                const showWire = mode === 'wireframe' || mode === 'both';
+                const showSolid = mode === 'solid' || mode === 'both';
+
+                planes.forEach(p => {
+                    if (!p.hull) return;
+                    
+                    let color = '#888888';
+                    let clusterIdx = -1;
+                    if (p.grid_id.startsWith('cluster_')) {
+                        clusterIdx = parseInt(p.grid_id.split('_')[1]);
+                        color = getClusterColor(clusterIdx);
+                    }
+                    const title = clusterIdx >= 0 ? `Cluster ${clusterIdx}` : 'Cluster ?';
+
+                    if (showWire) {
+                        const lx = [], ly = [], lz = [];
+                        p.hull.simplices.forEach(s => {
+                            for (const c of [[0,1], [1,2], [2,0]]) {
+                                lx.push(p.hull.x[s[c[0]]], p.hull.x[s[c[1]]], null);
+                                ly.push(p.hull.y[s[c[0]]], p.hull.y[s[c[1]]], null);
+                                lz.push(p.hull.z[s[c[0]]], p.hull.z[s[c[1]]], null);
+                            }
+                        });
+                        traces.push({
+                            type: 'scatter3d',
+                            x: lx, y: ly, z: lz,
+                            mode: 'lines',
+                            line: {color: color, width: 2},
+                            opacity: 0.4,
+                            name: title + ' Wire',
+                            visible: true, showlegend: false, hoverinfo: 'skip'
+                        });
+                    }
+
+                    if (showSolid) {
+                        const fi = [], fj = [], fk = [];
+                        p.hull.simplices.forEach(s => {
+                            fi.push(s[0]); fj.push(s[1]); fk.push(s[2]);
+                        });
+                        traces.push({
+                            type: 'mesh3d',
+                            x: p.hull.x, y: p.hull.y, z: p.hull.z,
+                            i: fi, j: fj, k: fk,
+                            color: color,
+                            opacity: 0.15,
+                            name: title + ' Solid',
+                            visible: true, showlegend: false, hoverinfo: 'skip'
+                        });
+                    }
+                });
+
+                return traces;
+            }
+
             async function syncPlanes() {
                 if (!planesEnabled) return;
                 
@@ -1029,6 +1116,18 @@
             SeismicUI.initMenu(colorToggle, colorMenu);
             SeismicUI.initMenu(scaleToggle, scaleMenu);
             SeismicUI.initMenu(sizeToggle, sizeMenu);
+
+            const animDisplayToggle = document.getElementById('anim-display-toggle');
+            const animDisplayMenu = document.getElementById('anim-display-menu');
+            let currentAnimDisplayMode = 'wireframe';
+            
+            if (animDisplayToggle && animDisplayMenu) {
+                SeismicUI.initMenu(animDisplayToggle, animDisplayMenu);
+                SeismicUI.bindMenu(animDisplayMenu, (item) => {
+                    currentAnimDisplayMode = item.dataset.mode;
+                    animDisplayToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                });
+            }
 
             SeismicUI.bindMenu(sizeMenu, (item) => {
                 currentSizeMode = item.dataset.mode;
@@ -1162,7 +1261,7 @@
                         kmeans_max_dist: pDistAnim.value,
                         dbscan_eps: pEpsAnim.value,
                         dbscan_min_samples: pMinAnim.value,
-                        show_cluster_planes: showAnimPlanesCheck.checked,
+                        show_cluster_planes: showAnimPlanesCheck.checked || (typeof currentAnimDisplayMode !== 'undefined' && currentAnimDisplayMode !== 'points'),
                         mag_min: document.getElementById('anim-mag-min').value,
                         mag_max: document.getElementById('anim-mag-max').value,
                         dep_min: document.getElementById('anim-dep-min').value,

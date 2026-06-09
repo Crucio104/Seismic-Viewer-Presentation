@@ -611,6 +611,24 @@ def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat, di
                 normal, centroid, planarity, c_lon, c_lat, lon_to_km, radius_eff
             )
             p_data['grid_id'] = f"cluster_{lid}_{date_str}"
+            
+            try:
+                from scipy.spatial import ConvexHull
+                hull = ConvexHull(fit_pts)
+                
+                # Convert from km back to degrees for plotly
+                hx = (fit_pts[:, 0] / lon_to_km) + origin_lon
+                hy = (fit_pts[:, 1] / KM_PER_DEGREE) + origin_lat
+                
+                p_data['hull'] = {
+                    'x': hx.tolist(),
+                    'y': hy.tolist(),
+                    'z': fit_pts[:, 2].tolist(),
+                    'simplices': hull.simplices.tolist()
+                }
+            except Exception:
+                p_data['hull'] = None
+
             planes.append(p_data)
     return planes
 
@@ -682,6 +700,8 @@ def _process_frame_worker(idx, data):
             depth_idx = np.floor(np.abs(depths) / depth_step).astype(int)
             # Combine: (Cyl * 1000) + DepthLevel
             combined_map = (curr_pt_cylinder_map * 1000) + depth_idx
+            # Restore -1 for points outside cylinders
+            combined_map[curr_pt_cylinder_map == -1] = -1
         else:
             combined_map = curr_pt_cylinder_map
 

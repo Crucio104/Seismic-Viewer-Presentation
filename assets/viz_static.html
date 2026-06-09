@@ -50,7 +50,7 @@
                 </div>
             </div>
 
-            <div class="settings-group">
+            <div class="settings-group" id="point-size-group">
                 <div class="label">Point Size</div>
                 <button class="settings-btn" id="size-toggle">Uniform ▾</button>
                 <div class="glass-panel glass-menu" id="size-menu">
@@ -169,6 +169,7 @@
  
              if (!is3D) {
                  resetBtn.style.display = 'flex';
+                 document.getElementById('point-size-group').style.display = 'none';
                  // Store initial view after a small delay to ensure Plotly has initialized mapbox
                  setTimeout(() => {
                      if (gd.layout.mapbox) {

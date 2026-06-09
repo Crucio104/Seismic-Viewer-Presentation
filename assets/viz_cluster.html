@@ -347,8 +347,8 @@
             endInput.value = uniqueDates[uniqueDates.length - 1];
 
             const [depMinVal, depMaxVal] = getArrayMinMax(quakeData.depth.map(Math.abs));
-            depMin.value = depMinVal.toFixed(1);
-            depMax.value = depMaxVal.toFixed(1);
+            depMin.value = 0;
+            depMax.value = Math.ceil(depMaxVal);
 
             /**
              * applyDisplayMode()
@@ -367,13 +367,13 @@
 
                 for (let i = 0; i < gd.data.length; i++) {
                     const name = gd.data[i].name || '';
-                    if (name.includes(' (Wireframe)')) {
+                    if (name.endsWith(' Wire')) {
                         indices.push(i);
                         update.visible.push(showWire);
-                    } else if (name.includes(' (Solid)')) {
+                    } else if (name.endsWith(' Solid')) {
                         indices.push(i);
                         update.visible.push(showSolid);
-                    } else if (name.includes(' (Plane)')) {
+                    } else if (name.endsWith(' Plane')) {
                         indices.push(i);
                         update.visible.push(showPlanes);
                     } else if (name === 'Other Events') {

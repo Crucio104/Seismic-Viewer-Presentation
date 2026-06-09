@@ -178,6 +178,65 @@ def build_view_html(
     elif view_style == 4:
         target_indices = kwargs.get('target_indices', [])
         context_indices = kwargs.get('context_indices', None)
+        
+        # --- Calculate Optimal Epsilon for Sub-cluster using k-distance elbow ---
+        if clustering_method == 'dbscan' and clustering_params is not None and len(target_indices) >= 5:
+            try:
+                from core.engine.analysis import project_to_km
+                from sklearn.neighbors import NearestNeighbors
+                
+                target_lon = np.array(lon)[target_indices]
+                target_lat = np.array(lat)[target_indices]
+                target_dep = np.array(dep)[target_indices]
+                
+                o_lat = data.get('origin_lat', np.mean(target_lat))
+                o_lon = data.get('origin_lon', np.mean(target_lon))
+                
+                pts_km = project_to_km(target_lon, target_lat, target_dep, o_lat, o_lon)
+                n_pts = len(pts_km)
+                
+                # --- Heuristic for Min Samples in 3D ---
+                # rimosso il limite di 6 su richiesta dell'utente. Usiamo un minimo tecnico di 3.
+                optimal_min_samples = max(3, int(np.log(n_pts))) if n_pts > 0 else 3
+                clustering_params['dbscan_min_samples'] = optimal_min_samples
+                min_samples = optimal_min_samples
+                
+                if len(pts_km) > min_samples:
+                    nn = NearestNeighbors(n_neighbors=min_samples)
+                    nn.fit(pts_km)
+                    distances, _ = nn.kneighbors(pts_km)
+                    
+                    k_dists = np.sort(distances[:, -1])
+                    
+                    # Find elbow (max distance to secant line)
+                    n_points = len(k_dists)
+                    all_coord = np.vstack((np.arange(n_points), k_dists)).T
+                    first_point = all_coord[0]
+                    line_vec = all_coord[-1] - first_point
+                    norm_val = np.linalg.norm(line_vec)
+                    if norm_val > 0:
+                        line_vec_norm = line_vec / norm_val
+                        
+                        vec_from_first = all_coord - first_point
+                        scalar_proj = np.sum(vec_from_first * line_vec_norm, axis=1)
+                        vec_proj = np.outer(scalar_proj, line_vec_norm)
+                        vec_to_line = vec_from_first - vec_proj
+                        dist_to_line = np.linalg.norm(vec_to_line, axis=1)
+                        
+                        elbow_idx = np.argmax(dist_to_line)
+                        optimal_eps_km = k_dists[elbow_idx]
+                        
+                        # Convert to meters and round to nearest 10
+                        optimal_eps_m = int(round((optimal_eps_km * 1000) / 10.0) * 10)
+                        if optimal_eps_m < 10:
+                            optimal_eps_m = 10
+                            
+                        clustering_params['dbscan_eps'] = optimal_eps_m
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to calculate optimal eps: {e}")
+        # -------------------------------------------------------------------------
+
         fig, labels, n_clusters = get_3d_subcluster_figure(
             lon, lat, mag, dep, target_indices, context_indices=context_indices,
             clustering_method=clustering_method, clustering_params=clustering_params, 
