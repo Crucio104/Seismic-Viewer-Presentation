@@ -13,18 +13,22 @@
 
         <div id="left-panel-wrapper" class="glass-panel">
             <div id="settings-bar">
-            <div class="settings-group">
-                <div class="label">Playback Speed</div>
-                <button class="settings-btn" id="speed-toggle">1x ▾</button>
-                <div class="glass-panel glass-menu" id="speed-menu">
-                    <div class="menu-item active" data-val="1">1x (Real-time)</div>
-                    <div class="menu-item" data-val="2">2x</div>
-                    <div class="menu-item" data-val="4">4x</div>
-                    <div class="menu-item" data-val="8">8x</div>
-                    <div class="menu-item" data-val="16">16x</div>
-                    <div class="menu-item" data-val="32">32x (Turbo)</div>
+            <div class="settings-group" id="playback-speed-group">
+                <div class="label" id="playback-speed-label">Playback Speed</div>
+                <div id="playback-speed-dropdown-container">
+                    <button class="settings-btn" id="speed-toggle">1x ▾</button>
+                    <div class="glass-panel glass-menu" id="speed-menu">
+                        <div class="menu-item active" data-val="1">1x (Real-time)</div>
+                        <div class="menu-item" data-val="2">2x</div>
+                        <div class="menu-item" data-val="4">4x</div>
+                        <div class="menu-item" data-val="8">8x</div>
+                        <div class="menu-item" data-val="16">16x</div>
+                        <div class="menu-item" data-val="32">32x (Turbo)</div>
+                    </div>
                 </div>
-
+                <div id="playback-speed-input-container" style="display: none;">
+                    <input type="number" id="sec-per-frame" class="glass-input" value="1.0" min="0.1" step="0.1" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                </div>
             </div>
             <div class="settings-group">
                 <div class="label">Color Analysis</div>
@@ -329,7 +333,7 @@
             let startIdx = 0;
             let animId = null;
 
-            const dates = quakeData.unique_dates;
+            const dates = quakeData.frame_dates || quakeData.unique_dates;
             slider.max = dates.length - 1;
             jumpDate.min = dates[0];
             jumpDate.max = dates[dates.length - 1];
@@ -356,7 +360,7 @@
 
             function getActiveRange(idx) {
                 const date = dates[idx];
-                const endIdx = quakeData.date_to_cum[date];
+                let endIdx = quakeData.date_to_cum[date];
                 let startIdx = 0;
 
                 if (quakeData.anim_mode === 'window') {
@@ -376,26 +380,39 @@
                     }
                     if (foundIdx > 0) startIdx = quakeData.date_to_cum[dates[foundIdx - 1]];
                 } else if (quakeData.anim_mode === 'block') {
-                    const d0 = new Date(dates[0]);
-                    const currDate = new Date(date);
-                    const msDiff = currDate.getTime() - d0.getTime();
-                    const daysDiff = Math.floor(msDiff / 86400000);
-                    const blockIdx = Math.floor(daysDiff / quakeData.window_days);
-                    const cutoffDate = new Date(d0.getTime() + blockIdx * quakeData.window_days * 86400000);
-                    const cutoffStr = cutoffDate.toISOString().slice(0, 10);
+                    const startStr = date;
+                    const blockStartDate = new Date(startStr);
+                    const blockEndDate = new Date(blockStartDate.getTime() + quakeData.window_days * 86400000);
+                    const endStr = blockEndDate.toISOString().slice(0, 10);
 
-                    let low = 0, high = dates.length - 1;
-                    let foundIdx = 0;
+                    const allDates = quakeData.unique_dates;
+                    let low = 0, high = allDates.length - 1;
+                    let foundStartIdx = -1;
                     while (low <= high) {
                         let mid = (low + high) >>> 1;
-                        if (dates[mid] >= cutoffStr) {
-                            foundIdx = mid;
-                            high = mid - 1;
-                        } else {
+                        if (allDates[mid] < startStr) {
+                            foundStartIdx = mid;
                             low = mid + 1;
+                        } else {
+                            high = mid - 1;
                         }
                     }
-                    if (foundIdx > 0) startIdx = quakeData.date_to_cum[dates[foundIdx - 1]];
+                    if (foundStartIdx === -1) startIdx = 0;
+                    else startIdx = quakeData.date_to_cum[allDates[foundStartIdx]];
+
+                    let foundEndIdx = -1;
+                    low = 0; high = allDates.length - 1;
+                    while (low <= high) {
+                        let mid = (low + high) >>> 1;
+                        if (allDates[mid] < endStr) {
+                            foundEndIdx = mid;
+                            low = mid + 1;
+                        } else {
+                            high = mid - 1;
+                        }
+                    }
+                    if (foundEndIdx === -1) endIdx = 0;
+                    else endIdx = quakeData.date_to_cum[allDates[foundEndIdx]];
                 }
                 return [startIdx, endIdx];
             }
@@ -477,12 +494,14 @@
                         }
                         planesToRender = Array.from(persistentPlanesMap.values());
                     } else {
-                        if ((!planesToRender || planesToRender.length === 0) && idx > 0) {
-                            for (let i = idx - 1; i >= 0; i--) {
-                                const pastPlanes = (animClustersMap[dates[i]] || {}).planes;
-                                if (pastPlanes && pastPlanes.length > 0) {
-                                    planesToRender = pastPlanes;
-                                    break;
+                        if (quakeData.anim_mode !== 'block') {
+                            if ((!planesToRender || planesToRender.length === 0) && idx > 0) {
+                                for (let i = idx - 1; i >= 0; i--) {
+                                    const pastPlanes = (animClustersMap[dates[i]] || {}).planes;
+                                    if (pastPlanes && pastPlanes.length > 0) {
+                                        planesToRender = pastPlanes;
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -596,12 +615,14 @@
                         planesToDraw = Array.from(persistentPlanesMap.values());
                     } else {
                         planesToDraw = structuralPlanes[dates[idx]] || [];
-                        if (planesToDraw.length === 0 && idx > 0) {
-                            for (let i = idx - 1; i >= 0; i--) {
-                                const pastPlanes = structuralPlanes[dates[i]];
-                                if (pastPlanes && pastPlanes.length > 0) {
-                                    planesToDraw = pastPlanes;
-                                    break;
+                        if (quakeData.anim_mode !== 'block') {
+                            if (planesToDraw.length === 0 && idx > 0) {
+                                for (let i = idx - 1; i >= 0; i--) {
+                                    const pastPlanes = structuralPlanes[dates[i]];
+                                    if (pastPlanes && pastPlanes.length > 0) {
+                                        planesToDraw = pastPlanes;
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -1024,8 +1045,8 @@
             }
 
 
-
             let isRendering = false;
+            let lastFrameTime = 0;
             async function animationLoop(timestamp) {
                 if (!isPlaying) return;
                 
@@ -1038,10 +1059,24 @@
                 if (!startTime) {
                     startTime = timestamp;
                     startIdx = currentStepIdx;
+                    lastFrameTime = timestamp;
                 }
                 const elapsed = timestamp - startTime;
-                const secondsPassed = Math.floor(elapsed / baseDelay);
-                const targetIdx = Math.floor(startIdx + (secondsPassed * speedMult));
+                
+                let targetIdx = startIdx;
+                if (quakeData.anim_mode === 'block') {
+                    const secPerFrameInput = document.getElementById('sec-per-frame');
+                    const frameDurMs = (secPerFrameInput && parseFloat(secPerFrameInput.value)) ? parseFloat(secPerFrameInput.value) * 1000 : 1000;
+                    
+                    targetIdx = currentStepIdx;
+                    if (timestamp - lastFrameTime >= frameDurMs) {
+                        targetIdx = currentStepIdx + 1;
+                        lastFrameTime = timestamp;
+                    }
+                } else {
+                    const secondsPassed = Math.floor(elapsed / baseDelay);
+                    targetIdx = Math.floor(startIdx + (secondsPassed * speedMult));
+                }
                 
                 if (targetIdx !== currentStepIdx && targetIdx < dates.length) {
                     isRendering = true;
@@ -1052,6 +1087,8 @@
                     } finally {
                         isRendering = false;
                     }
+                    currentStepIdx = targetIdx;
+                    slider.value = currentStepIdx;
                 } else if (targetIdx >= dates.length) {
                     isRendering = true;
                     try {
@@ -1062,6 +1099,8 @@
                         isRendering = false;
                         pause();
                     }
+                    currentStepIdx = dates.length - 1;
+                    slider.value = currentStepIdx;
                     return;
                 }
                 animId = requestAnimationFrame(animationLoop);
@@ -1173,7 +1212,7 @@
                 planesEnabled = showPlanesCheck.checked;
                 planeControls.style.display = planesEnabled ? 'block' : 'none';
                 animClusteringEnabled = showAnimClustCheck.checked;
-                if (animClustControls) animClustControls.style.display = animClusteringEnabled ? 'block' : 'none';
+                animClustControls.style.display = animClusteringEnabled ? 'block' : 'none';
             }
             function handleAnalysisRadioClick(e) {
                 if (lastCheckedAnalysis === this) {
@@ -1366,6 +1405,15 @@
             // Show both structural panel and clustering panel in all modes
             document.getElementById('structural-settings-group').style.display = 'block';
             document.getElementById('clustering-settings-group').style.display = 'block';
+
+            const speedDropdown = document.getElementById('playback-speed-dropdown-container');
+            const speedInput = document.getElementById('playback-speed-input-container');
+            const speedLabel = document.getElementById('playback-speed-label');
+            if (quakeData.anim_mode === 'block') {
+                if (speedDropdown) speedDropdown.style.display = 'none';
+                if (speedInput) speedInput.style.display = 'block';
+                if (speedLabel) speedLabel.textContent = 'Seconds per frame';
+            }
 
             // Sync UI state and finally hide loader
             hideInitLoader();

@@ -65,16 +65,23 @@ def _compute_grid(w: int, h: int, scale: float, ts: int, xmin: float, ymin: floa
 @lru_cache(maxsize=4)
 def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[list[float | str]], dict[str, Any] | None]:
     
-    # Expand longitude to cover double the original range
+    # Create a square bounding box based on the largest dimension
     min_lat, min_lon, max_lat, max_lon = bbox
+    lat_range = max_lat - min_lat
     lon_range = max_lon - min_lon
     
-    # Add 25% of the range to the left and 25% to the right
-    new_min_lon = min_lon - (lon_range * 0.25)
-    new_max_lon = max_lon + (lon_range * 0.25)
+    max_range = max(lat_range, lon_range)
     
-    # Create the new expanded bounding box
-    bbox = (min_lat, new_min_lon, max_lat, new_max_lon)
+    center_lat = (min_lat + max_lat) / 2.0
+    center_lon = (min_lon + max_lon) / 2.0
+    
+    new_min_lat = center_lat - (max_range / 2.0)
+    new_max_lat = center_lat + (max_range / 2.0)
+    new_min_lon = center_lon - (max_range / 2.0)
+    new_max_lon = center_lon + (max_range / 2.0)
+    
+    # Create the new expanded square bounding box
+    bbox = (new_min_lat, new_min_lon, new_max_lat, new_max_lon)
 
     """
     Build a map mesh at the given resolution.

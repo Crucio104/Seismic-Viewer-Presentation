@@ -5,6 +5,7 @@ import plotly.express as px
 from plotly.colors import qualitative as _pq
 from scipy.spatial import ConvexHull
 from typing import Any, Callable
+from datetime import datetime, timedelta
 
 from core.geo_utils import build_map_mesh
 from core.config import MESH_HD_SIZE, KM_PER_DEGREE
@@ -196,15 +197,6 @@ def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitu
     apply_3d_style(fig, [x_grid[0], x_grid[-1]], [y_grid[-1], y_grid[0]], [min_depth, 0])
     return fig, result['labels'], result['n_clusters']
 
-def get_3d_subcluster_figure(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], target_indices: list[int],
-                            clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None,
-                            bbox: tuple[float, float, float, float] | None = None, visual_pack: dict[str, Any] | None = None, 
-                            map_grids: tuple[Any, ...] | None = None,
-                            origin_lat: float | None = None, origin_lon: float | None = None) -> tuple[go.Figure, np.ndarray, int]:
-    """Generate the 3D Sub-Cluster figure, showing non-target points as gray and re-clustering the target points."""
-    min_depth = np.floor(np.min(depth)) if len(depth) > 0 else 0
-    if bbox is None:
-        bbox = (np.min(latitude), np.min(longitude), np.max(latitude), np.max(longitude))
 
 def get_3d_subcluster_figure(
     longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], 
@@ -617,13 +609,33 @@ def get_3d_animated_figure(
             name=f'Color: {name}', visible=vis
         ))
 
+    if anim_mode == 'block' and len(unique_dates) > 0:
+        d0 = datetime.strptime(unique_dates[0], '%Y-%m-%d')
+        d_end = datetime.strptime(unique_dates[-1], '%Y-%m-%d')
+        total_days = (d_end - d0).days
+        num_blocks = (total_days // window_days) + 1
+        frame_dates = [(d0 + timedelta(days=i*window_days)).strftime('%Y-%m-%d') for i in range(num_blocks)]
+        
+        new_counts = [0] * num_blocks
+        old_counts = vpack.get('date_counts', [])
+        d0_date = d0.date()
+        for d_str, count in zip(unique_dates, old_counts):
+            d_obj = datetime.strptime(d_str, '%Y-%m-%d').date()
+            b_i = (d_obj - d0_date).days // window_days
+            if 0 <= b_i < num_blocks:
+                new_counts[b_i] += count
+        frame_counts = new_counts
+    else:
+        frame_dates = unique_dates
+        frame_counts = vpack.get('date_counts', [])
+
     anim_data = {
         'lon': longitude, 'lat': latitude, 'dep': depth, 'mag': magnitude,
         'dnum': data.get('dates_num', []) if data else [], 'hover': vpack.get('hover', []),
         'unique_dates': unique_dates, 'date_to_cum': vpack.get('date_to_cum', {}),
         'anim_mode': anim_mode, 'window_days': window_days, 'mag_range': mag_range,
         'date_range': date_range, 'dep_range': dep_range, 'start_date': times[0][:10] if times else "",
-        'date_counts': vpack.get('date_counts', []), 'bbox': bbox, 'graph_bounds': data.get('graph_bounds') if data else None,
+        'date_counts': frame_counts, 'frame_dates': frame_dates, 'bbox': bbox, 'graph_bounds': data.get('graph_bounds') if data else None,
     }
 
     apply_3d_style(fig, [x_high[0], x_high[-1]], [y_high[-1], y_high[0]], [min_depth, 0])

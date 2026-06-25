@@ -621,17 +621,17 @@
         const mode = document.querySelector('input[name="anim_mode"]:checked').value;
         const group = document.getElementById('window_input_group');
         const label = document.getElementById('duration_label');
-        if (mode === 'window') {
-            group.style.opacity = '1';
-            group.style.pointerEvents = 'auto';
-            label.textContent = 'Days to show:';
-        } else if (mode === 'block') {
-            group.style.opacity = '1';
-            group.style.pointerEvents = 'auto';
-            label.textContent = 'Block duration (days):';
-        } else {
+        if (mode === 'accumulation') {
             group.style.opacity = '0.4';
             group.style.pointerEvents = 'none';
+        } else {
+            group.style.opacity = '1';
+            group.style.pointerEvents = 'auto';
+            if (mode === 'block') {
+                label.textContent = "Step (days):";
+            } else {
+                label.textContent = "Days to show:";
+            }
         }
     }
     async function launchAnimation() {

@@ -1,13 +1,13 @@
 import logging
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from scipy.spatial import KDTree
 from scipy.linalg import svd
 import concurrent.futures
 import os
 from typing import Any
 
-from core.config import KM_PER_DEGREE, SECONDS_PER_DAY
+from core.config import KM_PER_DEGREE
 
 logger = logging.getLogger(__name__)
 
@@ -227,7 +227,7 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
     tasks = []
     
     # Get frame indices using the same logic as clustering
-    date_indices = _get_frame_indices(dates_unique, date_to_cum, anim_mode, window_days)
+    dates_unique, date_indices = _get_frame_dates_and_indices(dates_unique, date_to_cum, anim_mode, window_days)
     
     for i, date_str in enumerate(dates_unique):
         start_idx, end_idx = date_indices[i]
@@ -416,12 +416,15 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     anim_mode = params.get('anim_mode', data.get('anim_mode', 'accumulation'))
     window_days = int(params.get('window_days', data.get('window_days', 5)))
     
+    if anim_mode == 'block':
+        plane_step = 1
+    
     origin_lat = data.get('origin_lat', np.mean(lat))
     origin_lon = data.get('origin_lon', np.mean(lon))
     pts_km = project_to_km(lon, lat, dep, origin_lat, origin_lon)
 
     # 2. Pre-calculate Temporal Windows
-    date_indices = _get_frame_indices(dates_unique, date_to_cum, anim_mode, window_days)
+    dates_unique, date_indices = _get_frame_dates_and_indices(dates_unique, date_to_cum, anim_mode, window_days)
 
     # 3. Pre-calculate Grid if cylinders are used
     use_cylinders = params.get('use_cylinders', False)
@@ -548,29 +551,49 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     logger.info(f"Parallel clustering completed in {time.time() - t0:.2f}s")
     return results
 
-def _get_frame_indices(dates, date_to_cum, mode, window_days):
-    indices = []
+def _get_frame_dates_and_indices(dates, date_to_cum, mode, window_days):
     if mode == 'accumulation':
-        return [(0, date_to_cum[d]) for d in dates]
+        return dates, [(0, date_to_cum[d]) for d in dates]
     
-    from datetime import datetime, timedelta
     dt_objs = [datetime.strptime(d, '%Y-%m-%d') for d in dates]
     
     if mode == 'block':
         d0 = dt_objs[0]
-        for i, d_str in enumerate(dates):
-            t_i = (dt_objs[i] - d0).days
-            b_i = t_i // window_days
-            cutoff = d0 + timedelta(days=b_i * window_days)
-            cutoff_str = cutoff.strftime('%Y-%m-%d')
+        d_end = dt_objs[-1]
+        total_days = (d_end - d0).days
+        num_blocks = (total_days // window_days) + 1
+        
+        block_dates = []
+        indices = []
+        
+        for b_i in range(num_blocks):
+            start_cutoff = d0 + timedelta(days=b_i * window_days)
+            end_cutoff = start_cutoff + timedelta(days=window_days)
+            start_cutoff_str = start_cutoff.strftime('%Y-%m-%d')
+            end_cutoff_str = end_cutoff.strftime('%Y-%m-%d')
             s_idx = 0
-            for j, d in enumerate(dates):
-                if d >= cutoff_str:
-                    s_idx = date_to_cum[dates[j-1]] if j > 0 else 0
+            last_start_d = None
+            for d in dates:
+                if d < start_cutoff_str:
+                    last_start_d = d
+                else:
                     break
-            indices.append((s_idx, date_to_cum[d_str]))
-        return indices
+            s_idx = date_to_cum[last_start_d] if last_start_d else 0
+            
+            e_idx = 0
+            last_end_d = None
+            for d in dates:
+                if d < end_cutoff_str:
+                    last_end_d = d
+                else:
+                    break
+            e_idx = date_to_cum[last_end_d] if last_end_d else 0
+            
+            block_dates.append(start_cutoff_str)
+            indices.append((s_idx, e_idx))
+        return block_dates, indices
     
+    indices = []
     for i, d_str in enumerate(dates):
         cutoff = dt_objs[i] - timedelta(days=window_days-1)
         s_idx = 0
@@ -579,7 +602,7 @@ def _get_frame_indices(dates, date_to_cum, mode, window_days):
                 s_idx = date_to_cum[dates[j-1]] if j > 0 else 0
                 break
         indices.append((s_idx, date_to_cum[d_str]))
-    return indices
+    return dates, indices
 
 def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat, dim):
     from core.config import KM_PER_DEGREE
