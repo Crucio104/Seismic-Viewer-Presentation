@@ -29,6 +29,7 @@ class Api:
         self._data: dict[str, Any] | None = None
         self._csv_info: dict[str, Any] | None = None
         self._html_cache: dict[tuple, str] = {} 
+        self._history_stack: list[dict[str, Any]] = []
         self._socket_manager: Any = None
         self._event_loop: Any = None
 
@@ -174,12 +175,17 @@ class Api:
         if self._data is None:
             return {'error': 'No CSV loaded.'}
         
+        if clustering_params is None:
+            clustering_params = {}
+            
         kwargs = {
             'anim_mode': anim_mode,
             'window_days': window_days,
             'clustering_method': clustering_method,
             'clustering_params': clustering_params
         }
+        self._history_stack.clear()
+        self._history_stack.append({'view_style': view_style, 'kwargs': kwargs})
         threading.Thread(target=self._generate_and_navigate, args=(view_style,), kwargs=kwargs, daemon=True).start()
 
     def load_subcluster_view(self, indices: list[int], context_indices: list[int] | None = None, clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None) -> None:
@@ -187,20 +193,107 @@ class Api:
         if self._data is None:
             return
         
+        if clustering_params is None:
+            clustering_params = {}
+            
         kwargs = {
             'clustering_method': clustering_method,
-            'clustering_params': clustering_params or {},
+            'clustering_params': clustering_params,
             'target_indices': indices,
             'context_indices': context_indices
         }
+        self._history_stack.append({'view_style': 4, 'kwargs': kwargs})
         threading.Thread(target=self._generate_and_navigate, args=(4,), kwargs=kwargs, daemon=True).start()
+
+    def go_back(self) -> None:
+        if len(self._history_stack) > 1:
+            self._history_stack.pop()
+            prev = self._history_stack[-1]
+            threading.Thread(target=self._generate_and_navigate, args=(prev['view_style'],), kwargs=prev['kwargs'], daemon=True).start()
+        else:
+            try:
+                self._window().evaluate_js("transitionToHub()")
+            except Exception:
+                pass
+
+    def apply_subclusters(self, new_sub_labels: list[int]) -> dict[str, Any]:
+        if not self._data:
+            return {'error': 'No data'}
+        try:
+            if len(self._history_stack) < 2:
+                return {'error': 'No previous view to apply to'}
+            
+            curr_view = self._history_stack[-1]
+            prev_view = self._history_stack[-2]
+            
+            method = prev_view['kwargs'].get('clustering_method', 'dbscan')
+            params = prev_view['kwargs'].get('clustering_params', {})
+            
+            if params and 'custom_labels' in params:
+                global_labels = np.array(params['custom_labels'])
+            else:
+                res = engine.get_cluster_update_traces(
+                    self._data['longitude'], self._data['latitude'], self._data['magnitude'],
+                    self._data['depth'], np.array(self._data['visual_pack']['hover']),
+                    method, params,
+                    viz_mask=None,
+                    origin_lat=self._data.get('origin_lat', 0),
+                    origin_lon=self._data.get('origin_lon', 0)
+                )
+                global_labels = np.array(res['labels'])
+                
+            new_sub_labels = np.array(new_sub_labels, dtype=int)
+            max_global = int(np.max(global_labels)) if len(global_labels) > 0 else -1
+            target_indices = curr_view['kwargs'].get('target_indices', [])
+            
+            u_before, c_before = np.unique(global_labels, return_counts=True)
+            logger.info(f"apply_subclusters: BEFORE global_labels = {u_before} with counts = {c_before}")
+            
+            logger.info(f"apply_subclusters: len(new_sub_labels)={len(new_sub_labels)}, len(target_indices)={len(target_indices)}, max_global={max_global}")
+            
+            # Identify the original label in custom_labels to clean up orphans
+            if len(target_indices) > 0 and len(global_labels) > 0:
+                original_labels = global_labels[target_indices]
+                valid_originals = original_labels[original_labels >= 0]
+                if len(valid_originals) > 0:
+                    # Find the most common original label (should be uniform, but use most common to be safe)
+                    from collections import Counter
+                    most_common = Counter(valid_originals).most_common(1)[0][0]
+                    # Set any points with this original label that are NOT in target_indices to noise (-1)
+                    orphan_mask = (global_labels == most_common)
+                    orphan_mask[target_indices] = False
+                    global_labels[orphan_mask] = -1
+
+            for i in target_indices:
+                sub_l = new_sub_labels[i]
+                if sub_l >= 0:
+                    global_labels[i] = max_global + 1 + sub_l
+                else:
+                    global_labels[i] = -1
+                    
+            unique_lbls, counts = np.unique(global_labels, return_counts=True)
+            logger.info(f"apply_subclusters: unique global_labels now = {unique_lbls} with counts = {counts}")
+            
+            self._history_stack.pop()
+            
+            if 'clustering_params' not in prev_view['kwargs'] or prev_view['kwargs']['clustering_params'] is None:
+                prev_view['kwargs']['clustering_params'] = {}
+            prev_view['kwargs']['clustering_params']['custom_labels'] = global_labels.tolist()
+            
+            self._html_cache.clear()
+            
+            threading.Thread(target=self._generate_and_navigate, args=(prev_view['view_style'],), kwargs=prev_view['kwargs'], daemon=True).start()
+            return {'status': 'success'}
+        except Exception as e:
+            logger.error("Apply subclusters failed", exc_info=True)
+            return {'error': str(e)}
 
     def _generate_and_navigate(self, view_style: int, **kwargs) -> None:
         """Generate HTML and navigate the window."""
         try:
             # 1. Check Cache
             c_params = kwargs.get('clustering_params')
-            c_params_frozen = frozenset(c_params.items()) if c_params else None
+            c_params_frozen = frozenset((k, tuple(v) if isinstance(v, list) else v) for k, v in c_params.items()) if c_params else None
             
             t_idx = kwargs.get('target_indices')
             t_idx_frozen = tuple(t_idx) if t_idx else None

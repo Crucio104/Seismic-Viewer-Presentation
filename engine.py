@@ -239,6 +239,8 @@ def build_view_html(
         if clustering_method == 'dbscan' and len(target_indices) >= 5:
             if clustering_params is None:
                 clustering_params = {}
+            clustering_params = kwargs.setdefault('clustering_params', {})
+            kwargs['clustering_params'] = clustering_params
             target_lon = np.array(lon)[target_indices]
             target_lat = np.array(lat)[target_indices]
             target_dep = np.array(dep)[target_indices]

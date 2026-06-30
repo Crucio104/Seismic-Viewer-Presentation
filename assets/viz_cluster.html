@@ -313,6 +313,18 @@
                                 // Update local state for legend
                                 quakeData.n_clusters = res.n_clusters;
                                 if (res.cluster_indices) quakeData.cluster_indices = res.cluster_indices;
+                                if (res.labels) {
+                                    if (quakeData.subcluster_target_indices) {
+                                        const targets = quakeData.subcluster_target_indices;
+                                        if (targets.length === res.labels.length) {
+                                            for (let i = 0; i < targets.length; i++) {
+                                                quakeData.cluster[targets[i]] = res.labels[i];
+                                            }
+                                        }
+                                    } else {
+                                        quakeData.cluster = res.labels;
+                                    }
+                                }
 
                                 // Sync legend and display mode
                                 applyDisplayMode();
@@ -391,7 +403,34 @@
             if (isSubcluster) {
                 const contextGroup = document.getElementById('context-points-group');
                 if (contextGroup) contextGroup.style.display = 'block';
+                
+                const backBtn = document.getElementById('back-btn');
+                if (backBtn) {
+                    backBtn.textContent = '← Back';
+                    backBtn.onclick = () => {
+                        showInitLoader('Loading previous view...');
+                        if (window.pywebview && window.pywebview.api) {
+                            pywebview.api.go_back();
+                        } else {
+                            transitionToHub();
+                        }
+                    };
+                }
             }
+            
+            window.applyAllSubclusters = async function() {
+                const overlay = document.getElementById('filter-loader');
+                overlay.classList.add('show');
+                try {
+                    showInitLoader('Applying subclusters to main view...');
+                    const clusterArr = Array.from(quakeData.cluster);
+                    await pywebview.api.apply_subclusters(clusterArr);
+                } catch(e) {
+                    console.error("Failed to apply subclusters:", e);
+                    if (typeof showStatusToast === 'function') showStatusToast('Engine failure: ' + e);
+                    overlay.classList.remove('show');
+                }
+            };
 
 
             // Build custom glass legend for clusters
@@ -402,6 +441,11 @@
                 legend.style.minHeight = 'auto'; // Fit content natively
                 
                 let html = '<div id="legend-title">Clusters</div>';
+                
+                if (new URLSearchParams(window.location.search).get('subcluster') === 'true') {
+                    html += `<div style="margin-bottom: 0.5rem;"><button onclick="applyAllSubclusters()" style="width:100%; background:rgba(99,102,241,0.2); border:1px solid rgba(99,102,241,0.4); color:#fff; border-radius:4px; font-size:0.75rem; padding:0.4rem; cursor:pointer; font-weight:bold; transition:background 0.2s;" title="Extract back to main dataset">Extract back</button></div>`;
+                }
+
                 html += '<div class="legend-list">';
                 
                 for (let i = 0; i < quakeData.n_clusters; i++) {

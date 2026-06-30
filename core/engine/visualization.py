@@ -398,8 +398,25 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
     X_km = project_to_km(f_lon, f_lat, f_dep, origin_lat, origin_lon)
     X_orig_f = np.column_stack((f_lon, f_lat, f_dep))
 
-    display_labels, n_clusters, _ = perform_clustering(X_km, method, params)
-    labels = display_labels # For return consistency
+    custom_labels = params.get('custom_labels') if params else None
+    if custom_labels is not None:
+        full_labels = np.array(custom_labels)
+        if viz_mask is not None:
+            display_labels = full_labels[viz_mask]
+        else:
+            display_labels = full_labels
+            
+        unique_l = sorted(list(set(display_labels[display_labels >= 0])))
+        mapped_labels = np.full_like(display_labels, -1)
+        for new_idx, old_idx in enumerate(unique_l):
+            mapped_labels[display_labels == old_idx] = new_idx
+            
+        display_labels = mapped_labels
+        n_clusters = len(unique_l)
+        labels = display_labels
+    else:
+        display_labels, n_clusters, _ = perform_clustering(X_km, method, params)
+        labels = display_labels # For return consistency
 
     cluster_colors = _pq.Plotly
     traces = []
