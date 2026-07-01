@@ -152,7 +152,12 @@
             
             <div class="setting-group" id="window_input_group" style="opacity: 0.4; pointer-events: none;">
                 <label id="duration_label" for="window_days" style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Days to show:</label>
-                <input type="number" id="window_days" class="glass-input" value="5" min="1" max="365">
+                <input type="number" id="window_days" class="glass-input" value="30" min="1" max="365">
+            </div>
+
+            <div class="setting-group" id="step_input_group" style="opacity: 0.4; pointer-events: none; display: none; margin-top: 1rem;">
+                <label id="step_label" for="step_days" style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Step (days):</label>
+                <input type="number" id="step_days" class="glass-input" value="7" min="1" max="365">
             </div>
 
             <div class="modal-actions">
@@ -318,10 +323,14 @@
          loader.style.display = 'none';
     }
 
-    function showHub(badgeText) {
+    function showHub(badgeText, totalDays) {
         if(badgeText) {
             document.getElementById('badge-text').textContent = badgeText;
             localStorage.setItem('hub_badge', badgeText);
+        }
+        if(totalDays !== undefined && totalDays !== null) {
+            window.currentDatasetTotalDays = totalDays;
+            localStorage.setItem('hub_total_days', totalDays);
         }
         document.getElementById('view-picker').classList.remove('active');
         document.getElementById('view-hub').classList.add('active');
@@ -330,6 +339,8 @@
     // Instant Restoration from localStorage
     (function() {
         const cachedBadge = localStorage.getItem('hub_badge');
+        const cachedDays = localStorage.getItem('hub_total_days');
+        if (cachedDays) window.currentDatasetTotalDays = parseInt(cachedDays);
         if (cachedBadge) {
             showHub(cachedBadge);
         } else {
@@ -342,7 +353,7 @@
         try {
             const info = await pywebview.api.get_csv_info();
             if (info && info.filename) {
-                showHub(info.filename + ' | ' + info.event_count.toLocaleString() + ' events');
+                showHub(info.filename + ' | ' + info.event_count.toLocaleString() + ' events', info.total_days);
             } else {
                 localStorage.removeItem('hub_badge');
                 showFilePicker();
@@ -401,7 +412,7 @@
                 
                 progressBar.style.width = '100%';
                 setTimeout(() => {
-                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events');
+                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events', result.total_days);
                 }, 400);
             } else {
                 showToast(result?.error || 'Failed to load recent file', 'error');
@@ -463,7 +474,7 @@
                 if (p === 100) {
                     clearInterval(interval);
                     // Fade into Hub instead of full navigate
-                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events');
+                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events', result.total_days);
                 }
             }, 100);
 
@@ -600,7 +611,7 @@
                 
                 progressBar.style.width = '100%';
                 setTimeout(() => {
-                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events');
+                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events', result.total_days);
                     btn.disabled = false;
                 }, 400);
             } else {
@@ -619,26 +630,56 @@
 
     function toggleWindowInput() {
         const mode = document.querySelector('input[name="anim_mode"]:checked').value;
-        const group = document.getElementById('window_input_group');
+        const winGroup = document.getElementById('window_input_group');
+        const stepGroup = document.getElementById('step_input_group');
         const label = document.getElementById('duration_label');
         if (mode === 'accumulation') {
-            group.style.opacity = '0.4';
-            group.style.pointerEvents = 'none';
-        } else {
-            group.style.opacity = '1';
-            group.style.pointerEvents = 'auto';
-            if (mode === 'block') {
-                label.textContent = "Step (days):";
-            } else {
-                label.textContent = "Days to show:";
-            }
+            winGroup.style.opacity = '0.4';
+            winGroup.style.pointerEvents = 'none';
+            stepGroup.style.display = 'none';
+        } else if (mode === 'window') {
+            winGroup.style.opacity = '1';
+            winGroup.style.pointerEvents = 'auto';
+            label.textContent = "Time Window (days):";
+            stepGroup.style.display = 'none';
+        } else if (mode === 'block') {
+            winGroup.style.opacity = '1';
+            winGroup.style.pointerEvents = 'auto';
+            label.textContent = "Time Window (days):";
+            stepGroup.style.display = 'block';
+            stepGroup.style.opacity = '1';
+            stepGroup.style.pointerEvents = 'auto';
         }
     }
     async function launchAnimation() {
-        closeAnimModal();
         const mode = document.querySelector('input[name="anim_mode"]:checked').value;
-        const days = parseInt(document.getElementById('window_days').value) || 5;
-        await loadView(2, mode, days);
+        const days = parseInt(document.getElementById('window_days').value);
+        const step = parseInt(document.getElementById('step_days').value);
+        
+        if (mode === 'window') {
+            if (isNaN(days) || days < 1) {
+                showToast('Errore: Inserire un numero di giorni valido (≥ 1).', 'error');
+                return;
+            }
+            if (window.currentDatasetTotalDays && days > window.currentDatasetTotalDays) {
+                showToast(`Errore: La finestra (${days} gg) supera la durata del dataset (${window.currentDatasetTotalDays} gg).`, 'error');
+                return;
+            }
+        } else if (mode === 'block') {
+            if (isNaN(days) || days < 1 || isNaN(step) || step < 1) {
+                showToast('Errore: Finestra temporale e step devono essere numeri interi maggiori di 0.', 'error');
+                return;
+            }
+            if (window.currentDatasetTotalDays) {
+                if (days > window.currentDatasetTotalDays || step > window.currentDatasetTotalDays) {
+                    showToast(`Errore: I valori specificati superano la durata del dataset (${window.currentDatasetTotalDays} gg).`, 'error');
+                    return;
+                }
+            }
+        }
+        
+        closeAnimModal();
+        await loadView(2, mode, days || 30, step || 7);
     }
 
     const VIEW_LABELS = { 
@@ -648,7 +689,7 @@
         3: 'Rendering Cluster Analysis...' 
     };
 
-    async function loadView(style, anim_mode='accumulation', window_days=5, clustering_method='dbscan') {
+    async function loadView(style, anim_mode='accumulation', window_days=30, step_days=7, clustering_method='dbscan') {
         if (loading) return;
         loading = true;
 
@@ -657,7 +698,7 @@
         overlay.classList.add('show');
 
         try {
-            await pywebview.api.load_view(style, anim_mode, window_days, clustering_method);
+            await pywebview.api.load_view(style, anim_mode, window_days, step_days, clustering_method);
             // Hide overlay is not needed here as python will trigger a window load
             // but in case it fails midway:
             setTimeout(() => { loading = false; }, 3000); 

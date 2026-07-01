@@ -148,6 +148,7 @@ class Api:
                 'filename': Path(path).name,
                 'event_count': data['summary']['event_count'],
                 'date_range': data['summary']['date_range'],
+                'total_days': data['summary'].get('total_days', 365),
             }
             self._html_cache.clear()
             save_recent_file(path)
@@ -170,7 +171,7 @@ class Api:
 
     # --- Visualization Navigation ---
 
-    def load_view(self, view_style: int, anim_mode: str = 'accumulation', window_days: int = 5, clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None) -> None:
+    def load_view(self, view_style: int, anim_mode: str = 'accumulation', window_days: int = 30, step_days: int = 7, clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None) -> None:
         """Background thread for view generation."""
         if self._data is None:
             return {'error': 'No CSV loaded.'}
@@ -181,6 +182,7 @@ class Api:
         kwargs = {
             'anim_mode': anim_mode,
             'window_days': window_days,
+            'step_days': step_days,
             'clustering_method': clustering_method,
             'clustering_params': clustering_params
         }
@@ -301,7 +303,7 @@ class Api:
             c_idx = kwargs.get('context_indices')
             c_idx_frozen = tuple(c_idx) if c_idx else None
 
-            cache_key = (self._csv_path, view_style, kwargs.get('anim_mode'), kwargs.get('window_days'), kwargs.get('clustering_method'), c_params_frozen, t_idx_frozen, c_idx_frozen)
+            cache_key = (self._csv_path, view_style, kwargs.get('anim_mode'), kwargs.get('window_days'), kwargs.get('step_days'), kwargs.get('clustering_method'), c_params_frozen, t_idx_frozen, c_idx_frozen)
 
             if cache_key in self._html_cache:
                 self._push_progress("Loading from cache…")
@@ -426,10 +428,10 @@ class Api:
             logger.error("Cluster update failed", exc_info=True)
             return {'error': str(e)}
 
-    def get_structural_planes(self, radius_km: float = 2.0, min_pts: int = 10, window_days: int = 5, anim_mode: str = 'accumulation') -> dict[str, Any]:
+    def get_structural_planes(self, radius_km: float = 2.0, min_pts: int = 10, window_days: int = 30, anim_mode: str = 'accumulation', step_days: int = 7) -> dict[str, Any]:
         if not self._data:
             return {'error': 'No data'}
-        return engine.get_animation_planes(self._data, radius_km=radius_km, min_pts=min_pts, window_days=window_days, anim_mode=anim_mode)
+        return engine.get_animation_planes(self._data, radius_km=radius_km, min_pts=min_pts, window_days=window_days, anim_mode=anim_mode, step_days=step_days)
 
     def get_animated_clustering(self, method: str = 'dbscan', params: dict[str, Any] | None = None, plane_step: int = 5) -> dict[str, Any]:
         if not self._data:

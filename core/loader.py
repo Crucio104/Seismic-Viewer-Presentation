@@ -51,6 +51,7 @@ def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
         'dep_range': [float((-df['depth']).min()), float((-df['depth']).max())],
         'date_range': [float(df['dates_num'].min()), float(df['dates_num'].max())],
         'date_counts': date_counts,
+        'total_days': int((df['time_dt'].max() - df['time_dt'].min()).days) + 1,
     }
 
 def load_csv(source_file: str) -> dict[str, Any]:
@@ -178,6 +179,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
         'summary': {
             'event_count': len(df),
             'date_range': date_range,
+            'total_days': int((df['time_dt'].max() - df['time_dt'].min()).days) + 1,
         },
     }
 

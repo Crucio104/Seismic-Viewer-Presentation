@@ -107,7 +107,8 @@ def build_view_html(
     back_button: bool = True, 
     on_progress: Callable[[str], None] | None = None,
     anim_mode: str = 'accumulation', 
-    window_days: int = 5, 
+    window_days: int = 30, 
+    step_days: int = 7,
     clustering_method: str = 'dbscan',
     clustering_params: dict[str, Any] | None = None,
     data_url: str = "", 
@@ -185,7 +186,7 @@ def build_view_html(
         html = generate_html(fig, is_3d=True, back_button=back_button, earthquake_data=earthquake_data, is_fallback=is_fallback, data_url=data_url)
 
     elif view_style == 2:
-        fig, anim_data = get_3d_animated_figure(lon, lat, mag, dep, times, on_progress=on_progress, anim_mode=anim_mode, window_days=window_days, data=data, bbox=bbox, map_grids=map_grids)
+        fig, anim_data = get_3d_animated_figure(lon, lat, mag, dep, times, on_progress=on_progress, anim_mode=anim_mode, window_days=window_days, step_days=step_days, data=data, bbox=bbox, map_grids=map_grids)
         if session_id:
             store_session_data(session_id, anim_data.copy())
             strip_data(fig, anim_data)

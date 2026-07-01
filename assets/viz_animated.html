@@ -1026,6 +1026,7 @@
                         radius_km: parseFloat(planeRadius.value),
                         min_pts: parseInt(planeMinPts.value),
                         window_days: quakeData.window_days,
+                        step_days: quakeData.step_days,
                         anim_mode: quakeData.anim_mode
                     });
                     
@@ -1296,6 +1297,7 @@
                     const params = {
                         anim_mode: quakeData.anim_mode,
                         window_days: quakeData.window_days,
+                        step_days: quakeData.step_days,
                         kmeans_clusters: pClustersAnim.value,
                         kmeans_max_dist: pDistAnim.value,
                         dbscan_eps: pEpsAnim.value,

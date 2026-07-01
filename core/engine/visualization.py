@@ -587,7 +587,7 @@ def _get_cluster_centroid_trace(pts_full: np.ndarray, mag: np.ndarray, labels: n
 
 def get_3d_animated_figure(
     longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], times: list[str],
-    on_progress: Callable[[str], None] | None = None, anim_mode: str = 'accumulation', window_days: int = 5, 
+    on_progress: Callable[[str], None] | None = None, anim_mode: str = 'accumulation', window_days: int = 30, step_days: int = 7,
     data: dict[str, Any] | None = None, bbox: tuple[float, float, float, float] | None = None, map_grids: tuple[Any, ...] | None = None
 ) -> tuple[go.Figure, dict[str, Any]]:
     """Generate a 3D figure for animation."""
@@ -630,17 +630,17 @@ def get_3d_animated_figure(
         d0 = datetime.strptime(unique_dates[0], '%Y-%m-%d')
         d_end = datetime.strptime(unique_dates[-1], '%Y-%m-%d')
         total_days = (d_end - d0).days
-        num_blocks = (total_days // window_days) + 1
-        frame_dates = [(d0 + timedelta(days=i*window_days)).strftime('%Y-%m-%d') for i in range(num_blocks)]
+        num_blocks = (total_days // step_days) + 1
+        frame_dates = [(d0 + timedelta(days=i*step_days)).strftime('%Y-%m-%d') for i in range(num_blocks)]
         
-        new_counts = [0] * num_blocks
+        new_counts = []
         old_counts = vpack.get('date_counts', [])
-        d0_date = d0.date()
-        for d_str, count in zip(unique_dates, old_counts):
-            d_obj = datetime.strptime(d_str, '%Y-%m-%d').date()
-            b_i = (d_obj - d0_date).days // window_days
-            if 0 <= b_i < num_blocks:
-                new_counts[b_i] += count
+        date_map = {datetime.strptime(d_str, '%Y-%m-%d').date(): count for d_str, count in zip(unique_dates, old_counts)}
+        for i in range(num_blocks):
+            b_start = (d0 + timedelta(days=i*step_days)).date()
+            b_end = b_start + timedelta(days=window_days)
+            c = sum(count for d_obj, count in date_map.items() if b_start <= d_obj < b_end)
+            new_counts.append(c)
         frame_counts = new_counts
     else:
         frame_dates = unique_dates
@@ -650,7 +650,7 @@ def get_3d_animated_figure(
         'lon': longitude, 'lat': latitude, 'dep': depth, 'mag': magnitude,
         'dnum': data.get('dates_num', []) if data else [], 'hover': vpack.get('hover', []),
         'unique_dates': unique_dates, 'date_to_cum': vpack.get('date_to_cum', {}),
-        'anim_mode': anim_mode, 'window_days': window_days, 'mag_range': mag_range,
+        'anim_mode': anim_mode, 'window_days': window_days, 'step_days': step_days, 'mag_range': mag_range,
         'date_range': date_range, 'dep_range': dep_range, 'start_date': times[0][:10] if times else "",
         'date_counts': frame_counts, 'frame_dates': frame_dates, 'bbox': bbox, 'graph_bounds': data.get('graph_bounds') if data else None,
     }

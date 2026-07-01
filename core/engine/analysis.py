@@ -195,7 +195,7 @@ def _worker_calculate_planes(args: tuple) -> tuple[str, list[dict[str, Any]]]:
     )
     return date_str, planes
 
-def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, window_days: int, anim_mode: str = 'accumulation') -> dict[str, list[dict[str, Any]]]:
+def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, window_days: int, anim_mode: str = 'accumulation', step_days: int = 7) -> dict[str, list[dict[str, Any]]]:
     """Calculates structural planes for animation using multiprocessing."""
     lon = np.array(data['longitude'], dtype=np.float32)
     lat = np.array(data['latitude'], dtype=np.float32)
@@ -227,7 +227,7 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
     tasks = []
     
     # Get frame indices using the same logic as clustering
-    dates_unique, date_indices = _get_frame_dates_and_indices(dates_unique, date_to_cum, anim_mode, window_days)
+    dates_unique, date_indices = _get_frame_dates_and_indices(dates_unique, date_to_cum, anim_mode, window_days, step_days)
     
     for i, date_str in enumerate(dates_unique):
         start_idx, end_idx = date_indices[i]
@@ -414,7 +414,8 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     dates_unique = data['visual_pack']['unique_dates']
     date_to_cum = data['visual_pack']['date_to_cum']
     anim_mode = params.get('anim_mode', data.get('anim_mode', 'accumulation'))
-    window_days = int(params.get('window_days', data.get('window_days', 5)))
+    window_days = int(params.get('window_days', data.get('window_days', 30)))
+    step_days = int(params.get('step_days', data.get('step_days', 7)))
     
     if anim_mode == 'block':
         plane_step = 1
@@ -424,7 +425,7 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     pts_km = project_to_km(lon, lat, dep, origin_lat, origin_lon)
 
     # 2. Pre-calculate Temporal Windows
-    dates_unique, date_indices = _get_frame_dates_and_indices(dates_unique, date_to_cum, anim_mode, window_days)
+    dates_unique, date_indices = _get_frame_dates_and_indices(dates_unique, date_to_cum, anim_mode, window_days, step_days)
 
     # 3. Pre-calculate Grid if cylinders are used
     use_cylinders = params.get('use_cylinders', False)
@@ -551,7 +552,7 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     logger.info(f"Parallel clustering completed in {time.time() - t0:.2f}s")
     return results
 
-def _get_frame_dates_and_indices(dates, date_to_cum, mode, window_days):
+def _get_frame_dates_and_indices(dates, date_to_cum, mode, window_days, step_days=7):
     if mode == 'accumulation':
         return dates, [(0, date_to_cum[d]) for d in dates]
     
@@ -561,13 +562,13 @@ def _get_frame_dates_and_indices(dates, date_to_cum, mode, window_days):
         d0 = dt_objs[0]
         d_end = dt_objs[-1]
         total_days = (d_end - d0).days
-        num_blocks = (total_days // window_days) + 1
+        num_blocks = (total_days // step_days) + 1
         
         block_dates = []
         indices = []
         
         for b_i in range(num_blocks):
-            start_cutoff = d0 + timedelta(days=b_i * window_days)
+            start_cutoff = d0 + timedelta(days=b_i * step_days)
             end_cutoff = start_cutoff + timedelta(days=window_days)
             start_cutoff_str = start_cutoff.strftime('%Y-%m-%d')
             end_cutoff_str = end_cutoff.strftime('%Y-%m-%d')
