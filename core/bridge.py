@@ -17,7 +17,7 @@ from core.config import (
 from core.history import get_recent_files, save_recent_file, clear_history
 from core.online_importer import fetch_ingv_data
 from core.geo_utils import build_map_mesh
-from core.layer_utils import process_tomography_data, process_uplift_data
+from core.layer_utils import process_tomography_data, process_uplift_data, process_stations_data
 import engine
 
 logger = logging.getLogger(__name__)
@@ -527,6 +527,11 @@ class Api:
                 tomo_res = process_tomography_data(params['tomography_path'])
                 res['layers']['tomography'] = tomo_res
                 res['tomography'] = tomo_res
+                
+            if stations_path:
+                stations_res = process_stations_data(stations_path)
+                res['layers']['stations'] = stations_res
+                res['stations'] = stations_res
                 
             return res
         except Exception as e:

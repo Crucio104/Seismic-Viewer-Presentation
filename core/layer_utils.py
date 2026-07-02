@@ -285,3 +285,33 @@ def _load_station_coordinates(search_dir: Path, stations_path: str | Path | None
     except Exception as e:
         logger.error(f"Errore lettura file coordinate stazioni: {e}")
         return {}
+
+
+def process_stations_data(stations_path: str | Path) -> dict[str, Any]:
+    """Load station coordinates and format them for visualization."""
+    try:
+        p = Path(stations_path)
+        coord_map = _load_station_coordinates(p.parent if p.exists() else BASE_DIR, stations_path=stations_path)
+        if not coord_map:
+            return {'error': 'No station coordinates found in file.'}
+        
+        names = []
+        lats = []
+        lons = []
+        hover_texts = []
+        for name, (lat, lon) in coord_map.items():
+            names.append(name)
+            lats.append(lat)
+            lons.append(lon)
+            hover_texts.append(f"<b>Station: {name}</b><br>Lat: {lat:.5f}°<br>Lon: {lon:.5f}°")
+            
+        return {
+            'names': names,
+            'lats': lats,
+            'lons': lons,
+            'hover': hover_texts,
+            'count': len(names)
+        }
+    except Exception as e:
+        logger.error(f"Error processing station data: {e}", exc_info=True)
+        return {'error': f"Error processing stations: {str(e)}"}

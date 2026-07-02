@@ -47,7 +47,7 @@
 
 <!-- Scene Info UI -->
 <button id="info-btn" class="hidden-initially" onclick="SeismicUI.toggleInfoPanel(event)" title="Scene Information">i</button>
-<button id="overlay-btn" class="hidden-initially" onclick="SeismicUI._overlayActive ? SeismicUI.restoreOriginalMap() : ((window.IS_3D_STATIC_VIEW || window.IS_CLUSTER_VIEW) ? SeismicUI.toggleLayerModal(event) : document.getElementById('overlay-input').click())" title="Upload Layer / Image Overlay">
+<button id="overlay-btn" class="hidden-initially" onclick="SeismicUI._overlayActive ? SeismicUI.restoreOriginalMap() : SeismicUI.toggleLayerModal(event)" title="Manage Layers">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:0.9rem;height:0.9rem;">
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
         <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -94,6 +94,9 @@
     </button>
     <button class="layer-toggle-btn" id="btn-toggle-tomo-points" onclick="SeismicUI.toggleTomography()">
         Toggle Tomography
+    </button>
+    <button class="layer-toggle-btn" id="btn-toggle-stations" onclick="SeismicUI.toggleStations()">
+        Toggle Stations
     </button>
 </div>
 <div id="export-modal" onclick="event.stopPropagation()">
@@ -250,10 +253,6 @@
                 const overlayBtn = document.getElementById('overlay-btn');
                 if (overlayBtn) {
                     overlayBtn.classList.add('visible');
-                    if (window.IS_3D_VIEW === false) {
-                        overlayBtn.style.pointerEvents = 'none';
-                        overlayBtn.style.opacity = '0.4';
-                    }
                 }
                 const screenshotBtn = document.getElementById('screenshot-btn');
                 if (screenshotBtn) screenshotBtn.classList.add('visible');
@@ -652,7 +651,63 @@
                                 if (toggleBtn) toggleBtn.classList.add('visible');
                             }
                         }
+                        const s = layers.stations || res.stations;
+                        if (s && s.lats && s.lons && s.lats.length > 0) {
+                            const gd = document.querySelector('.plotly-graph-div');
+                            const isMapbox = gd && (gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox') || (gd.layout && gd.layout.mapbox));
+                            if (isMapbox) {
+                                newTraces.push({
+                                    type: 'scattermapbox',
+                                    name: 'Stations',
+                                    lat: s.lats,
+                                    lon: s.lons,
+                                    mode: 'markers',
+                                    hovertext: s.hover || [],
+                                    hovertemplate: '%{hovertext}<extra></extra>',
+                                    marker: {
+                                        size: 11,
+                                        symbol: 'circle',
+                                        color: '#10b981',
+                                        opacity: 0.95
+                                    }
+                                });
+                            } else {
+                                newTraces.push({
+                                    type: 'scatter3d',
+                                    name: 'Stations',
+                                    x: s.lons,
+                                    y: s.lats,
+                                    z: s.lats.map(() => 0.0),
+                                    mode: 'markers',
+                                    hovertext: s.hover || [],
+                                    hovertemplate: '%{hovertext}<extra></extra>',
+                                    marker: {
+                                        size: 6,
+                                        symbol: 'diamond',
+                                        color: '#10b981',
+                                        opacity: 0.95
+                                    }
+                                });
+                            }
+                            const toggleStBtn = document.getElementById('btn-toggle-stations');
+                            if (toggleStBtn) {
+                                toggleStBtn.classList.add('visible');
+                                toggleStBtn.innerHTML = 'Toggle Stations (ON)';
+                            }
+                        }
                         if (newTraces.length > 0) {
+                            const gd = document.querySelector('.plotly-graph-div');
+                            if (gd && gd.data) {
+                                const indicesToDelete = [];
+                                gd.data.forEach((tr, idx) => {
+                                    if (tr.name === 'Tomography Vp/Vs' || tr.name === 'GNSS Uplift Columns' || tr.name === 'Uplift' || tr.name === 'Stations') {
+                                        indicesToDelete.push(idx);
+                                    }
+                                });
+                                if (indicesToDelete.length > 0) {
+                                    Plotly.deleteTraces(gd, indicesToDelete.reverse());
+                                }
+                            }
                             Plotly.addTraces(gd, newTraces);
                             
                             // Adatta il range dell'asse Z per mostrare comodamente le colonnine sopra il piano z=0
@@ -676,7 +731,7 @@
                                 Plotly.relayout(gd, { 'scene.zaxis.range': [currentMin, Math.max(maxZ * 1.15, 0.5)] });
                             }
 
-                            showStatusToast('3D layers applied successfully!', true);
+                            showStatusToast('Layers applied successfully!', true);
                         }
                     } else if (res && res.message) {
                         showStatusToast('Error: ' + res.message, false);
@@ -729,25 +784,40 @@
             }
         },
 
+        toggleStations() {
+            const gd = document.querySelector('.plotly-graph-div');
+            if (!gd || !gd.data) return;
+            const indices = [];
+            for (let i = 0; i < gd.data.length; i++) {
+                if (gd.data[i].name && gd.data[i].name.includes('Stations')) {
+                    indices.push(i);
+                }
+            }
+            if (indices.length > 0) {
+                const currentVis = gd.data[indices[0]].visible;
+                const newVis = (currentVis === false || currentVis === 'legendonly') ? true : false;
+                Plotly.restyle(gd, { visible: newVis }, indices);
+                const btn = document.getElementById('btn-toggle-stations');
+                if (btn) btn.innerHTML = newVis ? 'Toggle Stations (ON)' : 'Toggle Stations (OFF)';
+                showStatusToast('Stations toggled ' + (newVis ? 'ON' : 'OFF'), true);
+            }
+        },
+
         handleOverlayUpload(input) {
             try {
                 if (!input.files || !input.files[0]) return;
                 const file = input.files[0];
-                if (window.IS_3D_STATIC_VIEW || window.IS_CLUSTER_VIEW) {
-                    this._pendingMapFile = file;
-                    const statusEl = document.getElementById('status-layer-map');
-                    if (statusEl) {
-                        statusEl.textContent = file.name;
-                        statusEl.style.color = '#10b981';
-                    }
-                    const btn = document.getElementById('btn-layer-map');
-                    if (btn) btn.classList.add('selected');
-                    input.value = '';
-                    showStatusToast(`Map file selected: ${file.name}`, true);
-                    return;
+                this._pendingMapFile = file;
+                const statusEl = document.getElementById('status-layer-map');
+                if (statusEl) {
+                    statusEl.textContent = file.name;
+                    statusEl.style.color = '#10b981';
                 }
-                this._applyMapFile(file);
+                const btn = document.getElementById('btn-layer-map');
+                if (btn) btn.classList.add('selected');
                 input.value = '';
+                showStatusToast(`Map file selected: ${file.name}`, true);
+                return;
             } catch (err) {
                 console.error('[Overlay] Top-level error:', err);
                 showStatusToast('Error: ' + err.message, false);
