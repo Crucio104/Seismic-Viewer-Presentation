@@ -5,6 +5,7 @@ __pycache__/
 venv/
 .venv/
 .agent/
+Dati_tomografia/
 
 # Project specific
 .viz_tmp/
