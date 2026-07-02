@@ -107,27 +107,16 @@
         Export Clusters (.CSV)
     </button>
 </div>
-<div id="info-panel" class="glass-panel" onclick="event.stopPropagation()">
-    <div class="label" style="text-align: center; margin-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem; font-size: 0.6rem;">Scene Bounds</div>
-    <div class="info-row">
-        <span class="info-label">Min Lat</span>
-        <span class="info-value" id="info-min-lat">-</span>
+<div id="info-panel" onclick="event.stopPropagation()">
+    <div class="label" style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.7rem; font-weight: 700; color: #fff;">
+        Scene Bounds
     </div>
-    <div class="info-row">
-        <span class="info-label">Max Lat</span>
-        <span class="info-value" id="info-max-lat">-</span>
-    </div>
-    <div class="info-row">
-        <span class="info-label">Min Lon</span>
-        <span class="info-value" id="info-min-lon">-</span>
-    </div>
-    <div class="info-row">
-        <span class="info-label">Max Lon</span>
-        <span class="info-value" id="info-max-lon">-</span>
-    </div>
-    <div class="info-row" style="margin-top: 0.25rem; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem;">
-        <span class="info-label">Max Depth</span>
-        <span class="info-value" id="info-max-depth">-</span>
+    <div class="layer-status-row" style="gap: 0.4rem; padding: 0.65rem;">
+        <div class="layer-status-item"><span>Min Lat:</span><strong id="info-min-lat" style="color: #fff;">-</strong></div>
+        <div class="layer-status-item"><span>Max Lat:</span><strong id="info-max-lat" style="color: #fff;">-</strong></div>
+        <div class="layer-status-item"><span>Min Lon:</span><strong id="info-min-lon" style="color: #fff;">-</strong></div>
+        <div class="layer-status-item"><span>Max Lon:</span><strong id="info-max-lon" style="color: #fff;">-</strong></div>
+        <div class="layer-status-item" style="margin-top: 0.2rem; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.3rem;"><span>Max Depth:</span><strong id="info-max-depth" style="color: #38bdf8;">-</strong></div>
     </div>
 </div>
 
