@@ -549,6 +549,9 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
             'indices': global_indices.tolist()
         }
             
+    results['global_labels'] = global_labels_map.tolist()
+    results['method'] = method
+    results['params'] = params if params is not None else {}
     logger.info(f"Parallel clustering completed in {time.time() - t0:.2f}s")
     return results
 

@@ -110,6 +110,7 @@ def _get_view_scripts(is_animated: bool, is_cluster: bool, earthquake_data: Any,
         scripts += "<script>window.addEventListener('load', () => { showStatusToast('Offline: Map tiles unavailable.'); });</script>"
     
     if earthquake_data or data_url:
-        scripts += f"\n<script>window.IS_3D_VIEW = {'true' if is_3d else 'false'};</script>"
+        is_static_3d = is_3d and not is_animated and not is_cluster
+        scripts += f"\n<script>window.IS_3D_VIEW = {'true' if is_3d else 'false'}; window.IS_3D_STATIC_VIEW = {'true' if is_static_3d else 'false'}; window.IS_CLUSTER_VIEW = {'true' if is_cluster else 'false'};</script>"
     
     return scripts

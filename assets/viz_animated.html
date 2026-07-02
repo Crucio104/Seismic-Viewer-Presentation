@@ -1213,6 +1213,7 @@
                 planesEnabled = showPlanesCheck.checked;
                 planeControls.style.display = planesEnabled ? 'block' : 'none';
                 animClusteringEnabled = showAnimClustCheck.checked;
+                window.animClusteringEnabled = animClusteringEnabled;
                 animClustControls.style.display = animClusteringEnabled ? 'block' : 'none';
             }
             function handleAnalysisRadioClick(e) {
@@ -1318,6 +1319,7 @@
                     });
                     if (res && !res.error) {
                         animClustersMap = res;
+                        window.animClustersMap = res;
                     } else {
                         console.error("Clustering Error:", res?.error);
                     }
@@ -1369,6 +1371,7 @@
                             persistentPlanesMap.clear();
                             lastAccumIdx = -1;
                             animClustersMap = null;
+                            window.animClustersMap = null;
                         }
 
                         // 4. Final render update

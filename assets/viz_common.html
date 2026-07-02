@@ -47,14 +47,14 @@
 
 <!-- Scene Info UI -->
 <button id="info-btn" class="hidden-initially" onclick="SeismicUI.toggleInfoPanel(event)" title="Scene Information">i</button>
-<button id="overlay-btn" class="hidden-initially" onclick="SeismicUI._overlayActive ? SeismicUI.restoreOriginalMap() : document.getElementById('overlay-input').click()" title="Upload Image Overlay">
+<button id="overlay-btn" class="hidden-initially" onclick="SeismicUI._overlayActive ? SeismicUI.restoreOriginalMap() : ((window.IS_3D_STATIC_VIEW || window.IS_CLUSTER_VIEW) ? SeismicUI.toggleLayerModal(event) : document.getElementById('overlay-input').click())" title="Upload Layer / Image Overlay">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:0.9rem;height:0.9rem;">
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
         <circle cx="8.5" cy="8.5" r="1.5"/>
         <polyline points="21 15 16 10 5 21"/>
     </svg>
 </button>
-<button id="screenshot-btn" class="hidden-initially" onclick="SeismicUI.captureScreenshot()" title="Take Screenshot">
+<button id="screenshot-btn" class="hidden-initially" onclick="SeismicUI.toggleExportModal(event)" title="Export Options">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:0.9rem;height:0.9rem;">
         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
         <circle cx="12" cy="13" r="4"/>
@@ -62,7 +62,52 @@
 </button>
 <label for="overlay-input" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Upload Image Overlay</label>
 <input type="file" id="overlay-input" accept="image/*" style="display:none" onchange="SeismicUI.handleOverlayUpload(this)">
-<div id="info-panel" class="glass-panel">
+<div id="layer-modal" onclick="event.stopPropagation()">
+    <div class="label" style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.7rem; font-weight: 700; color: #fff;">
+        External Layers Management
+    </div>
+    <div class="layer-buttons-row">
+        <button class="layer-btn" id="btn-layer-map" onclick="SeismicUI.selectLayer('map')" title="Select Map Image">
+            Map
+        </button>
+        <button class="layer-btn" id="btn-layer-stations" onclick="SeismicUI.selectLayer('stations')" title="Select Stations CSV">
+            Stations CSV
+        </button>
+        <button class="layer-btn" id="btn-layer-uplift" onclick="SeismicUI.selectLayer('uplift')" title="Select GNSS Uplift CSV">
+            Uplift CSV
+        </button>
+        <button class="layer-btn" id="btn-layer-tomo" onclick="SeismicUI.selectLayer('tomography')" title="Select Tomography CSV">
+            Tomography CSV
+        </button>
+    </div>
+    <div class="layer-status-row" id="layer-status-container">
+        <div class="layer-status-item"><span>Map:</span><strong id="status-layer-map" style="color: #94a3b8;">Not selected</strong></div>
+        <div class="layer-status-item"><span>Stations:</span><strong id="status-layer-stations" style="color: #94a3b8;">Not selected</strong></div>
+        <div class="layer-status-item"><span>GNSS Uplift:</span><strong id="status-layer-uplift" style="color: #94a3b8;">Not selected</strong></div>
+        <div class="layer-status-item"><span>Tomography:</span><strong id="status-layer-tomo" style="color: #94a3b8;">Not selected</strong></div>
+    </div>
+    <button class="layer-apply-btn" onclick="SeismicUI.applyAllLayers()">
+        Apply Layers
+    </button>
+    <button class="layer-toggle-btn" id="btn-toggle-uplift-surface" onclick="SeismicUI.toggleUpliftSurface()">
+        Toggle Uplift
+    </button>
+    <button class="layer-toggle-btn" id="btn-toggle-tomo-points" onclick="SeismicUI.toggleTomography()">
+        Toggle Tomography
+    </button>
+</div>
+<div id="export-modal" onclick="event.stopPropagation()">
+    <div class="label" style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.7rem; font-weight: 700; color: #fff;">
+        Export Options
+    </div>
+    <button class="layer-apply-btn" onclick="SeismicUI.captureScreenshot()" style="margin-top: 0.25rem;">
+        Take Screenshot (.PNG)
+    </button>
+    <button class="layer-apply-btn" id="btn-export-clusters" onclick="SeismicUI.exportClustersCSV()" style="margin-top: 0.25rem; background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.4);">
+        Export Clusters (.CSV)
+    </button>
+</div>
+<div id="info-panel" class="glass-panel" onclick="event.stopPropagation()">
     <div class="label" style="text-align: center; margin-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem; font-size: 0.6rem;">Scene Bounds</div>
     <div class="info-row">
         <span class="info-label">Min Lat</span>
@@ -249,6 +294,7 @@
                 e.stopPropagation();
                 const wasShowing = menu.classList.contains('show');
                 document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+                if (this.closeBottomLeftPopups) this.closeBottomLeftPopups();
                 
                 if (!wasShowing) {
                     const rect = btn.getBoundingClientRect();
@@ -285,15 +331,30 @@
             if (disabled) el.classList.add('disabled');
             else el.classList.remove('disabled');
         },
+        closeBottomLeftPopups(exceptId = null) {
+            if (exceptId !== 'info-panel') {
+                const infoPanel = document.getElementById('info-panel');
+                if (infoPanel) infoPanel.classList.remove('show');
+            }
+            if (exceptId !== 'layer-modal') {
+                const layerModal = document.getElementById('layer-modal');
+                if (layerModal) layerModal.classList.remove('active');
+            }
+            if (exceptId !== 'export-modal') {
+                const exportModal = document.getElementById('export-modal');
+                if (exportModal) exportModal.classList.remove('active');
+            }
+        },
         toggleInfoPanel(e) {
-            if (e) e.stopPropagation();
+            if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
             const panel = document.getElementById('info-panel');
             if (!panel) return;
 
             const isShowing = panel.classList.contains('show');
             
-            // Close other menus
+            // Close other menus & popups
             document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+            this.closeBottomLeftPopups('info-panel');
 
             if (!isShowing) {
                 // Populate data from global quakeData if available
@@ -337,17 +398,383 @@
 
         _originalMapData: null,
         _overlayActive: false,
+        _pendingMapFile: null,
+        _pendingStationsPath: null,
+        _pendingUpliftPath: null,
+        _pendingTomoPath: null,
+
+        isClusteringActive() {
+            if (typeof window.IS_CLUSTER_VIEW !== 'undefined' && window.IS_CLUSTER_VIEW) {
+                return true;
+            }
+            if (typeof window.animClusteringEnabled !== 'undefined' && window.animClusteringEnabled && typeof window.animClustersMap !== 'undefined' && window.animClustersMap !== null) {
+                return true;
+            }
+            return false;
+        },
+
+        toggleExportModal(e, forceClose = false) {
+            if (e === true) {
+                forceClose = true;
+                e = null;
+            }
+            if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+
+            const modal = document.getElementById('export-modal');
+            const btn = document.getElementById('btn-export-clusters');
+            if (btn) {
+                const active = this.isClusteringActive();
+                if (active) {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                    btn.title = 'Download CSV files for all identified clusters and outliers';
+                } else {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.4';
+                    btn.style.cursor = 'not-allowed';
+                    btn.title = 'Available only when clustering is performed (in Cluster View or 4D Animated View with clustering enabled)';
+                }
+            }
+            if (modal) {
+                if (forceClose === true) {
+                    modal.classList.remove('active');
+                } else {
+                    const isShowing = modal.classList.contains('active');
+                    document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+                    this.closeBottomLeftPopups('export-modal');
+
+                    if (!isShowing) {
+                        modal.classList.add('active');
+                    } else {
+                        modal.classList.remove('active');
+                    }
+                }
+            }
+        },
+
+        async exportClustersCSV() {
+            if (!this.isClusteringActive()) {
+                showStatusToast("Clustering is not active in the current view.", false);
+                return;
+            }
+            
+            this.toggleExportModal(true);
+            showStatusToast("Selecting destination folder for export...", true);
+
+            let payload = {};
+            if (typeof window.IS_CLUSTER_VIEW !== 'undefined' && window.IS_CLUSTER_VIEW) {
+                const qd = window.quakeData || {};
+                payload = {
+                    method: qd.clustering_method || (typeof currentMethod !== 'undefined' ? currentMethod : 'dbscan'),
+                    params: qd.clustering_params || (typeof params !== 'undefined' ? params : {}),
+                    cluster_indices: qd.cluster_indices || null,
+                    labels: qd.cluster ? Array.from(qd.cluster) : null
+                };
+            } else if (typeof window.animClusteringEnabled !== 'undefined' && window.animClusteringEnabled) {
+                const acm = window.animClustersMap || {};
+                payload = {
+                    method: acm.method || (typeof currentAnimClustMethod !== 'undefined' ? currentAnimClustMethod : 'dbscan'),
+                    params: acm.params || (typeof params !== 'undefined' ? params : {}),
+                    cluster_indices: null,
+                    labels: acm.global_labels ? Array.from(acm.global_labels) : null
+                };
+            }
+
+            if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.export_clusters_csv) {
+                showStatusToast("Export API not available.", false);
+                return;
+            }
+
+            try {
+                const res = await window.pywebview.api.export_clusters_csv(payload);
+                if (res && res.status === 'success') {
+                    showStatusToast(`Exported ${res.count} cluster CSV files successfully!`, true, 4000);
+                } else if (res && res.status === 'cancelled') {
+                    showStatusToast("Export cancelled.", true);
+                } else {
+                    showStatusToast("Error: " + (res ? res.message : "Unknown error"), false);
+                }
+            } catch (err) {
+                console.error("Export failed:", err);
+                showStatusToast("Export failed: " + err, false);
+            }
+        },
+
+        toggleLayerModal(e) {
+            if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+            const modal = document.getElementById('layer-modal');
+            if (modal) {
+                const isShowing = modal.classList.contains('active');
+                document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+                this.closeBottomLeftPopups('layer-modal');
+
+                if (!isShowing) {
+                    modal.classList.add('active');
+                } else {
+                    modal.classList.remove('active');
+                }
+            }
+        },
+
+        selectLayer(layerType) {
+            if (layerType === 'map') {
+                document.getElementById('overlay-input').click();
+            } else if (layerType === 'stations' || layerType === 'uplift' || layerType === 'tomography') {
+                if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.select_layer_file) {
+                    showStatusToast('API pywebview non disponibile', false);
+                    return;
+                }
+                const self = this;
+                window.pywebview.api.select_layer_file(layerType).then((res) => {
+                    if (res && res.status === 'success') {
+                        if (layerType === 'stations') {
+                            self._pendingStationsPath = res.path;
+                            const statusEl = document.getElementById('status-layer-stations');
+                            if (statusEl) {
+                                statusEl.textContent = res.filename;
+                                statusEl.style.color = '#10b981';
+                            }
+                            const btn = document.getElementById('btn-layer-stations');
+                            if (btn) btn.classList.add('selected');
+                            showStatusToast(`Stations CSV selected: ${res.filename}`, true);
+                        } else if (layerType === 'uplift') {
+                            self._pendingUpliftPath = res.path;
+                            const statusEl = document.getElementById('status-layer-uplift');
+                            if (statusEl) {
+                                statusEl.textContent = res.filename;
+                                statusEl.style.color = '#10b981';
+                            }
+                            const btn = document.getElementById('btn-layer-uplift');
+                            if (btn) btn.classList.add('selected');
+                            showStatusToast(`Uplift CSV selected: ${res.filename}`, true);
+                        } else if (layerType === 'tomography') {
+                            self._pendingTomoPath = res.path;
+                            const statusEl = document.getElementById('status-layer-tomo');
+                            if (statusEl) {
+                                statusEl.textContent = res.filename;
+                                statusEl.style.color = '#10b981';
+                            }
+                            const btn = document.getElementById('btn-layer-tomo');
+                            if (btn) btn.classList.add('selected');
+                            showStatusToast(`Tomography CSV selected: ${res.filename}`, true);
+                        }
+                    } else if (res && res.message) {
+                        showStatusToast(res.message, false);
+                    }
+                }).catch((err) => {
+                    console.error('[LayerModal] Error selecting file:', err);
+                    showStatusToast('Error during file selection', false);
+                });
+            }
+        },
+
+        applyAllLayers() {
+            const gd = document.querySelector('.plotly-graph-div');
+            if (!gd) return;
+
+            // 1. Applica Mappa se presente
+            if (this._pendingMapFile) {
+                this._applyMapFile(this._pendingMapFile);
+            }
+
+            // 2. Applica Uplift e Tomografia se presenti
+            if (this._pendingUpliftPath || this._pendingTomoPath || this._pendingStationsPath) {
+                if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.apply_external_layers) return;
+                const loader = document.getElementById('loader');
+                const loaderText = loader ? loader.querySelector('.loader-text') : null;
+                if (loaderText) loaderText.textContent = 'Applying 3D layers...';
+                if (loader) loader.classList.add('show');
+
+                const self = this;
+                window.pywebview.api.apply_external_layers({
+                    uplift_path: this._pendingUpliftPath || "",
+                    tomography_path: this._pendingTomoPath || "",
+                    stations_path: this._pendingStationsPath || ""
+                }).then((res) => {
+                    if (loader) loader.classList.remove('show');
+                    if (res && res.status === 'success') {
+                        const layers = res.layers || res;
+                        const newTraces = [];
+                        const t = layers.tomography || res.tomography;
+                        if (t && (t.x || t.lons)) {
+                            newTraces.push({
+                                type: 'scatter3d',
+                                name: 'Tomography Vp/Vs',
+                                opacity: 0.4,
+                                x: t.x || t.lons,
+                                y: t.y || t.lats,
+                                z: t.z || t.depths,
+                                mode: 'markers',
+                                hovertext: t.hover || [],
+                                hovertemplate: '%{hovertext}<extra></extra>',
+                                marker: {
+                                    size: 3.6,
+                                    symbol: 'diamond',
+                                    color: t.vp_vs,
+                                    colorscale: 'RdBu',
+                                    reversescale: false,
+                                    opacity: 0.4,
+                                    showscale: false
+                                }
+                            });
+                            const toggleTomoBtn = document.getElementById('btn-toggle-tomo-points');
+                            if (toggleTomoBtn) {
+                                toggleTomoBtn.classList.add('visible');
+                                toggleTomoBtn.innerHTML = 'Toggle Tomography (ON)';
+                            }
+                        }
+                        const u = layers.uplift || res.uplift;
+                        if (u) {
+                            if (u.lines && (u.lines.x || u.lons)) {
+                                newTraces.push({
+                                    type: 'scatter3d',
+                                    name: 'GNSS Uplift Columns',
+                                    x: u.lines.x || u.lons,
+                                    y: u.lines.y || u.lats,
+                                    z: u.lines.z || u.z_scaled,
+                                    mode: 'lines+markers',
+                                    hovertext: u.lines.hover || [],
+                                    hovertemplate: '%{hovertext}<extra></extra>',
+                                    line: { color: '#ef4444', width: 6 },
+                                    marker: { size: 4, color: '#ef4444' }
+                                });
+                            }
+                            if (u.surface && (u.surface.x || u.lons)) {
+                                newTraces.push({
+                                    type: 'mesh3d',
+                                    name: 'Uplift',
+                                    x: u.surface.x || u.lons,
+                                    y: u.surface.y || u.lats,
+                                    z: u.surface.z || u.z_scaled,
+                                    delaunayaxis: 'z',
+                                    intensity: u.surface.z || u.z_scaled,
+                                    colorscale: [
+                                        [0.0, 'rgb(255, 255, 0)'],
+                                        [0.5, 'rgb(255, 140, 0)'],
+                                        [1.0, 'rgb(139, 0, 0)']
+                                    ],
+                                    showscale: false,
+                                    opacity: 0.6,
+                                    hoverinfo: 'skip',
+                                    visible: true
+                                });
+                                const toggleBtn = document.getElementById('btn-toggle-uplift-surface');
+                                if (toggleBtn) toggleBtn.classList.add('visible');
+                            }
+                        }
+                        if (newTraces.length > 0) {
+                            Plotly.addTraces(gd, newTraces);
+                            
+                            // Adatta il range dell'asse Z per mostrare comodamente le colonnine sopra il piano z=0
+                            let maxZ = 0;
+                            let minZ = 0;
+                            if (gd.data) {
+                                gd.data.forEach(tr => {
+                                    if (tr.visible !== false && tr.z && Array.isArray(tr.z)) {
+                                        tr.z.forEach(val => {
+                                            if (val !== null && val !== undefined && !isNaN(val)) {
+                                                if (val > maxZ) maxZ = val;
+                                                if (val < minZ) minZ = val;
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                            if (maxZ > 0 && gd.layout && gd.layout.scene && gd.layout.scene.zaxis) {
+                                const currentMin = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[0] !== undefined)
+                                    ? gd.layout.scene.zaxis.range[0] : minZ;
+                                Plotly.relayout(gd, { 'scene.zaxis.range': [currentMin, Math.max(maxZ * 1.15, 0.5)] });
+                            }
+
+                            showStatusToast('3D layers applied successfully!', true);
+                        }
+                    } else if (res && res.message) {
+                        showStatusToast('Error: ' + res.message, false);
+                    }
+                }).catch((err) => {
+                    if (loader) loader.classList.remove('show');
+                    console.error('[LayerModal] Error applying layers:', err);
+                    showStatusToast('Error applying layers', false);
+                });
+            }
+
+            this.toggleLayerModal();
+        },
+
+        toggleUpliftSurface() {
+            const gd = document.querySelector('.plotly-graph-div');
+            if (!gd || !gd.data) return;
+            const indices = [];
+            for (let i = 0; i < gd.data.length; i++) {
+                if (gd.data[i].name && (gd.data[i].name.includes('Uplift') || gd.data[i].name.includes('Colonnine') || gd.data[i].name.includes('Superficie'))) {
+                    indices.push(i);
+                }
+            }
+            if (indices.length > 0) {
+                const currentVis = gd.data[indices[0]].visible;
+                const newVis = (currentVis === false || currentVis === 'legendonly') ? true : false;
+                Plotly.restyle(gd, { visible: newVis }, indices);
+                const btn = document.getElementById('btn-toggle-uplift-surface');
+                if (btn) btn.innerHTML = newVis ? 'Toggle Uplift (ON)' : 'Toggle Uplift (OFF)';
+                showStatusToast('Uplift toggled ' + (newVis ? 'ON' : 'OFF'), true);
+            }
+        },
+
+        toggleTomography() {
+            const gd = document.querySelector('.plotly-graph-div');
+            if (!gd || !gd.data) return;
+            const indices = [];
+            for (let i = 0; i < gd.data.length; i++) {
+                if (gd.data[i].name && (gd.data[i].name.includes('Tomography') || gd.data[i].name.includes('Tomografia') || gd.data[i].name.includes('Vp/Vs'))) {
+                    indices.push(i);
+                }
+            }
+            if (indices.length > 0) {
+                const currentVis = gd.data[indices[0]].visible;
+                const newVis = (currentVis === false || currentVis === 'legendonly') ? true : false;
+                Plotly.restyle(gd, { visible: newVis }, indices);
+                const btn = document.getElementById('btn-toggle-tomo-points');
+                if (btn) btn.innerHTML = newVis ? 'Toggle Tomography (ON)' : 'Toggle Tomography (OFF)';
+                showStatusToast('Tomography toggled ' + (newVis ? 'ON' : 'OFF'), true);
+            }
+        },
 
         handleOverlayUpload(input) {
             try {
                 if (!input.files || !input.files[0]) return;
                 const file = input.files[0];
+                if (window.IS_3D_STATIC_VIEW || window.IS_CLUSTER_VIEW) {
+                    this._pendingMapFile = file;
+                    const statusEl = document.getElementById('status-layer-map');
+                    if (statusEl) {
+                        statusEl.textContent = file.name;
+                        statusEl.style.color = '#10b981';
+                    }
+                    const btn = document.getElementById('btn-layer-map');
+                    if (btn) btn.classList.add('selected');
+                    input.value = '';
+                    showStatusToast(`Map file selected: ${file.name}`, true);
+                    return;
+                }
+                this._applyMapFile(file);
+                input.value = '';
+            } catch (err) {
+                console.error('[Overlay] Top-level error:', err);
+                showStatusToast('Error: ' + err.message, false);
+                const loader = document.getElementById('loader');
+                if (loader) loader.classList.remove('show');
+            }
+        },
+
+        _applyMapFile(file) {
+            try {
                 const btn = document.getElementById('overlay-btn');
                 const loader = document.getElementById('loader');
 
                 const gd = document.querySelector('.plotly-graph-div');
                 if (!gd || !gd.data || !gd.data[0]) {
-                    showStatusToast('No 3D scene found');
+                    showStatusToast('No 3D scene found', false);
                     input.value = '';
                     return;
                 }
@@ -366,7 +793,7 @@
                 const gridRows = traceData.y ? traceData.y.length : 0;
 
                 if (!gridRows || !gridCols) {
-                    showStatusToast('Cannot detect surface dimensions');
+                    showStatusToast('Cannot detect surface dimensions', false);
                     console.error('[Overlay] No x/y dimensions found');
                     input.value = '';
                     return;
@@ -485,33 +912,35 @@
                                     btn.classList.add('active');
                                     self._overlayActive = true;
                                     if (loader) loader.classList.remove('show');
+                                    showStatusToast('Map overlay applied successfully!', true);
                                 }).catch(function(err) {
                                     console.error('[Overlay] Restyle failed:', err);
                                     if (loader) loader.classList.remove('show');
-                                    showStatusToast('Failed to apply overlay');
+                                    showStatusToast('Failed to apply overlay', false);
                                 });
                             } catch (err) {
                                 console.error('[Overlay] Processing error:', err);
                                 if (loader) loader.classList.remove('show');
-                                showStatusToast('Error: ' + err.message);
+                                showStatusToast('Error: ' + err.message, false);
                             }
                         }, 150);
                     };
                     img.onerror = function() {
                         if (loader) loader.classList.remove('show');
-                        showStatusToast('Failed to load image');
+                        showStatusToast('Failed to load image', false);
                     };
                     img.src = e.target.result;
                 };
                 reader.onerror = function() {
                     if (loader) loader.classList.remove('show');
-                    showStatusToast('Failed to read file');
+                    showStatusToast('Failed to read file', false);
                 };
                 reader.readAsDataURL(file);
-                input.value = '';
+                const inp = document.getElementById('overlay-input');
+                if (inp) inp.value = '';
             } catch (err) {
                 console.error('[Overlay] Top-level error:', err);
-                showStatusToast('Error: ' + err.message);
+                showStatusToast('Error: ' + err.message, false);
                 const loader = document.getElementById('loader');
                 if (loader) loader.classList.remove('show');
             }
@@ -539,17 +968,19 @@
                     btn.classList.remove('active');
                     self._overlayActive = false;
                     if (loader) loader.classList.remove('show');
+                    showStatusToast('Original map restored successfully!', true);
                 }).catch(function() {
                     if (loader) loader.classList.remove('show');
-                    showStatusToast('Failed to restore map');
+                    showStatusToast('Failed to restore map', false);
                 });
             }, 100);
         },
 
         async captureScreenshot() {
+            this.toggleExportModal(true);
             const gd = document.querySelector('.plotly-graph-div');
             if (!gd) {
-                showStatusToast('No visualization found to capture');
+                showStatusToast('No visualization found to capture', false);
                 return;
             }
 
@@ -560,6 +991,8 @@
                 '#info-btn',
                 '#overlay-btn',
                 '#screenshot-btn',
+                '#layer-modal',
+                '#export-modal',
                 '#glass-legend',
                 '#info-panel',
                 '#left-panel-wrapper',
@@ -597,13 +1030,13 @@
                 const result = await pywebview.api.save_screenshot(dataUrl);
                 
                 if (result.status === 'success') {
-                    showStatusToast('Screenshot saved: ' + result.path.split(/[/\\]/).pop());
+                    showStatusToast('Screenshot saved: ' + result.path.split(/[/\\]/).pop(), true);
                 } else if (result.error) {
-                    showStatusToast('Save failed: ' + result.error);
+                    showStatusToast('Save failed: ' + result.error, false);
                 }
             } catch (err) {
                 console.error('[Screenshot] Error:', err);
-                showStatusToast('Capture failed: ' + err.message);
+                showStatusToast('Capture failed: ' + err.message, false);
             } finally {
                 // Restore hidden elements
                 hiddenElements.forEach(el => el.style.visibility = 'visible');
@@ -613,8 +1046,16 @@
     };
     document.onclick = () => {
         document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
-        const infoPanel = document.getElementById('info-panel');
-        if (infoPanel) infoPanel.classList.remove('show');
+        if (typeof SeismicUI !== 'undefined' && SeismicUI.closeBottomLeftPopups) {
+            SeismicUI.closeBottomLeftPopups();
+        } else {
+            const infoPanel = document.getElementById('info-panel');
+            if (infoPanel) infoPanel.classList.remove('show');
+            const layerModal = document.getElementById('layer-modal');
+            if (layerModal) layerModal.classList.remove('active');
+            const exportModal = document.getElementById('export-modal');
+            if (exportModal) exportModal.classList.remove('active');
+        }
     };
 
     // Manual loader control only. Templates must call hideInitLoader() explicitly.
@@ -676,20 +1117,36 @@
         }
     }
 
-    function showStatusToast(msg) {
+    function showStatusToast(msg, isSuccess = false, timeout = 5000) {
         const container = document.getElementById('toast-container');
+        if (!container) return;
         container.innerHTML = ''; // Clear previous notifications
         container.style.zIndex = '9999999';
         const toast = document.createElement('div');
         toast.className = 'toast';
-        toast.innerHTML = `<span>⚠️ ${msg}</span>`;
+        
+        let iconHtml = '⚠️ ';
+        if (isSuccess === true || (typeof isSuccess === 'string' && (isSuccess === 'success' || isSuccess === 'ok'))) {
+            iconHtml = '<span style="color: #10b981; font-weight: bold; font-size: 1.2em;">✓</span> ';
+        } else if (isSuccess === false || (typeof isSuccess === 'string' && isSuccess === 'error')) {
+            iconHtml = '⚠️ ';
+        } else {
+            const lowerMsg = String(msg).toLowerCase();
+            if (lowerMsg.includes('success') || lowerMsg.includes('saved') || lowerMsg.includes('applied') || lowerMsg.includes('exported') || lowerMsg.includes('selected') || lowerMsg.includes('toggled') || lowerMsg.includes('restored') || lowerMsg.includes('cancelled') || lowerMsg.includes('selecting') || lowerMsg.includes('waiting') || lowerMsg.includes('preparing')) {
+                iconHtml = '<span style="color: #10b981; font-weight: bold; font-size: 1.2em;">✓</span> ';
+            } else {
+                iconHtml = '⚠️ ';
+            }
+        }
+
+        toast.innerHTML = `<span>${iconHtml}${msg}</span>`;
         container.appendChild(toast);
 
         setTimeout(() => toast.classList.add('show'), 10);
         setTimeout(() => {
             toast.classList.remove('show');
             setTimeout(() => toast.remove(), 300);
-        }, 5000);
+        }, timeout);
     }
 
     /* ─── 3D Camera & Cinema Mode Logic ─── */
@@ -726,13 +1183,13 @@
     function toggleCinemaMode() {
         findPlotlyGraph();
         if (!plotlyId) {
-            showStatusToast('Waiting for plot initialization...');
+            showStatusToast('Waiting for plot initialization...', true);
             return;
         }
 
         const gd = document.getElementById(plotlyId);
         if (!gd || !gd.layout || !gd.layout.scene) {
-            showStatusToast('Preparing 3D scene...');
+            showStatusToast('Preparing 3D scene...', true);
             setTimeout(toggleCinemaMode, 200);
             return;
         }

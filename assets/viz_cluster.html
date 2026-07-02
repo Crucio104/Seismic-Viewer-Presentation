@@ -312,6 +312,10 @@
                                 
                                 // Update local state for legend
                                 quakeData.n_clusters = res.n_clusters;
+                                if (res.method) quakeData.clustering_method = res.method;
+                                else quakeData.clustering_method = currentMethod;
+                                if (res.params) quakeData.clustering_params = res.params;
+                                else quakeData.clustering_params = params;
                                 if (res.cluster_indices) quakeData.cluster_indices = res.cluster_indices;
                                 if (res.labels) {
                                     if (quakeData.subcluster_target_indices) {

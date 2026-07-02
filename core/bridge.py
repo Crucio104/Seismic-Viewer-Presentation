@@ -6,16 +6,18 @@ import logging
 import numpy as np
 import asyncio
 import time
+import pandas as pd
 from typing import Any, Callable
 
 from core.config import (
     BASE_DIR, get_http_port, 
     clear_session_data, TEMP_DIR, store_viz_html,
-    MAP_CACHE_DIR
+    MAP_CACHE_DIR, get_session_data
 )
 from core.history import get_recent_files, save_recent_file, clear_history
 from core.online_importer import fetch_ingv_data
 from core.geo_utils import build_map_mesh
+from core.layer_utils import process_tomography_data, process_uplift_data
 import engine
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,7 @@ class Api:
         self._history_stack: list[dict[str, Any]] = []
         self._socket_manager: Any = None
         self._event_loop: Any = None
+        self._last_cluster_result: dict[str, Any] | None = None
 
     def set_socket_manager(self, manager: Any, loop: Any = None) -> None:
         """Set the FastAPI WebSocket manager and the event loop."""
@@ -333,6 +336,16 @@ class Api:
                     self._html_cache.pop(next(iter(self._html_cache)))
                 self._html_cache[cache_key] = viz_id
 
+            if view_style in (3, 4):
+                s_data = get_session_data(session_id)
+                if s_data and ('cluster_indices' in s_data or 'cluster' in s_data):
+                    self._last_cluster_result = {
+                        'method': s_data.get('clustering_method', 'dbscan'),
+                        'params': s_data.get('clustering_params', {}),
+                        'labels': s_data.get('cluster'),
+                        'cluster_indices': s_data.get('cluster_indices')
+                    }
+
             # 3. Navigate
             self._push_progress("Opening visualization…")
             self._inject_dark_overlay()
@@ -423,6 +436,14 @@ class Api:
                     cluster_indices[lbl].append(int(g_idx))
             
             res['cluster_indices'] = cluster_indices
+            res['method'] = method
+            res['params'] = params if params is not None else {}
+            self._last_cluster_result = {
+                'method': method,
+                'params': params if params is not None else {},
+                'labels': res.get('labels'),
+                'cluster_indices': cluster_indices
+            }
             return res
         except Exception as e:
             logger.error("Cluster update failed", exc_info=True)
@@ -436,7 +457,14 @@ class Api:
     def get_animated_clustering(self, method: str = 'dbscan', params: dict[str, Any] | None = None, plane_step: int = 5) -> dict[str, Any]:
         if not self._data:
             return {'error': 'No data'}
-        return engine.get_animation_clustering(self._data, method=method, params=params, plane_step=plane_step)
+        res = engine.get_animation_clustering(self._data, method=method, params=params, plane_step=plane_step)
+        self._last_cluster_result = {
+            'method': method,
+            'params': params if params is not None else {},
+            'labels': res.get('global_labels'),
+            'cluster_indices': None
+        }
+        return res
 
     def change_file(self) -> bool:
         self._csv_path = self._data = self._csv_info = None
@@ -460,3 +488,159 @@ class Api:
             return True
         except Exception as e:
             return str(e)
+
+    def select_layer_file(self, layer_type: str) -> dict[str, Any] | None:
+        """Open native file dialog to select map image, uplift CSV, tomography CSV, or station CSV."""
+        try:
+            file_types = ('CSV Files (*.csv)',) if layer_type in ('uplift', 'tomography', 'stations') else ('Image Files (*.jpg;*.png;*.jpeg)',)
+            result = self._window().create_file_dialog(
+                webview.FileDialog.OPEN,
+                directory=str(BASE_DIR),
+                allow_multiple=False,
+                file_types=file_types,
+            )
+            if not result:
+                return None
+            path = result[0] if isinstance(result, (list, tuple)) else result
+            return {'status': 'success', 'path': str(path), 'filename': Path(path).name, 'type': layer_type}
+        except Exception as e:
+            logger.error(f"Error in select_layer_file for {layer_type}", exc_info=True)
+            return {'error': str(e)}
+
+    def apply_external_layers(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Process and return data for selected layers (uplift, tomography, stations)."""
+        res = {'status': 'success', 'layers': {}}
+        try:
+            target_date = params.get('target_date')
+            if not target_date and self._data and 'times' in self._data:
+                times = self._data.get('times', [])
+                if times:
+                    target_date = str(times[-1])[:10]
+                    
+            stations_path = params.get('stations_path')
+            if params.get('uplift_path'):
+                uplift_res = process_uplift_data(params['uplift_path'], target_date_str=target_date, stations_path=stations_path)
+                res['layers']['uplift'] = uplift_res
+                res['uplift'] = uplift_res
+                
+            if params.get('tomography_path'):
+                tomo_res = process_tomography_data(params['tomography_path'])
+                res['layers']['tomography'] = tomo_res
+                res['tomography'] = tomo_res
+                
+            return res
+        except Exception as e:
+            logger.error("Error in apply_external_layers", exc_info=True)
+            return {'error': str(e)}
+
+    def export_clusters_csv(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Export clustering results (each cluster + outliers) as CSV files to a chosen directory."""
+        try:
+            if not self._data:
+                return {'status': 'error', 'message': 'No dataset loaded'}
+
+            payload = payload or {}
+
+            # Prioritize last stored cluster result for consistency of parameters and indices
+            if self._last_cluster_result:
+                res = self._last_cluster_result
+                method = res.get('method', 'dbscan')
+                params = res.get('params', {})
+                cluster_indices = res.get('cluster_indices') or payload.get('cluster_indices')
+                labels = res.get('labels') if res.get('labels') is not None else payload.get('labels')
+            else:
+                method = payload.get('method', 'dbscan')
+                params = payload.get('params', {})
+                cluster_indices = payload.get('cluster_indices')
+                labels = payload.get('labels')
+
+            # If we only have labels, build cluster_indices mapping
+            if not cluster_indices and labels is not None:
+                cluster_indices = {}
+                for idx, lbl in enumerate(labels):
+                    lbl_int = int(lbl)
+                    if lbl_int not in cluster_indices:
+                        cluster_indices[lbl_int] = []
+                    cluster_indices[lbl_int].append(idx)
+
+            if not cluster_indices:
+                return {'status': 'error', 'message': 'No cluster data available to export. Please run clustering first.'}
+
+            # Open folder selection dialog
+            result = self._window().create_file_dialog(
+                webview.FileDialog.FOLDER,
+                directory=str(Path.home())
+            )
+            
+            if not result:
+                return {'status': 'cancelled'}
+                
+            save_dir = Path(result[0] if isinstance(result, (list, tuple)) else result)
+            save_dir.mkdir(parents=True, exist_ok=True)
+
+            # Extract full dataset arrays
+            times = self._data.get('times', [])
+            lats = self._data.get('latitude', [])
+            lons = self._data.get('longitude', [])
+            deps = self._data.get('depth', [])
+            mags = self._data.get('magnitude', [])
+            n_events = len(lons)
+
+            # Format parameters string cleanly for header row
+            if isinstance(params, dict):
+                if str(method).lower() == 'dbscan':
+                    eps = params.get('dbscan_eps') or params.get('eps') or params.get('eps_km', 'N/A')
+                    min_samp = params.get('dbscan_min_samples') or params.get('min_samples', 'N/A')
+                    param_str = f"eps={eps}, min_samples={min_samp}"
+                elif str(method).lower() == 'kmeans':
+                    n_clust = params.get('kmeans_clusters') or params.get('n_clusters') or params.get('kmeans_n_clusters', 'N/A')
+                    max_d = params.get('kmeans_max_dist')
+                    if max_d and float(max_d) > 0:
+                        param_str = f"n_clusters={n_clust}, max_dist_m={max_d}"
+                    else:
+                        param_str = f"n_clusters={n_clust}"
+                else:
+                    param_str = ", ".join(f"{k}={v}" for k, v in params.items())
+            else:
+                param_str = str(params)
+
+            header_comment = f"# Clustering Method: {str(method).upper()} | Parameters: {param_str}\n"
+
+            exported_count = 0
+            for lbl_str, idx_list in cluster_indices.items():
+                if not idx_list:
+                    continue
+                
+                lbl_int = int(lbl_str)
+                if lbl_int == -1:
+                    file_name = "outliers.csv"
+                else:
+                    file_name = f"cluster_{lbl_int}.csv"
+                
+                file_path = save_dir / file_name
+
+                # Filter valid indices within bounds
+                valid_indices = [int(i) for i in idx_list if 0 <= int(i) < n_events]
+                if not valid_indices:
+                    continue
+
+                row_data = {
+                    'time': [times[i] if i < len(times) else '' for i in valid_indices],
+                    'latitude': [lats[i] for i in valid_indices],
+                    'longitude': [lons[i] for i in valid_indices],
+                    'depth': [abs(deps[i]) if i < len(deps) else 0.0 for i in valid_indices],
+                    'magnitude': [mags[i] if i < len(mags) else 0.0 for i in valid_indices]
+                }
+                df = pd.DataFrame(row_data)
+
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(header_comment)
+                    df.to_csv(f, index=False)
+                
+                exported_count += 1
+
+            return {'status': 'success', 'count': exported_count, 'folder': str(save_dir)}
+        except Exception as e:
+            logger.error("Error exporting clusters CSV", exc_info=True)
+            return {'status': 'error', 'message': str(e)}
+

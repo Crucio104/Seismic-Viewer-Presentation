@@ -207,11 +207,10 @@ def build_view_html(
         
         cluster_indices = {}
         for i, lbl in enumerate(labels):
-            if lbl >= 0:
-                lbl_int = int(lbl)
-                if lbl_int not in cluster_indices:
-                    cluster_indices[lbl_int] = []
-                cluster_indices[lbl_int].append(int(i))
+            lbl_int = int(lbl)
+            if lbl_int not in cluster_indices:
+                cluster_indices[lbl_int] = []
+            cluster_indices[lbl_int].append(int(i))
 
         cluster_data = data.copy()
         cluster_data.update({
@@ -261,11 +260,10 @@ def build_view_html(
 
         cluster_indices = {}
         for i, lbl in enumerate(full_labels):
-            if lbl >= 0:
-                lbl_int = int(lbl)
-                if lbl_int not in cluster_indices:
-                    cluster_indices[lbl_int] = []
-                cluster_indices[lbl_int].append(int(i))
+            lbl_int = int(lbl)
+            if lbl_int not in cluster_indices:
+                cluster_indices[lbl_int] = []
+            cluster_indices[lbl_int].append(int(i))
 
         cluster_data = data.copy()
         cluster_data.update({
