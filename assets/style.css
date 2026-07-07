@@ -572,14 +572,14 @@ body {
     right: 1.25rem;
     top: 5rem;
     z-index: 99999;
-    padding: 1.1rem 0.9rem;
+    padding: 0.8rem 0.8rem;
     width: auto;
     min-width: 8rem;
     max-width: 15rem;
     display: none;
     flex-direction: column;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
     height: 35vh;
     max-height: 25rem;
     text-shadow: none !important;
@@ -633,7 +633,7 @@ body {
     align-items: stretch;
     gap: 0.625rem;
     flex-grow: 1;
-    height: 100%;
+    min-height: 0;
     width: 100%;
     justify-content: center;
 }
@@ -660,6 +660,27 @@ body {
     opacity: 0.85;
     text-align: right;
     line-height: 1;
+}
+
+.btn-legend-swap {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 0.35rem;
+    color: #fff;
+    font-size: 0.65rem;
+    padding: 0.3rem 0.5rem;
+    cursor: pointer;
+    width: 100%;
+    text-align: center;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+}
+
+.btn-legend-swap:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.5);
 }
 
 /* Toast Notifications (Top Right) */
@@ -1132,7 +1153,7 @@ body {
     border: 1px solid rgba(16, 185, 129, 0.5);
     border-radius: 0.5rem;
     padding: 0.4rem;
-    margin-top: 0.4rem;
+    margin: 0;
     color: #10b981;
     font-size: 0.7rem;
     font-weight: 600;

@@ -77,13 +77,11 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
         # Drop NaN or invalid rows
         df = df.dropna(subset=[utmx_col, utmy_col, utmz_col, vpvs_col]).reset_index(drop=True)
         
-        # Escludi le celle di background non calibrate (dove VP == 0)
-        vp_col = next((c for c in df.columns if c == 'VP' or 'V_P' in c or 'P_VEL' in c), None)
-        if vp_col:
-            df = df[df[vp_col] != 0].reset_index(drop=True)
-            
-        # Rimuovi i nodi della griglia che non sono stati perturbati dall'inversione (dove Vp/Vs è rimasto esattamente 1.750)
-        df = df[~np.isclose(df[vpvs_col].astype(float), 1.75, atol=1e-5)].reset_index(drop=True)
+        # Richiesta utente: considerare tutti i punti del CSV senza escludere VP == 0 né Vp/Vs == 1.750
+        # vp_col = next((c for c in df.columns if c == 'VP' or 'V_P' in c or 'P_VEL' in c), None)
+        # if vp_col:
+        #     df = df[df[vp_col] != 0].reset_index(drop=True)
+        # df = df[~np.isclose(df[vpvs_col].astype(float), 1.75, atol=1e-5)].reset_index(drop=True)
         
         # Convert UTM Zone 33N km to Lat/Lon
         lats, lons = utm33_to_latlon_numpy(df[utmx_col].values, df[utmy_col].values)
@@ -94,9 +92,66 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
         
         logger.info(f"Elaborati {len(df)} punti di tomografia da {path.name}")
         
-        hover_texts = [f"Vp/Vs: {val:.3f}<br>Profondità: {abs(dep):.2f} km" for val, dep in zip(vp_vs, depths)]
+        hover_texts = [f"Vp/Vs: {val:.3f}<br>Depth: {abs(dep):.2f} km" for val, dep in zip(vp_vs, depths)]
         
-        return {
+        # Build a regular 3D grid for volumetric rendering (server-side interpolation)
+        iso_grid = None
+        try:
+            from scipy.interpolate import NearestNDInterpolator
+            
+            # Only interpolate calibrated points (VP != 0) for clean volumes
+            vp_col = next((c for c in df.columns if c == 'VP' or 'V_P' in c or 'P_VEL' in c), None)
+            if vp_col is not None:
+                mask = df[vp_col].values != 0
+            else:
+                mask = np.ones(len(df), dtype=bool)
+            
+            cal_lons = lons[mask]
+            cal_lats = lats[mask]
+            cal_depths = depths[mask]  # Already -abs(utmz)
+            cal_vpvs = vp_vs[mask]
+            
+            # Build interpolator in lat/lon/depth space (same as 3D plot axes)
+            pts = np.column_stack([cal_lons, cal_lats, cal_depths])
+            interp = NearestNDInterpolator(pts, cal_vpvs)
+            
+            # Regular grid dimensions (keep moderate for fast WebGL)
+            nx, ny, nz = 35, 30, 25
+            
+            # Use np.mgrid to create a proper structured 3D grid
+            lon_min, lon_max = float(cal_lons.min()), float(cal_lons.max())
+            lat_min, lat_max = float(cal_lats.min()), float(cal_lats.max())
+            dep_min, dep_max = float(cal_depths.min()), float(cal_depths.max())
+            
+            X, Y, Z = np.mgrid[
+                lon_min:lon_max:nx*1j,
+                lat_min:lat_max:ny*1j,
+                dep_min:dep_max:nz*1j
+            ]
+            
+            # Flatten in C-order (x varies slowest, z varies fastest) — required by Plotly
+            flat_x = X.flatten().tolist()
+            flat_y = Y.flatten().tolist()
+            flat_z = Z.flatten().tolist()
+            flat_vals = interp(X.flatten(), Y.flatten(), Z.flatten()).tolist()
+            
+            iso_grid = {
+                'x': flat_x,
+                'y': flat_y,
+                'z': flat_z,
+                'value': flat_vals,
+                'min_val': float(np.nanmin(flat_vals)),
+                'max_val': float(np.nanmax(flat_vals)),
+                'mean_val': float(np.nanmean(flat_vals)),
+            }
+            logger.info(f"Griglia volume 3D generata: {nx}x{ny}x{nz} = {nx*ny*nz} voxels, "
+                        f"Vp/Vs range [{iso_grid['min_val']:.3f}, {iso_grid['max_val']:.3f}]")
+        except ImportError:
+            logger.warning("scipy non disponibile, volume 3D disabilitato")
+        except Exception as e_iso:
+            logger.warning(f"Errore generazione griglia volume: {e_iso}")
+        
+        result = {
             'status': 'success',
             'type': 'tomography',
             'filename': path.name,
@@ -112,6 +167,9 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
             'min_vp_vs': float(np.min(vp_vs)),
             'max_vp_vs': float(np.max(vp_vs))
         }
+        if iso_grid:
+            result['iso_grid'] = iso_grid
+        return result
     except Exception as e:
         logger.error(f"Errore durante l'elaborazione della tomografia: {e}", exc_info=True)
         return {'error': f"Errore elaborazione tomografia: {str(e)}"}
@@ -209,13 +267,86 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
         lines_z = []
         lines_hover = []
         for st, lon, lat, z_val, up_val, dt in zip(stations, lons, lats, z_scaled, up_m_list, dates_used):
-            txt = f"Stazione: {st}<br>Uplift reale: {up_val * 1000:.1f} mm ({up_val:.4f} m)<br>Data: {dt}"
+            txt = f"Station: {st}<br>Real Uplift: {up_val * 1000:.1f} mm ({up_val:.4f} m)<br>Date: {dt}"
             lines_x.extend([lon, lon, None])
             lines_y.extend([lat, lat, None])
-            lines_z.extend([0.0, z_val, None])
+            lines_z.extend([0.05, z_val, None])
             lines_hover.extend([txt, txt, None])
         
-        logger.info(f"Elaborate {len(stations)} stazioni GNSS di uplift da {path.name}")
+        # Geodetic spatial interpolation (IDW with exponent 2.5 simulating elastic Mogi deformation decay)
+        min_lat, max_lat = min(lats) - 0.015, max(lats) + 0.015
+        min_lon, max_lon = min(lons) - 0.015, max(lons) + 0.015
+        
+        # 1. Vertex grid for 3D Surface mesh (50x50 vertices)
+        grid_lats_mat, grid_lons_mat = np.meshgrid(
+            np.linspace(min_lat, max_lat, 50),
+            np.linspace(min_lon, max_lon, 50)
+        )
+        gc = np.column_stack((grid_lats_mat.ravel(), grid_lons_mat.ravel()))
+        st_c = np.column_stack((lats, lons))
+        dists = np.linalg.norm(gc[:, None, :] - st_c[None, :, :], axis=2)
+        weights = 1.0 / np.maximum(dists**2.5, 1e-10)
+        st_v_np = np.array(up_m_list)
+        grid_up_vals = np.sum(weights * st_v_np, axis=1) / np.sum(weights, axis=1)
+        
+        if max_up - min_up < 1e-6:
+            grid_z_scaled = [1.0 for _ in grid_up_vals]
+        else:
+            grid_z_scaled = [0.3 + ((v - min_up) / (max_up - min_up)) * 2.2 for v in grid_up_vals]
+            
+        # 2. Continuous 2D geographic polygon surface (GeoJSON cells for choroplethmapbox / densitymapbox)
+        grid_lats_1d = np.linspace(min_lat, max_lat, 50)
+        grid_lons_1d = np.linspace(min_lon, max_lon, 50)
+        N = len(grid_lats_1d) - 1
+        M = len(grid_lons_1d) - 1
+        clats = (grid_lats_1d[:-1] + grid_lats_1d[1:]) / 2.0
+        clons = (grid_lons_1d[:-1] + grid_lons_1d[1:]) / 2.0
+        c_lats_mat, c_lons_mat = np.meshgrid(clats, clons, indexing='ij')
+        gc_cells = np.column_stack((c_lats_mat.ravel(), c_lons_mat.ravel()))
+        dists_cells = np.linalg.norm(gc_cells[:, None, :] - st_c[None, :, :], axis=2)
+        weights_cells = 1.0 / np.maximum(dists_cells**2.5, 1e-10)
+        cell_up_vals = (np.sum(weights_cells * st_v_np, axis=1) / np.sum(weights_cells, axis=1)).tolist()
+        
+        features = [
+            {
+                'type': 'Feature',
+                'id': f'c_{i*M+j}',
+                'geometry': {
+                    'type': 'Polygon',
+                    'coordinates': [[[float(grid_lons_1d[j]), float(grid_lats_1d[i])],
+                                     [float(grid_lons_1d[j+1]), float(grid_lats_1d[i])],
+                                     [float(grid_lons_1d[j+1]), float(grid_lats_1d[i+1])],
+                                     [float(grid_lons_1d[j]), float(grid_lats_1d[i+1])],
+                                     [float(grid_lons_1d[j]), float(grid_lats_1d[i])]]]
+                }
+            }
+            for i in range(N) for j in range(M)
+        ]
+        locs = [f'c_{k}' for k in range(N * M)]
+        hover_texts = [
+            f"<b>Interpolated Uplift Surface</b><br>Value: {val * 1000:.1f} mm ({val:.4f} m)<br>Lat: {gc_cells[k,0]:.4f}, Lon: {gc_cells[k,1]:.4f}"
+            for k, val in enumerate(cell_up_vals)
+        ]
+        
+        interp_grid = {
+            'lats': gc[:, 0].tolist(),
+            'lons': gc[:, 1].tolist(),
+            'up_m': grid_up_vals.tolist(),
+            'z_scaled': grid_z_scaled,
+            'grid_lats_2d': grid_lats_mat.tolist(),
+            'grid_lons_2d': grid_lons_mat.tolist(),
+            'grid_up_2d': grid_up_vals.reshape(50, 50).tolist(),
+            'grid_z_2d': np.array(grid_z_scaled).reshape(50, 50).tolist(),
+            'geojson': {
+                'type': 'FeatureCollection',
+                'features': features
+            },
+            'cell_locs': locs,
+            'cell_up_m': cell_up_vals,
+            'cell_hover': hover_texts
+        }
+        
+        logger.info(f"Elaborate {len(stations)} stazioni GNSS e generata superficie geografica continua da {path.name}")
         
         return {
             'status': 'success',
@@ -238,7 +369,8 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
                 'x': lons,
                 'y': lats,
                 'z': z_scaled
-            }
+            },
+            'interp_grid': interp_grid
         }
     except Exception as e:
         logger.error(f"Errore durante l'elaborazione dell'uplift: {e}", exc_info=True)
@@ -309,6 +441,7 @@ def process_stations_data(stations_path: str | Path) -> dict[str, Any]:
             'names': names,
             'lats': lats,
             'lons': lons,
+            'z': [0.05 for _ in names],
             'hover': hover_texts,
             'count': len(names)
         }

@@ -13,6 +13,7 @@
         <div id="legend-bar"></div>
         <div id="legend-ticks"></div>
     </div>
+    <button id="btn-swap-legend" class="btn-legend-swap" onclick="SeismicUI.swapLegend()" title="Swap Color Scale Legend">⇄ Scale: Quakes</button>
 </div>
 
 <div id="camera-controls" class="glass-panel">
@@ -89,15 +90,17 @@
     <button class="layer-apply-btn" onclick="SeismicUI.applyAllLayers()">
         Apply Layers
     </button>
-    <button class="layer-toggle-btn" id="btn-toggle-uplift-surface" onclick="SeismicUI.toggleUpliftSurface()">
-        Toggle Uplift
-    </button>
-    <button class="layer-toggle-btn" id="btn-toggle-tomo-points" onclick="SeismicUI.toggleTomography()">
-        Toggle Tomography
-    </button>
-    <button class="layer-toggle-btn" id="btn-toggle-stations" onclick="SeismicUI.toggleStations()">
-        Toggle Stations
-    </button>
+    <div style="display: flex; flex-direction: column; gap: 0.2rem; margin-top: -0.5rem;">
+        <button class="layer-toggle-btn" id="btn-toggle-uplift-surface" onclick="SeismicUI.toggleUpliftSurface()">
+            Toggle Uplift
+        </button>
+        <button class="layer-toggle-btn" id="btn-toggle-tomo-points" onclick="SeismicUI.toggleTomography()">
+            Toggle Tomography
+        </button>
+        <button class="layer-toggle-btn" id="btn-toggle-stations" onclick="SeismicUI.toggleStations()">
+            Toggle Stations
+        </button>
+    </div>
 </div>
 <div id="export-modal" onclick="event.stopPropagation()">
     <div class="label" style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.7rem; font-weight: 700; color: #fff;">
@@ -275,6 +278,8 @@
 
 
     const SeismicUI = {
+        _activeTomographyData: null,
+        _activeUpliftData: null,
 
         initMenu(btn, menu) {
             if (!btn || !menu) return;
@@ -569,9 +574,10 @@
             // 2. Applica Uplift e Tomografia se presenti
             if (this._pendingUpliftPath || this._pendingTomoPath || this._pendingStationsPath) {
                 if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.apply_external_layers) return;
+                const isMapbox = gd && (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox') || (gd.layout && gd.layout.mapbox));
                 const loader = document.getElementById('loader');
                 const loaderText = loader ? loader.querySelector('.loader-text') : null;
-                if (loaderText) loaderText.textContent = 'Applying 3D layers...';
+                if (loaderText) loaderText.textContent = isMapbox ? 'Applying 2D layers...' : 'Applying 3D layers...';
                 if (loader) loader.classList.add('show');
 
                 const self = this;
@@ -585,27 +591,67 @@
                         const layers = res.layers || res;
                         const newTraces = [];
                         const t = layers.tomography || res.tomography;
-                        if (t && (t.x || t.lons)) {
-                            newTraces.push({
-                                type: 'scatter3d',
-                                name: 'Tomography Vp/Vs',
-                                opacity: 0.4,
-                                x: t.x || t.lons,
-                                y: t.y || t.lats,
-                                z: t.z || t.depths,
-                                mode: 'markers',
-                                hovertext: t.hover || [],
-                                hovertemplate: '%{hovertext}<extra></extra>',
-                                marker: {
-                                    size: 3.6,
-                                    symbol: 'diamond',
-                                    color: t.vp_vs,
-                                    colorscale: 'RdBu',
-                                    reversescale: false,
-                                    opacity: 0.4,
-                                    showscale: false
+                        if (t && t.error) {
+                            showStatusToast('Tomography Error: ' + t.error, false);
+                        } else if (t && (t.x || t.lons)) {
+                            self._activeTomographyData = t;
+                            if (isMapbox) {
+                                self._setupTomography2DControls(t);
+                            } else {
+                                // Use server-side pre-computed regular grid for 3D volumetric rendering
+                                const isoGrid = t.iso_grid;
+                                if (isoGrid && isoGrid.x && isoGrid.x.length > 0) {
+                                    // 1. High Vp/Vs Anomaly Volume (Magma & Fluid Intrusions)
+                                    // We isolate Vp/Vs > 1.82, excluding normal background rock (~1.75)
+                                    newTraces.push({
+                                        type: 'volume',
+                                        name: 'Tomography High Vp/Vs (Magma Volume)',
+                                        x: isoGrid.x,
+                                        y: isoGrid.y,
+                                        z: isoGrid.z,
+                                        value: isoGrid.value,
+                                        isomin: 1.82,
+                                        isomax: 2.35,
+                                        opacity: 0.45,
+                                        surface: { count: 15 },
+                                        colorscale: [
+                                            [0.0, 'rgb(255, 210, 120)'],
+                                            [0.35, 'rgb(255, 150, 50)'],
+                                            [0.7, 'rgb(240, 60, 0)'],
+                                            [1.0, 'rgb(180, 0, 0)']
+                                        ],
+                                        reversescale: false,
+                                        showscale: false,
+                                        hoverinfo: 'skip',
+                                        caps: { x: { show: false }, y: { show: false }, z: { show: false } }
+                                    });
+
+                                    // 2. Low Vp/Vs Anomaly Volume (Gas & Steam Reservoirs)
+                                    // We isolate Vp/Vs < 1.68, excluding normal background rock (~1.75)
+                                    newTraces.push({
+                                        type: 'volume',
+                                        name: 'Tomography Low Vp/Vs (Gas Volume)',
+                                        x: isoGrid.x,
+                                        y: isoGrid.y,
+                                        z: isoGrid.z,
+                                        value: isoGrid.value,
+                                        isomin: 1.35,
+                                        isomax: 1.68,
+                                        opacity: 0.45,
+                                        surface: { count: 15 },
+                                        colorscale: [
+                                            [0.0, 'rgb(0, 30, 160)'],
+                                            [0.35, 'rgb(0, 120, 240)'],
+                                            [0.7, 'rgb(60, 190, 255)'],
+                                            [1.0, 'rgb(170, 235, 255)']
+                                        ],
+                                        reversescale: false,
+                                        showscale: false,
+                                        hoverinfo: 'skip',
+                                        caps: { x: { show: false }, y: { show: false }, z: { show: false } }
+                                    });
                                 }
-                            });
+                            }
                             const toggleTomoBtn = document.getElementById('btn-toggle-tomo-points');
                             if (toggleTomoBtn) {
                                 toggleTomoBtn.classList.add('visible');
@@ -613,49 +659,131 @@
                             }
                         }
                         const u = layers.uplift || res.uplift;
-                        if (u) {
-                            if (u.lines && (u.lines.x || u.lons)) {
-                                newTraces.push({
-                                    type: 'scatter3d',
-                                    name: 'GNSS Uplift Columns',
-                                    x: u.lines.x || u.lons,
-                                    y: u.lines.y || u.lats,
-                                    z: u.lines.z || u.z_scaled,
-                                    mode: 'lines+markers',
-                                    hovertext: u.lines.hover || [],
-                                    hovertemplate: '%{hovertext}<extra></extra>',
-                                    line: { color: '#ef4444', width: 6 },
-                                    marker: { size: 4, color: '#ef4444' }
-                                });
-                            }
-                            if (u.surface && (u.surface.x || u.lons)) {
-                                newTraces.push({
-                                    type: 'mesh3d',
-                                    name: 'Uplift',
-                                    x: u.surface.x || u.lons,
-                                    y: u.surface.y || u.lats,
-                                    z: u.surface.z || u.z_scaled,
-                                    delaunayaxis: 'z',
-                                    intensity: u.surface.z || u.z_scaled,
-                                    colorscale: [
-                                        [0.0, 'rgb(255, 255, 0)'],
-                                        [0.5, 'rgb(255, 140, 0)'],
-                                        [1.0, 'rgb(139, 0, 0)']
-                                    ],
-                                    showscale: false,
-                                    opacity: 0.6,
-                                    hoverinfo: 'skip',
-                                    visible: true
-                                });
+                        if (u && u.error) {
+                            showStatusToast('Uplift Error: ' + u.error, false);
+                        } else if (u && u.lats && u.lons && u.lats.length > 0) {
+                            self._activeUpliftData = u;
+                            if (isMapbox) {
+                                if (u.interp_grid && u.interp_grid.geojson && u.interp_grid.cell_locs) {
+                                    newTraces.push({
+                                        type: 'choroplethmapbox',
+                                        name: 'Uplift Interpolated Surface',
+                                        geojson: u.interp_grid.geojson,
+                                        locations: u.interp_grid.cell_locs,
+                                        z: u.interp_grid.cell_up_m,
+                                        hovertext: u.interp_grid.cell_hover,
+                                        hovertemplate: '%{hovertext}<extra></extra>',
+                                        visible: true,
+                                        opacity: 0.6,
+                                        colorscale: [
+                                            [0.0, 'rgb(255, 255, 0)'],
+                                            [0.5, 'rgb(255, 140, 0)'],
+                                            [1.0, 'rgb(180, 0, 0)']
+                                        ],
+                                        showscale: false,
+                                        marker: {
+                                            opacity: 0.6,
+                                            line: { width: 0, color: 'rgba(0,0,0,0)' }
+                                        }
+                                    });
+                                } else if (u.interp_grid && u.interp_grid.lats) {
+                                    newTraces.push({
+                                        type: 'densitymapbox',
+                                        name: 'Uplift Interpolated Surface',
+                                        lat: u.interp_grid.lats,
+                                        lon: u.interp_grid.lons,
+                                        z: u.interp_grid.up_m,
+                                        radius: 25,
+                                        opacity: 0.65,
+                                        colorscale: [
+                                            [0.0, 'rgb(255, 255, 0)'],
+                                            [0.5, 'rgb(255, 140, 0)'],
+                                            [1.0, 'rgb(180, 0, 0)']
+                                        ],
+                                        showscale: false,
+                                        hoverinfo: 'skip'
+                                    });
+                                }
                                 const toggleBtn = document.getElementById('btn-toggle-uplift-surface');
                                 if (toggleBtn) toggleBtn.classList.add('visible');
+                            } else {
+                                if (u.lines && (u.lines.x || u.lons)) {
+                                    newTraces.push({
+                                        type: 'scatter3d',
+                                        name: 'GNSS Uplift Columns',
+                                        x: u.lines.x || u.lons,
+                                        y: u.lines.y || u.lats,
+                                        z: u.lines.z || u.z_scaled,
+                                        mode: 'lines+markers',
+                                        hovertext: u.lines.hover || [],
+                                        hovertemplate: '%{hovertext}<extra></extra>',
+                                        line: { color: '#ef4444', width: 8 },
+                                        marker: { size: 6, color: '#ef4444' }
+                                    });
+                                }
+                                if (u.interp_grid && u.interp_grid.grid_lons_2d) {
+                                    newTraces.push({
+                                        type: 'surface',
+                                        name: 'Uplift Interpolated Surface',
+                                        x: u.interp_grid.grid_lons_2d,
+                                        y: u.interp_grid.grid_lats_2d,
+                                        z: u.interp_grid.grid_z_2d,
+                                        surfacecolor: u.interp_grid.grid_up_2d,
+                                        colorscale: [
+                                            [0.0, 'rgb(255, 255, 0)'],
+                                            [0.5, 'rgb(255, 140, 0)'],
+                                            [1.0, 'rgb(139, 0, 0)']
+                                        ],
+                                        showscale: false,
+                                        opacity: 0.7,
+                                        hoverinfo: 'skip',
+                                        visible: true
+                                    });
+                                }
+                                if (u.surface && (u.surface.x || u.lons)) {
+                                    newTraces.push({
+                                        type: 'mesh3d',
+                                        name: 'Uplift',
+                                        x: u.surface.x || u.lons,
+                                        y: u.surface.y || u.lats,
+                                        z: u.surface.z || u.z_scaled,
+                                        delaunayaxis: 'z',
+                                        intensity: u.surface.z || u.z_scaled,
+                                        colorscale: [
+                                            [0.0, 'rgb(255, 255, 0)'],
+                                            [0.5, 'rgb(255, 140, 0)'],
+                                            [1.0, 'rgb(139, 0, 0)']
+                                        ],
+                                        showscale: false,
+                                        opacity: 0.6,
+                                        hoverinfo: 'skip',
+                                        visible: true
+                                    });
+                                    const toggleBtn = document.getElementById('btn-toggle-uplift-surface');
+                                    if (toggleBtn) toggleBtn.classList.add('visible');
+                                }
                             }
                         }
                         const s = layers.stations || res.stations;
-                        if (s && s.lats && s.lons && s.lats.length > 0) {
-                            const gd = document.querySelector('.plotly-graph-div');
-                            const isMapbox = gd && (gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox') || (gd.layout && gd.layout.mapbox));
+                        if (s && s.error) {
+                            showStatusToast('Stations Error: ' + s.error, false);
+                        } else if (s && s.lats && s.lons && s.lats.length > 0) {
                             if (isMapbox) {
+                                newTraces.push({
+                                    type: 'scattermapbox',
+                                    name: 'Stations Outline',
+                                    lat: s.lats,
+                                    lon: s.lons,
+                                    mode: 'markers',
+                                    hoverinfo: 'skip',
+                                    visible: true,
+                                    opacity: 1.0,
+                                    marker: {
+                                        size: 18,
+                                        color: '#000000',
+                                        opacity: 1.0
+                                    }
+                                });
                                 newTraces.push({
                                     type: 'scattermapbox',
                                     name: 'Stations',
@@ -664,28 +792,48 @@
                                     mode: 'markers',
                                     hovertext: s.hover || [],
                                     hovertemplate: '%{hovertext}<extra></extra>',
+                                    visible: true,
+                                    opacity: 1.0,
                                     marker: {
-                                        size: 11,
-                                        symbol: 'circle',
-                                        color: '#10b981',
-                                        opacity: 0.95
+                                        size: 12,
+                                        color: '#00ffcc',
+                                        opacity: 1.0,
+                                        line: { color: '#000000', width: 3 }
                                     }
                                 });
                             } else {
                                 newTraces.push({
                                     type: 'scatter3d',
+                                    name: 'Stations Outline',
+                                    x: s.lons,
+                                    y: s.lats,
+                                    z: s.z || s.lats.map(() => 0.05),
+                                    mode: 'markers',
+                                    hoverinfo: 'skip',
+                                    visible: true,
+                                    marker: {
+                                        size: 10,
+                                        symbol: 'circle',
+                                        color: '#000000',
+                                        opacity: 1.0
+                                    }
+                                });
+                                newTraces.push({
+                                    type: 'scatter3d',
                                     name: 'Stations',
                                     x: s.lons,
                                     y: s.lats,
-                                    z: s.lats.map(() => 0.0),
+                                    z: s.z || s.lats.map(() => 0.05),
                                     mode: 'markers',
                                     hovertext: s.hover || [],
                                     hovertemplate: '%{hovertext}<extra></extra>',
+                                    visible: true,
                                     marker: {
                                         size: 6,
-                                        symbol: 'diamond',
-                                        color: '#10b981',
-                                        opacity: 0.95
+                                        symbol: 'circle',
+                                        color: '#00ffcc',
+                                        opacity: 1.0,
+                                        line: { color: '#000000', width: 2 }
                                     }
                                 });
                             }
@@ -695,12 +843,12 @@
                                 toggleStBtn.innerHTML = 'Toggle Stations (ON)';
                             }
                         }
-                        if (newTraces.length > 0) {
+                        if (newTraces.length > 0 || (isMapbox && self._activeTomographyData)) {
                             const gd = document.querySelector('.plotly-graph-div');
                             if (gd && gd.data) {
                                 const indicesToDelete = [];
                                 gd.data.forEach((tr, idx) => {
-                                    if (tr.name === 'Tomography Vp/Vs' || tr.name === 'GNSS Uplift Columns' || tr.name === 'Uplift' || tr.name === 'Stations') {
+                                    if (tr.name && (tr.name.includes('Tomography') || tr.name.includes('Tomografia') || tr.name.includes('Vp/Vs') || tr.name.includes('Anomaly') || tr.name.includes('Halo') || tr.name === 'GNSS Uplift Columns' || tr.name === 'Uplift' || tr.name === 'Uplift Surface' || tr.name === 'GNSS Uplift Stations' || tr.name === 'Uplift Interpolated Field' || tr.name === 'Uplift Interpolated Surface' || tr.name === 'Stations' || tr.name === 'Stations Outline')) {
                                         indicesToDelete.push(idx);
                                     }
                                 });
@@ -708,27 +856,34 @@
                                     Plotly.deleteTraces(gd, indicesToDelete.reverse());
                                 }
                             }
-                            Plotly.addTraces(gd, newTraces);
-                            
-                            // Adatta il range dell'asse Z per mostrare comodamente le colonnine sopra il piano z=0
-                            let maxZ = 0;
-                            let minZ = 0;
-                            if (gd.data) {
-                                gd.data.forEach(tr => {
-                                    if (tr.visible !== false && tr.z && Array.isArray(tr.z)) {
-                                        tr.z.forEach(val => {
-                                            if (val !== null && val !== undefined && !isNaN(val)) {
-                                                if (val > maxZ) maxZ = val;
-                                                if (val < minZ) minZ = val;
-                                            }
-                                        });
-                                    }
-                                });
+                            if (newTraces.length > 0) {
+                                Plotly.addTraces(gd, newTraces);
                             }
-                            if (maxZ > 0 && gd.layout && gd.layout.scene && gd.layout.scene.zaxis) {
-                                const currentMin = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[0] !== undefined)
-                                    ? gd.layout.scene.zaxis.range[0] : minZ;
-                                Plotly.relayout(gd, { 'scene.zaxis.range': [currentMin, Math.max(maxZ * 1.15, 0.5)] });
+                            if (self._activeTomographyData && isMapbox) {
+                                self.updateTomographySlice(null);
+                            }
+                            self.bringMarkersToFront();
+                            
+                            if (!isMapbox) {
+                                let maxZ = 0;
+                                let minZ = 0;
+                                if (gd.data) {
+                                    gd.data.forEach(tr => {
+                                        if (tr.visible !== false && tr.z && Array.isArray(tr.z)) {
+                                            tr.z.forEach(val => {
+                                                if (val !== null && val !== undefined && !isNaN(val)) {
+                                                    if (val > maxZ) maxZ = val;
+                                                    if (val < minZ) minZ = val;
+                                                }
+                                            });
+                                        }
+                                    });
+                                }
+                                if (maxZ > 0 && gd.layout && gd.layout.scene && gd.layout.scene.zaxis) {
+                                    const currentMin = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[0] !== undefined)
+                                        ? gd.layout.scene.zaxis.range[0] : minZ;
+                                    Plotly.relayout(gd, { 'scene.zaxis.range': [currentMin, Math.max(maxZ * 1.15, 0.5)] });
+                                }
                             }
 
                             showStatusToast('Layers applied successfully!', true);
@@ -744,6 +899,260 @@
             }
 
             this.toggleLayerModal();
+        },
+
+        _setupTomography2DControls(t) {
+            const gd = document.querySelector('.plotly-graph-div');
+            const isMapboxView = gd && ((gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox')) || (gd.layout && gd.layout.mapbox));
+            let tomoGroup = document.getElementById('tomo-depth-filter-group');
+            if (!isMapboxView) {
+                if (tomoGroup) tomoGroup.style.display = 'none';
+                return;
+            }
+            const settingsBar = document.getElementById('settings-bar');
+            if (!settingsBar) return;
+
+            if (!tomoGroup) {
+                tomoGroup = document.createElement('div');
+                tomoGroup.id = 'tomo-depth-filter-group';
+                tomoGroup.className = 'settings-group';
+                
+                tomoGroup.innerHTML = `
+                    <label class="label" for="tomo-depth-input">Tomography Slice Depth (km)</label>
+                    <div class="settings-row">
+                        <input type="number" class="glass-input" id="tomo-depth-input" step="0.5" placeholder="Depth (km)">
+                    </div>
+                `;
+                
+                const applyBtn = settingsBar.querySelector('#apply-filters-btn') || settingsBar.querySelector('#apply-all-btn') || settingsBar.querySelector('#apply-btn');
+                if (applyBtn && applyBtn.parentNode === settingsBar) {
+                    settingsBar.insertBefore(tomoGroup, applyBtn);
+                } else if (applyBtn && applyBtn.parentNode && applyBtn.parentNode.parentNode === settingsBar) {
+                    settingsBar.insertBefore(tomoGroup, applyBtn.parentNode);
+                } else {
+                    settingsBar.appendChild(tomoGroup);
+                }
+
+                const inputEl = document.getElementById('tomo-depth-input');
+                if (inputEl) {
+                    inputEl.addEventListener('change', (e) => {
+                        SeismicUI.updateTomographySlice(e.target.value);
+                    });
+                    inputEl.addEventListener('input', (e) => {
+                        SeismicUI.updateTomographySlice(e.target.value);
+                    });
+                }
+            }
+            
+            const depths = t.z || t.depths || [];
+            if (depths.length > 0) {
+                const uniqueDepths = Array.from(new Set(depths.map(d => Math.round(Math.abs(d) * 100) / 100))).sort((a, b) => a - b);
+                const inputEl = document.getElementById('tomo-depth-input');
+                if (inputEl && uniqueDepths.length > 0) {
+                    inputEl.value = uniqueDepths[0];
+                }
+            }
+            tomoGroup.style.display = 'block';
+        },
+
+        updateTomographySlice(targetDepthStr) {
+            if (!this._activeTomographyData) return;
+            const gd = document.querySelector('.plotly-graph-div');
+            if (!gd || !gd.data) return;
+            const isMapboxView = (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox')) || (gd.layout && gd.layout.mapbox);
+            if (!isMapboxView) return; // In 3D views, render 3D volumes instead of 2D plane slices
+            const t = this._activeTomographyData;
+            const lons = t.x || t.lons;
+            const lats = t.y || t.lats;
+            const depths = t.z || t.depths;
+            const vpvs = t.vp_vs;
+            if (!lons || !depths || lons.length === 0) return;
+
+            const uniqueDepths = Array.from(new Set(depths.map(d => Math.round(Math.abs(d) * 100) / 100))).sort((a, b) => a - b);
+            if (uniqueDepths.length === 0) return;
+
+            const minDepth = uniqueDepths[0];
+            const maxDepth = uniqueDepths[uniqueDepths.length - 1];
+
+            let targetDepth = parseFloat(targetDepthStr);
+            if (isNaN(targetDepth)) {
+                const inputEl = document.getElementById('tomo-depth-input');
+                if (inputEl && inputEl.value !== "") {
+                    targetDepth = parseFloat(inputEl.value);
+                }
+                if (isNaN(targetDepth)) targetDepth = minDepth;
+            }
+
+            if (targetDepth < minDepth) {
+                targetDepth = minDepth;
+                showStatusToast(`Depth out of bounds. Showing shallowest slice at ${minDepth} km`, false);
+                const inputEl = document.getElementById('tomo-depth-input');
+                if (inputEl && document.activeElement !== inputEl) inputEl.value = minDepth;
+            } else if (targetDepth > maxDepth) {
+                targetDepth = maxDepth;
+                showStatusToast(`Depth out of bounds. Showing deepest slice at ${maxDepth} km`, false);
+                const inputEl = document.getElementById('tomo-depth-input');
+                if (inputEl && document.activeElement !== inputEl) inputEl.value = maxDepth;
+            }
+
+            let closestDepth = uniqueDepths[0];
+            let minDiff = Math.abs(targetDepth - closestDepth);
+            for (const d of uniqueDepths) {
+                const diff = Math.abs(targetDepth - d);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closestDepth = d;
+                }
+            }
+
+            const inputEl = document.getElementById('tomo-depth-input');
+            if (inputEl && document.activeElement !== inputEl && parseFloat(inputEl.value) !== closestDepth) {
+                inputEl.value = closestDepth;
+            }
+
+            const infoEl = document.getElementById('tomo-slice-info');
+            if (infoEl) {
+                infoEl.textContent = `Showing horizontal slice at ${closestDepth.toFixed(2)} km depth`;
+            }
+
+            const sliceLons = [];
+            const sliceLats = [];
+            const sliceVpVs = [];
+            const sliceHover = [];
+
+            for (let i = 0; i < depths.length; i++) {
+                if (Math.abs(Math.abs(depths[i]) - closestDepth) < 0.05) {
+                    sliceLons.push(lons[i]);
+                    sliceLats.push(lats[i]);
+                    sliceVpVs.push(vpvs[i]);
+                    sliceHover.push(`<b>Tomography Vp/Vs: ${vpvs[i].toFixed(3)}</b><br>Depth: ${closestDepth.toFixed(2)} km<br>Lat: ${lats[i].toFixed(5)}°<br>Lon: ${lons[i].toFixed(5)}°`);
+                }
+            }
+
+            let isVisible = true;
+            const btn = document.getElementById('btn-toggle-tomo-points');
+            if (btn && btn.innerHTML.includes('OFF')) {
+                isVisible = false;
+            }
+
+            const indicesToDelete = [];
+            gd.data.forEach((tr, idx) => {
+                if (tr.name === 'Tomography Slice Vp/Vs' || tr.name === 'Tomography Vp/Vs') {
+                    indicesToDelete.push(idx);
+                }
+            });
+            if (indicesToDelete.length > 0) {
+                Plotly.deleteTraces(gd, indicesToDelete.reverse());
+            }
+
+            if (sliceLons.length > 0) {
+                const isMapboxView = gd.layout && gd.layout.mapbox;
+                const allLats = (this._activeTomographyData && this._activeTomographyData.lats) ? this._activeTomographyData.lats : sliceLats;
+                const allLons = (this._activeTomographyData && this._activeTomographyData.lons) ? this._activeTomographyData.lons : sliceLons;
+                let minLat = 999, maxLat = -999, minLon = 999, maxLon = -999;
+                for (let i = 0; i < allLats.length; i++) {
+                    if (allLats[i] < minLat) minLat = allLats[i];
+                    if (allLats[i] > maxLat) maxLat = allLats[i];
+                }
+                for (let i = 0; i < allLons.length; i++) {
+                    if (allLons[i] < minLon) minLon = allLons[i];
+                    if (allLons[i] > maxLon) maxLon = allLons[i];
+                }
+                minLat -= 0.005; maxLat += 0.005; minLon -= 0.005; maxLon += 0.005;
+                const N = 75, M = 75;
+                const latStep = (maxLat - minLat) / N;
+                const lonStep = (maxLon - minLon) / M;
+                const features = [];
+                const locs = [];
+                const vals = [];
+                const hover = [];
+                let idx = 0;
+                for (let i = 0; i < N; i++) {
+                    const lat1 = minLat + i * latStep;
+                    const lat2 = lat1 + latStep;
+                    const clat = (lat1 + lat2) / 2;
+                    for (let j = 0; j < M; j++) {
+                        const lon1 = minLon + j * lonStep;
+                        const lon2 = lon1 + lonStep;
+                        const clon = (lon1 + lon2) / 2;
+                        let sumW = 0, sumWV = 0;
+                        for (let k = 0; k < sliceLats.length; k++) {
+                            const dLat = clat - sliceLats[k];
+                            const dLon = clon - sliceLons[k];
+                            const d2 = dLat * dLat + dLon * dLon;
+                            const w = 1.0 / Math.max(d2 * Math.sqrt(d2), 1e-10);
+                            sumW += w;
+                            sumWV += w * sliceVpVs[k];
+                        }
+                        const val = sumWV / sumW;
+                        const cid = 'tcell_' + idx++;
+                        locs.push(cid);
+                        vals.push(val);
+                        hover.push(`<b>Tomography Vp/Vs Surface: ${val.toFixed(3)}</b><br>Depth: ${closestDepth.toFixed(2)} km<br>Lat: ${clat.toFixed(4)}°<br>Lon: ${clon.toFixed(4)}°`);
+                        features.push({
+                            type: 'Feature',
+                            id: cid,
+                            geometry: {
+                                type: 'Polygon',
+                                coordinates: [[[lon1, lat1], [lon2, lat1], [lon2, lat2], [lon1, lat2], [lon1, lat1]]]
+                            }
+                        });
+                    }
+                }
+                const geojsonSurface = { type: 'FeatureCollection', features: features };
+
+                if (isMapboxView) {
+                    const sliceTrace = {
+                        type: 'choroplethmapbox',
+                        name: 'Tomography Slice Vp/Vs',
+                        geojson: geojsonSurface,
+                        locations: locs,
+                        z: vals,
+                        hovertext: hover,
+                        hovertemplate: '%{hovertext}<extra></extra>',
+                        opacity: 0.75,
+                        visible: isVisible,
+                        colorscale: [
+                            [0.0, 'rgb(255, 60, 0)'],
+                            [0.35, 'rgb(255, 160, 80)'],
+                            [0.5, 'rgb(255, 255, 255)'],
+                            [0.65, 'rgb(80, 180, 255)'],
+                            [1.0, 'rgb(0, 100, 255)']
+                        ],
+                        showscale: false,
+                        marker: {
+                            opacity: 0.75,
+                            line: { width: 0, color: 'rgba(0,0,0,0)' }
+                        }
+                    };
+                    Plotly.addTraces(gd, [sliceTrace]);
+                }
+            }
+            this.bringMarkersToFront();
+        },
+
+        bringMarkersToFront() {
+            const gd = document.querySelector('.plotly-graph-div');
+            if (!gd || !gd.data || gd.data.length <= 1) return;
+            const markerIndices = [];
+            for (let i = 0; i < gd.data.length; i++) {
+                const tr = gd.data[i];
+                if (tr && (tr.type === 'scattermapbox' || tr.type === 'scatter3d' || tr.type === 'scatter')) {
+                    markerIndices.push(i);
+                }
+            }
+            if (markerIndices.length > 0 && markerIndices.length < gd.data.length && typeof Plotly.moveTraces === 'function') {
+                const newIndices = [];
+                const startIdx = gd.data.length - markerIndices.length;
+                for (let i = 0; i < markerIndices.length; i++) {
+                    newIndices.push(startIdx + i);
+                }
+                try {
+                    Plotly.moveTraces(gd, markerIndices, newIndices);
+                } catch (e) {
+                    console.warn('Could not move traces to front:', e);
+                }
+            }
         },
 
         toggleUpliftSurface() {
@@ -763,6 +1172,7 @@
                 if (btn) btn.innerHTML = newVis ? 'Toggle Uplift (ON)' : 'Toggle Uplift (OFF)';
                 showStatusToast('Uplift toggled ' + (newVis ? 'ON' : 'OFF'), true);
             }
+            this.bringMarkersToFront();
         },
 
         toggleTomography() {
@@ -782,6 +1192,7 @@
                 if (btn) btn.innerHTML = newVis ? 'Toggle Tomography (ON)' : 'Toggle Tomography (OFF)';
                 showStatusToast('Tomography toggled ' + (newVis ? 'ON' : 'OFF'), true);
             }
+            this.bringMarkersToFront();
         },
 
         toggleStations() {
@@ -789,7 +1200,7 @@
             if (!gd || !gd.data) return;
             const indices = [];
             for (let i = 0; i < gd.data.length; i++) {
-                if (gd.data[i].name && gd.data[i].name.includes('Stations')) {
+                if (gd.data[i].name && (gd.data[i].name === 'Stations' || gd.data[i].name === 'Stations Outline')) {
                     indices.push(i);
                 }
             }
@@ -800,6 +1211,65 @@
                 const btn = document.getElementById('btn-toggle-stations');
                 if (btn) btn.innerHTML = newVis ? 'Toggle Stations (ON)' : 'Toggle Stations (OFF)';
                 showStatusToast('Stations toggled ' + (newVis ? 'ON' : 'OFF'), true);
+            }
+            this.bringMarkersToFront();
+        },
+
+        swapLegend() {
+            const available = ['earthquakes'];
+            if (this._activeTomographyData) {
+                available.push('tomo');
+            }
+            if (this._activeUpliftData) {
+                available.push('uplift');
+            }
+
+            if (available.length === 1) {
+                showStatusToast('Apply layers to swap scale', false);
+                return;
+            }
+
+            let currentIdx = available.indexOf(window._currentLegendMode || 'earthquakes');
+            if (currentIdx === -1) currentIdx = 0;
+            const nextIdx = (currentIdx + 1) % available.length;
+            const nextMode = available[nextIdx];
+            window._currentLegendMode = nextMode;
+
+            const btn = document.getElementById('btn-swap-legend');
+            if (nextMode === 'earthquakes') {
+                if (btn) btn.innerHTML = '⇄ Scale: Quakes';
+                if (window._earthquakeLegendState) {
+                    const s = window._earthquakeLegendState;
+                    updateGlassLegendInternal(s.show, s.title, s.scaleName, s.invert, s.limits, s.dateInfo);
+                }
+                showStatusToast('Swapped legend to Earthquakes scale', true);
+            } else if (nextMode === 'tomo') {
+                if (btn) btn.innerHTML = '⇄ Scale: Tomo';
+                const t = this._activeTomographyData;
+                let minV = t.min_vp_vs, maxV = t.max_vp_vs;
+                if (minV === undefined || maxV === undefined) {
+                    const vals = t.vp_vs || [];
+                    minV = 9999; maxV = -9999;
+                    for (let i = 0; i < vals.length; i++) {
+                        if (vals[i] < minV) minV = vals[i];
+                        if (vals[i] > maxV) maxV = vals[i];
+                    }
+                }
+                if (minV === 9999) { minV = 1.0; maxV = 2.5; }
+                updateGlassLegendInternal(true, 'Tomo Vp/Vs', 'Tomography', false, [minV, maxV], null);
+                showStatusToast('Swapped legend to Tomography Vp/Vs scale', true);
+            } else if (nextMode === 'uplift') {
+                if (btn) btn.innerHTML = '⇄ Scale: Uplift';
+                const u = this._activeUpliftData;
+                const vals = u.up_m || (u.interp_grid ? u.interp_grid.up_m : []) || [];
+                let minU = 9999, maxU = -9999;
+                for (let i = 0; i < vals.length; i++) {
+                    if (vals[i] < minU) minU = vals[i];
+                    if (vals[i] > maxU) maxU = vals[i];
+                }
+                if (minU === 9999) { minU = 0; maxU = 0.08; }
+                updateGlassLegendInternal(true, 'Uplift (mm)', 'Uplift', false, [minU * 1000, maxU * 1000], null);
+                showStatusToast('Swapped legend to Uplift scale (mm)', true);
             }
         },
 
@@ -1129,7 +1599,9 @@
         'Jet': ['#00008f', '#0000ff', '#007fff', '#00ffff', '#7fff7f', '#ffff00', '#ff7f00', '#ff0000', '#7f0000'],
         'Cividis': ['#00224e', '#123570', '#3c4b66', '#6b6d76', '#8e8c82', '#b1ac86', '#d4cd91', '#f8f1ae'],
         'Electric': ['#000000', '#1e008a', '#7d00ba', '#c400b8', '#fe00a2', '#ff5e61', '#ffc100', '#ffff00'],
-        'Hot': ['#000000', '#e60000', '#ffcc00', '#ffffff']
+        'Hot': ['#000000', '#e60000', '#ffcc00', '#ffffff'],
+        'Tomography': ['rgb(255, 60, 0)', 'rgb(255, 160, 80)', 'rgb(255, 255, 255)', 'rgb(80, 180, 255)', 'rgb(0, 100, 255)'],
+        'Uplift': ['rgb(255, 255, 0)', 'rgb(255, 140, 0)', 'rgb(180, 0, 0)']
     };
 
 
@@ -1140,6 +1612,15 @@
 
 
     function updateGlassLegend(show, title, scaleName, invert, limits, dateInfo) {
+        if (title === 'Depth' || (typeof title === 'string' && title.toLowerCase() === 'depth')) title = 'Depth (KM)';
+        window._earthquakeLegendState = { show, title, scaleName, invert, limits, dateInfo };
+        if (!window._currentLegendMode || window._currentLegendMode === 'earthquakes') {
+            updateGlassLegendInternal(show, title, scaleName, invert, limits, dateInfo);
+        }
+    }
+
+    function updateGlassLegendInternal(show, title, scaleName, invert, limits, dateInfo) {
+        if (title === 'Depth' || (typeof title === 'string' && title.toLowerCase() === 'depth')) title = 'Depth (KM)';
         const legend = document.getElementById('glass-legend');
         if (!show) { legend.style.display = 'none'; return; }
 
@@ -1169,6 +1650,8 @@
                 const month = String(d.getMonth() + 1).padStart(2, '0');
                 const year = d.getFullYear();
                 tick.textContent = `${day}-${month}-${year}`;
+            } else if (scaleName === 'Tomography' || title.includes('Tomo')) {
+                tick.textContent = val.toFixed(3);
             } else {
                 tick.textContent = val.toFixed(1);
             }

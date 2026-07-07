@@ -265,7 +265,7 @@
                 applyBtn.onclick = applyFilterWithLoader;
                 // Manually trigger initial legend update for 3D
                 setTimeout(() => {
-                    updateGlassLegend(true, 'Depth', currentColorScale, invertScale, quakeData.dep_limit || quakeData.dep_range, { startDate: quakeData.start_date });
+                    updateGlassLegend(true, 'Depth (KM)', currentColorScale, invertScale, quakeData.dep_limit || quakeData.dep_range, { startDate: quakeData.start_date });
                 }, 10);
             } else {
                 applyBtn.style.display = 'flex';
@@ -306,7 +306,7 @@
                 if (isDep) {
                     limits = quakeData.dep_limit || quakeData.dep_range;
                     colorArr = filtered.dep;
-                    barTitle = 'Depth';
+                    barTitle = 'Depth (KM)';
                 } else if (isMag) {
                     limits = quakeData.mag_limit || quakeData.mag_range;
                     colorArr = filtered.mag;

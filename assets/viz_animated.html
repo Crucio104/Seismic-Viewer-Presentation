@@ -558,7 +558,7 @@
                     sliceColor = sliceDep;
                     visibleTraceIdx = 3;
                     limits = quakeData.dep_range || quakeData.dep_limit;
-                    barTitle = 'Depth';
+                    barTitle = 'Depth (KM)';
                 }
 
                 const markerSizes = currentSizeMode === 'magnitude' ? sliceMag.map(m => Math.max(8, Math.pow(Math.max(0, m), 2) * 1.5)) : [5];
