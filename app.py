@@ -31,9 +31,9 @@ logger = logging.getLogger("SeismicViewer")
 
 # --- Global State ---
 _server_thread: threading.Thread | None = None
-_uvicorn_server: Any = None
-_uvicorn_loop: Any = None
-_api_ref: Any = None
+_uvicorn_server: uvicorn.Server | None = None
+_uvicorn_loop: asyncio.AbstractEventLoop | None = None
+_api_ref: Api | None = None
 
 # --- Route Handlers ---
 
@@ -105,7 +105,7 @@ def pack_seismic_binary(data: dict[str, Any]) -> bytes:
 
 # --- App Factory ---
 
-def _create_fastapi_app() -> Any:
+def _create_fastapi_app() -> FastAPI:
     """Build the FastAPI application."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -140,7 +140,7 @@ def _create_fastapi_app() -> Any:
 
 # --- Server Control ---
 
-def _start_http_server(api_instance: Any = None) -> None:
+def _start_http_server(api_instance: Api | None = None) -> None:
     """Start the FastAPI server in a background thread."""
     global _server_thread, _uvicorn_server, _api_ref
     if _server_thread is not None:

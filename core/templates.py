@@ -96,7 +96,7 @@ def _get_loader_html(msg: str) -> str:
         f'<style>@keyframes spin{{to{{transform:rotate(360deg)}}}}</style>'
     )
 
-def _get_view_scripts(is_animated: bool, is_cluster: bool, earthquake_data: Any, data_url: str, is_fallback: bool, is_3d: bool) -> str:
+def _get_view_scripts(is_animated: bool, is_cluster: bool, earthquake_data: dict[str, Any] | None, data_url: str, is_fallback: bool, is_3d: bool) -> str:
     scripts = ""
     if is_animated:
         content = TEMPLATE_CACHE.get('animated', "").replace('__DATA_URL__', data_url)

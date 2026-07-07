@@ -152,7 +152,7 @@ def fetch_ingv_data(params: dict[str, Any]) -> str:
                 md = md_list[0]
             
             # Helper to safely format numbers or return empty string
-            def fmt(val: Any, precision: int) -> str:
+            def fmt(val: float | int | str | None, precision: int) -> str:
                 try:
                     return f"{float(val):.{precision}f}"
                 except (ValueError, TypeError):

@@ -57,7 +57,7 @@ def set_http_port(port: int) -> None:
 # Keys are session IDs (short hex strings), values are JSON-serializable dicts.
 _data_store: dict[str, Any] = {}
 
-def store_session_data(session_id: str, data: Any) -> None:
+def store_session_data(session_id: str, data: dict[str, Any]) -> None:
     """Store visualization data for a session, evicting old entries."""
     global _data_store
     # Keep at most 30 sessions to bound memory usage but prevent premature eviction
@@ -66,7 +66,7 @@ def store_session_data(session_id: str, data: Any) -> None:
         del _data_store[oldest_key]
     _data_store[session_id] = data
 
-def get_session_data(session_id: str) -> Any | None:
+def get_session_data(session_id: str) -> dict[str, Any] | None:
     """Retrieve stored visualization data for a session."""
     return _data_store.get(session_id)
 

@@ -32,11 +32,11 @@ class Api:
         self._csv_info: dict[str, Any] | None = None
         self._html_cache: dict[tuple, str] = {} 
         self._history_stack: list[dict[str, Any]] = []
-        self._socket_manager: Any = None
-        self._event_loop: Any = None
+        self._socket_manager: object | None = None
+        self._event_loop: asyncio.AbstractEventLoop | None = None
         self._last_cluster_result: dict[str, Any] | None = None
 
-    def set_socket_manager(self, manager: Any, loop: Any = None) -> None:
+    def set_socket_manager(self, manager: object, loop: asyncio.AbstractEventLoop | None = None) -> None:
         """Set the FastAPI WebSocket manager and the event loop."""
         self._socket_manager = manager
         self._event_loop = loop

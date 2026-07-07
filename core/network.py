@@ -1,7 +1,6 @@
 import logging
 import asyncio
 import json
-from typing import Any
 from fastapi import WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ class ConnectionManager:
                 # Connection might be stale
                 pass
 
-async def handle_websocket_messages(websocket: WebSocket, manager: ConnectionManager, api_ref: Any, loop: Any):
+async def handle_websocket_messages(websocket: WebSocket, manager: ConnectionManager, api_ref: object | None, loop: asyncio.AbstractEventLoop | None) -> None:
     """Handle incoming WebSocket messages and route them to the API bridge."""
     try:
         while True:
