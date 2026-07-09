@@ -114,8 +114,8 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
             pts = np.column_stack([cal_lons, cal_lats, cal_depths])
             interp = NearestNDInterpolator(pts, cal_vpvs)
             
-            # Regular grid dimensions (keep moderate for fast WebGL)
-            nx, ny, nz = 35, 30, 25
+            # Regular grid dimensions (high-resolution for smooth 3D volumetric rendering)
+            nx, ny, nz = 60, 50, 40
             
             # Use np.mgrid to create a proper structured 3D grid
             lon_min, lon_max = float(cal_lons.min()), float(cal_lons.max())

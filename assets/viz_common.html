@@ -601,50 +601,53 @@
                                 // Use server-side pre-computed regular grid for 3D volumetric rendering
                                 const isoGrid = t.iso_grid;
                                 if (isoGrid && isoGrid.x && isoGrid.x.length > 0) {
-                                    // 1. High Vp/Vs Anomaly Volume (Magma & Fluid Intrusions)
-                                    // We isolate Vp/Vs > 1.82, excluding normal background rock (~1.75)
+                                    const minVpVs = (isoGrid.min_val !== undefined && !isNaN(isoGrid.min_val)) ? isoGrid.min_val : 0.68;
+                                    const maxVpVs = (isoGrid.max_val !== undefined && !isNaN(isoGrid.max_val)) ? isoGrid.max_val : 2.85;
+
+                                    const globalTomoColorScale = [
+                                        [0.0, 'rgb(0, 80, 255)'],      // Min Vp/Vs -> Deep Blue
+                                        [0.35, 'rgb(80, 180, 255)'],   // Low Vp/Vs -> Light Blue / Cyan
+                                        [0.5, 'rgb(245, 245, 245)'],   // Background ~1.75 -> Neutral White
+                                        [0.65, 'rgb(255, 140, 40)'],   // High Vp/Vs -> Warm Orange
+                                        [1.0, 'rgb(255, 20, 0)']       // Max Vp/Vs -> Bright Red
+                                    ];
+
+                                    // 1. High Vp/Vs Anomaly Volume (Vp/Vs > 1.76 up to max dataset value)
                                     newTraces.push({
                                         type: 'volume',
-                                        name: 'Tomography High Vp/Vs (Magma Volume)',
+                                        name: 'Tomography High Vp/Vs (> 1.75)',
                                         x: isoGrid.x,
                                         y: isoGrid.y,
                                         z: isoGrid.z,
                                         value: isoGrid.value,
-                                        isomin: 1.82,
-                                        isomax: 2.35,
-                                        opacity: 0.45,
-                                        surface: { count: 15 },
-                                        colorscale: [
-                                            [0.0, 'rgb(255, 210, 120)'],
-                                            [0.35, 'rgb(255, 150, 50)'],
-                                            [0.7, 'rgb(240, 60, 0)'],
-                                            [1.0, 'rgb(180, 0, 0)']
-                                        ],
+                                        isomin: 1.76,
+                                        isomax: Math.max(maxVpVs, 1.80),
+                                        cmin: 1.15,
+                                        cmax: 2.35,
+                                        opacity: 0.18,
+                                        surface: { count: 24 },
+                                        colorscale: globalTomoColorScale,
                                         reversescale: false,
                                         showscale: false,
                                         hoverinfo: 'skip',
                                         caps: { x: { show: false }, y: { show: false }, z: { show: false } }
                                     });
 
-                                    // 2. Low Vp/Vs Anomaly Volume (Gas & Steam Reservoirs)
-                                    // We isolate Vp/Vs < 1.68, excluding normal background rock (~1.75)
+                                    // 2. Low Vp/Vs Anomaly Volume (min dataset value up to 1.74)
                                     newTraces.push({
                                         type: 'volume',
-                                        name: 'Tomography Low Vp/Vs (Gas Volume)',
+                                        name: 'Tomography Low Vp/Vs (< 1.75)',
                                         x: isoGrid.x,
                                         y: isoGrid.y,
                                         z: isoGrid.z,
                                         value: isoGrid.value,
-                                        isomin: 1.35,
-                                        isomax: 1.68,
-                                        opacity: 0.45,
-                                        surface: { count: 15 },
-                                        colorscale: [
-                                            [0.0, 'rgb(0, 30, 160)'],
-                                            [0.35, 'rgb(0, 120, 240)'],
-                                            [0.7, 'rgb(60, 190, 255)'],
-                                            [1.0, 'rgb(170, 235, 255)']
-                                        ],
+                                        isomin: Math.min(minVpVs, 1.70),
+                                        isomax: 1.74,
+                                        cmin: 1.15,
+                                        cmax: 2.35,
+                                        opacity: 0.18,
+                                        surface: { count: 24 },
+                                        colorscale: globalTomoColorScale,
                                         reversescale: false,
                                         showscale: false,
                                         hoverinfo: 'skip',
@@ -1112,12 +1115,14 @@
                         hovertemplate: '%{hovertext}<extra></extra>',
                         opacity: 0.75,
                         visible: isVisible,
+                        zmin: 1.15,
+                        zmax: 2.35,
                         colorscale: [
-                            [0.0, 'rgb(255, 60, 0)'],
-                            [0.35, 'rgb(255, 160, 80)'],
+                            [0.0, 'rgb(0, 100, 255)'],
+                            [0.35, 'rgb(80, 180, 255)'],
                             [0.5, 'rgb(255, 255, 255)'],
-                            [0.65, 'rgb(80, 180, 255)'],
-                            [1.0, 'rgb(0, 100, 255)']
+                            [0.65, 'rgb(255, 160, 80)'],
+                            [1.0, 'rgb(255, 60, 0)']
                         ],
                         showscale: false,
                         marker: {
@@ -1256,7 +1261,7 @@
                     }
                 }
                 if (minV === 9999) { minV = 1.0; maxV = 2.5; }
-                updateGlassLegendInternal(true, 'Tomo Vp/Vs', 'Tomography', false, [minV, maxV], null);
+                updateGlassLegendInternal(true, 'Tomo Vp/Vs', 'Tomography', false, [1.15, 2.35], null);
                 showStatusToast('Swapped legend to Tomography Vp/Vs scale', true);
             } else if (nextMode === 'uplift') {
                 if (btn) btn.innerHTML = '⇄ Scale: Uplift';
@@ -1600,7 +1605,7 @@
         'Cividis': ['#00224e', '#123570', '#3c4b66', '#6b6d76', '#8e8c82', '#b1ac86', '#d4cd91', '#f8f1ae'],
         'Electric': ['#000000', '#1e008a', '#7d00ba', '#c400b8', '#fe00a2', '#ff5e61', '#ffc100', '#ffff00'],
         'Hot': ['#000000', '#e60000', '#ffcc00', '#ffffff'],
-        'Tomography': ['rgb(255, 60, 0)', 'rgb(255, 160, 80)', 'rgb(255, 255, 255)', 'rgb(80, 180, 255)', 'rgb(0, 100, 255)'],
+        'Tomography': ['rgb(0, 100, 255)', 'rgb(80, 180, 255)', 'rgb(255, 255, 255)', 'rgb(255, 160, 80)', 'rgb(255, 60, 0)'],
         'Uplift': ['rgb(255, 255, 0)', 'rgb(255, 140, 0)', 'rgb(180, 0, 0)']
     };
 
