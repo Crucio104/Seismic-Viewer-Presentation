@@ -743,28 +743,8 @@
                                         visible: true
                                     });
                                 }
-                                if (u.surface && (u.surface.x || u.lons)) {
-                                    newTraces.push({
-                                        type: 'mesh3d',
-                                        name: 'Uplift',
-                                        x: u.surface.x || u.lons,
-                                        y: u.surface.y || u.lats,
-                                        z: u.surface.z || u.z_scaled,
-                                        delaunayaxis: 'z',
-                                        intensity: u.surface.z || u.z_scaled,
-                                        colorscale: [
-                                            [0.0, 'rgb(255, 255, 0)'],
-                                            [0.5, 'rgb(255, 140, 0)'],
-                                            [1.0, 'rgb(139, 0, 0)']
-                                        ],
-                                        showscale: false,
-                                        opacity: 0.6,
-                                        hoverinfo: 'skip',
-                                        visible: true
-                                    });
-                                    const toggleBtn = document.getElementById('btn-toggle-uplift-surface');
-                                    if (toggleBtn) toggleBtn.classList.add('visible');
-                                }
+                                const toggleBtn = document.getElementById('btn-toggle-uplift-surface');
+                                if (toggleBtn) toggleBtn.classList.add('visible');
                             }
                         }
                         const s = layers.stations || res.stations;
