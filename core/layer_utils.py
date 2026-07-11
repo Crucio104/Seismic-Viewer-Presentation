@@ -93,58 +93,84 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
         
         hover_texts = [f"Vp/Vs: {val:.3f}<br>Depth: {abs(dep):.2f} km" for val, dep in zip(vp_vs, depths)]
         
-        # Build a regular 3D grid for volumetric rendering (server-side interpolation)
+        # Build a regular 3D grid for volumetric rendering (server-side continuous IDW interpolation)
         iso_grid = None
         try:
-            from scipy.interpolate import NearestNDInterpolator
+            from scipy.spatial import cKDTree
             
             # Only interpolate calibrated points (VP != 0) for clean volumes
             vp_col = next((c for c in df.columns if c == 'VP' or 'V_P' in c or 'P_VEL' in c), None)
             if vp_col is not None:
-                mask = df[vp_col].values != 0
+                mask = (df[vp_col].values != 0) & np.isfinite(vp_vs)
             else:
-                mask = np.ones(len(df), dtype=bool)
+                mask = np.isfinite(vp_vs)
             
             cal_lons = lons[mask]
             cal_lats = lats[mask]
             cal_depths = depths[mask]  # Already -abs(utmz)
             cal_vpvs = vp_vs[mask]
             
-            # Build interpolator in lat/lon/depth space (same as 3D plot axes)
-            pts = np.column_stack([cal_lons, cal_lats, cal_depths])
-            interp = NearestNDInterpolator(pts, cal_vpvs)
-            
-            # Regular grid dimensions (high-resolution for smooth 3D volumetric rendering)
-            nx, ny, nz = 60, 50, 40
-            
-            # Use np.mgrid to create a proper structured 3D grid
-            lon_min, lon_max = float(cal_lons.min()), float(cal_lons.max())
-            lat_min, lat_max = float(cal_lats.min()), float(cal_lats.max())
-            dep_min, dep_max = float(cal_depths.min()), float(cal_depths.max())
-            
-            X, Y, Z = np.mgrid[
-                lon_min:lon_max:nx*1j,
-                lat_min:lat_max:ny*1j,
-                dep_min:dep_max:nz*1j
-            ]
-            
-            # Flatten in C-order (x varies slowest, z varies fastest) — required by Plotly
-            flat_x = X.flatten().tolist()
-            flat_y = Y.flatten().tolist()
-            flat_z = Z.flatten().tolist()
-            flat_vals = interp(X.flatten(), Y.flatten(), Z.flatten()).tolist()
-            
-            iso_grid = {
-                'x': flat_x,
-                'y': flat_y,
-                'z': flat_z,
-                'value': flat_vals,
-                'min_val': float(np.nanmin(flat_vals)),
-                'max_val': float(np.nanmax(flat_vals)),
-                'mean_val': float(np.nanmean(flat_vals)),
-            }
-            logger.info(f"Griglia volume 3D generata: {nx}x{ny}x{nz} = {nx*ny*nz} voxels, "
-                        f"Vp/Vs range [{iso_grid['min_val']:.3f}, {iso_grid['max_val']:.3f}]")
+            if len(cal_vpvs) > 0:
+                pts = np.column_stack([cal_lons, cal_lats, cal_depths])
+                
+                # Normalize coordinates to [0, 1] so horizontal (lat/lon) and vertical (depth) distances are isotropic
+                coord_min = pts.min(axis=0)
+                coord_ptp = np.maximum(pts.max(axis=0) - coord_min, 1e-9)
+                pts_norm = (pts - coord_min) / coord_ptp
+                
+                tree = cKDTree(pts_norm)
+                
+                # Regular grid dimensions (high-resolution for smooth 3D volumetric rendering)
+                nx, ny, nz = 60, 50, 40
+                
+                lon_min, lon_max = float(cal_lons.min()), float(cal_lons.max())
+                lat_min, lat_max = float(cal_lats.min()), float(cal_lats.max())
+                dep_min, dep_max = float(cal_depths.min()), float(cal_depths.max())
+                
+                X, Y, Z = np.mgrid[
+                    lon_min:lon_max:nx*1j,
+                    lat_min:lat_max:ny*1j,
+                    dep_min:dep_max:nz*1j
+                ]
+                
+                grid_pts = np.column_stack([X.ravel(), Y.ravel(), Z.ravel()])
+                grid_norm = (grid_pts - coord_min) / coord_ptp
+                
+                # Query k=16 nearest neighbors for smooth Inverse Distance Weighting (IDW)
+                k_neighbors = min(16, len(cal_vpvs))
+                dists, idxs = tree.query(grid_norm, k=k_neighbors)
+                
+                if dists.ndim == 1:
+                    dists = dists[:, np.newaxis]
+                    idxs = idxs[:, np.newaxis]
+                
+                # Avoid division by zero for points that coincide with sample locations
+                eps = 1e-9
+                dists = np.maximum(dists, eps)
+                
+                # Smooth Inverse Distance Weighting (power p = 2.0)
+                weights = 1.0 / (dists ** 2.0)
+                weights_sum = np.sum(weights, axis=1, keepdims=True)
+                idw_vals = (np.sum(weights * cal_vpvs[idxs], axis=1, keepdims=True) / weights_sum).ravel()
+                
+                # Apply smooth Gaussian damping towards crustal background Vp/Vs (1.75) away from measured stations
+                d_min = dists[:, 0]  # Distance to closest seismic sample
+                sigma = 0.15         # Characteristic decay radius in normalized coordinates (~15% of bounding box)
+                alpha = np.exp(-((d_min / sigma) ** 2))
+                bg_val = 1.75
+                flat_vals = alpha * idw_vals + (1.0 - alpha) * bg_val
+                
+                iso_grid = {
+                    'x': X.flatten().tolist(),
+                    'y': Y.flatten().tolist(),
+                    'z': Z.flatten().tolist(),
+                    'value': flat_vals.tolist(),
+                    'min_val': float(np.nanmin(flat_vals)),
+                    'max_val': float(np.nanmax(flat_vals)),
+                    'mean_val': float(np.nanmean(flat_vals)),
+                }
+                logger.info(f"Griglia volume 3D generata con IDW continuo: {nx}x{ny}x{nz} = {nx*ny*nz} voxels, "
+                            f"Vp/Vs range [{iso_grid['min_val']:.3f}, {iso_grid['max_val']:.3f}]")
         except ImportError:
             logger.warning("scipy non disponibile, volume 3D disabilitato")
         except Exception as e_iso:
