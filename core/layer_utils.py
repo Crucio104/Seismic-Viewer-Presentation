@@ -89,7 +89,7 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
         depths = -np.abs(df[utmz_col].values.astype(float))
         vp_vs = df[vpvs_col].values.astype(float)
         
-        logger.info(f"Elaborati {len(df)} punti di tomografia da {path.name}")
+        logger.info(f"Processed {len(df)} tomography points from {path.name}")
         
         hover_texts = [f"Vp/Vs: {val:.3f}<br>Depth: {abs(dep):.2f} km" for val, dep in zip(vp_vs, depths)]
         
@@ -169,12 +169,12 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
                     'max_val': float(np.nanmax(flat_vals)),
                     'mean_val': float(np.nanmean(flat_vals)),
                 }
-                logger.info(f"Griglia volume 3D generata con IDW continuo: {nx}x{ny}x{nz} = {nx*ny*nz} voxels, "
+                logger.info(f"Generated 3D volume grid with continuous IDW: {nx}x{ny}x{nz} = {nx*ny*nz} voxels, "
                             f"Vp/Vs range [{iso_grid['min_val']:.3f}, {iso_grid['max_val']:.3f}]")
         except ImportError:
-            logger.warning("scipy non disponibile, volume 3D disabilitato")
+            logger.warning("scipy not available, 3D volume disabled")
         except Exception as e_iso:
-            logger.warning(f"Errore generazione griglia volume: {e_iso}")
+            logger.warning(f"Error generating volume grid: {e_iso}")
         
         result = {
             'status': 'success',
@@ -196,8 +196,8 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
             result['iso_grid'] = iso_grid
         return result
     except Exception as e:
-        logger.error(f"Errore durante l'elaborazione della tomografia: {e}", exc_info=True)
-        return {'error': f"Errore elaborazione tomografia: {str(e)}"}
+        logger.error(f"Error during tomography processing: {e}", exc_info=True)
+        return {'error': f"Tomography processing error: {str(e)}"}
 
 
 def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None, stations_path: str | Path | None = None) -> dict[str, Any]:

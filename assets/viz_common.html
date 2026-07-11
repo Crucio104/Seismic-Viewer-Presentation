@@ -97,6 +97,14 @@
         <button class="layer-toggle-btn" id="btn-toggle-tomo-points" onclick="SeismicUI.toggleTomography()">
             Toggle Tomography
         </button>
+        <div style="display: flex; gap: 0.2rem;">
+            <button class="layer-toggle-btn" id="btn-toggle-tomo-high" onclick="SeismicUI.toggleTomographyHigh()" title="Isolate High Vp/Vs (> 1.75)" style="flex: 1; font-size: 0.65rem;">
+                High Vp/Vs
+            </button>
+            <button class="layer-toggle-btn" id="btn-toggle-tomo-low" onclick="SeismicUI.toggleTomographyLow()" title="Isolate Low Vp/Vs (< 1.75)" style="flex: 1; font-size: 0.65rem;">
+                Low Vp/Vs
+            </button>
+        </div>
         <button class="layer-toggle-btn" id="btn-toggle-stations" onclick="SeismicUI.toggleStations()">
             Toggle Stations
         </button>
@@ -595,33 +603,41 @@
                             showStatusToast('Tomography Error: ' + t.error, false);
                         } else if (t && (t.x || t.lons)) {
                             self._activeTomographyData = t;
-                            if (isMapbox) {
-                                self._setupTomography2DControls(t);
-                            } else {
+                            self._setupTomography2DControls(t);
+                            if (!isMapbox) {
                                 // Use server-side pre-computed regular grid for 3D volumetric rendering
                                 const isoGrid = t.iso_grid;
                                 if (isoGrid && isoGrid.x && isoGrid.x.length > 0) {
                                     const minVpVs = (isoGrid.min_val !== undefined && !isNaN(isoGrid.min_val)) ? isoGrid.min_val : 0.68;
                                     const maxVpVs = (isoGrid.max_val !== undefined && !isNaN(isoGrid.max_val)) ? isoGrid.max_val : 2.85;
 
+                                    let neutralRef = 1.75;
+                                    const neutralInputEl = document.getElementById('tomo-neutral-input');
+                                    if (neutralInputEl && neutralInputEl.value) {
+                                        const parsedNeut = parseFloat(neutralInputEl.value);
+                                        if (!isNaN(parsedNeut) && parsedNeut >= 1.2 && parsedNeut <= 2.5) {
+                                            neutralRef = parsedNeut;
+                                        }
+                                    }
+
                                     const globalTomoColorScale = [
                                         [0.0, 'rgb(0, 80, 255)'],      // Min Vp/Vs -> Deep Blue
                                         [0.35, 'rgb(80, 180, 255)'],   // Low Vp/Vs -> Light Blue / Cyan
-                                        [0.5, 'rgb(245, 245, 245)'],   // Background ~1.75 -> Neutral White
+                                        [0.5, 'rgb(245, 245, 245)'],   // Background -> Neutral White
                                         [0.65, 'rgb(255, 140, 40)'],   // High Vp/Vs -> Warm Orange
                                         [1.0, 'rgb(255, 20, 0)']       // Max Vp/Vs -> Bright Red
                                     ];
 
-                                    // 1. High Vp/Vs Anomaly Volume (Vp/Vs > 1.76 up to max dataset value)
+                                    // 1. High Vp/Vs Anomaly Volume (Vp/Vs > neutralRef up to max dataset value)
                                     newTraces.push({
                                         type: 'volume',
-                                        name: 'Tomography High Vp/Vs (> 1.75)',
+                                        name: `Tomography High Vp/Vs (> ${neutralRef.toFixed(2)})`,
                                         x: isoGrid.x,
                                         y: isoGrid.y,
                                         z: isoGrid.z,
                                         value: isoGrid.value,
-                                        isomin: 1.76,
-                                        isomax: Math.max(maxVpVs, 1.80),
+                                        isomin: neutralRef + 0.01,
+                                        isomax: Math.max(maxVpVs, neutralRef + 0.05),
                                         cmin: 1.15,
                                         cmax: 2.35,
                                         opacity: 0.45,
@@ -629,20 +645,21 @@
                                         colorscale: globalTomoColorScale,
                                         reversescale: false,
                                         showscale: false,
+                                        showlegend: true,
                                         hoverinfo: 'skip',
                                         caps: { x: { show: false }, y: { show: false }, z: { show: false } }
                                     });
 
-                                    // 2. Low Vp/Vs Anomaly Volume (min dataset value up to 1.74)
+                                    // 2. Low Vp/Vs Anomaly Volume (min dataset value up to neutralRef)
                                     newTraces.push({
                                         type: 'volume',
-                                        name: 'Tomography Low Vp/Vs (< 1.75)',
+                                        name: `Tomography Low Vp/Vs (< ${neutralRef.toFixed(2)})`,
                                         x: isoGrid.x,
                                         y: isoGrid.y,
                                         z: isoGrid.z,
                                         value: isoGrid.value,
-                                        isomin: Math.min(minVpVs, 1.70),
-                                        isomax: 1.74,
+                                        isomin: Math.min(minVpVs, neutralRef - 0.05),
+                                        isomax: neutralRef - 0.01,
                                         cmin: 1.15,
                                         cmax: 2.35,
                                         opacity: 0.45,
@@ -650,6 +667,7 @@
                                         colorscale: globalTomoColorScale,
                                         reversescale: false,
                                         showscale: false,
+                                        showlegend: true,
                                         hoverinfo: 'skip',
                                         caps: { x: { show: false }, y: { show: false }, z: { show: false } }
                                     });
@@ -659,6 +677,16 @@
                             if (toggleTomoBtn) {
                                 toggleTomoBtn.classList.add('visible');
                                 toggleTomoBtn.innerHTML = 'Toggle Tomography (ON)';
+                            }
+                            const tomoHighBtn = document.getElementById('btn-toggle-tomo-high');
+                            if (tomoHighBtn) {
+                                tomoHighBtn.classList.add('visible');
+                                tomoHighBtn.innerHTML = 'High (ON)';
+                            }
+                            const tomoLowBtn = document.getElementById('btn-toggle-tomo-low');
+                            if (tomoLowBtn) {
+                                tomoLowBtn.classList.add('visible');
+                                tomoLowBtn.innerHTML = 'Low (ON)';
                             }
                         }
                         const u = layers.uplift || res.uplift;
@@ -888,54 +916,83 @@
             const gd = document.querySelector('.plotly-graph-div');
             const isMapboxView = gd && ((gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox')) || (gd.layout && gd.layout.mapbox));
             let tomoGroup = document.getElementById('tomo-depth-filter-group');
-            if (!isMapboxView) {
-                if (tomoGroup) tomoGroup.style.display = 'none';
-                return;
-            }
+            let neutralGroup = document.getElementById('tomo-neutral-filter-group');
             const settingsBar = document.getElementById('settings-bar');
             if (!settingsBar) return;
 
-            if (!tomoGroup) {
-                tomoGroup = document.createElement('div');
-                tomoGroup.id = 'tomo-depth-filter-group';
-                tomoGroup.className = 'settings-group';
-                
-                tomoGroup.innerHTML = `
-                    <label class="label" for="tomo-depth-input">Tomography Slice Depth (km)</label>
-                    <div class="settings-row">
-                        <input type="number" class="glass-input" id="tomo-depth-input" step="0.5" placeholder="Depth (km)">
-                    </div>
-                `;
-                
-                const applyBtn = settingsBar.querySelector('#apply-filters-btn') || settingsBar.querySelector('#apply-all-btn') || settingsBar.querySelector('#apply-btn');
-                if (applyBtn && applyBtn.parentNode === settingsBar) {
-                    settingsBar.insertBefore(tomoGroup, applyBtn);
-                } else if (applyBtn && applyBtn.parentNode && applyBtn.parentNode.parentNode === settingsBar) {
-                    settingsBar.insertBefore(tomoGroup, applyBtn.parentNode);
-                } else {
-                    settingsBar.appendChild(tomoGroup);
-                }
+            if (isMapboxView) {
+                if (neutralGroup) neutralGroup.style.display = 'none';
+                if (!tomoGroup) {
+                    tomoGroup = document.createElement('div');
+                    tomoGroup.id = 'tomo-depth-filter-group';
+                    tomoGroup.className = 'settings-group';
+                    
+                    tomoGroup.innerHTML = `
+                        <label class="label" for="tomo-depth-input">Tomography Slice Depth (km)</label>
+                        <div class="settings-row">
+                            <input type="number" class="glass-input" id="tomo-depth-input" step="0.5" placeholder="Depth (km)">
+                        </div>
+                    `;
+                    
+                    const applyBtn = settingsBar.querySelector('#apply-filters-btn') || settingsBar.querySelector('#apply-all-btn') || settingsBar.querySelector('#apply-btn');
+                    if (applyBtn && applyBtn.parentNode === settingsBar) {
+                        settingsBar.insertBefore(tomoGroup, applyBtn);
+                    } else if (applyBtn && applyBtn.parentNode && applyBtn.parentNode.parentNode === settingsBar) {
+                        settingsBar.insertBefore(tomoGroup, applyBtn.parentNode);
+                    } else {
+                        settingsBar.appendChild(tomoGroup);
+                    }
 
-                const inputEl = document.getElementById('tomo-depth-input');
-                if (inputEl) {
-                    inputEl.addEventListener('change', (e) => {
-                        SeismicUI.updateTomographySlice(e.target.value);
-                    });
-                    inputEl.addEventListener('input', (e) => {
-                        SeismicUI.updateTomographySlice(e.target.value);
-                    });
+                    const inputEl = document.getElementById('tomo-depth-input');
+                    if (inputEl) {
+                        inputEl.addEventListener('change', (e) => {
+                            SeismicUI.updateTomographySlice(e.target.value);
+                        });
+                        inputEl.addEventListener('input', (e) => {
+                            SeismicUI.updateTomographySlice(e.target.value);
+                        });
+                    }
                 }
-            }
-            
-            const depths = t.z || t.depths || [];
-            if (depths.length > 0) {
-                const uniqueDepths = Array.from(new Set(depths.map(d => Math.round(Math.abs(d) * 100) / 100))).sort((a, b) => a - b);
-                const inputEl = document.getElementById('tomo-depth-input');
-                if (inputEl && uniqueDepths.length > 0) {
-                    inputEl.value = uniqueDepths[0];
+                
+                const depths = t.z || t.depths || [];
+                if (depths.length > 0) {
+                    const uniqueDepths = Array.from(new Set(depths.map(d => Math.round(Math.abs(d) * 100) / 100))).sort((a, b) => a - b);
+                    const inputEl = document.getElementById('tomo-depth-input');
+                    if (inputEl && uniqueDepths.length > 0) {
+                        inputEl.value = uniqueDepths[0];
+                    }
                 }
+                tomoGroup.style.display = 'block';
+            } else {
+                if (tomoGroup) tomoGroup.style.display = 'none';
+                if (!neutralGroup) {
+                    neutralGroup = document.createElement('div');
+                    neutralGroup.id = 'tomo-neutral-filter-group';
+                    neutralGroup.className = 'settings-group';
+                    neutralGroup.innerHTML = `
+                        <label class="label" for="tomo-neutral-input">Neutral Vp/Vs Ref</label>
+                        <div class="settings-row">
+                            <input type="number" class="glass-input" id="tomo-neutral-input" step="0.01" value="1.75" placeholder="1.75">
+                        </div>
+                    `;
+                    const applyBtn = settingsBar.querySelector('#apply-filters-btn') || settingsBar.querySelector('#apply-all-btn') || settingsBar.querySelector('#apply-btn');
+                    if (applyBtn && applyBtn.parentNode === settingsBar) {
+                        settingsBar.insertBefore(neutralGroup, applyBtn);
+                    } else if (applyBtn && applyBtn.parentNode && applyBtn.parentNode.parentNode === settingsBar) {
+                        settingsBar.insertBefore(neutralGroup, applyBtn.parentNode);
+                    } else {
+                        settingsBar.appendChild(neutralGroup);
+                    }
+
+                    const inputEl = document.getElementById('tomo-neutral-input');
+                    if (inputEl) {
+                        inputEl.addEventListener('change', (e) => {
+                            SeismicUI.updateTomographyNeutral(e.target.value);
+                        });
+                    }
+                }
+                neutralGroup.style.display = 'block';
             }
-            tomoGroup.style.display = 'block';
         },
 
         updateTomographySlice(targetDepthStr) {
@@ -1116,6 +1173,36 @@
             this.bringMarkersToFront();
         },
 
+        updateTomographyNeutral(val) {
+            const gd = document.querySelector('.plotly-graph-div');
+            if (!gd || !gd.data) return;
+            const parsed = parseFloat(val);
+            if (isNaN(parsed) || parsed < 1.2 || parsed > 2.5) return;
+            
+            const highIdx = gd.data.findIndex(tr => tr.name && tr.name.includes('High Vp/Vs'));
+            const lowIdx = gd.data.findIndex(tr => tr.name && tr.name.includes('Low Vp/Vs'));
+            
+            if (highIdx !== -1) {
+                const tr = gd.data[highIdx];
+                const newMax = Math.max((tr.isomax || 2.2), parsed + 0.05);
+                Plotly.restyle(gd, {
+                    name: `Tomography High Vp/Vs (> ${parsed.toFixed(2)})`,
+                    isomin: parsed + 0.01,
+                    isomax: newMax
+                }, [highIdx]);
+            }
+            if (lowIdx !== -1) {
+                const tr = gd.data[lowIdx];
+                const newMin = Math.min((tr.isomin || 1.3), parsed - 0.05);
+                Plotly.restyle(gd, {
+                    name: `Tomography Low Vp/Vs (< ${parsed.toFixed(2)})`,
+                    isomin: newMin,
+                    isomax: parsed - 0.01
+                }, [lowIdx]);
+            }
+            showStatusToast(`Tomography neutral reference updated to ${parsed.toFixed(2)}`, true);
+        },
+
         bringMarkersToFront() {
             const gd = document.querySelector('.plotly-graph-div');
             if (!gd || !gd.data || gd.data.length <= 1) return;
@@ -1175,7 +1262,51 @@
                 Plotly.restyle(gd, { visible: newVis }, indices);
                 const btn = document.getElementById('btn-toggle-tomo-points');
                 if (btn) btn.innerHTML = newVis ? 'Toggle Tomography (ON)' : 'Toggle Tomography (OFF)';
+                const btnHigh = document.getElementById('btn-toggle-tomo-high');
+                if (btnHigh) btnHigh.innerHTML = newVis ? 'High (ON)' : 'High (OFF)';
+                const btnLow = document.getElementById('btn-toggle-tomo-low');
+                if (btnLow) btnLow.innerHTML = newVis ? 'Low (ON)' : 'Low (OFF)';
                 showStatusToast('Tomography toggled ' + (newVis ? 'ON' : 'OFF'), true);
+            }
+            this.bringMarkersToFront();
+        },
+
+        toggleTomographyHigh() {
+            const gd = document.querySelector('.plotly-graph-div');
+            if (!gd || !gd.data) return;
+            const indices = [];
+            for (let i = 0; i < gd.data.length; i++) {
+                if (gd.data[i].name && gd.data[i].name.includes('High Vp/Vs')) {
+                    indices.push(i);
+                }
+            }
+            if (indices.length > 0) {
+                const currentVis = gd.data[indices[0]].visible;
+                const newVis = (currentVis === false || currentVis === 'legendonly') ? true : false;
+                Plotly.restyle(gd, { visible: newVis }, indices);
+                const btn = document.getElementById('btn-toggle-tomo-high');
+                if (btn) btn.innerHTML = newVis ? 'High (ON)' : 'High (OFF)';
+                showStatusToast('Tomography High Vp/Vs toggled ' + (newVis ? 'ON' : 'OFF'), true);
+            }
+            this.bringMarkersToFront();
+        },
+
+        toggleTomographyLow() {
+            const gd = document.querySelector('.plotly-graph-div');
+            if (!gd || !gd.data) return;
+            const indices = [];
+            for (let i = 0; i < gd.data.length; i++) {
+                if (gd.data[i].name && gd.data[i].name.includes('Low Vp/Vs')) {
+                    indices.push(i);
+                }
+            }
+            if (indices.length > 0) {
+                const currentVis = gd.data[indices[0]].visible;
+                const newVis = (currentVis === false || currentVis === 'legendonly') ? true : false;
+                Plotly.restyle(gd, { visible: newVis }, indices);
+                const btn = document.getElementById('btn-toggle-tomo-low');
+                if (btn) btn.innerHTML = newVis ? 'Low (ON)' : 'Low (OFF)';
+                showStatusToast('Tomography Low Vp/Vs toggled ' + (newVis ? 'ON' : 'OFF'), true);
             }
             this.bringMarkersToFront();
         },
