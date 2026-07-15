@@ -101,6 +101,48 @@ def auto_tune_dbscan_params(target_lon, target_lat, target_dep, data: dict[str, 
         import logging
         logging.getLogger(__name__).warning(f"Failed to calculate optimal eps: {e}")
 
+def auto_tune_kmeans_params(target_lon, target_lat, target_dep, data: dict[str, Any], clustering_params: dict[str, Any]) -> None:
+    if len(target_lon) < 3:
+        return
+    try:
+        from core.engine.analysis import project_to_km
+        from sklearn.cluster import MiniBatchKMeans
+
+        o_lat = data.get('origin_lat', np.mean(target_lat))
+        o_lon = data.get('origin_lon', np.mean(target_lon))
+
+        pts_km = project_to_km(target_lon, target_lat, target_dep, o_lat, o_lon)
+        n_pts = len(pts_km)
+        max_k = min(10, n_pts)
+        if max_k < 3:
+            return
+
+        ks = list(range(2, max_k + 1))
+        inertias = []
+        for k in ks:
+            km = MiniBatchKMeans(n_clusters=k, random_state=42, n_init='auto').fit(pts_km)
+            inertias.append(float(km.inertia_))
+
+        n_points = len(inertias)
+        all_coord = np.vstack((ks, inertias)).T
+        first_point = all_coord[0]
+        line_vec = all_coord[-1] - first_point
+        norm_val = np.linalg.norm(line_vec)
+        if norm_val > 0:
+            line_vec_norm = line_vec / norm_val
+            vec_from_first = all_coord - first_point
+            scalar_proj = np.sum(vec_from_first * line_vec_norm, axis=1)
+            vec_proj = np.outer(scalar_proj, line_vec_norm)
+            vec_to_line = vec_from_first - vec_proj
+            dist_to_line = np.linalg.norm(vec_to_line, axis=1)
+
+            elbow_idx = int(np.argmax(dist_to_line))
+            optimal_k = ks[elbow_idx]
+            clustering_params['kmeans_clusters'] = int(optimal_k)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to calculate optimal kmeans clusters: {e}")
+
 def build_view_html(
     data: dict[str, Any], 
     view_style: int, 
@@ -234,29 +276,43 @@ def build_view_html(
     elif view_style == 4:
         target_indices = kwargs.get('target_indices', [])
         context_indices = kwargs.get('context_indices', None)
+        locked_clusters = kwargs.get('locked_clusters', None)
+
+        unlocked_targets = []
+        locked_set = set()
+        if locked_clusters:
+            for k, idxs in locked_clusters.items():
+                for idx in idxs:
+                    locked_set.add(int(idx))
+        unlocked_targets = [int(idx) for idx in target_indices if int(idx) not in locked_set]
+        if not unlocked_targets:
+            unlocked_targets = list(target_indices)
         
-        # --- Calculate Optimal Epsilon for Sub-cluster using k-distance elbow ---
-        if clustering_method == 'dbscan' and len(target_indices) >= 5:
-            if clustering_params is None:
-                clustering_params = {}
-            clustering_params = kwargs.setdefault('clustering_params', {})
-            kwargs['clustering_params'] = clustering_params
-            target_lon = np.array(lon)[target_indices]
-            target_lat = np.array(lat)[target_indices]
-            target_dep = np.array(dep)[target_indices]
-            auto_tune_dbscan_params(target_lon, target_lat, target_dep, data, clustering_params)
+        # --- Calculate Optimal Parameters for Sub-cluster using ONLY unlocked points ---
+        if clustering_params is None:
+            clustering_params = {}
+        clustering_params = kwargs.setdefault('clustering_params', {})
+        kwargs['clustering_params'] = clustering_params
+
+        unlocked_lon = np.array(lon)[unlocked_targets]
+        unlocked_lat = np.array(lat)[unlocked_targets]
+        unlocked_dep = np.array(dep)[unlocked_targets]
+
+        if clustering_method == 'dbscan' and len(unlocked_targets) >= 5:
+            auto_tune_dbscan_params(unlocked_lon, unlocked_lat, unlocked_dep, data, clustering_params)
+        elif clustering_method == 'kmeans' and len(unlocked_targets) >= 3:
+            auto_tune_kmeans_params(unlocked_lon, unlocked_lat, unlocked_dep, data, clustering_params)
         # -------------------------------------------------------------------------
 
-        fig, labels, n_clusters = get_3d_subcluster_figure(
+        locked_clusters = kwargs.get('locked_clusters', None)
+
+        fig, full_labels, n_clusters, locked_cluster_ids = get_3d_subcluster_figure(
             lon, lat, mag, dep, target_indices, context_indices=context_indices,
             clustering_method=clustering_method, clustering_params=clustering_params, 
             bbox=bbox, visual_pack=vpack, map_grids=map_grids,
-            origin_lat=data.get('origin_lat'), origin_lon=data.get('origin_lon')
+            origin_lat=data.get('origin_lat'), origin_lon=data.get('origin_lon'),
+            locked_clusters=locked_clusters
         )
-        
-        full_labels = np.full(len(lon), -1, dtype=int)
-        if len(target_indices) > 0 and len(labels) == len(target_indices):
-            full_labels[target_indices] = labels
 
         cluster_indices = {}
         for i, lbl in enumerate(full_labels):
@@ -269,6 +325,7 @@ def build_view_html(
         cluster_data.update({
             'cluster': full_labels.tolist(),
             'cluster_indices': cluster_indices,
+            'locked_cluster_ids': locked_cluster_ids,
             'hover': vpack.get('hover', []),
             'mag_limit': vpack.get('mag_range', [0, 10]),
             'date_limit': vpack.get('date_range', [0, 0]),
@@ -284,7 +341,7 @@ def build_view_html(
         if session_id:
             store_session_data(session_id, cluster_data.copy())
             strip_data(fig, cluster_data)
-        html = generate_html(fig, is_cluster=True, is_3d=True, back_button=back_button, earthquake_data=cluster_data, is_fallback=is_fallback, data_url=data_url)
+        html = generate_html(fig, is_cluster=True, is_3d=True, back_button=back_button, earthquake_data=cluster_data, is_fallback=is_fallback, data_url=data_url, is_subcluster=True)
 
     else:
         raise ValueError(f"Invalid view style: {view_style}")

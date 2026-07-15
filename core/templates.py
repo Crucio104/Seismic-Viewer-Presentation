@@ -34,9 +34,12 @@ def _ensure_templates_loaded() -> None:
             TEMPLATE_CACHE[key] = ""
 
 
-def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = False, is_3d: bool = False, back_button: bool = True, earthquake_data: dict[str, Any] | None = None, is_fallback: bool = False, data_url: str = "") -> str:
+def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = False, is_3d: bool = False, back_button: bool = True, earthquake_data: dict[str, Any] | None = None, is_fallback: bool = False, data_url: str = "", is_subcluster: bool = False) -> str:
     """Convert a Plotly figure to a full HTML string with custom overlays and cached templates."""
     _ensure_templates_loaded()
+
+    if not is_subcluster and earthquake_data and earthquake_data.get('subcluster_target_indices') is not None:
+        is_subcluster = True
 
     html_content = fig.to_html(
         full_html=True,
@@ -46,11 +49,11 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
         default_height='100%'
     )
 
-    html_content = _inject_head_assets(html_content)
+    html_content = _inject_head_assets(html_content, is_subcluster=is_subcluster)
     
     # 1. Prepare Content
     loader_msg = _get_loader_message(is_animated, is_cluster)
-    loader_html = _get_loader_html(loader_msg)
+    loader_html = _get_loader_html(loader_msg, is_subcluster=is_subcluster)
     
     scripts = TEMPLATE_CACHE.get('common', "")
     scripts += _get_view_scripts(is_animated, is_cluster, earthquake_data, data_url, is_fallback, is_3d)
@@ -65,12 +68,13 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
 
     return html_content
 
-def _inject_head_assets(html: str) -> str:
+def _inject_head_assets(html: str, is_subcluster: bool = False) -> str:
     """Inject CSS and fonts into the <head>."""
+    loader_bg = 'rgba(15, 12, 41, 0.6) !important; backdrop-filter: blur(0.8rem); -webkit-backdrop-filter: blur(0.8rem);' if is_subcluster else '#050510 !important;'
     head_css = (
         '<style>'
         'html,body,.js-plotly-plot,.plotly-graph-div{background:#050510 !important;margin:0;padding:0;overflow:hidden;height:100%;width:100%}'
-        '#init-loader{background:#050510 !important;}'
+        f'#init-loader{{background:{loader_bg}}}'
         '</style>'
         '<script src="/assets/plotly.min.js"></script>'
         '<link rel="preconnect" href="https://fonts.googleapis.com">'
@@ -87,9 +91,10 @@ def _get_loader_message(is_animated: bool, is_cluster: bool) -> str:
         return 'Rendering Cluster Analysis...'
     return 'Rendering Visualization...'
 
-def _get_loader_html(msg: str) -> str:
+def _get_loader_html(msg: str, is_subcluster: bool = False) -> str:
+    bg_style = 'background:rgba(15, 12, 41, 0.6);backdrop-filter:blur(0.8rem);-webkit-backdrop-filter:blur(0.8rem);' if is_subcluster else 'background:#050510;'
     return (
-        f'<div id="init-loader" style="position:fixed;inset:0;z-index:999999;background:#050510;display:flex;flex-direction:column;align-items:center;justify-content:center;">'
+        f'<div id="init-loader" style="position:fixed;inset:0;z-index:999999;{bg_style}display:flex;flex-direction:column;align-items:center;justify-content:center;">'
         f'  <div class="loader-ring" style="width:4rem;height:4rem;border:0.188rem solid rgba(255,255,255,0.1);border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;"></div>'
         f'  <p class="loader-text" style="margin-top:1.5rem;font-size:1rem;font-weight:500;color:#e2e8f0;text-align:center;">{msg}</p>'
         f'</div>'

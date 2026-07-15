@@ -193,7 +193,7 @@ class Api:
         self._history_stack.append({'view_style': view_style, 'kwargs': kwargs})
         threading.Thread(target=self._generate_and_navigate, args=(view_style,), kwargs=kwargs, daemon=True).start()
 
-    def load_subcluster_view(self, indices: list[int], context_indices: list[int] | None = None, clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None) -> None:
+    def load_subcluster_view(self, indices: list[int], context_indices: list[int] | None = None, clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None, locked_clusters: dict[str, list[int]] | None = None) -> None:
         """Background thread for sub-cluster view generation."""
         if self._data is None:
             return
@@ -201,11 +201,16 @@ class Api:
         if clustering_params is None:
             clustering_params = {}
             
+        locked_map = None
+        if locked_clusters:
+            locked_map = {int(k): list(v) for k, v in locked_clusters.items()}
+
         kwargs = {
             'clustering_method': clustering_method,
             'clustering_params': clustering_params,
             'target_indices': indices,
-            'context_indices': context_indices
+            'context_indices': context_indices,
+            'locked_clusters': locked_map
         }
         self._history_stack.append({'view_style': 4, 'kwargs': kwargs})
         threading.Thread(target=self._generate_and_navigate, args=(4,), kwargs=kwargs, daemon=True).start()
@@ -306,11 +311,15 @@ class Api:
             c_idx = kwargs.get('context_indices')
             c_idx_frozen = tuple(c_idx) if c_idx else None
 
-            cache_key = (self._csv_path, view_style, kwargs.get('anim_mode'), kwargs.get('window_days'), kwargs.get('step_days'), kwargs.get('clustering_method'), c_params_frozen, t_idx_frozen, c_idx_frozen)
+            locked_map = kwargs.get('locked_clusters')
+            locked_frozen = frozenset((int(k), tuple(v)) for k, v in locked_map.items()) if locked_map else None
+
+            cache_key = (self._csv_path, view_style, kwargs.get('anim_mode'), kwargs.get('window_days'), kwargs.get('step_days'), kwargs.get('clustering_method'), c_params_frozen, t_idx_frozen, c_idx_frozen, locked_frozen)
 
             if cache_key in self._html_cache:
                 self._push_progress("Loading from cache…")
-                self._inject_dark_overlay()
+                if view_style != 4:
+                    self._inject_dark_overlay()
                 import time
                 url = self._make_url(self._html_cache[cache_key]) + f"?t={int(time.time()*1000)}"
                 if view_style == 4:
@@ -348,7 +357,8 @@ class Api:
 
             # 3. Navigate
             self._push_progress("Opening visualization…")
-            self._inject_dark_overlay()
+            if view_style != 4:
+                self._inject_dark_overlay()
             url = self._make_url(viz_id)
             if view_style == 4:
                 url += "?subcluster=true"

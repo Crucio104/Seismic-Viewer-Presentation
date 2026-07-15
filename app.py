@@ -29,6 +29,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger("SeismicViewer")
 
+import sys
+if sys.platform == 'win32':
+    try:
+        from asyncio.proactor_events import _ProactorBasePipeTransport
+        _original_call_connection_lost = _ProactorBasePipeTransport._call_connection_lost
+
+        def _silent_call_connection_lost(self, exc=None):
+            try:
+                _original_call_connection_lost(self, exc)
+            except (ConnectionResetError, OSError):
+                pass
+
+        _ProactorBasePipeTransport._call_connection_lost = _silent_call_connection_lost
+    except (ImportError, AttributeError):
+        pass
+
 # --- Global State ---
 _server_thread: threading.Thread | None = None
 _uvicorn_server: uvicorn.Server | None = None
@@ -112,6 +128,15 @@ def _create_fastapi_app() -> FastAPI:
     global _uvicorn_loop
     try:
         _uvicorn_loop = asyncio.get_event_loop()
+        def _quiet_exception_handler(loop, context):
+            exc = context.get("exception")
+            if isinstance(exc, (ConnectionResetError, OSError)):
+                return
+            msg = context.get("message", "")
+            if "_call_connection_lost" in msg or "ConnectionResetError" in msg:
+                return
+            loop.default_exception_handler(context)
+        _uvicorn_loop.set_exception_handler(_quiet_exception_handler)
     except Exception:
         _uvicorn_loop = None
 

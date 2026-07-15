@@ -62,7 +62,7 @@ async def handle_websocket_messages(websocket: WebSocket, manager: ConnectionMan
                 result = await asyncio.to_thread(api_ref.get_animated_clustering, p.get("method"), p.get("params"), p.get("plane_step", 5))
                 await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
 
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, ConnectionResetError, OSError):
         manager.disconnect(websocket)
     except Exception as e:
         logger.error(f"WebSocket Error: {e}")

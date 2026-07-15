@@ -437,32 +437,124 @@
             };
 
 
+            // Initialize locked clusters state from backend
+            window.lockedClusters = new Set((quakeData && quakeData.locked_cluster_ids) ? quakeData.locked_cluster_ids : []);
+
+            window.toggleClusterLock = function(internalLbl) {
+                if (window.lockedClusters.has(internalLbl)) {
+                    window.lockedClusters.delete(internalLbl);
+                } else {
+                    window.lockedClusters.add(internalLbl);
+                }
+                updateClusterLegend();
+            };
+
+            window.lockAllClusters = function() {
+                for (let i = 0; i < quakeData.n_clusters; i++) {
+                    window.lockedClusters.add(i);
+                }
+                updateClusterLegend();
+            };
+
+            window.unlockAllClusters = function() {
+                window.lockedClusters.clear();
+                updateClusterLegend();
+            };
+
+            window.subclusterUnlocked = async function() {
+                const overlay = document.getElementById('filter-loader');
+                overlay.classList.add('show');
+
+                let targetIndices = [];
+                let lockedClustersMap = {};
+
+                for (let i = 0; i < quakeData.n_clusters; i++) {
+                    let indices = [];
+                    if (quakeData.cluster_indices && quakeData.cluster_indices[i]) {
+                        indices = quakeData.cluster_indices[i];
+                    } else if (quakeData.cluster) {
+                        for (let p = 0; p < quakeData.cluster.length; p++) {
+                            if (quakeData.cluster[p] === i) {
+                                indices.push(p);
+                            }
+                        }
+                    }
+
+                    if (window.lockedClusters.has(i)) {
+                        lockedClustersMap[i] = indices;
+                    } else {
+                        targetIndices.push(...indices);
+                    }
+                }
+
+                if (targetIndices.length === 0) {
+                    console.warn("Tutti i cluster sono bloccati o nessun punto disponibile.");
+                    if (typeof showStatusToast === 'function') showStatusToast('Nessun cluster sbloccato da suddividere.');
+                    overlay.classList.remove('show');
+                    return;
+                }
+
+                try {
+                    let contextIndices = null;
+                    if (quakeData.subcluster_context_indices) {
+                        contextIndices = quakeData.subcluster_context_indices;
+                    }
+
+                    const method = quakeData.clustering_method || 'dbscan';
+                    const params = quakeData.clustering_params || {};
+                    await pywebview.api.load_subcluster_view(targetIndices, contextIndices, method, params, lockedClustersMap);
+                } catch(e) {
+                    console.error("Failed to load subcluster view:", e);
+                    if (typeof showStatusToast === 'function') showStatusToast('Engine failure: ' + e);
+                }
+                setTimeout(() => overlay.classList.remove('show'), 2000);
+            };
+
             // Build custom glass legend for clusters
             function updateClusterLegend() {
                 const legend = document.getElementById('glass-legend');
                 if (!legend) return;
+                const oldList = legend.querySelector('.legend-list');
+                const savedScrollTop = oldList ? oldList.scrollTop : 0;
+
                 legend.style.display = 'flex';
+                legend.style.width = '10.5rem';
+                legend.style.minWidth = '10.5rem';
+                legend.style.maxWidth = '10.5rem';
+                legend.style.padding = '0.6rem 0.6rem';
                 legend.style.minHeight = 'auto'; // Fit content natively
                 
                 let html = '<div id="legend-title">Clusters</div>';
-                
-                if (new URLSearchParams(window.location.search).get('subcluster') === 'true') {
-                    html += `<div style="margin-bottom: 0.5rem;"><button onclick="applyAllSubclusters()" style="width:100%; background:rgba(99,102,241,0.2); border:1px solid rgba(99,102,241,0.4); color:#fff; border-radius:4px; font-size:0.75rem; padding:0.4rem; cursor:pointer; font-weight:bold; transition:background 0.2s;" title="Extract back to main dataset">Extract back</button></div>`;
+
+                if (quakeData.n_clusters > 0) {
+                    html += `
+                        <div style="display:flex; gap:0.35rem; width:100%; margin-bottom:0.35rem;">
+                            <button class="btn-cluster-action btn-cluster-lock" onclick="lockAllClusters()" title="Blocca tutti i cluster">Lock All</button>
+                            <button class="btn-cluster-action btn-cluster-unlock" onclick="unlockAllClusters()" title="Sblocca tutti i cluster">Unlock All</button>
+                        </div>
+                        <div style="margin-bottom:0.45rem; width:100%;">
+                            <button class="btn-cluster-subcluster" onclick="subclusterUnlocked()" title="Perform subclustering on unlocked clusters">Subclustering</button>
+                        </div>
+                    `;
                 }
 
                 html += '<div class="legend-list">';
                 
                 for (let i = 0; i < quakeData.n_clusters; i++) {
-                    // Internal label generated by backend is just 'i'
                     const internalLbl = i;
-                    // Always number sequentially from 1
-                    const displayNum = i + 1;
+                    const displayNum = i;
                     const color = clusterColors[i % clusterColors.length];
+                    const isLocked = window.lockedClusters.has(internalLbl);
+                    const lockBtnStyle = isLocked
+                        ? "background:rgba(245,158,11,0.25); border:1px solid rgba(245,158,11,0.6); color:#fcd34d;"
+                        : "background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff;";
+                    const lockText = isLocked ? "Locked" : "Unlocked";
+
                     html += `
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-bottom: 0.25rem;">
-                            <span style="font-family:'Segoe UI',system-ui,sans-serif;font-size:0.750rem;font-weight:600;color:#fff;opacity:0.85;">Cluster ${displayNum}</span>
-                            <div style="display:flex; align-items:center; gap:0.5rem;">
-                                <button onclick="analyzeCluster(${internalLbl})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:4px; font-size:0.6rem; padding:2px 6px; cursor:pointer; transition:background 0.2s;">Analyze</button>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-bottom: 0.35rem;">
+                            <span style="font-family:'Segoe UI',system-ui,sans-serif;font-size:0.750rem;font-weight:600;color:#fff;opacity:0.9;">Cluster ${displayNum}</span>
+                            <div style="display:flex; align-items:center; gap:0.35rem;">
+                                <button onclick="toggleClusterLock(${internalLbl})" style="${lockBtnStyle} border-radius:4px; font-size:0.6rem; padding:2px 6px; cursor:pointer; transition:all 0.2s; font-weight:600;" title="Toggle lock state">${lockText}</button>
                                 <div style="width:0.875rem;height:0.875rem;border-radius:50%;background-color:${color};border:1px solid rgba(255,255,255,0.4);box-shadow:0 0 0.375rem ${color}80;"></div>
                             </div>
                         </div>
@@ -470,13 +562,17 @@
                 }
                 html += '</div>';
                 legend.innerHTML = html;
+
+                const newList = legend.querySelector('.legend-list');
+                if (newList && savedScrollTop > 0) {
+                    newList.scrollTop = savedScrollTop;
+                }
             }
 
             window.analyzeCluster = async function(internalLbl) {
                 const overlay = document.getElementById('filter-loader');
                 overlay.classList.add('show');
                 
-                // Find all indices belonging to this cluster
                 let indices = [];
                 if (quakeData.cluster_indices && quakeData.cluster_indices[internalLbl]) {
                     indices = quakeData.cluster_indices[internalLbl];
@@ -489,13 +585,12 @@
                 }
                 
                 if (indices.length === 0) {
-                    console.error("No points found for cluster " + clusterId);
+                    console.error("No points found for cluster " + internalLbl);
                     overlay.classList.remove('show');
                     return;
                 }
 
                 try {
-                    // Pass the original context to make it fully recursive with all background points
                     let contextIndices = null;
                     if (quakeData.subcluster_context_indices) {
                         contextIndices = quakeData.subcluster_context_indices;

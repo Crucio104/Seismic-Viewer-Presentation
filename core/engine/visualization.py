@@ -204,21 +204,60 @@ def get_3d_subcluster_figure(
     clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None,
     bbox: tuple[float, float, float, float] | None = None,
     visual_pack: dict[str, Any] | None = None, map_grids: tuple | None = None,
-    origin_lat: float | None = None, origin_lon: float | None = None
-) -> tuple[go.Figure, np.ndarray, int]:
+    origin_lat: float | None = None, origin_lon: float | None = None,
+    locked_clusters: dict[int, list[int]] | None = None
+) -> tuple[go.Figure, np.ndarray, int, list[int]]:
     
     n_points = len(longitude)
-    viz_mask = np.zeros(n_points, dtype=bool)
-    if len(target_indices) > 0:
-        viz_mask[target_indices] = True
-        
-    # Re-use the existing cluster generation but with the target mask
-    result = _generate_cluster_traces(
-        longitude, latitude, magnitude, depth,
-        visual_pack.get('hover', []) if visual_pack else [],
-        clustering_method, clustering_params, viz_mask,
-        origin_lat=origin_lat, origin_lon=origin_lon
-    )
+    full_labels = np.full(n_points, -1, dtype=int)
+    locked_mask = np.zeros(n_points, dtype=bool)
+    locked_ids: set[int] = set()
+
+    if locked_clusters:
+        for k, idxs in locked_clusters.items():
+            lbl_id = int(k)
+            locked_ids.add(lbl_id)
+            for idx in idxs:
+                if 0 <= int(idx) < n_points:
+                    full_labels[int(idx)] = lbl_id
+                    locked_mask[int(idx)] = True
+
+    # Only subcluster points in target_indices that are NOT locked
+    unlocked_targets = [idx for idx in target_indices if 0 <= int(idx) < n_points and not locked_mask[int(idx)]]
+
+    if len(unlocked_targets) > 0:
+        sub_lon = np.array([longitude[i] for i in unlocked_targets], dtype=float)
+        sub_lat = np.array([latitude[i] for i in unlocked_targets], dtype=float)
+        sub_mag = np.array([magnitude[i] for i in unlocked_targets], dtype=float)
+        sub_dep = np.array([depth[i] for i in unlocked_targets], dtype=float)
+
+        if origin_lat is None:
+            origin_lat = float(np.mean(latitude))
+        if origin_lon is None:
+            origin_lon = float(np.mean(longitude))
+
+        from .analysis import project_to_km
+        X_km = project_to_km(sub_lon, sub_lat, sub_dep, origin_lat, origin_lon)
+        local_labels, n_local, _ = perform_clustering(X_km, clustering_method, clustering_params or {})
+
+        # Map local cluster labels to global IDs starting from 0, skipping locked_ids
+        local_to_global = {}
+        next_id = 0
+        for loc_id in range(n_local):
+            while next_id in locked_ids:
+                next_id += 1
+            local_to_global[loc_id] = next_id
+            next_id += 1
+
+        for i, idx in enumerate(unlocked_targets):
+            loc_lbl = int(local_labels[i])
+            if loc_lbl >= 0:
+                full_labels[idx] = local_to_global.get(loc_lbl, -1)
+            else:
+                full_labels[idx] = -1
+
+    active_labels = full_labels[full_labels >= 0]
+    n_clusters = int(np.max(active_labels)) + 1 if len(active_labels) > 0 else 0
 
     fig = go.Figure()
 
@@ -241,14 +280,8 @@ def get_3d_subcluster_figure(
         lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0)
     ))
 
-    # Add context points if available, otherwise just use ~viz_mask
-    if context_indices is not None:
-        bg_mask = np.zeros(n_points, dtype=bool)
-        bg_mask[context_indices] = True
-        bg_mask = bg_mask & (~viz_mask)
-    else:
-        bg_mask = ~viz_mask
-
+    # Add background points (Other Events: noise -1)
+    bg_mask = (full_labels == -1)
     lon_bg = np.array(longitude)[bg_mask]
     lat_bg = np.array(latitude)[bg_mask]
     dep_bg = np.array(depth)[bg_mask]
@@ -275,12 +308,23 @@ def get_3d_subcluster_figure(
             name='Other Events'
         ))
 
-    # Add cluster traces
+    # Add cluster traces for all active clusters
+    params_for_traces = dict(clustering_params or {})
+    params_for_traces['custom_labels'] = full_labels.tolist()
+    params_for_traces['preserve_labels'] = True
+
+    result = _generate_cluster_traces(
+        longitude, latitude, magnitude, depth,
+        visual_pack.get('hover', []) if visual_pack else [],
+        clustering_method, params_for_traces, viz_mask=(full_labels >= 0),
+        origin_lat=origin_lat, origin_lon=origin_lon
+    )
+
     for t in result['traces']:
         fig.add_trace(t)
 
     apply_3d_style(fig, [x_grid[0], x_grid[-1]], [y_grid[-1], y_grid[0]], [min_depth, 0])
-    return fig, result['labels'], result['n_clusters']
+    return fig, full_labels, n_clusters, sorted(list(locked_ids))
 
 def get_cluster_update_traces(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], hover: list[str],
                                clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
@@ -377,7 +421,8 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
     if viz_mask is not None:
         m_idx = viz_mask
         f_lon, f_lat, f_dep = longitude[m_idx], latitude[m_idx], depth[m_idx]
-        f_mag, f_hover = magnitude[m_idx], [hover[i] for i, val in enumerate(m_idx) if val]
+        f_mag = magnitude[m_idx]
+        f_hover = [hover[i] for i, val in enumerate(m_idx) if val and i < len(hover)]
     else:
         f_lon, f_lat, f_dep, f_mag, f_hover = longitude, latitude, depth, magnitude, hover
 
@@ -403,15 +448,20 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
             display_labels = full_labels[viz_mask]
         else:
             display_labels = full_labels
-            
-        unique_l = sorted(list(set(display_labels[display_labels >= 0])))
-        mapped_labels = np.full_like(display_labels, -1)
-        for new_idx, old_idx in enumerate(unique_l):
-            mapped_labels[display_labels == old_idx] = new_idx
-            
-        display_labels = mapped_labels
-        n_clusters = len(unique_l)
-        labels = display_labels
+
+        if params.get('preserve_labels', False):
+            max_lbl = int(np.max(display_labels)) if len(display_labels) > 0 and np.any(display_labels >= 0) else -1
+            n_clusters = max_lbl + 1
+            labels = display_labels
+        else:
+            unique_l = sorted(list(set(display_labels[display_labels >= 0])))
+            mapped_labels = np.full_like(display_labels, -1)
+            for new_idx, old_idx in enumerate(unique_l):
+                mapped_labels[display_labels == old_idx] = new_idx
+                
+            display_labels = mapped_labels
+            n_clusters = len(unique_l)
+            labels = display_labels
     else:
         display_labels, n_clusters, _ = perform_clustering(X_km, method, params)
         labels = display_labels # For return consistency

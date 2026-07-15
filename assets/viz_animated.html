@@ -661,7 +661,7 @@
                         updateClusterLegend(globalUniqueLabels);
                     } else {
                         const container = document.getElementById('legend-container');
-                        const clusterList = document.getElementById('cluster-legend-list');
+                        const clusterList = document.getElementById('cluster-list');
                         if (container) container.style.display = 'flex';
                         if (clusterList) clusterList.style.display = 'none';
                         
@@ -759,62 +759,150 @@
                 return colors[Math.min(colors.length - 1, Math.max(0, idx))];
             }
 
-            // Build custom glass legend for clusters
-            function updateClusterLegend(presentLabels) {
-                const legend = document.getElementById('glass-legend');
-                const container = document.getElementById('legend-container');
-                if (!legend || !container) return;
-                
-                container.style.display = 'none'; // Hide gradient container
-                
-                let clusterList = document.getElementById('cluster-legend-list');
-                if (!clusterList) {
-                    clusterList = document.createElement('div');
-                    clusterList.id = 'cluster-legend-list';
-                    clusterList.className = 'legend-list';
-                    clusterList.style.marginTop = '0.25rem';
-                    legend.appendChild(clusterList);
+            window.lockedClustersAnim = window.lockedClustersAnim || new Set();
+
+            window.toggleClusterLockAnim = function(lbl) {
+                if (window.lockedClustersAnim.has(lbl)) {
+                    window.lockedClustersAnim.delete(lbl);
+                } else {
+                    window.lockedClustersAnim.add(lbl);
                 }
-                
-                // FORCE CLEAR
-                clusterList.innerHTML = '';
+                updateClusterLegend(window._lastPresentLabels || []);
+            };
+
+            window.lockAllClustersAnim = function() {
+                const labels = window._lastPresentLabels || [];
+                labels.forEach(lbl => {
+                    if (lbl !== -1 && lbl !== undefined && lbl !== null) {
+                        window.lockedClustersAnim.add(lbl);
+                    }
+                });
+                updateClusterLegend(window._lastPresentLabels || []);
+            };
+
+            window.unlockAllClustersAnim = function() {
+                window.lockedClustersAnim.clear();
+                updateClusterLegend(window._lastPresentLabels || []);
+            };
+
+            window.subclusterUnlockedAnim = async function() {
+                const overlay = document.getElementById('filter-loader');
+                overlay.classList.add('show');
+
+                let targetIndices = [];
+                let contextIndices = [];
+                let lockedClustersMap = {};
+
+                if (animClustersMap && typeof currentStepIdx !== 'undefined') {
+                    const dateStr = dates[currentStepIdx];
+                    const frameData = animClustersMap[dateStr];
+                    if (frameData && frameData.labels && frameData.indices) {
+                        contextIndices = frameData.indices;
+                        for (let i = 0; i < frameData.labels.length; i++) {
+                            const lbl = frameData.labels[i];
+                            const ptIdx = frameData.indices[i];
+                            if (window.lockedClustersAnim.has(lbl)) {
+                                if (!lockedClustersMap[lbl]) lockedClustersMap[lbl] = [];
+                                lockedClustersMap[lbl].push(ptIdx);
+                            } else {
+                                targetIndices.push(ptIdx);
+                            }
+                        }
+                    }
+                }
+
+                if (targetIndices.length === 0) {
+                    console.warn("Tutti i cluster sono bloccati o nessun punto disponibile nel frame corrente.");
+                    if (typeof showStatusToast === 'function') showStatusToast('Nessun cluster sbloccato da suddividere.');
+                    overlay.classList.remove('show');
+                    return;
+                }
+
+                try {
+                    const params = {
+                        kmeans_clusters: pClustersAnim.value,
+                        kmeans_max_dist: pDistAnim.value,
+                        dbscan_eps: pEpsAnim.value,
+                        dbscan_min_samples: pMinAnim.value
+                    };
+                    await pywebview.api.load_subcluster_view(targetIndices, contextIndices, currentAnimClustMethod, params, lockedClustersMap);
+                } catch(e) {
+                    console.error("Failed to load subcluster view:", e);
+                    if (typeof showStatusToast === 'function') showStatusToast('Engine failure: ' + e);
+                }
+                setTimeout(() => overlay.classList.remove('show'), 2000);
+            };
+
+            function updateClusterLegend(presentLabels) {
+                const clusterList = document.getElementById('cluster-list');
+                const legend = document.getElementById('glass-legend');
+                if (!clusterList) return;
+                if (legend) {
+                    legend.style.width = '10.5rem';
+                    legend.style.minWidth = '10.5rem';
+                    legend.style.maxWidth = '10.5rem';
+                    legend.style.padding = '0.6rem 0.6rem';
+                }
+                const savedScrollTop = clusterList.scrollTop || 0;
+                window._lastPresentLabels = presentLabels;
                 clusterList.style.display = 'flex';
+                const container = document.getElementById('legend-container');
+                if (container) container.style.display = 'none';
                 document.getElementById('legend-title').textContent = 'Clusters';
                 
-                if (!presentLabels || presentLabels.length === 0) return;
+                if (!presentLabels || presentLabels.length === 0) {
+                    clusterList.innerHTML = '';
+                    return;
+                }
 
-                // Extract ONLY labels that actually exist in the current points
                 const uniqueLabels = [...new Set(presentLabels)]
                     .filter(l => l !== -1 && l !== undefined && l !== null)
                     .sort((a, b) => a - b);
                 
                 let html = '';
+                if (uniqueLabels.length > 0) {
+                    html += `
+                        <div style="display:flex; gap:0.35rem; width:100%; margin-bottom:0.35rem;">
+                            <button class="btn-cluster-action btn-cluster-lock" onclick="lockAllClustersAnim()" title="Blocca tutti i cluster">Lock All</button>
+                            <button class="btn-cluster-action btn-cluster-unlock" onclick="unlockAllClustersAnim()" title="Sblocca tutti i cluster">Unlock All</button>
+                        </div>
+                        <div style="margin-bottom:0.45rem; width:100%;">
+                            <button class="btn-cluster-subcluster" onclick="subclusterUnlockedAnim()" title="Perform subclustering on unlocked clusters">Subclustering</button>
+                        </div>
+                    `;
+                }
+
                 uniqueLabels.forEach((lbl, index) => {
                     const color = getClusterColor(lbl);
-                    // Show sequential numbering (1, 2, 3...) based on the global list
                     let labelText = `Cluster ${index + 1}`;
+                    const isLocked = window.lockedClustersAnim.has(lbl);
+                    const lockBtnStyle = isLocked
+                        ? "background:rgba(245,158,11,0.25); border:1px solid rgba(245,158,11,0.6); color:#fcd34d;"
+                        : "background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff;";
+                    const lockText = isLocked ? "Locked" : "Unlocked";
                     
                     html += `
-                        <div class="legend-item-cluster" style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; flex-shrink:0; width:100%; margin-bottom: 0.25rem;">
-                            <span style="font-family:\'Segoe UI\',system-ui,sans-serif;font-size:0.750rem;font-weight:600;color:#fff;opacity:0.85;">${labelText}</span>
-                            <div style="display:flex; align-items:center; gap:0.5rem;">
-                                <button onclick="analyzeCluster(${lbl})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:4px; font-size:0.6rem; padding:2px 6px; cursor:pointer; transition:background 0.2s;">Analyze</button>
+                        <div class="legend-item-cluster" style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; flex-shrink:0; width:100%; margin-bottom: 0.35rem;">
+                            <span style="font-family:'Segoe UI',system-ui,sans-serif;font-size:0.750rem;font-weight:600;color:#fff;opacity:0.9;">${labelText}</span>
+                            <div style="display:flex; align-items:center; gap:0.35rem;">
+                                <button onclick="toggleClusterLockAnim(${lbl})" style="${lockBtnStyle} border-radius:4px; font-size:0.6rem; padding:2px 6px; cursor:pointer; transition:all 0.2s; font-weight:600;" title="Toggle lock state">${lockText}</button>
                                 <div style="width:0.875rem;height:0.875rem;border-radius:50%;background-color:${color};border:1px solid rgba(255,255,255,0.4);box-shadow:0 0 0.375rem ${color}80;"></div>
                             </div>
                         </div>
                     `;
                 });
                 clusterList.innerHTML = html;
+                if (savedScrollTop > 0) {
+                    clusterList.scrollTop = savedScrollTop;
+                }
             }
 
             window.analyzeCluster = async function(lbl) {
-                // In animated view, we need to extract the indices of points that belong to this label *in the current frame*.
                 const overlay = document.getElementById('filter-loader');
                 overlay.classList.add('show');
 
                 let targetIndices = [];
                 let contextIndices = [];
-                // Find current frame's cluster data
                 if (animClustersMap && typeof currentStepIdx !== 'undefined') {
                     const dateStr = dates[currentStepIdx];
                     const frameData = animClustersMap[dateStr];

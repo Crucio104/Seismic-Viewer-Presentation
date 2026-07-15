@@ -13,6 +13,7 @@
         <div id="legend-bar"></div>
         <div id="legend-ticks"></div>
     </div>
+    <div id="cluster-list" class="legend-list" style="display:none; width:100%;"></div>
     <button id="btn-swap-legend" class="btn-legend-swap" onclick="SeismicUI.swapLegend()" title="Swap Color Scale Legend">⇄ Scale: Quakes</button>
 </div>
 
@@ -1741,6 +1742,10 @@
         if (!show) { legend.style.display = 'none'; return; }
 
         legend.style.display = 'flex';
+        legend.style.width = '';
+        legend.style.minWidth = '';
+        legend.style.maxWidth = '';
+        legend.style.padding = '';
         document.getElementById('legend-title').textContent = title;
 
         const bar = document.getElementById('legend-bar');

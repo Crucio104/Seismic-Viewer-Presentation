@@ -683,6 +683,63 @@ body {
     border-color: rgba(255, 255, 255, 0.5);
 }
 
+/* Cluster Legend Action Buttons */
+.btn-cluster-action {
+    flex: 1 1 0%;
+    min-width: 0;
+    border-radius: 0.35rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.3rem 0.3rem;
+    cursor: pointer;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: all 0.2s ease;
+    line-height: 1.2;
+}
+
+.btn-cluster-lock {
+    background: rgba(245, 158, 11, 0.18);
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    color: #fcd34d;
+}
+.btn-cluster-lock:hover {
+    background: rgba(245, 158, 11, 0.3);
+    border-color: rgba(245, 158, 11, 0.65);
+}
+
+.btn-cluster-unlock {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff;
+}
+.btn-cluster-unlock:hover {
+    background: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.45);
+}
+
+.btn-cluster-subcluster {
+    width: 100%;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(5, 150, 105, 0.32));
+    border: 1px solid rgba(16, 185, 129, 0.5);
+    border-radius: 0.35rem;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.32rem 0.5rem;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+.btn-cluster-subcluster:hover {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.35), rgba(5, 150, 105, 0.45));
+    border-color: rgba(16, 185, 129, 0.7);
+    box-shadow: 0 0 0.5rem rgba(16, 185, 129, 0.3);
+}
+
 /* Toast Notifications (Top Right) */
 #toast-container {
     position: fixed;
