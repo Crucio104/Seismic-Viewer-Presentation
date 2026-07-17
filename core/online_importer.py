@@ -15,6 +15,19 @@ from core.utils import parse_seismic_date
 
 logger = logging.getLogger(__name__)
 
+def _fmt_num(val: float | int | str | None, precision: int) -> str:
+    """Helper to safely format numeric values or return an empty string."""
+    try:
+        return f"{float(val):.{precision}f}"
+    except (ValueError, TypeError):
+        return ""
+
+def _extract_md_obj(magnitudos: list[dict[str, Any]]) -> dict[str, Any]:
+    """Extract preferred duration magnitude (MD) dictionary or fallback to first available."""
+    if not magnitudos:
+        return {}
+    return next((m for m in magnitudos if m.get('type') == 'D'), magnitudos[0])
+
 def fetch_ingv_data(params: dict[str, Any]) -> str:
     """
     Fetch seismic data from INGV (GOSSIP) and save it to a temporary CSV.
@@ -63,8 +76,6 @@ def fetch_ingv_data(params: dict[str, Any]) -> str:
 
     reject_reasons = {"date": 0, "mag": 0, "level": 0, "loc": 0, "parse": 0}
 
-    exclude_missing = params.get('excludeMissing', True)
-
     for e in all_events:
         # Date/Time filter
         e_dt = parse_seismic_date(e.get('date'))
@@ -77,14 +88,8 @@ def fetch_ingv_data(params: dict[str, Any]) -> str:
             continue
 
         # 2. Magnitude filter
-        mag = None
-        m_list = e.get('magnitudos', [])
-        for m in m_list:
-            if m.get('type') == 'D': # MD
-                mag = m.get('value')
-                break
-        if mag is None and m_list:
-            mag = m_list[0].get('value')
+        md_obj = _extract_md_obj(e.get('magnitudos', []))
+        mag = md_obj.get('value')
             
         if mag is None:
             if exclude_missing or min_mag > 0.1:
@@ -146,26 +151,16 @@ def fetch_ingv_data(params: dict[str, Any]) -> str:
         
         for e in filtered_events:
             loc = e.get('location', {})
-            md_list = e.get('magnitudos', [])
-            md = next((m for m in md_list if m.get('type') == 'D'), {})
-            if not md and md_list:
-                md = md_list[0]
+            md = _extract_md_obj(e.get('magnitudos', []))
             
-            # Helper to safely format numbers or return empty string
-            def fmt(val: float | int | str | None, precision: int) -> str:
-                try:
-                    return f"{float(val):.{precision}f}"
-                except (ValueError, TypeError):
-                    return ""
-
             row = [
                 e.get('id', ''),
                 e.get('date', ''), 
-                fmt(loc.get('latitude'), 6),
-                fmt(loc.get('longitude'), 6),
-                fmt(loc.get('depth'), 2),
-                fmt(md.get('value'), 2),
-                fmt(md.get('error', 0.3), 2),
+                _fmt_num(loc.get('latitude'), 6),
+                _fmt_num(loc.get('longitude'), 6),
+                _fmt_num(loc.get('depth'), 2),
+                _fmt_num(md.get('value'), 2),
+                _fmt_num(md.get('error', 0.3), 2),
                 e.get('area', ''),
                 e.get('type', ''),
                 e.get('level', '')

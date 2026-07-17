@@ -290,6 +290,25 @@
                 if (quakeData.subcluster_context_indices) {
                     params.subcluster_context_indices = quakeData.subcluster_context_indices;
                 }
+                if (window.lockedClusters && window.lockedClusters.size > 0 && quakeData && quakeData.n_clusters) {
+                    const lockedMap = {};
+                    for (let i = 0; i < quakeData.n_clusters; i++) {
+                        if (window.lockedClusters.has(i)) {
+                            let indices = [];
+                            if (quakeData.cluster_indices && quakeData.cluster_indices[i]) {
+                                indices = quakeData.cluster_indices[i];
+                            } else if (quakeData.cluster) {
+                                for (let p = 0; p < quakeData.cluster.length; p++) {
+                                    if (quakeData.cluster[p] === i) indices.push(p);
+                                }
+                            }
+                            if (indices.length > 0) lockedMap[i] = indices;
+                        }
+                    }
+                    if (Object.keys(lockedMap).length > 0) {
+                        params.locked_clusters = lockedMap;
+                    }
+                }
 
                 loader.classList.add('show');
 

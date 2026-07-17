@@ -16,8 +16,9 @@ from core.engine.visualization import (
     get_3d_animated_figure, get_cluster_update_traces,
     get_3d_subcluster_figure
 )
+from collections import defaultdict
 from core.engine.analysis import (
-    get_animation_planes, get_animation_clustering
+    get_animation_planes, get_animation_clustering, project_to_km
 )
 
 logger = logging.getLogger(__name__)
@@ -51,11 +52,28 @@ def strip_data(fig_obj: go.Figure, data_dict: dict[str, Any]) -> None:
         if k in data_dict:
             data_dict[k] = []
 
+def _find_elbow_point(x_vals: np.ndarray, y_vals: np.ndarray) -> int:
+    """Find the elbow point index in a curve using maximum orthogonal distance to the start-end line."""
+    if len(x_vals) == 0:
+        return 0
+    all_coord = np.vstack((x_vals, y_vals)).T
+    first_point = all_coord[0]
+    line_vec = all_coord[-1] - first_point
+    norm_val = np.linalg.norm(line_vec)
+    if norm_val <= 0:
+        return 0
+    line_vec_norm = line_vec / norm_val
+    vec_from_first = all_coord - first_point
+    scalar_proj = np.sum(vec_from_first * line_vec_norm, axis=1)
+    vec_proj = np.outer(scalar_proj, line_vec_norm)
+    vec_to_line = vec_from_first - vec_proj
+    dist_to_line = np.linalg.norm(vec_to_line, axis=1)
+    return int(np.argmax(dist_to_line))
+
 def auto_tune_dbscan_params(target_lon, target_lat, target_dep, data: dict[str, Any], clustering_params: dict[str, Any]) -> None:
     if len(target_lon) < 5:
         return
     try:
-        from core.engine.analysis import project_to_km
         from sklearn.neighbors import NearestNeighbors
         
         o_lat = data.get('origin_lat', np.mean(target_lat))
@@ -74,22 +92,8 @@ def auto_tune_dbscan_params(target_lon, target_lat, target_dep, data: dict[str, 
             distances, _ = nn.kneighbors(pts_km)
             
             k_dists = np.sort(distances[:, -1])
-            
-            n_points = len(k_dists)
-            all_coord = np.vstack((np.arange(n_points), k_dists)).T
-            first_point = all_coord[0]
-            line_vec = all_coord[-1] - first_point
-            norm_val = np.linalg.norm(line_vec)
-            if norm_val > 0:
-                line_vec_norm = line_vec / norm_val
-                
-                vec_from_first = all_coord - first_point
-                scalar_proj = np.sum(vec_from_first * line_vec_norm, axis=1)
-                vec_proj = np.outer(scalar_proj, line_vec_norm)
-                vec_to_line = vec_from_first - vec_proj
-                dist_to_line = np.linalg.norm(vec_to_line, axis=1)
-                
-                elbow_idx = np.argmax(dist_to_line)
+            if len(k_dists) > 0:
+                elbow_idx = _find_elbow_point(np.arange(len(k_dists)), k_dists)
                 optimal_eps_km = k_dists[elbow_idx]
                 
                 optimal_eps_m = int(round((optimal_eps_km * 1000) / 10.0) * 10)
@@ -105,7 +109,6 @@ def auto_tune_kmeans_params(target_lon, target_lat, target_dep, data: dict[str, 
     if len(target_lon) < 3:
         return
     try:
-        from core.engine.analysis import project_to_km
         from sklearn.cluster import MiniBatchKMeans
 
         o_lat = data.get('origin_lat', np.mean(target_lat))
@@ -123,20 +126,8 @@ def auto_tune_kmeans_params(target_lon, target_lat, target_dep, data: dict[str, 
             km = MiniBatchKMeans(n_clusters=k, random_state=42, n_init='auto').fit(pts_km)
             inertias.append(float(km.inertia_))
 
-        _n_points = len(inertias)
-        all_coord = np.vstack((ks, inertias)).T
-        first_point = all_coord[0]
-        line_vec = all_coord[-1] - first_point
-        norm_val = np.linalg.norm(line_vec)
-        if norm_val > 0:
-            line_vec_norm = line_vec / norm_val
-            vec_from_first = all_coord - first_point
-            scalar_proj = np.sum(vec_from_first * line_vec_norm, axis=1)
-            vec_proj = np.outer(scalar_proj, line_vec_norm)
-            vec_to_line = vec_from_first - vec_proj
-            dist_to_line = np.linalg.norm(vec_to_line, axis=1)
-
-            elbow_idx = int(np.argmax(dist_to_line))
+        if len(ks) > 0:
+            elbow_idx = _find_elbow_point(np.array(ks), np.array(inertias))
             optimal_k = ks[elbow_idx]
             clustering_params['kmeans_clusters'] = int(optimal_k)
     except Exception as e:
@@ -146,7 +137,6 @@ def auto_tune_kmeans_params(target_lon, target_lat, target_dep, data: dict[str, 
 def build_view_html(
     data: dict[str, Any], 
     view_style: int, 
-    back_button: bool = True, 
     on_progress: Callable[[str], None] | None = None,
     anim_mode: str = 'accumulation', 
     window_days: int = 30, 
@@ -173,7 +163,7 @@ def build_view_html(
 
     # 1. Prepare Map Mesh
     map_grids = None
-    if view_style in [1, 2, 3]:
+    if view_style in (1, 2, 3, 4):
         _report("Preparing map mesh…")
         map_grids = build_map_mesh(bbox, MESH_HD_SIZE)
         is_fallback = (map_grids[5] is None) 
@@ -208,7 +198,7 @@ def build_view_html(
         if session_id:
             store_session_data(session_id, earthquake_data.copy())
             strip_data(fig, earthquake_data)
-        html = generate_html(fig, back_button=back_button, earthquake_data=earthquake_data, is_fallback=is_fallback, data_url=data_url)
+        html = generate_html(fig, earthquake_data=earthquake_data, is_fallback=is_fallback, data_url=data_url)
 
     elif view_style == 1:
         _report("Rendering 3D static view…")
@@ -225,14 +215,14 @@ def build_view_html(
         if session_id:
             store_session_data(session_id, earthquake_data.copy())
             strip_data(fig, earthquake_data)
-        html = generate_html(fig, is_3d=True, back_button=back_button, earthquake_data=earthquake_data, is_fallback=is_fallback, data_url=data_url)
+        html = generate_html(fig, is_3d=True, earthquake_data=earthquake_data, is_fallback=is_fallback, data_url=data_url)
 
     elif view_style == 2:
         fig, anim_data = get_3d_animated_figure(lon, lat, mag, dep, times, on_progress=on_progress, anim_mode=anim_mode, window_days=window_days, step_days=step_days, data=data, bbox=bbox, map_grids=map_grids)
         if session_id:
             store_session_data(session_id, anim_data.copy())
             strip_data(fig, anim_data)
-        html = generate_html(fig, is_animated=True, is_3d=True, back_button=back_button, earthquake_data=anim_data, is_fallback=is_fallback, data_url=data_url)
+        html = generate_html(fig, is_animated=True, is_3d=True, earthquake_data=anim_data, is_fallback=is_fallback, data_url=data_url)
 
     elif view_style == 3:
         if clustering_method == 'dbscan':
@@ -247,12 +237,10 @@ def build_view_html(
             origin_lat=data.get('origin_lat'), origin_lon=data.get('origin_lon')
         )
         
-        cluster_indices = {}
+        cluster_indices_dd = defaultdict(list)
         for i, lbl in enumerate(labels):
-            lbl_int = int(lbl)
-            if lbl_int not in cluster_indices:
-                cluster_indices[lbl_int] = []
-            cluster_indices[lbl_int].append(int(i))
+            cluster_indices_dd[int(lbl)].append(int(i))
+        cluster_indices = dict(cluster_indices_dd)
 
         cluster_data = data.copy()
         cluster_data.update({
@@ -271,7 +259,7 @@ def build_view_html(
         if session_id:
             store_session_data(session_id, cluster_data.copy())
             strip_data(fig, cluster_data)
-        html = generate_html(fig, is_cluster=True, is_3d=True, back_button=back_button, earthquake_data=cluster_data, is_fallback=is_fallback, data_url=data_url)
+        html = generate_html(fig, is_cluster=True, is_3d=True, earthquake_data=cluster_data, is_fallback=is_fallback, data_url=data_url)
 
     elif view_style == 4:
         target_indices = kwargs.get('target_indices', [])
@@ -289,10 +277,9 @@ def build_view_html(
             unlocked_targets = list(target_indices)
         
         # --- Calculate Optimal Parameters for Sub-cluster using ONLY unlocked points ---
+        clustering_params = kwargs.get('clustering_params')
         if clustering_params is None:
-            clustering_params = {}
-        clustering_params = kwargs.setdefault('clustering_params', {})
-        kwargs['clustering_params'] = clustering_params
+            clustering_params = kwargs['clustering_params'] = {}
 
         unlocked_lon = np.array(lon)[unlocked_targets]
         unlocked_lat = np.array(lat)[unlocked_targets]
@@ -304,8 +291,6 @@ def build_view_html(
             auto_tune_kmeans_params(unlocked_lon, unlocked_lat, unlocked_dep, data, clustering_params)
         # -------------------------------------------------------------------------
 
-        locked_clusters = kwargs.get('locked_clusters', None)
-
         fig, full_labels, n_clusters, locked_cluster_ids = get_3d_subcluster_figure(
             lon, lat, mag, dep, target_indices, context_indices=context_indices,
             clustering_method=clustering_method, clustering_params=clustering_params, 
@@ -314,12 +299,10 @@ def build_view_html(
             locked_clusters=locked_clusters
         )
 
-        cluster_indices = {}
+        cluster_indices_dd = defaultdict(list)
         for i, lbl in enumerate(full_labels):
-            lbl_int = int(lbl)
-            if lbl_int not in cluster_indices:
-                cluster_indices[lbl_int] = []
-            cluster_indices[lbl_int].append(int(i))
+            cluster_indices_dd[int(lbl)].append(int(i))
+        cluster_indices = dict(cluster_indices_dd)
 
         cluster_data = data.copy()
         cluster_data.update({
@@ -341,7 +324,7 @@ def build_view_html(
         if session_id:
             store_session_data(session_id, cluster_data.copy())
             strip_data(fig, cluster_data)
-        html = generate_html(fig, is_cluster=True, is_3d=True, back_button=back_button, earthquake_data=cluster_data, is_fallback=is_fallback, data_url=data_url, is_subcluster=True)
+        html = generate_html(fig, is_cluster=True, is_3d=True, earthquake_data=cluster_data, is_fallback=is_fallback, data_url=data_url, is_subcluster=True)
 
     else:
         raise ValueError(f"Invalid view style: {view_style}")

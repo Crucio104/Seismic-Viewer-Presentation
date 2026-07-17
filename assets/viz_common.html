@@ -1070,15 +1070,21 @@
                 }
             }
 
-            let isVisible = true;
-            const btn = document.getElementById('btn-toggle-tomo-points');
-            if (btn && btn.innerHTML.includes('OFF')) {
-                isVisible = false;
+            let isHighVisible = true;
+            let isLowVisible = true;
+            const btnHigh = document.getElementById('btn-toggle-tomo-high');
+            if (btnHigh && btnHigh.innerHTML.includes('OFF')) isHighVisible = false;
+            const btnLow = document.getElementById('btn-toggle-tomo-low');
+            if (btnLow && btnLow.innerHTML.includes('OFF')) isLowVisible = false;
+            const btnMain = document.getElementById('btn-toggle-tomo-points');
+            if (btnMain && btnMain.innerHTML.includes('OFF')) {
+                isHighVisible = false;
+                isLowVisible = false;
             }
 
             const indicesToDelete = [];
             gd.data.forEach((tr, idx) => {
-                if (tr.name === 'Tomography Slice Vp/Vs' || tr.name === 'Tomography Vp/Vs') {
+                if (tr.name && (tr.name === 'Tomography Slice Vp/Vs' || tr.name === 'Tomography Vp/Vs' || tr.name.includes('Tomography High Vp/Vs Slice') || tr.name.includes('Tomography Low Vp/Vs Slice'))) {
                     indicesToDelete.push(idx);
                 }
             });
@@ -1088,6 +1094,15 @@
 
             if (sliceLons.length > 0) {
                 const isMapboxView = gd.layout && gd.layout.mapbox;
+                let neutralRef = 1.75;
+                const neutralInputEl = document.getElementById('tomo-neutral-input');
+                if (neutralInputEl && neutralInputEl.value) {
+                    const parsedNeut = parseFloat(neutralInputEl.value);
+                    if (!isNaN(parsedNeut) && parsedNeut >= 1.2 && parsedNeut <= 2.5) {
+                        neutralRef = parsedNeut;
+                    }
+                }
+
                 const allLats = (this._activeTomographyData && this._activeTomographyData.lats) ? this._activeTomographyData.lats : sliceLats;
                 const allLons = (this._activeTomographyData && this._activeTomographyData.lons) ? this._activeTomographyData.lons : sliceLons;
                 let minLat = 999, maxLat = -999, minLon = 999, maxLon = -999;
@@ -1103,10 +1118,8 @@
                 const N = 75, M = 75;
                 const latStep = (maxLat - minLat) / N;
                 const lonStep = (maxLon - minLon) / M;
-                const features = [];
-                const locs = [];
-                const vals = [];
-                const hover = [];
+                const featuresHigh = [], locsHigh = [], valsHigh = [], hoverHigh = [];
+                const featuresLow = [], locsLow = [], valsLow = [], hoverLow = [];
                 let idx = 0;
                 for (let i = 0; i < N; i++) {
                     const lat1 = minLat + i * latStep;
@@ -1127,48 +1140,75 @@
                         }
                         const val = sumWV / sumW;
                         const cid = 'tcell_' + idx++;
-                        locs.push(cid);
-                        vals.push(val);
-                        hover.push(`<b>Tomography Vp/Vs Surface: ${val.toFixed(3)}</b><br>Depth: ${closestDepth.toFixed(2)} km<br>Lat: ${clat.toFixed(4)}°<br>Lon: ${clon.toFixed(4)}°`);
-                        features.push({
+                        const hTxt = `<b>Tomography Vp/Vs Surface: ${val.toFixed(3)}</b><br>Depth: ${closestDepth.toFixed(2)} km<br>Lat: ${clat.toFixed(4)}°<br>Lon: ${clon.toFixed(4)}°`;
+                        const geom = {
                             type: 'Feature',
                             id: cid,
                             geometry: {
                                 type: 'Polygon',
                                 coordinates: [[[lon1, lat1], [lon2, lat1], [lon2, lat2], [lon1, lat2], [lon1, lat1]]]
                             }
-                        });
+                        };
+                        if (val >= neutralRef) {
+                            locsHigh.push(cid);
+                            valsHigh.push(val);
+                            hoverHigh.push(hTxt);
+                            featuresHigh.push(geom);
+                        } else {
+                            locsLow.push(cid);
+                            valsLow.push(val);
+                            hoverLow.push(hTxt);
+                            featuresLow.push(geom);
+                        }
                     }
                 }
-                const geojsonSurface = { type: 'FeatureCollection', features: features };
 
                 if (isMapboxView) {
-                    const sliceTrace = {
-                        type: 'choroplethmapbox',
-                        name: 'Tomography Slice Vp/Vs',
-                        geojson: geojsonSurface,
-                        locations: locs,
-                        z: vals,
-                        hovertext: hover,
-                        hovertemplate: '%{hovertext}<extra></extra>',
-                        opacity: 0.75,
-                        visible: isVisible,
-                        zmin: 1.15,
-                        zmax: 2.35,
-                        colorscale: [
-                            [0.0, 'rgb(0, 100, 255)'],
-                            [0.35, 'rgb(80, 180, 255)'],
-                            [0.5, 'rgb(255, 255, 255)'],
-                            [0.65, 'rgb(255, 160, 80)'],
-                            [1.0, 'rgb(255, 60, 0)']
-                        ],
-                        showscale: false,
-                        marker: {
+                    const sliceTraces = [];
+                    const globalColorScale = [
+                        [0.0, 'rgb(0, 100, 255)'],
+                        [0.35, 'rgb(80, 180, 255)'],
+                        [0.5, 'rgb(255, 255, 255)'],
+                        [0.65, 'rgb(255, 160, 80)'],
+                        [1.0, 'rgb(255, 60, 0)']
+                    ];
+                    if (locsHigh.length > 0) {
+                        sliceTraces.push({
+                            type: 'choroplethmapbox',
+                            name: `Tomography High Vp/Vs Slice (> ${neutralRef.toFixed(2)})`,
+                            geojson: { type: 'FeatureCollection', features: featuresHigh },
+                            locations: locsHigh,
+                            z: valsHigh,
+                            hovertext: hoverHigh,
+                            hovertemplate: '%{hovertext}<extra></extra>',
                             opacity: 0.75,
-                            line: { width: 0, color: 'rgba(0,0,0,0)' }
-                        }
-                    };
-                    Plotly.addTraces(gd, [sliceTrace]);
+                            visible: isHighVisible,
+                            zmin: 1.15,
+                            zmax: 2.35,
+                            colorscale: globalColorScale,
+                            showscale: false,
+                            marker: { opacity: 0.75, line: { width: 0, color: 'rgba(0,0,0,0)' } }
+                        });
+                    }
+                    if (locsLow.length > 0) {
+                        sliceTraces.push({
+                            type: 'choroplethmapbox',
+                            name: `Tomography Low Vp/Vs Slice (< ${neutralRef.toFixed(2)})`,
+                            geojson: { type: 'FeatureCollection', features: featuresLow },
+                            locations: locsLow,
+                            z: valsLow,
+                            hovertext: hoverLow,
+                            hovertemplate: '%{hovertext}<extra></extra>',
+                            opacity: 0.75,
+                            visible: isLowVisible,
+                            zmin: 1.15,
+                            zmax: 2.35,
+                            colorscale: globalColorScale,
+                            showscale: false,
+                            marker: { opacity: 0.75, line: { width: 0, color: 'rgba(0,0,0,0)' } }
+                        });
+                    }
+                    Plotly.addTraces(gd, sliceTraces);
                 }
             }
             this.bringMarkersToFront();
@@ -1179,6 +1219,13 @@
             if (!gd || !gd.data) return;
             const parsed = parseFloat(val);
             if (isNaN(parsed) || parsed < 1.2 || parsed > 2.5) return;
+            
+            const isMapboxView = (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox' || tr.type === 'choroplethmapbox')) || (gd.layout && gd.layout.mapbox);
+            if (isMapboxView) {
+                this.updateTomographySlice(null);
+                showStatusToast(`Tomography neutral reference updated to ${parsed.toFixed(2)}`, true);
+                return;
+            }
             
             const highIdx = gd.data.findIndex(tr => tr.name && tr.name.includes('High Vp/Vs'));
             const lowIdx = gd.data.findIndex(tr => tr.name && tr.name.includes('Low Vp/Vs'));
@@ -1664,11 +1711,35 @@
             showInitLoader('Capturing scene...');
 
             try {
-                // Use Plotly.toImage to get high-res screenshot
+                // Sync current interactive camera / mapbox view right before capture
+                if (gd._fullLayout) {
+                    if (gd._fullLayout.mapbox) {
+                        gd.layout.mapbox = gd.layout.mapbox || {};
+                        if (gd._fullLayout.mapbox.center) gd.layout.mapbox.center = Object.assign({}, gd._fullLayout.mapbox.center);
+                        if (gd._fullLayout.mapbox.zoom !== undefined) gd.layout.mapbox.zoom = gd._fullLayout.mapbox.zoom;
+                        if (gd._fullLayout.mapbox.bearing !== undefined) gd.layout.mapbox.bearing = gd._fullLayout.mapbox.bearing;
+                        if (gd._fullLayout.mapbox.pitch !== undefined) gd.layout.mapbox.pitch = gd._fullLayout.mapbox.pitch;
+                    }
+                    if (gd._fullLayout.scene && gd._fullLayout.scene.camera) {
+                        gd.layout.scene = gd.layout.scene || {};
+                        gd.layout.scene.camera = JSON.parse(JSON.stringify(gd._fullLayout.scene.camera));
+                    }
+                    if (gd._fullLayout.xaxis && gd._fullLayout.xaxis.range) {
+                        gd.layout.xaxis = gd.layout.xaxis || {};
+                        gd.layout.xaxis.range = [...gd._fullLayout.xaxis.range];
+                    }
+                    if (gd._fullLayout.yaxis && gd._fullLayout.yaxis.range) {
+                        gd.layout.yaxis = gd.layout.yaxis || {};
+                        gd.layout.yaxis.range = [...gd._fullLayout.yaxis.range];
+                    }
+                }
+
+                const rect = gd.getBoundingClientRect();
+                // Use exact active container dimensions so 2D map bounding box is preserved accurately
                 const dataUrl = await Plotly.toImage(gd, {
                     format: 'png',
-                    width: window.innerWidth * 2,
-                    height: window.innerHeight * 2,
+                    width: Math.round(rect.width || gd.clientWidth || window.innerWidth),
+                    height: Math.round(rect.height || gd.clientHeight || window.innerHeight),
                     scale: 2
                 });
 

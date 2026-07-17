@@ -34,7 +34,7 @@ def _ensure_templates_loaded() -> None:
             TEMPLATE_CACHE[key] = ""
 
 
-def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = False, is_3d: bool = False, back_button: bool = True, earthquake_data: dict[str, Any] | None = None, is_fallback: bool = False, data_url: str = "", is_subcluster: bool = False) -> str:
+def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = False, is_3d: bool = False, earthquake_data: dict[str, Any] | None = None, is_fallback: bool = False, data_url: str = "", is_subcluster: bool = False) -> str:
     """Convert a Plotly figure to a full HTML string with custom overlays and cached templates."""
     _ensure_templates_loaded()
 

@@ -62,32 +62,31 @@ def _compute_grid(w: int, h: int, scale: float, ts: int, xmin: float, ymin: floa
     return x, y
 
 
-@lru_cache(maxsize=4)
-def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[list[float | str]], dict[str, Any] | None]:
-    
-    # Create a square bounding box based on the largest dimension
+def expand_to_square_bbox(bbox: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+    """Expand a bounding box into a square based on its largest dimension."""
     min_lat, min_lon, max_lat, max_lon = bbox
     lat_range = max_lat - min_lat
     lon_range = max_lon - min_lon
-    
     max_range = max(lat_range, lon_range)
-    
     center_lat = (min_lat + max_lat) / 2.0
     center_lon = (min_lon + max_lon) / 2.0
-    
-    new_min_lat = center_lat - (max_range / 2.0)
-    new_max_lat = center_lat + (max_range / 2.0)
-    new_min_lon = center_lon - (max_range / 2.0)
-    new_max_lon = center_lon + (max_range / 2.0)
-    
-    # Create the new expanded square bounding box
-    bbox = (new_min_lat, new_min_lon, new_max_lat, new_max_lon)
+    half_range = max_range / 2.0
+    return (
+        center_lat - half_range,
+        center_lon - half_range,
+        center_lat + half_range,
+        center_lon + half_range,
+    )
 
+
+@lru_cache(maxsize=4)
+def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[list[float | str]], dict[str, Any] | None]:
     """
     Build a map mesh at the given resolution.
     Caches the FINAL processed mesh (grids + texture) to disk.
     Returns (x_grid, y_grid, z_grid, matrix, cscale, map_data).
     """
+    bbox = expand_to_square_bbox(bbox)
     MAP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_path = _get_cache_path(bbox, resolution)
 

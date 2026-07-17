@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import json
+from typing import Any
 from fastapi import WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ class ConnectionManager:
                 # Connection might be stale
                 pass
 
-async def handle_websocket_messages(websocket: WebSocket, manager: ConnectionManager, api_ref: object | None, loop: asyncio.AbstractEventLoop | None) -> None:
+async def handle_websocket_messages(websocket: WebSocket, manager: ConnectionManager, api_ref: Any | None = None) -> None:
     """Handle incoming WebSocket messages and route them to the API bridge."""
     try:
         while True:
@@ -46,20 +47,14 @@ async def handle_websocket_messages(websocket: WebSocket, manager: ConnectionMan
             if msg_type == "ping":
                 await manager.send_personal_message({"type": "pong", "id": request_id}, websocket)
             
-            elif msg_type == "get_cluster_update":
+            elif msg_type in ("get_cluster_update", "get_structural_planes", "get_animated_clustering"):
                 p = message.get("params", {})
-                # CPU-bound clustering should run in a thread
-                result = await asyncio.to_thread(api_ref.get_cluster_update, p.get("method"), p.get("params"))
-                await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
-
-            elif msg_type == "get_structural_planes":
-                p = message.get("params", {})
-                result = await asyncio.to_thread(api_ref.get_structural_planes, p.get("radius_km"), p.get("min_pts"), p.get("window_days"), p.get("anim_mode", "accumulation"), p.get("step_days", 7))
-                await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
-
-            elif msg_type == "get_animated_clustering":
-                p = message.get("params", {})
-                result = await asyncio.to_thread(api_ref.get_animated_clustering, p.get("method"), p.get("params"), p.get("plane_step", 5))
+                if msg_type == "get_cluster_update":
+                    result = await asyncio.to_thread(api_ref.get_cluster_update, p.get("method"), p.get("params"))
+                elif msg_type == "get_structural_planes":
+                    result = await asyncio.to_thread(api_ref.get_structural_planes, p.get("radius_km"), p.get("min_pts"), p.get("window_days"), p.get("anim_mode", "accumulation"), p.get("step_days", 7))
+                else:  # get_animated_clustering
+                    result = await asyncio.to_thread(api_ref.get_animated_clustering, p.get("method"), p.get("params"), p.get("plane_step", 5))
                 await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
 
     except (WebSocketDisconnect, ConnectionResetError, OSError):

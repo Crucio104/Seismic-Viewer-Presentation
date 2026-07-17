@@ -138,7 +138,7 @@ def _create_fastapi_app() -> FastAPI:
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket) -> None:
         await manager.connect(websocket)
-        await handle_websocket_messages(websocket, manager, _api_ref, _uvicorn_loop)
+        await handle_websocket_messages(websocket, manager, _api_ref)
 
     # API Endpoints
     app.get("/api/data/{session_id}")(get_data_handler)

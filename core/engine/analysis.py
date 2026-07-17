@@ -78,8 +78,8 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
         # Calculate orthogonal distances to plane
         dists = np.abs(np.dot(points, normal) - np.dot(sample[0], normal))
         
-        # Loss function: radice del quadrato della distanza media dal piano dei punti
-        loss = np.sqrt(np.mean(dists)**2)
+        # Loss function: distanza media dal piano dei punti
+        loss = float(np.mean(dists))
         
         inliers = np.where(dists < threshold)[0]
         if len(inliers) >= min_inliers and loss < best_loss:
@@ -317,41 +317,8 @@ def project_to_km(lon: np.ndarray, lat: np.ndarray, dep: np.ndarray, origin_lat:
         dep
     ))
 
-def _worker_calculate_clustering(args: tuple) -> tuple[str, list[int], list[dict[str, Any]]]:
-    date_str, start_idx, end_idx, method, params, origin_lon, origin_lat, lon_to_km = args
-    pts_km = _worker_data['pts_km']
-    pts_subset = pts_km[start_idx:end_idx]
-    
-    if len(pts_subset) == 0:
-        return date_str, [], []
-    
-    display_labels, n_clusters, _ = perform_clustering(pts_subset, method, params)
 
-    planes = []
-    show_planes = params.get('show_cluster_planes', False)
-    if show_planes:
-        for i in range(n_clusters):
-            idx = (display_labels == i)
-            pts = pts_subset[idx]
-            if len(pts) >= 4:
-                normal, centroid_km, planarity = fit_plane_ransac(pts, threshold=0.15)
-                if normal is not None and centroid_km is not None:
-                    dists = np.linalg.norm(pts - centroid_km, axis=1)
-                    radius_eff = max(0.2, float(np.percentile(dists, 90)))
-                    
-                    c_lon = (centroid_km[0] / lon_to_km) + origin_lon
-                    c_lat = (centroid_km[1] / KM_PER_DEGREE) + origin_lat
-                    
-                    plane_data = _format_plane_geometry(
-                        normal, centroid_km, planarity,
-                        c_lon, c_lat, lon_to_km, radius_eff
-                    )
-                    plane_data['grid_id'] = f"cluster_{i}_{date_str}"
-                    planes.append(plane_data)
-    
-    return date_str, display_labels.tolist(), planes
-
-def match_labels_globally(current_labels: np.ndarray, current_global_indices: np.ndarray, 
+def match_labels_globally(current_labels: np.ndarray, current_global_indices: np.ndarray,
                           prev_labels_map: np.ndarray, next_label_id: int) -> tuple[np.ndarray, int]:
     """
     Matches current labels to previous ones using global array mapping.
@@ -608,7 +575,7 @@ def _get_frame_dates_and_indices(dates, date_to_cum, mode, window_days, step_day
         indices.append((s_idx, date_to_cum[d_str]))
     return dates, indices
 
-def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat, dim):
+def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat):
     from core.config import KM_PER_DEGREE
     lon_to_km = KM_PER_DEGREE * np.cos(np.radians(origin_lat))
     planes = []
@@ -659,11 +626,12 @@ def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat, di
             planes.append(p_data)
     return planes
 
-def _perform_cylinder_clustering(pts_subset, curr_pt_cylinder_map, method, params):
+def _perform_cylinder_clustering(curr_pt_cylinder_map):
     """Partitions points into cylinders."""
-    labels = np.full(len(pts_subset), -1, dtype=int)
+    n = len(curr_pt_cylinder_map)
+    labels = np.full(n, -1, dtype=int)
     
-    if len(pts_subset) == 0:
+    if n == 0:
         return labels, 0
 
     # VECTORIZED GROUPING: Avoid O(Cylinders * Points) loop
@@ -732,13 +700,13 @@ def _process_frame_worker(idx, data):
         else:
             combined_map = curr_pt_cylinder_map
 
-        labels, n_clusters = _perform_cylinder_clustering(pts_subset, combined_map, method, params)
+        labels, n_clusters = _perform_cylinder_clustering(combined_map)
         centroids = None
     else:
         labels, n_clusters, centroids = perform_clustering(pts_subset, method, params, None)
         
     frame_planes = []
     if (idx % plane_step == 0) and labels is not None:
-        frame_planes = _calculate_frame_planes(labels, pts_subset, "TMP", origin_lon, origin_lat, pts_km.shape[1])
+        frame_planes = _calculate_frame_planes(labels, pts_subset, "TMP", origin_lon, origin_lat)
 
     return idx, labels, centroids, global_indices, mask, len(pts_raw), frame_planes

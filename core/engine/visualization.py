@@ -329,7 +329,8 @@ def get_3d_subcluster_figure(
 def get_cluster_update_traces(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], hover: list[str],
                                clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
                                origin_lat: float | None = None, origin_lon: float | None = None, 
-                               subcluster_target_mask: np.ndarray | None = None, subcluster_context_mask: np.ndarray | None = None) -> dict[str, Any]:
+                               subcluster_target_mask: np.ndarray | None = None, subcluster_context_mask: np.ndarray | None = None,
+                               global_indices: np.ndarray | None = None) -> dict[str, Any]:
     """Perform clustering and return a JSON-ready package for async updates."""
     actual_viz_mask = viz_mask
     if subcluster_target_mask is not None:
@@ -341,7 +342,7 @@ def get_cluster_update_traces(longitude: list[float], latitude: list[float], mag
     result = _generate_cluster_traces(
         longitude, latitude, magnitude, depth, hover,
         clustering_method, clustering_params, actual_viz_mask,
-        origin_lat=origin_lat, origin_lon=origin_lon
+        origin_lat=origin_lat, origin_lon=origin_lon, global_indices=global_indices
     )
     
     traces = result['traces']
@@ -401,18 +402,18 @@ def get_cluster_update_traces(longitude: list[float], latitude: list[float], mag
             lbl_int = int(lbl)
             if lbl_int not in cluster_indices:
                 cluster_indices[lbl_int] = []
-            cluster_indices[lbl_int].append(int(i))
+            cluster_indices[lbl_int].append(i)
                 
     return {
         'traces': json_traces,
-        'labels': result['labels'].tolist(),
+        'labels': result['labels'].tolist() if hasattr(result['labels'], 'tolist') else list(result['labels']),
         'n_clusters': result['n_clusters'],
         'cluster_indices': cluster_indices
     }
 
 def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list[float] | np.ndarray, magnitude: list[float] | np.ndarray, depth: list[float] | np.ndarray, hover: list[str],
                              method: str = 'dbscan', params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
-                             origin_lat: float | None = None, origin_lon: float | None = None) -> dict[str, Any]:
+                             origin_lat: float | None = None, origin_lon: float | None = None, global_indices: np.ndarray | None = None) -> dict[str, Any]:
     """Shared helper to perform clustering and generate Plotly trace objects."""
     params = params or {}
     longitude, latitude, depth = np.array(longitude), np.array(latitude), np.array(depth)
@@ -436,8 +437,6 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
         origin_lon = np.mean(f_lon)
     
     from .analysis import project_to_km
-    from core.config import KM_PER_DEGREE
-    lon_to_km = KM_PER_DEGREE * np.cos(np.radians(origin_lat))
     X_km = project_to_km(f_lon, f_lat, f_dep, origin_lat, origin_lon)
     X_orig_f = np.column_stack((f_lon, f_lat, f_dep))
 
@@ -463,8 +462,49 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
             n_clusters = len(unique_l)
             labels = display_labels
     else:
-        display_labels, n_clusters, _ = perform_clustering(X_km, method, params)
-        labels = display_labels # For return consistency
+        locked_clusters = params.get('locked_clusters')
+        if locked_clusters:
+            display_labels = np.full(len(f_lon), -1, dtype=int)
+            locked_mask = np.zeros(len(f_lon), dtype=bool)
+            locked_ids = set()
+            
+            gidx_to_locked_lbl = {}
+            for k, idxs in locked_clusters.items():
+                lbl_id = int(k)
+                locked_ids.add(lbl_id)
+                for gidx in idxs:
+                    gidx_to_locked_lbl[int(gidx)] = lbl_id
+
+            for j in range(len(f_lon)):
+                g_idx = int(global_indices[j]) if global_indices is not None else j
+                if g_idx in gidx_to_locked_lbl:
+                    display_labels[j] = gidx_to_locked_lbl[g_idx]
+                    locked_mask[j] = True
+
+            unlocked_indices = [j for j in range(len(f_lon)) if not locked_mask[j]]
+            if len(unlocked_indices) > 0:
+                local_labels, n_local, _ = perform_clustering(X_km[unlocked_indices], method, params)
+                local_to_global = {}
+                next_id = 0
+                for loc_id in range(n_local):
+                    while next_id in locked_ids:
+                        next_id += 1
+                    local_to_global[loc_id] = next_id
+                    next_id += 1
+
+                for idx_in_unlocked, j in enumerate(unlocked_indices):
+                    loc_lbl = int(local_labels[idx_in_unlocked])
+                    if loc_lbl >= 0:
+                        display_labels[j] = local_to_global.get(loc_lbl, -1)
+                    else:
+                        display_labels[j] = -1
+
+            active_labels = display_labels[display_labels >= 0]
+            n_clusters = int(np.max(active_labels)) + 1 if len(active_labels) > 0 else 0
+            labels = display_labels
+        else:
+            display_labels, n_clusters, _ = perform_clustering(X_km, method, params)
+            labels = display_labels # For return consistency
 
     cluster_colors = _pq.Plotly
     traces = []
@@ -483,7 +523,7 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
     show_planes = params.get('show_cluster_planes', False)
     for i in range(n_clusters):
         pts = X_orig_f[display_labels == i]
-        traces.append(_get_cluster_plane_trace(pts, cluster_colors[i % len(cluster_colors)], i, show_planes, lon_to_km))
+        traces.append(_get_cluster_plane_trace(pts, cluster_colors[i % len(cluster_colors)], i, show_planes))
 
     # D. Earthquake Markers
     traces.append(_get_cluster_marker_trace(f_lon, f_lat, f_dep, f_mag, f_hover, display_labels, cluster_colors, params))
@@ -540,7 +580,7 @@ def _get_cluster_mesh_trace(pts: np.ndarray, color: str, index: int) -> go.Mesh3
     except Exception:
         return go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip')
 
-def _get_cluster_plane_trace(pts: np.ndarray, color: str, index: int, visible: bool, lon_to_km: float) -> go.Mesh3d:
+def _get_cluster_plane_trace(pts: np.ndarray, color: str, index: int, visible: bool) -> go.Mesh3d:
     """Generate a structural plane for a cluster using RANSAC."""
     if len(pts) < 4:
         return go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip')

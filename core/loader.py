@@ -2,6 +2,7 @@ import logging
 import pandas as pd
 import numpy as np
 from typing import Any
+from datetime import datetime
 from core.config import (
     MIN_MAGNITUDE, MISSING_MAG_VALUE, MISSING_DEPTH_VALUE, CSV_SCHEMA
 )
@@ -107,7 +108,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
     else:
         df['time_dt'] = pd.to_datetime(df['time'], errors='coerce')
     df = df.dropna(subset=['time_dt'])
-    df = df.sort_values('time_dt').reset_index(drop=True)
+    df = df.reset_index(drop=True)
 
     # Flag missing depth/magnitude BEFORE filling them
     if 'depth' in df.columns:
@@ -132,7 +133,6 @@ def load_csv(source_file: str) -> dict[str, Any]:
     df = df[(df['lat'].between(-90, 90)) & (df['lon'].between(-180, 180))]
     
     # 2. Temporal Bounds Check (No future dates)
-    from datetime import datetime
     df = df[df['time_dt'] <= datetime.now()]
     
     # 3. Depth check (Reasonable range: -10km to 800km)
@@ -179,7 +179,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
         'summary': {
             'event_count': len(df),
             'date_range': date_range,
-            'total_days': int((df['time_dt'].max() - df['time_dt'].min()).days) + 1,
+            'total_days': visual_pack['total_days'],
         },
     }
 

@@ -7,6 +7,9 @@ import numpy as np
 import asyncio
 import time
 import pandas as pd
+import base64
+import shutil
+from collections import Counter, defaultdict
 from typing import Any, Callable
 
 from core.config import (
@@ -115,7 +118,6 @@ class Api:
             save_path = result[0] if isinstance(result, (list, tuple)) else result
             
             # Decode base64 data
-            import base64
             header, encoded = base64_data.split(",", 1)
             data = base64.b64decode(encoded)
             
@@ -267,7 +269,6 @@ class Api:
                 valid_originals = original_labels[original_labels >= 0]
                 if len(valid_originals) > 0:
                     # Find the most common original label (should be uniform, but use most common to be safe)
-                    from collections import Counter
                     most_common = Counter(valid_originals).most_common(1)[0][0]
                     # Set any points with this original label that are NOT in target_indices to noise (-1)
                     orphan_mask = (global_labels == most_common)
@@ -320,7 +321,6 @@ class Api:
                 self._push_progress("Loading from cache…")
                 if view_style != 4:
                     self._inject_dark_overlay()
-                import time
                 url = self._make_url(self._html_cache[cache_key]) + f"?t={int(time.time()*1000)}"
                 if view_style == 4:
                     url += "&subcluster=true"
@@ -420,6 +420,8 @@ class Api:
             if target_mask is not None:
                 actual_mask = viz_mask & target_mask
 
+            global_indices = np.where(actual_mask)[0] + start_idx
+
             res = engine.get_cluster_update_traces(
                 longitude=d['longitude'][start_idx:end_idx],
                 latitude=d['latitude'][start_idx:end_idx],
@@ -429,23 +431,20 @@ class Api:
                 clustering_method=method, clustering_params=params, viz_mask=viz_mask,
                 origin_lat=d.get('origin_lat'), origin_lon=d.get('origin_lon'),
                 subcluster_target_mask=target_mask,
-                subcluster_context_mask=context_mask
+                subcluster_context_mask=context_mask,
+                global_indices=global_indices
             )
 
             # Map the returned labels back to global indices
             labels = np.array(res['labels'])
-            global_indices = np.where(actual_mask)[0] + start_idx
             
-            cluster_indices = {}
+            cluster_indices = defaultdict(list)
             # labels length should match global_indices length
             if len(labels) == len(global_indices):
-                for i, g_idx in enumerate(global_indices):
-                    lbl = int(labels[i])
-                    if lbl not in cluster_indices:
-                        cluster_indices[lbl] = []
-                    cluster_indices[lbl].append(int(g_idx))
+                for lbl, g_idx in zip(labels, global_indices):
+                    cluster_indices[int(lbl)].append(int(g_idx))
             
-            res['cluster_indices'] = cluster_indices
+            res['cluster_indices'] = dict(cluster_indices)
             res['method'] = method
             res['params'] = params if params is not None else {}
             self._last_cluster_result = {
@@ -483,7 +482,6 @@ class Api:
         return True
 
     def clear_map_cache(self) -> bool | str:
-        import shutil
         try:
             if MAP_CACHE_DIR.exists():
                 shutil.rmtree(MAP_CACHE_DIR)
@@ -571,12 +569,9 @@ class Api:
 
             # If we only have labels, build cluster_indices mapping
             if not cluster_indices and labels is not None:
-                cluster_indices = {}
+                cluster_indices = defaultdict(list)
                 for idx, lbl in enumerate(labels):
-                    lbl_int = int(lbl)
-                    if lbl_int not in cluster_indices:
-                        cluster_indices[lbl_int] = []
-                    cluster_indices[lbl_int].append(idx)
+                    cluster_indices[int(lbl)].append(idx)
 
             if not cluster_indices:
                 return {'status': 'error', 'message': 'No cluster data available to export. Please run clustering first.'}

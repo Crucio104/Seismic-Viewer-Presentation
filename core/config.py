@@ -45,7 +45,6 @@ MAP_CACHE_DIR = BASE_DIR / 'resources' / '.map_cache'
 _http_port = 0
 
 def get_http_port() -> int:
-    global _http_port
     return _http_port
 
 def set_http_port(port: int) -> None:
@@ -59,7 +58,6 @@ _data_store: dict[str, Any] = {}
 
 def store_session_data(session_id: str, data: dict[str, Any]) -> None:
     """Store visualization data for a session, evicting old entries."""
-    global _data_store
     # Keep at most 30 sessions to bound memory usage but prevent premature eviction
     while len(_data_store) >= 30:
         oldest_key = next(iter(_data_store))
@@ -80,7 +78,6 @@ _html_store: dict[str, str] = {}
 
 def store_viz_html(viz_id: str, html: str) -> None:
     """Store generated HTML for a view, evicting old entries."""
-    global _html_store
     # Keep at most 15 views to bound memory usage but prevent premature eviction
     while len(_html_store) >= 15:
         oldest_key = next(iter(_html_store))

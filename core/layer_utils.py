@@ -46,6 +46,18 @@ def utm33_to_latlon_numpy(x_km: np.ndarray | float, y_km: np.ndarray | float) ->
     return np.degrees(lat), np.degrees(lon)
 
 
+def _read_csv_flexible(path: Path | str) -> pd.DataFrame:
+    """Helper to read CSV with flexible separator and encoding fallback."""
+    p = Path(path)
+    try:
+        df = pd.read_csv(p, sep=';', encoding='utf-8', engine='python')
+        if len(df.columns) <= 1:
+            df = pd.read_csv(p, sep=',', encoding='utf-8', engine='python')
+        return df
+    except Exception:
+        return pd.read_csv(p, sep=None, engine='python')
+
+
 def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
     """Read tomography CSV, convert UTM coordinates, and extract Vp/Vs ratio."""
     try:
@@ -53,13 +65,7 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
         if not path.exists():
             return {'error': f"File non trovato: {csv_path}"}
         
-        # Try reading with semicolon or comma
-        try:
-            df = pd.read_csv(path, sep=';', encoding='utf-8', engine='python')
-            if len(df.columns) <= 1:
-                df = pd.read_csv(path, sep=',', encoding='utf-8', engine='python')
-        except Exception:
-            df = pd.read_csv(path, sep=None, engine='python')
+        df = _read_csv_flexible(path)
             
         # Clean column names
         df.columns = [c.strip().upper() for c in df.columns]
@@ -207,12 +213,7 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
         if not path.exists():
             return {'error': f"File non trovato: {csv_path}"}
             
-        try:
-            df = pd.read_csv(path, sep=';', encoding='utf-8', engine='python')
-            if len(df.columns) <= 1:
-                df = pd.read_csv(path, sep=',', encoding='utf-8', engine='python')
-        except Exception:
-            df = pd.read_csv(path, sep=None, engine='python')
+        df = _read_csv_flexible(path)
             
         df.columns = [c.strip().lower() for c in df.columns]
         
@@ -421,9 +422,7 @@ def _load_station_coordinates(search_dir: Path, stations_path: str | Path | None
         return {}
         
     try:
-        df = pd.read_csv(coord_file, sep=';', encoding='utf-8', engine='python')
-        if len(df.columns) <= 1:
-            df = pd.read_csv(coord_file, sep=',', encoding='utf-8', engine='python')
+        df = _read_csv_flexible(coord_file)
         df.columns = [c.strip().lower() for c in df.columns]
         
         st_col = next((c for c in df.columns if 'station' in c or 'staz' in c), None)
@@ -433,12 +432,10 @@ def _load_station_coordinates(search_dir: Path, stations_path: str | Path | None
         if not all([st_col, lat_col, lon_col]):
             return {}
             
-        coord_map = {}
-        for _, row in df.iterrows():
-            st = str(row[st_col]).strip().upper()
-            coord_map[st] = (float(row[lat_col]), float(row[lon_col]))
-            
-        return coord_map
+        return {
+            str(st).strip().upper(): (float(lat), float(lon))
+            for st, lat, lon in zip(df[st_col], df[lat_col], df[lon_col])
+        }
     except Exception as e:
         logger.error(f"Errore lettura file coordinate stazioni: {e}")
         return {}
