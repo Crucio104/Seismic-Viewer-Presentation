@@ -1,3 +1,4 @@
+import sys
 import threading
 import atexit
 import webview
@@ -29,21 +30,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("SeismicViewer")
 
-import sys
 if sys.platform == 'win32':
-    try:
-        from asyncio.proactor_events import _ProactorBasePipeTransport
-        _original_call_connection_lost = _ProactorBasePipeTransport._call_connection_lost
-
-        def _silent_call_connection_lost(self, exc=None):
-            try:
-                _original_call_connection_lost(self, exc)
-            except (ConnectionResetError, OSError):
-                pass
-
-        _ProactorBasePipeTransport._call_connection_lost = _silent_call_connection_lost
-    except (ImportError, AttributeError):
-        pass
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # --- Global State ---
 _server_thread: threading.Thread | None = None

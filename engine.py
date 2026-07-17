@@ -123,7 +123,7 @@ def auto_tune_kmeans_params(target_lon, target_lat, target_dep, data: dict[str, 
             km = MiniBatchKMeans(n_clusters=k, random_state=42, n_init='auto').fit(pts_km)
             inertias.append(float(km.inertia_))
 
-        n_points = len(inertias)
+        _n_points = len(inertias)
         all_coord = np.vstack((ks, inertias)).T
         first_point = all_coord[0]
         line_vec = all_coord[-1] - first_point

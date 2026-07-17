@@ -228,7 +228,7 @@ def get_3d_subcluster_figure(
     if len(unlocked_targets) > 0:
         sub_lon = np.array([longitude[i] for i in unlocked_targets], dtype=float)
         sub_lat = np.array([latitude[i] for i in unlocked_targets], dtype=float)
-        sub_mag = np.array([magnitude[i] for i in unlocked_targets], dtype=float)
+        _sub_mag = np.array([magnitude[i] for i in unlocked_targets], dtype=float)
         sub_dep = np.array([depth[i] for i in unlocked_targets], dtype=float)
 
         if origin_lat is None:
