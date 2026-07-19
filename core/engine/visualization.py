@@ -92,14 +92,15 @@ def view_2d(longitude: list[float], latitude: list[float], magnitude: list[float
     fig.update_traces(
         marker=dict(coloraxis=None, colorscale='Viridis', showscale=False),
         hoverinfo='text',
-        hovertemplate='%{hovertext}<extra></extra>'
+        hovertemplate='%{hovertext}<extra></extra>',
+        name='Earthquakes (Scatter)'
     )
     
     fig.add_trace(go.Densitymapbox(
         lat=latitude, lon=longitude, z=magnitude,
         radius=15, colorscale='Viridis',
         showscale=False, visible=False,
-        name='Heatmap'
+        name='Earthquakes (Heatmap)'
     ))
     
     if dates_num is not None:

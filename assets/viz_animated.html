@@ -561,7 +561,7 @@
                     barTitle = 'Depth (KM)';
                 }
 
-                const markerSizes = currentSizeMode === 'magnitude' ? sliceMag.map(m => Math.max(8, Math.pow(Math.max(0, m), 2) * 1.5)) : [5];
+                const markerSizes = currentSizeMode === 'magnitude' ? sliceMag.map(m => Math.max(8, Math.pow(Math.max(0, m), 2) * 1.5)) : 5;
 
                 // --- Optimized Multi-Trace Update ---
                 const bulkUpdate = {

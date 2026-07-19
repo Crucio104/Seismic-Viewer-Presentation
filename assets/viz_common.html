@@ -512,6 +512,7 @@
                 this.closeBottomLeftPopups('layer-modal');
 
                 if (!isShowing) {
+                    this.restoreStoredLayers();
                     modal.classList.add('active');
                 } else {
                     modal.classList.remove('active');
@@ -569,6 +570,47 @@
                     showStatusToast('Error during file selection', false);
                 });
             }
+        },
+
+        restoreStoredLayers(attempt = 0) {
+            if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_stored_layer_paths) {
+                if (attempt < 8) setTimeout(() => this.restoreStoredLayers(attempt + 1), 300);
+                return;
+            }
+            const self = this;
+            window.pywebview.api.get_stored_layer_paths().then((stored) => {
+                if (!stored) return;
+                if (stored.stations && stored.stations.path) {
+                    self._pendingStationsPath = stored.stations.path;
+                    const statusEl = document.getElementById('status-layer-stations');
+                    if (statusEl) {
+                        statusEl.textContent = stored.stations.filename;
+                        statusEl.style.color = '#10b981';
+                    }
+                    const btn = document.getElementById('btn-layer-stations');
+                    if (btn) btn.classList.add('selected');
+                }
+                if (stored.uplift && stored.uplift.path) {
+                    self._pendingUpliftPath = stored.uplift.path;
+                    const statusEl = document.getElementById('status-layer-uplift');
+                    if (statusEl) {
+                        statusEl.textContent = stored.uplift.filename;
+                        statusEl.style.color = '#10b981';
+                    }
+                    const btn = document.getElementById('btn-layer-uplift');
+                    if (btn) btn.classList.add('selected');
+                }
+                if (stored.tomography && stored.tomography.path) {
+                    self._pendingTomoPath = stored.tomography.path;
+                    const statusEl = document.getElementById('status-layer-tomo');
+                    if (statusEl) {
+                        statusEl.textContent = stored.tomography.filename;
+                        statusEl.style.color = '#10b981';
+                    }
+                    const btn = document.getElementById('btn-layer-tomo');
+                    if (btn) btn.classList.add('selected');
+                }
+            }).catch(err => console.error('[LayerModal] Error restoring stored layers:', err));
         },
 
         applyAllLayers() {
@@ -2096,4 +2138,15 @@
     window.addEventListener('load', findPlotlyGraph);
     setTimeout(findPlotlyGraph, 100); 
     window.IS_3D_VIEW = true; // Force flag since this is viz_common
+
+    window.addEventListener('pywebviewready', () => {
+        if (window.SeismicUI && typeof window.SeismicUI.restoreStoredLayers === 'function') {
+            window.SeismicUI.restoreStoredLayers();
+        }
+    });
+    setTimeout(() => {
+        if (window.pywebview && window.pywebview.api && window.SeismicUI && typeof window.SeismicUI.restoreStoredLayers === 'function') {
+            window.SeismicUI.restoreStoredLayers();
+        }
+    }, 300);
 </script>

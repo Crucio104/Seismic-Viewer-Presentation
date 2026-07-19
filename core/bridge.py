@@ -33,6 +33,7 @@ class Api:
         self._csv_path: str | None = None
         self._data: dict[str, Any] | None = None
         self._csv_info: dict[str, Any] | None = None
+        self._stored_layer_paths: dict[str, dict[str, str] | None] = {'stations': None, 'uplift': None, 'tomography': None}
         self._html_cache: dict[tuple, str] = {} 
         self._history_stack: list[dict[str, Any]] = []
         self._socket_manager: object | None = None
@@ -146,6 +147,9 @@ class Api:
         try:
             if self._csv_path == path and self._data is not None:
                 return self._csv_info
+
+            if self._csv_path is not None and self._csv_path != path:
+                self._stored_layer_paths = {'stations': None, 'uplift': None, 'tomography': None}
 
             data = engine.load_csv(path)
             self._csv_path, self._data = path, data
@@ -477,6 +481,7 @@ class Api:
 
     def change_file(self) -> bool:
         self._csv_path = self._data = self._csv_info = None
+        self._stored_layer_paths = {'stations': None, 'uplift': None, 'tomography': None}
         self._html_cache.clear()
         clear_session_data()
         return True
@@ -510,10 +515,17 @@ class Api:
             if not result:
                 return None
             path = result[0] if isinstance(result, (list, tuple)) else result
-            return {'status': 'success', 'path': str(path), 'filename': Path(path).name, 'type': layer_type}
+            res = {'status': 'success', 'path': str(path), 'filename': Path(path).name, 'type': layer_type}
+            if layer_type in self._stored_layer_paths:
+                self._stored_layer_paths[layer_type] = {'path': str(path), 'filename': Path(path).name}
+            return res
         except Exception as e:
             logger.error(f"Error in select_layer_file for {layer_type}", exc_info=True)
             return {'error': str(e)}
+
+    def get_stored_layer_paths(self) -> dict[str, Any]:
+        """Return currently saved layer CSV paths for the current dataset session."""
+        return self._stored_layer_paths
 
     def apply_external_layers(self, params: dict[str, Any]) -> dict[str, Any]:
         """Process and return data for selected layers (uplift, tomography, stations)."""
@@ -526,6 +538,13 @@ class Api:
                     target_date = str(times[-1])[:10]
                     
             stations_path = params.get('stations_path')
+            if stations_path:
+                self._stored_layer_paths['stations'] = {'path': str(stations_path), 'filename': Path(stations_path).name}
+            if params.get('uplift_path'):
+                self._stored_layer_paths['uplift'] = {'path': str(params['uplift_path']), 'filename': Path(params['uplift_path']).name}
+            if params.get('tomography_path'):
+                self._stored_layer_paths['tomography'] = {'path': str(params['tomography_path']), 'filename': Path(params['tomography_path']).name}
+
             if params.get('uplift_path'):
                 uplift_res = process_uplift_data(params['uplift_path'], target_date_str=target_date, stations_path=stations_path)
                 res['layers']['uplift'] = uplift_res

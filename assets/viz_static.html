@@ -203,11 +203,13 @@
             SeismicUI.bindMenu(colorMenu, (item) => {
                 currentColorMode = item.dataset.mode;
                 colorToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                applyFilterWithLoader();
             });
 
             SeismicUI.bindMenu(scaleMenu, (item) => {
                 currentColorScale = item.dataset.val;
                 scaleToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                applyFilterWithLoader();
             });
 
             if (viewModeMenu) {
@@ -218,25 +220,38 @@
                     SeismicUI.setGroupDisabled(scaleToggle.closest('.settings-group'), isHeatmap);
                     SeismicUI.setGroupDisabled(colorToggle.closest('.settings-group'), isHeatmap);
                     SeismicUI.setGroupDisabled(invertCheck.closest('.glass-checkbox'), isHeatmap);
+                    applyFilterWithLoader();
                 });
             }
 
 
             const sizeToggle = document.getElementById('size-toggle');
             const sizeMenu = document.getElementById('size-menu');
-            let currentSizeMode = 'uniform';
+            let currentSizeMode = is3D ? 'uniform' : 'magnitude';
 
             SeismicUI.initMenu(sizeToggle, sizeMenu);
+            if (!is3D) {
+                if (sizeToggle) sizeToggle.textContent = 'Magnitude ▾';
+                if (sizeMenu) {
+                    const items = sizeMenu.querySelectorAll('.menu-item');
+                    items.forEach(i => {
+                        if (i.dataset.mode === 'magnitude') i.classList.add('active');
+                        else i.classList.remove('active');
+                    });
+                }
+            }
+
             SeismicUI.bindMenu(sizeMenu, (item) => {
                 currentSizeMode = item.dataset.mode;
                 sizeToggle.textContent = item.textContent + ' ▾';
                 applyFilterWithLoader();
             });
 
-            const rangeApplyCallback = null;
+            const rangeApplyCallback = () => applyFilterWithLoader();
 
             invertCheck.onchange = () => {
                 invertScale = invertCheck.checked;
+                applyFilterWithLoader();
             };
 
             // Range input sanitization
@@ -317,46 +332,89 @@
                     barTitle = 'Date';
                 }
 
-                const markerSizes = currentSizeMode === 'magnitude' ? filtered.mag.map(m => Math.max(8, Math.pow(Math.max(0, m), 2) * 1.5)) : [5];
+                const maxMag = filtered.mag.length > 0 ? Math.max(...filtered.mag.map(m => Math.max(0.1, m))) : 1;
+                const markerSizes = currentSizeMode === 'magnitude' 
+                    ? (is3D ? filtered.mag.map(m => Math.max(8, Math.pow(Math.max(0, m), 2) * 1.5))
+                            : filtered.mag.map(m => Math.max(0.1, m)))
+                    : (is3D ? 5 : 6);
 
                 if (is3D) {
-                    // Trace 1 = Depth/Mag, Trace 2 = Date
-                    const traceIdx = isDate ? 2 : 1;
-                    const otherIdx = isDate ? 1 : 2;
+                    let depthIdx = -1, dateIdx = -1;
+                    for (let i = 0; i < gd.data.length; i++) {
+                        const tr = gd.data[i];
+                        if (!tr) continue;
+                        const name = tr.name || '';
+                        if (name === 'Earthquakes (Depth)' || (tr.type === 'scatter3d' && i === 1 && !name.includes('Date') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia'))) {
+                            depthIdx = i;
+                        } else if (name === 'Earthquakes (Date)' || (tr.type === 'scatter3d' && i === 2 && !name.includes('Depth') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia'))) {
+                            dateIdx = i;
+                        }
+                    }
+                    const traceIdx = isDate ? (dateIdx !== -1 ? dateIdx : 2) : (depthIdx !== -1 ? depthIdx : 1);
+                    const otherIdx = isDate ? (depthIdx !== -1 ? depthIdx : 1) : (dateIdx !== -1 ? dateIdx : 2);
 
-                    Plotly.restyle(gd, { visible: [false] }, [otherIdx]);
-                    Plotly.restyle(gd, {
-                        x: [filtered.lon], y: [filtered.lat], z: [filtered.dep],
-                        'marker.size': [markerSizes],
-                        'marker.color': [colorArr],
-                        'marker.cmin': [limits[0]],
-                        'marker.cmax': [limits[1]],
-                        'marker.colorscale': [getPlotlyScale(currentColorScale)],
-                        'marker.reversescale': [invertScale],
-                        'marker.showscale': [false],
-                        hovertext: [filtered.hover], visible: [true]
-                    }, [traceIdx]);
-
-                } else {
-                    if (isHeatmap) {
-                        Plotly.restyle(gd, { visible: [false] }, [0]);
-                        Plotly.restyle(gd, { lat: [filtered.lat], lon: [filtered.lon], z: [filtered.mag], visible: [true], hovertext: [filtered.hover] }, [1]);
-                    } else {
-                        Plotly.restyle(gd, { visible: [false] }, [1]);
-                        const update = {
-                            lat: [filtered.lat], lon: [filtered.lon],
-                            'marker.size': [filtered.mag],
+                    if (otherIdx !== -1 && otherIdx < gd.data.length) {
+                        Plotly.restyle(gd, { visible: [false] }, [otherIdx]);
+                    }
+                    if (traceIdx !== -1 && traceIdx < gd.data.length) {
+                        Plotly.restyle(gd, {
+                            x: [filtered.lon], y: [filtered.lat], z: [filtered.dep],
+                            'marker.size': [markerSizes],
                             'marker.color': [colorArr],
                             'marker.cmin': [limits[0]],
                             'marker.cmax': [limits[1]],
                             'marker.colorscale': [getPlotlyScale(currentColorScale)],
-                            'marker.coloraxis': [null],
                             'marker.reversescale': [invertScale],
                             'marker.showscale': [false],
                             hovertext: [filtered.hover], visible: [true]
-                        };
-                        Plotly.restyle(gd, update, [0]);
+                        }, [traceIdx]);
                     }
+                } else {
+                    let scatterIdx = -1, heatmapIdx = -1;
+                    for (let i = 0; i < gd.data.length; i++) {
+                        const tr = gd.data[i];
+                        if (!tr) continue;
+                        const name = tr.name || '';
+                        if (tr.type === 'densitymapbox' && (name === 'Heatmap' || name === 'Earthquakes (Heatmap)')) {
+                            heatmapIdx = i;
+                        } else if (tr.type === 'scattermapbox' && (name === 'Earthquakes (Scatter)' || name === 'Earthquakes' || (!name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia') && name !== 'Heatmap' && name !== 'Earthquakes (Heatmap)'))) {
+                            scatterIdx = i;
+                        }
+                    }
+
+                    if (isHeatmap) {
+                        if (scatterIdx !== -1) Plotly.restyle(gd, { visible: [false] }, [scatterIdx]);
+                        if (heatmapIdx !== -1) {
+                            Plotly.restyle(gd, { lat: [filtered.lat], lon: [filtered.lon], z: [filtered.mag], visible: [true], hovertext: [filtered.hover] }, [heatmapIdx]);
+                        }
+                    } else {
+                        if (heatmapIdx !== -1) Plotly.restyle(gd, { visible: [false] }, [heatmapIdx]);
+                        if (scatterIdx !== -1) {
+                            const update = {
+                                lat: [filtered.lat], lon: [filtered.lon],
+                                'marker.size': [markerSizes],
+                                'marker.color': [colorArr],
+                                'marker.cmin': [limits[0]],
+                                'marker.cmax': [limits[1]],
+                                'marker.colorscale': [getPlotlyScale(currentColorScale)],
+                                'marker.coloraxis': [null],
+                                'marker.reversescale': [invertScale],
+                                'marker.showscale': [false],
+                                hovertext: [filtered.hover], visible: [true]
+                            };
+                            if (currentSizeMode === 'magnitude') {
+                                update['marker.sizemode'] = ['area'];
+                                update['marker.sizeref'] = [maxMag / 400];
+                            } else {
+                                update['marker.sizemode'] = ['diameter'];
+                                update['marker.sizeref'] = [1];
+                            }
+                            Plotly.restyle(gd, update, [scatterIdx]);
+                        }
+                    }
+                }
+                if (window.SeismicUI && typeof window.SeismicUI.bringMarkersToFront === 'function') {
+                    window.SeismicUI.bringMarkersToFront();
                 }
 
                 
