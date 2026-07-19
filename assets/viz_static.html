@@ -332,7 +332,7 @@
                     barTitle = 'Date';
                 }
 
-                const maxMag = filtered.mag.length > 0 ? Math.max(...filtered.mag.map(m => Math.max(0.1, m))) : 1;
+                const maxMag = filtered.mag.length > 0 ? filtered.mag.reduce((acc, m) => Math.max(acc, m), 0.1) : 1;
                 const markerSizes = currentSizeMode === 'magnitude' 
                     ? (is3D ? filtered.mag.map(m => Math.max(8, Math.pow(Math.max(0, m), 2) * 1.5))
                             : filtered.mag.map(m => Math.max(0.1, m)))
