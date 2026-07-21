@@ -47,12 +47,12 @@ def utm33_to_latlon_numpy(x_km: np.ndarray | float, y_km: np.ndarray | float) ->
 
 
 def _read_csv_flexible(path: Path | str) -> pd.DataFrame:
-    """Helper to read CSV with flexible separator and encoding fallback."""
+    """Helper to read CSV with flexible separator and C-engine speed, with fallback to Python engine."""
     p = Path(path)
     try:
-        df = pd.read_csv(p, sep=';', encoding='utf-8', engine='python')
+        df = pd.read_csv(p, sep=';', encoding='utf-8', engine='c')
         if len(df.columns) <= 1:
-            df = pd.read_csv(p, sep=',', encoding='utf-8', engine='python')
+            df = pd.read_csv(p, sep=',', encoding='utf-8', engine='c')
         return df
     except Exception:
         return pd.read_csv(p, sep=None, engine='python')

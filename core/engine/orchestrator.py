@@ -3,9 +3,9 @@ import socket
 import numpy as np
 import plotly.graph_objects as go
 from typing import Any, Callable
+from collections import defaultdict
 
 # Core modules
-from core.loader import load_csv
 from core.geo_utils import build_map_mesh
 from core.config import MESH_HD_SIZE, store_session_data
 from core.templates import generate_html
@@ -13,22 +13,11 @@ from core.templates import generate_html
 # Sub-engine modules
 from core.engine.visualization import (
     view_2d, get_3d_static_figure, get_3d_cluster_figure, 
-    get_3d_animated_figure, get_cluster_update_traces,
-    get_3d_subcluster_figure
+    get_3d_animated_figure, get_3d_subcluster_figure
 )
-from collections import defaultdict
-from core.engine.analysis import (
-    get_animation_planes, get_animation_clustering, project_to_km
-)
+from core.engine.analysis import project_to_km
 
 logger = logging.getLogger(__name__)
-
-# Re-exporting functions for backward compatibility if needed, 
-# though internally we should migrate to direct imports.
-__all__ = [
-    'load_csv', 'build_view_html', 'strip_data', 
-    'get_cluster_update_traces', 'get_animation_planes', 'get_animation_clustering'
-]
 
 def strip_data(fig_obj: go.Figure, data_dict: dict[str, Any]) -> None:
     """Removes heavy numerical data from seismic traces but PRESERVES the map mesh."""
@@ -102,8 +91,7 @@ def auto_tune_dbscan_params(target_lon, target_lat, target_dep, data: dict[str, 
                     
                 clustering_params['dbscan_eps'] = optimal_eps_m
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Failed to calculate optimal eps: {e}")
+        logger.warning(f"Failed to calculate optimal eps: {e}")
 
 def auto_tune_kmeans_params(target_lon, target_lat, target_dep, data: dict[str, Any], clustering_params: dict[str, Any]) -> None:
     if len(target_lon) < 3:
@@ -131,8 +119,7 @@ def auto_tune_kmeans_params(target_lon, target_lat, target_dep, data: dict[str, 
             optimal_k = ks[elbow_idx]
             clustering_params['kmeans_clusters'] = int(optimal_k)
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Failed to calculate optimal kmeans clusters: {e}")
+        logger.warning(f"Failed to calculate optimal kmeans clusters: {e}")
 
 def build_view_html(
     data: dict[str, Any], 
@@ -229,7 +216,6 @@ def build_view_html(
             if clustering_params is None:
                 clustering_params = {}
             auto_tune_dbscan_params(np.array(lon), np.array(lat), np.array(dep), data, clustering_params)
-
 
         fig, labels, n_clusters = get_3d_cluster_figure(
             lon, lat, mag, dep, clustering_method=clustering_method, clustering_params=clustering_params, 

@@ -1,3 +1,30 @@
+<style>
+/* Hide vertical scrollbar of the filters bar and panels in animated view while maintaining scrolling functionality */
+#settings-bar,
+#left-panel-wrapper,
+#cluster-list,
+.legend-list,
+.glass-menu {
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE and Edge */
+}
+#settings-bar::-webkit-scrollbar,
+#left-panel-wrapper::-webkit-scrollbar,
+#cluster-list::-webkit-scrollbar,
+.legend-list::-webkit-scrollbar,
+.glass-menu::-webkit-scrollbar {
+    display: none !important; /* Chrome, Safari, Opera */
+    width: 0 !important;
+    height: 0 !important;
+}
+
+/* Locking all controls and buttons during animation playback except Play and Pause */
+.anim-locked {
+    opacity: 0.45 !important;
+    pointer-events: none !important;
+    transition: opacity 0.2s ease !important;
+}
+</style>
         <div id="playback-bar" class="glass-panel">
             <div class="play-controls">
                 <button id="play-btn">▶</button>
@@ -339,6 +366,11 @@
             jumpDate.max = dates[dates.length - 1];
             jumpDate.value = dates[0];
 
+            let appliedMagMin = -10;
+            let appliedMagMax = 10;
+            let appliedDepMin = -100;
+            let appliedDepMax = 1000;
+
             const depMinInput = document.getElementById('anim-dep-min');
             const depMaxInput = document.getElementById('anim-dep-max');
             if (depMinInput && depMaxInput) {
@@ -349,13 +381,29 @@
                 }
                 depMinInput.value = 0;
                 depMaxInput.value = Math.ceil(maxAbsDepth);
+                appliedDepMin = 0;
+                appliedDepMax = Math.ceil(maxAbsDepth);
+            }
+            const magMinInput = document.getElementById('anim-mag-min');
+            const magMaxInput = document.getElementById('anim-mag-max');
+            if (magMinInput && magMaxInput) {
+                const mV1 = parseFloat(magMinInput.value);
+                const mV2 = parseFloat(magMaxInput.value);
+                if (!isNaN(mV1)) appliedMagMin = mV1;
+                if (!isNaN(mV2)) appliedMagMax = mV2;
+            }
+            if (SeismicUI && SeismicUI.setupBoundsValidation) {
+                SeismicUI.setupBoundsValidation(magMinInput, magMinInput?.value || -10, null);
+                SeismicUI.setupBoundsValidation(magMaxInput, magMaxInput?.value || 10, null);
+                SeismicUI.setupBoundsValidation(depMinInput, depMinInput?.value || -100, null);
+                SeismicUI.setupBoundsValidation(depMaxInput, depMaxInput?.value || 1000, null);
             }
 
             function formatDate(isoStr) {
                 if (!isoStr) return '';
                 const parts = isoStr.split('-');
                 if (parts.length !== 3) return isoStr;
-                return `${parts[2]}-${parts[1]}-${parts[0]}`;
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
             }
 
             function getActiveRange(idx) {
@@ -417,20 +465,39 @@
                 return [startIdx, endIdx];
             }
 
-            function updateView(idx) {
+            let isRendering = false;
+            let pendingUpdateIdx = null;
+
+            async function updateView(idx) {
+                if (idx < 0) idx = 0;
+                if (idx >= dates.length) idx = dates.length - 1;
+
+                if (isRendering) {
+                    pendingUpdateIdx = idx;
+                    return Promise.resolve();
+                }
+                isRendering = true;
+                try {
+                    await _doUpdateView(idx);
+                } finally {
+                    isRendering = false;
+                    if (pendingUpdateIdx !== null && !isPlaying) {
+                        const nextIdx = pendingUpdateIdx;
+                        pendingUpdateIdx = null;
+                        return updateView(nextIdx);
+                    }
+                }
+            }
+
+            async function _doUpdateView(idx) {
                 if (idx < 0) idx = 0;
                 if (idx >= dates.length) idx = dates.length - 1;
                 
                 const [start, end] = getActiveRange(idx);
-                const magMinVal = parseFloat(document.getElementById('anim-mag-min').value);
-                const magMaxVal = parseFloat(document.getElementById('anim-mag-max').value);
-                const depMinVal = parseFloat(document.getElementById('anim-dep-min').value);
-                const depMaxVal = parseFloat(document.getElementById('anim-dep-max').value);
-
-                const magMin = isNaN(magMinVal) ? -10 : magMinVal;
-                const magMax = isNaN(magMaxVal) ? 10 : magMaxVal;
-                const depMin = isNaN(depMinVal) ? -100 : depMinVal;
-                const depMax = isNaN(depMaxVal) ? 1000 : depMaxVal;
+                const magMin = appliedMagMin;
+                const magMax = appliedMagMax;
+                const depMin = appliedDepMin;
+                const depMax = appliedDepMax;
 
                 const sliceLon = [];
                 const sliceLat = [];
@@ -468,7 +535,7 @@
                         if (!hText) {
                             const dateObj = new Date(startD);
                             dateObj.setDate(dateObj.getDate() + Math.round(quakeData.dnum[i]));
-                            const dStr = `${String(dateObj.getDate()).padStart(2, '0')}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${dateObj.getFullYear()}`;
+                            const dStr = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
                             hText = `Date: ${dStr}<br>Mag: ${m.toFixed(1)}<br>Dep: ${Math.abs(d).toFixed(1)} km`;
                         }
 
@@ -634,23 +701,36 @@
 
                 // 1. Update scatter3d trace (points)
                 return Plotly.restyle(gd, bulkUpdate, traceIndices).then(() => {
-                    // 2. Delete all mesh traces (from index 4 onwards)
-                    const extraCount = gd.data.length - 4;
-                    if (extraCount > 0) {
-                        const indicesToDelete = [];
-                        for (let t = 4; t < gd.data.length; t++) indicesToDelete.push(t);
-                        Plotly.deleteTraces(gd, indicesToDelete);
-                    }
-                    // 3. Add one trace per plane (or a hidden placeholder)
-                    if (planeTraces.length > 0) {
-                        Plotly.addTraces(gd, planeTraces);
+                    // 2. Mesh traces (from index 4 onwards)
+                    if (planeTraces.length === 0) {
+                        // No planes: avoid deleteTraces/addTraces to prevent WebGL context reallocation!
+                        if (gd.data.length > 5) {
+                            const indicesToDelete = [];
+                            for (let t = 5; t < gd.data.length; t++) indicesToDelete.push(t);
+                            Plotly.deleteTraces(gd, indicesToDelete);
+                        }
+                        if (gd.data.length >= 5 && gd.data[4].visible !== false) {
+                            Plotly.restyle(gd, { visible: false, x: [[]], y: [[]], z: [[]], i: [[]], j: [[]], k: [[]] }, [4]);
+                        }
+                    } else if (planeTraces.length === 1 && gd.data.length === 5 && gd.data[4].type === 'mesh3d') {
+                        // Single plane and placeholder exists: update in place without delete/add
+                        const pt = planeTraces[0];
+                        Plotly.restyle(gd, {
+                            x: [pt.x], y: [pt.y], z: [pt.z],
+                            i: [pt.i], j: [pt.j], k: [pt.k],
+                            color: [pt.color], opacity: [pt.opacity],
+                            hovertext: [pt.hovertext], name: [pt.name],
+                            visible: true
+                        }, [4]);
                     } else {
-                        Plotly.addTraces(gd, {
-                            type: 'mesh3d', x: [], y: [], z: [],
-                            i: [], j: [], k: [],
-                            visible: false, showlegend: false,
-                            hoverinfo: 'text', name: 'Structural Planes'
-                        });
+                        // Multiple planes or count mismatch: delete extra and re-add
+                        const extraCount = gd.data.length - 4;
+                        if (extraCount > 0) {
+                            const indicesToDelete = [];
+                            for (let t = 4; t < gd.data.length; t++) indicesToDelete.push(t);
+                            Plotly.deleteTraces(gd, indicesToDelete);
+                        }
+                        Plotly.addTraces(gd, planeTraces);
                     }
 
                     dateDisplay.textContent = formatDate(dates[idx]);
@@ -707,7 +787,7 @@
                     bar.className = 'hist-bar';
                     const h = Math.max(2, (count / maxCount) * 100);
                     bar.style.height = `${h}%`;
-                    bar.title = `${dates[i]}: ${count} events`;
+                    bar.title = `${formatDate(dates[i])}: ${count} events`;
                     
                     bar.onclick = (e) => {
                         e.stopPropagation();
@@ -1134,7 +1214,6 @@
             }
 
 
-            let isRendering = false;
             let lastFrameTime = 0;
             async function animationLoop(timestamp) {
                 if (!isPlaying) return;
@@ -1145,68 +1224,84 @@
                     return;
                 }
 
-                if (!startTime) {
-                    startTime = timestamp;
-                    startIdx = currentStepIdx;
-                    lastFrameTime = timestamp;
+                if (!lastFrameTime) {
+                    lastFrameTime = performance.now();
                 }
-                const elapsed = timestamp - startTime;
-                
-                let targetIdx = startIdx;
+
+                let durationMs = 1000;
+                let step = Math.max(1, Math.round(speedMult));
+
                 if (quakeData.anim_mode === 'block') {
                     const secPerFrameInput = document.getElementById('sec-per-frame');
-                    const frameDurMs = (secPerFrameInput && parseFloat(secPerFrameInput.value)) ? parseFloat(secPerFrameInput.value) * 1000 : 1000;
-                    
-                    targetIdx = currentStepIdx;
-                    if (timestamp - lastFrameTime >= frameDurMs) {
-                        targetIdx = currentStepIdx + 1;
-                        lastFrameTime = timestamp;
-                    }
-                } else {
-                    const secondsPassed = Math.floor(elapsed / baseDelay);
-                    targetIdx = Math.floor(startIdx + (secondsPassed * speedMult));
+                    durationMs = (secPerFrameInput && parseFloat(secPerFrameInput.value)) ? parseFloat(secPerFrameInput.value) * 1000 : 1000;
+                    step = 1;
                 }
-                
-                if (targetIdx !== currentStepIdx && targetIdx < dates.length) {
-                    isRendering = true;
-                    try {
-                        await updateView(targetIdx);
-                    } catch (e) {
-                        console.error("Animation loop error:", e);
-                    } finally {
-                        isRendering = false;
-                    }
-                    currentStepIdx = targetIdx;
-                    slider.value = currentStepIdx;
-                } else if (targetIdx >= dates.length) {
-                    isRendering = true;
-                    try {
-                        await updateView(dates.length - 1);
-                    } catch (e) {
-                        console.error("Animation loop error:", e);
-                    } finally {
-                        isRendering = false;
+
+                if (performance.now() - lastFrameTime >= durationMs) {
+                    let targetIdx = currentStepIdx + step;
+                    
+                    if (targetIdx < dates.length) {
+                        try {
+                            await updateView(targetIdx);
+                        } catch (e) {
+                            console.error("Animation loop error:", e);
+                        } finally {
+                            lastFrameTime = performance.now();
+                        }
+                        slider.value = currentStepIdx;
+                    } else {
+                        if (currentStepIdx !== dates.length - 1) {
+                            try {
+                                await updateView(dates.length - 1);
+                            } catch (e) {
+                                console.error("Animation loop error:", e);
+                            }
+                            slider.value = currentStepIdx;
+                        }
                         pause();
+                        return;
                     }
-                    currentStepIdx = dates.length - 1;
-                    slider.value = currentStepIdx;
-                    return;
                 }
                 animId = requestAnimationFrame(animationLoop);
             }
 
-            function play() {
+            function setAnimationControlsLock(locked) {
+                const elementsToLock = [
+                    'settings-bar', 'apply-all-btn',
+                    'jump-date', 'jump-btn',
+                    'back-btn', 'btn-swap-legend',
+                    'info-btn', 'overlay-btn', 'screenshot-btn',
+                    'btn-export-clusters', 'legend-container', 'cluster-list'
+                ];
+                elementsToLock.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        if (locked) el.classList.add('anim-locked');
+                        else el.classList.remove('anim-locked');
+                    }
+                });
+                document.querySelectorAll('#camera-controls button, #camera-controls .btn-cam, .layer-btn, .layer-toggle-btn, .layer-apply-btn').forEach(el => {
+                    if (locked) el.classList.add('anim-locked');
+                    else el.classList.remove('anim-locked');
+                });
+            }
+
+            async function play() {
                 if (isPlaying) return;
                 playBtn.classList.add('active');
                 pauseBtn.classList.remove('active');
                 
                 if (currentStepIdx >= dates.length - 1) {
                     currentStepIdx = 0;
-                    updateView(0);
+                    try {
+                        await updateView(0);
+                    } catch (e) {
+                        console.error("Play loop error:", e);
+                    }
                 }
                 isPlaying = true;
-                startTime = 0; 
-                if (typeof setGlobalInterfaceLock === 'function') setGlobalInterfaceLock(true);
+                setAnimationControlsLock(true);
+                lastFrameTime = performance.now(); 
                 animId = requestAnimationFrame(animationLoop);
             }
 
@@ -1214,13 +1309,13 @@
                 isPlaying = false;
                 playBtn.classList.remove('active');
                 pauseBtn.classList.add('active');
+                setAnimationControlsLock(false);
                 
                 if (animId) {
                     cancelAnimationFrame(animId);
                     animId = null;
                 }
-                startTime = 0; 
-                if (typeof setGlobalInterfaceLock === 'function') setGlobalInterfaceLock(false);
+                lastFrameTime = 0; 
                 
                 // Explicitly stop cinema mode (auto-rotation) when pausing
                 if (typeof cinemaModeActive !== 'undefined' && cinemaModeActive) {
@@ -1419,6 +1514,16 @@
             const filterLoader = document.getElementById('filter-loader');
 
             async function applyAllChanges() {
+                const magMinVal = parseFloat(document.getElementById('anim-mag-min').value);
+                const magMaxVal = parseFloat(document.getElementById('anim-mag-max').value);
+                const depMinVal = parseFloat(document.getElementById('anim-dep-min').value);
+                const depMaxVal = parseFloat(document.getElementById('anim-dep-max').value);
+
+                appliedMagMin = isNaN(magMinVal) ? -10 : magMinVal;
+                appliedMagMax = isNaN(magMaxVal) ? 10 : magMaxVal;
+                appliedDepMin = isNaN(depMinVal) ? -100 : depMinVal;
+                appliedDepMax = isNaN(depMaxVal) ? 1000 : depMaxVal;
+
                 filterLoader.classList.add('show');
                 
                 // Minimal delay to ensure the loader is painted before blocking the thread

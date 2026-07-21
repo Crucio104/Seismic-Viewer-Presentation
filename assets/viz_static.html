@@ -203,13 +203,11 @@
             SeismicUI.bindMenu(colorMenu, (item) => {
                 currentColorMode = item.dataset.mode;
                 colorToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                applyFilterWithLoader();
             });
 
             SeismicUI.bindMenu(scaleMenu, (item) => {
                 currentColorScale = item.dataset.val;
                 scaleToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                applyFilterWithLoader();
             });
 
             if (viewModeMenu) {
@@ -220,7 +218,6 @@
                     SeismicUI.setGroupDisabled(scaleToggle.closest('.settings-group'), isHeatmap);
                     SeismicUI.setGroupDisabled(colorToggle.closest('.settings-group'), isHeatmap);
                     SeismicUI.setGroupDisabled(invertCheck.closest('.glass-checkbox'), isHeatmap);
-                    applyFilterWithLoader();
                 });
             }
 
@@ -244,14 +241,12 @@
             SeismicUI.bindMenu(sizeMenu, (item) => {
                 currentSizeMode = item.dataset.mode;
                 sizeToggle.textContent = item.textContent + ' ▾';
-                applyFilterWithLoader();
             });
 
-            const rangeApplyCallback = () => applyFilterWithLoader();
+            const rangeApplyCallback = null;
 
             invertCheck.onchange = () => {
                 invertScale = invertCheck.checked;
-                applyFilterWithLoader();
             };
 
             // Range input sanitization

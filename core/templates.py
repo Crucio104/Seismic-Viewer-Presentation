@@ -81,6 +81,9 @@ def _inject_head_assets(html: str, is_subcluster: bool = False) -> str:
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
         '<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">'
         '<link rel="stylesheet" href="/assets/style.css">'
+        '<link rel="stylesheet" href="/assets/flatpickr.min.css">'
+        '<script src="/assets/flatpickr.min.js"></script>'
+        '<script src="/assets/flatpickr-it.js"></script>'
     )
     return html.replace('<head>', f'<head>\n{head_css}')
 

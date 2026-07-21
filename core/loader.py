@@ -22,7 +22,7 @@ def _make_hover(df: pd.DataFrame) -> list[str]:
         dep_labels = np.where(df['depth_is_missing'], "N.D. (missing)", dep_labels)
 
     return (
-        "Date: " + df['time_dt'].dt.strftime('%d-%m-%Y %H:%M') + "<br>" +
+        "Date: " + df['time_dt'].dt.strftime('%d/%m/%Y %H:%M') + "<br>" +
         "Magnitude: " + mag_labels + "<br>" +
         "Latitude: " + df['lat'].map('{:.4f}'.format) + "<br>" +
         "Longitude: " + df['lon'].map('{:.4f}'.format) + "<br>" +
@@ -150,19 +150,36 @@ def load_csv(source_file: str) -> dict[str, Any]:
     min_t = df['time_dt'].min()
     df['dates_num'] = (df['time_dt'] - min_t).dt.total_seconds() / 86400.0
     
+    # Precompute fast Float32 arrays for binary buffer
+    lon_f32 = df['lon'].to_numpy(dtype=np.float32)
+    lat_f32 = df['lat'].to_numpy(dtype=np.float32)
+    dep_f32 = (-df['depth']).to_numpy(dtype=np.float32)
+    mag_f32 = df['mag'].to_numpy(dtype=np.float32)
+    dnum_f32 = df['dates_num'].to_numpy(dtype=np.float32)
+
+    count = len(df)
+    binary_buffer = b"".join([
+        np.array([count, 0], dtype=np.float32).tobytes(),
+        lon_f32.tobytes(),
+        lat_f32.tobytes(),
+        mag_f32.tobytes(),
+        dep_f32.tobytes(),
+        dnum_f32.tobytes(),
+    ])
+
     # Pre-calculate visual pack
     visual_pack = precompute_visual_data(df)
 
     # Extract as lists for JSON serialization (Webview)
-    latitude = df['lat'].tolist()
-    longitude = df['lon'].tolist()
-    depth = (-df['depth']).tolist() # Store as negative for depth
-    magnitude = df['mag'].tolist()
+    latitude = lat_f32.tolist()
+    longitude = lon_f32.tolist()
+    depth = dep_f32.tolist() # Store as negative for depth
+    magnitude = mag_f32.tolist()
     times = df['time_dt'].dt.strftime('%Y-%m-%d %H:%M:%S').tolist()
-    dates_num = df['dates_num'].tolist()
+    dates_num = dnum_f32.tolist()
 
-    date_range = f"{df['time_dt'].iloc[0].strftime('%d-%m-%Y')} → {df['time_dt'].iloc[-1].strftime('%d-%m-%Y')}"
-    bbox = (df['lat'].min(), df['lon'].min(), df['lat'].max(), df['lon'].max())
+    date_range = f"{df['time_dt'].iloc[0].strftime('%d/%m/%Y')} → {df['time_dt'].iloc[-1].strftime('%d/%m/%Y')}"
+    bbox = (float(df['lat'].min()), float(df['lon'].min()), float(df['lat'].max()), float(df['lon'].max()))
     logger.info(f"Loaded {len(df)} seismic events (M >= {MIN_MAGNITUDE}).")
 
     return {
@@ -176,6 +193,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
         'visual_pack': visual_pack,
         'origin_lat': float(df['lat'].mean()),
         'origin_lon': float(df['lon'].mean()),
+        'binary_buffer': binary_buffer,
         'summary': {
             'event_count': len(df),
             'date_range': date_range,

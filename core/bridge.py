@@ -21,7 +21,7 @@ from core.history import get_recent_files, save_recent_file, clear_history
 from core.online_importer import fetch_ingv_data
 from core.geo_utils import build_map_mesh
 from core.layer_utils import process_tomography_data, process_uplift_data, process_stations_data
-import engine
+from core import engine
 
 logger = logging.getLogger(__name__)
 

@@ -33,20 +33,58 @@ logger = logging.getLogger("SeismicViewer")
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-# --- Global State ---
-_server_thread: threading.Thread | None = None
-_uvicorn_server: uvicorn.Server | None = None
-_uvicorn_loop: asyncio.AbstractEventLoop | None = None
-_api_ref: Api | None = None
+# --- Server Controller ---
+
+class ServerController:
+    """Encapsulates the FastAPI/uvicorn server lifecycle and thread management."""
+    def __init__(self):
+        self.server_thread: threading.Thread | None = None
+        self.uvicorn_server: uvicorn.Server | None = None
+        self.uvicorn_loop: asyncio.AbstractEventLoop | None = None
+        self.api_ref: Api | None = None
+
+    def start(self, api_instance: Api) -> None:
+        if self.server_thread is not None:
+            return 
+
+        self.api_ref = api_instance
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as temp_socket:
+            temp_socket.bind(('127.0.0.1', 0))
+            port = temp_socket.getsockname()[1]
+
+        set_http_port(port)
+        app = _create_fastapi_app(self)
+
+        config = uvicorn.Config(
+            app, host="127.0.0.1", port=port,
+            log_level="warning", access_log=False,
+        )
+        self.uvicorn_server = uvicorn.Server(config)
+        self.server_thread = threading.Thread(target=self.uvicorn_server.run, daemon=True)
+        self.server_thread.start()
+        logger.info(f"FastAPI server running on port {port}")
+
+    def stop(self) -> None:
+        if self.uvicorn_server:
+            try:
+                self.uvicorn_server.should_exit = True
+            except Exception:
+                pass
+            self.uvicorn_server = None
+            self.server_thread = None
+
+server_controller = ServerController()
 
 # --- Route Handlers ---
 
 async def get_data_handler(session_id: str) -> Response:
-    """Serve session data as compressed JSON."""
+    """Serve session data as compressed JSON without blocking the async event loop."""
     data = get_session_data(session_id)
     if data is None:
         return JSONResponse({"error": "Session not found"}, status_code=404)
-    content = json.dumps(data, separators=(',', ':'))
+    # Exclude non-JSON serializable binary buffers
+    json_data = {k: v for k, v in data.items() if k != 'binary_buffer' and not isinstance(v, bytes)}
+    content = await asyncio.to_thread(json.dumps, json_data, separators=(',', ':'))
     return Response(
         content=content,
         media_type="application/json",
@@ -61,13 +99,13 @@ async def get_viz_handler(viz_id: str) -> HTMLResponse:
     return HTMLResponse(content=html)
 
 async def get_data_binary_handler(session_id: str) -> Response:
-    """Serve numerical data as binary Float32 buffer for performance."""
+    """Serve numerical data as binary Float32 buffer without blocking the async event loop."""
     data = get_session_data(session_id)
     if data is None:
         return Response(status_code=404)
     
     try:
-        buffer = pack_seismic_binary(data)
+        buffer = await asyncio.to_thread(pack_seismic_binary, data)
         return Response(
             content=buffer,
             media_type="application/octet-stream",
@@ -79,6 +117,10 @@ async def get_data_binary_handler(session_id: str) -> Response:
 
 def pack_seismic_binary(data: dict[str, Any]) -> bytes:
     """Pack seismic dictionary data into a compact binary Float32 buffer."""
+    cluster = data.get('cluster', [])
+    if 'binary_buffer' in data and not cluster:
+        return data['binary_buffer']
+
     # Canonical key mapping
     lon_key = 'longitude' if 'longitude' in data else 'lon'
     lat_key = 'latitude' if 'latitude' in data else 'lat'
@@ -94,10 +136,9 @@ def pack_seismic_binary(data: dict[str, Any]) -> bytes:
             return np.zeros(length, dtype=np.float32).tobytes()
         return np.array(arr, dtype=np.float32).tobytes()
 
-    cluster = data.get('cluster', [])
     cluster_bytes = np.array(cluster, dtype=np.float32).tobytes() if cluster else b""
 
-    return b"".join([
+    buffer = b"".join([
         np.array([count, len(cluster)], dtype=np.float32).tobytes(),
         _to_f32_bytes(lon_key, count),
         _to_f32_bytes(lat_key, count),
@@ -106,16 +147,18 @@ def pack_seismic_binary(data: dict[str, Any]) -> bytes:
         _to_f32_bytes(dnum_key, count),
         cluster_bytes
     ])
+    if not cluster:
+        data['binary_buffer'] = buffer
+    return buffer
 
 # --- App Factory ---
 
-def _create_fastapi_app() -> FastAPI:
+def _create_fastapi_app(controller: ServerController) -> FastAPI:
     """Build the FastAPI application."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
-    global _uvicorn_loop
     try:
-        _uvicorn_loop = asyncio.get_event_loop()
+        controller.uvicorn_loop = asyncio.get_event_loop()
         def _quiet_exception_handler(loop, context):
             exc = context.get("exception")
             if isinstance(exc, (ConnectionResetError, OSError)):
@@ -124,13 +167,13 @@ def _create_fastapi_app() -> FastAPI:
             if "_call_connection_lost" in msg or "ConnectionResetError" in msg:
                 return
             loop.default_exception_handler(context)
-        _uvicorn_loop.set_exception_handler(_quiet_exception_handler)
+        controller.uvicorn_loop.set_exception_handler(_quiet_exception_handler)
     except Exception:
-        _uvicorn_loop = None
+        controller.uvicorn_loop = None
 
     manager = ConnectionManager()
-    if _api_ref:
-        _api_ref.set_socket_manager(manager, _uvicorn_loop)
+    if controller.api_ref:
+        controller.api_ref.set_socket_manager(manager, controller.uvicorn_loop)
 
     app.add_middleware(GZipMiddleware, minimum_size=500)
 
@@ -138,7 +181,7 @@ def _create_fastapi_app() -> FastAPI:
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket) -> None:
         await manager.connect(websocket)
-        await handle_websocket_messages(websocket, manager, _api_ref)
+        await handle_websocket_messages(websocket, manager, controller.api_ref)
 
     # API Endpoints
     app.get("/api/data/{session_id}")(get_data_handler)
@@ -151,48 +194,10 @@ def _create_fastapi_app() -> FastAPI:
 
     return app
 
-# --- Server Control ---
-
-def _start_http_server(api_instance: Api | None = None) -> None:
-    """Start the FastAPI server in a background thread."""
-    global _server_thread, _uvicorn_server, _api_ref
-    if _server_thread is not None:
-        return 
-
-    _api_ref = api_instance
-    
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as temp_socket:
-        temp_socket.bind(('127.0.0.1', 0))
-        port = temp_socket.getsockname()[1]
-
-    set_http_port(port)
-    app = _create_fastapi_app()
-
-    config = uvicorn.Config(
-        app, host="127.0.0.1", port=port,
-        log_level="warning", access_log=False,
-    )
-    _uvicorn_server = uvicorn.Server(config)
-
-    _server_thread = threading.Thread(target=_uvicorn_server.run, daemon=True)
-    _server_thread.start()
-    logger.info(f"FastAPI server running on port {port}")
-
-def _stop_http_server() -> None:
-    """Shut down the server."""
-    global _uvicorn_server, _server_thread
-    if _uvicorn_server:
-        try:
-            _uvicorn_server.should_exit = True
-        except Exception:
-            pass
-        _uvicorn_server = None
-        _server_thread = None
-
 # --- Cleanup & Entry Point ---
 
 def _cleanup() -> None:
-    _stop_http_server()
+    server_controller.stop()
     clear_session_data()
 
 atexit.register(_cleanup)
@@ -215,7 +220,7 @@ def main() -> None:
 
     logger.info("Starting Seismic Viewer…")
     try:
-        webview.start(lambda: _start_http_server(api), debug=False)
+        webview.start(lambda: server_controller.start(api), debug=False)
     except KeyboardInterrupt:
         pass
 
