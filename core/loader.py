@@ -22,7 +22,7 @@ def _make_hover(df: pd.DataFrame) -> list[str]:
         dep_labels = np.where(df['depth_is_missing'], "N.D. (missing)", dep_labels)
 
     return (
-        "Date: " + df['time_dt'].dt.strftime('%d/%m/%Y %H:%M') + "<br>" +
+        "Date: " + df['time_dt'].dt.strftime('%d-%m-%Y %H:%M') + "<br>" +
         "Magnitude: " + mag_labels + "<br>" +
         "Latitude: " + df['lat'].map('{:.4f}'.format) + "<br>" +
         "Longitude: " + df['lon'].map('{:.4f}'.format) + "<br>" +
@@ -178,7 +178,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
     times = df['time_dt'].dt.strftime('%Y-%m-%d %H:%M:%S').tolist()
     dates_num = dnum_f32.tolist()
 
-    date_range = f"{df['time_dt'].iloc[0].strftime('%d/%m/%Y')} → {df['time_dt'].iloc[-1].strftime('%d/%m/%Y')}"
+    date_range = f"{df['time_dt'].iloc[0].strftime('%d-%m-%Y')} → {df['time_dt'].iloc[-1].strftime('%d-%m-%Y')}"
     bbox = (float(df['lat'].min()), float(df['lon'].min()), float(df['lat'].max()), float(df['lon'].max()))
     logger.info(f"Loaded {len(df)} seismic events (M >= {MIN_MAGNITUDE}).")
 

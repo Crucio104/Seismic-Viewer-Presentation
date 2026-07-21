@@ -290,56 +290,6 @@
         _activeTomographyData: null,
         _activeUpliftData: null,
 
-        initDatePickers(selector = "input[type='date']") {
-            if (typeof flatpickr !== 'undefined') {
-                document.querySelectorAll(selector).forEach(el => {
-                    if (!el._flatpickr) {
-                        if (!el._fpValuePropOverridden) {
-                            el._fpValuePropOverridden = true;
-                            const origDescriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
-                            if (origDescriptor && origDescriptor.set) {
-                                Object.defineProperty(el, 'value', {
-                                    get: function() { return origDescriptor.get.call(this); },
-                                    set: function(val) {
-                                        origDescriptor.set.call(this, val);
-                                        if (this._flatpickr) {
-                                            this._flatpickr.setDate(val, false);
-                                        }
-                                    },
-                                    configurable: true
-                                });
-                            }
-                        }
-
-                        const fp = flatpickr(el, {
-                            altInput: true,
-                            altFormat: "d/m/Y",
-                            dateFormat: "Y-m-d",
-                            allowInput: true,
-                            disableMobile: true,
-                            locale: (typeof flatpickr.l10ns !== 'undefined' && flatpickr.l10ns.it) ? flatpickr.l10ns.it : "it",
-                            onReady: function(selectedDates, dateStr, instance) {
-                                if (instance.altInput && el) {
-                                    instance.altInput.className = el.className + ' flatpickr-input';
-                                    if (el.getAttribute('style')) {
-                                        instance.altInput.setAttribute('style', el.getAttribute('style'));
-                                    }
-                                }
-                            },
-                            onChange: function(selectedDates, dateStr, instance) {
-                                el.dispatchEvent(new Event('change', { bubbles: true }));
-                                el.dispatchEvent(new Event('input', { bubbles: true }));
-                            }
-                        });
-
-                        if (el.min) fp.set("minDate", el.min);
-                        if (el.max) fp.set("maxDate", el.max);
-                        if (el.value) fp.setDate(el.value, false);
-                    }
-                });
-            }
-        },
-
         initMenu(btn, menu) {
             if (!btn || !menu) return;
             btn.onclick = (e) => {
@@ -1933,7 +1883,7 @@
                 const day = String(d.getDate()).padStart(2, '0');
                 const month = String(d.getMonth() + 1).padStart(2, '0');
                 const year = d.getFullYear();
-                tick.textContent = `${day}/${month}/${year}`;
+                tick.textContent = `${day}-${month}-${year}`;
             } else if (scaleName === 'Tomography' || title.includes('Tomo')) {
                 tick.textContent = val.toFixed(3);
             } else {
@@ -2003,9 +1953,6 @@
                 const controls = document.getElementById('camera-controls');
                 if (controls) controls.style.display = 'flex';
             }
-        }
-        if (window.SeismicUI && typeof window.SeismicUI.initDatePickers === 'function') {
-            window.SeismicUI.initDatePickers();
         }
     }
 
@@ -2196,16 +2143,10 @@
         if (window.SeismicUI && typeof window.SeismicUI.restoreStoredLayers === 'function') {
             window.SeismicUI.restoreStoredLayers();
         }
-        if (window.SeismicUI && typeof window.SeismicUI.initDatePickers === 'function') {
-            window.SeismicUI.initDatePickers();
-        }
     });
     setTimeout(() => {
         if (window.pywebview && window.pywebview.api && window.SeismicUI && typeof window.SeismicUI.restoreStoredLayers === 'function') {
             window.SeismicUI.restoreStoredLayers();
-        }
-        if (window.SeismicUI && typeof window.SeismicUI.initDatePickers === 'function') {
-            window.SeismicUI.initDatePickers();
         }
     }, 300);
 </script>

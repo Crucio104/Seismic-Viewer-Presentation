@@ -223,7 +223,7 @@
 
         <div id="jump-bar" class="glass-panel">
             <label for="jump-date" class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Jump to Date</label>
-            <input type="date" id="jump-date" class="glass-input">
+            <input type="text" id="jump-date" class="glass-input" placeholder="MM/DD/YYYY" maxlength="10" style="width: 7.5rem; text-align: center; font-variant-numeric: tabular-nums;" title="Format: MM/DD/YYYY (Month/Day/Year)">
             <button class="settings-btn" id="jump-btn">Go</button>
         </div>
 
@@ -362,9 +362,23 @@
 
             const dates = quakeData.frame_dates || quakeData.unique_dates;
             slider.max = dates.length - 1;
-            jumpDate.min = dates[0];
-            jumpDate.max = dates[dates.length - 1];
-            jumpDate.value = dates[0];
+            if (jumpDate) {
+                jumpDate.value = formatDate(dates[0]);
+                jumpDate.addEventListener('input', (e) => {
+                    let v = e.target.value.replace(/\D/g, '');
+                    if (v.length > 8) v = v.slice(0, 8);
+                    if (v.length > 4) {
+                        e.target.value = `${v.slice(0,2)}/${v.slice(2,4)}/${v.slice(4)}`;
+                    } else if (v.length > 2) {
+                        e.target.value = `${v.slice(0,2)}/${v.slice(2)}`;
+                    } else {
+                        e.target.value = v;
+                    }
+                });
+                jumpDate.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && jumpBtn) jumpBtn.click();
+                });
+            }
 
             let appliedMagMin = -10;
             let appliedMagMax = 10;
@@ -403,7 +417,17 @@
                 if (!isoStr) return '';
                 const parts = isoStr.split('-');
                 if (parts.length !== 3) return isoStr;
-                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                return `${parts[1]}/${parts[2]}/${parts[0]}`;
+            }
+
+            function fromMMDDYYYY(mmddStr) {
+                if (!mmddStr) return '';
+                const parts = mmddStr.split(/[/-]/);
+                if (parts.length !== 3) return mmddStr;
+                const m = parts[0].padStart(2, '0');
+                const d = parts[1].padStart(2, '0');
+                const y = parts[2];
+                return `${y}-${m}-${d}`;
             }
 
             function getActiveRange(idx) {
@@ -535,7 +559,7 @@
                         if (!hText) {
                             const dateObj = new Date(startD);
                             dateObj.setDate(dateObj.getDate() + Math.round(quakeData.dnum[i]));
-                            const dStr = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
+                            const dStr = `${String(dateObj.getMonth() + 1).padStart(2, '0')}/${String(dateObj.getDate()).padStart(2, '0')}/${dateObj.getFullYear()}`;
                             hText = `Date: ${dStr}<br>Mag: ${m.toFixed(1)}<br>Dep: ${Math.abs(d).toFixed(1)} km`;
                         }
 
@@ -734,6 +758,9 @@
                     }
 
                     dateDisplay.textContent = formatDate(dates[idx]);
+                    if (jumpDate && document.activeElement !== jumpDate) {
+                        jumpDate.value = formatDate(dates[idx]);
+                    }
                     slider.value = idx;
 
                     // Update Glass Legend
@@ -787,7 +814,7 @@
                     bar.className = 'hist-bar';
                     const h = Math.max(2, (count / maxCount) * 100);
                     bar.style.height = `${h}%`;
-                    bar.title = `${formatDate(dates[i])}: ${count} events`;
+                    bar.title = `${dates[i]}: ${count} events`;
                     
                     bar.onclick = (e) => {
                         e.stopPropagation();
@@ -1268,10 +1295,11 @@
             function setAnimationControlsLock(locked) {
                 const elementsToLock = [
                     'settings-bar', 'apply-all-btn',
-                    'jump-date', 'jump-btn',
-                    'back-btn', 'btn-swap-legend',
-                    'info-btn', 'overlay-btn', 'screenshot-btn',
-                    'btn-export-clusters', 'legend-container', 'cluster-list'
+                    'jump-bar', 'jump-date', 'jump-btn',
+                    'camera-controls',
+                    'glass-legend', 'legend-container', 'cluster-list', 'btn-swap-legend',
+                    'back-btn', 'info-btn', 'overlay-btn', 'screenshot-btn',
+                    'btn-export-clusters'
                 ];
                 elementsToLock.forEach(id => {
                     const el = document.getElementById(id);
@@ -1280,9 +1308,11 @@
                         else el.classList.remove('anim-locked');
                     }
                 });
-                document.querySelectorAll('#camera-controls button, #camera-controls .btn-cam, .layer-btn, .layer-toggle-btn, .layer-apply-btn').forEach(el => {
-                    if (locked) el.classList.add('anim-locked');
-                    else el.classList.remove('anim-locked');
+                document.querySelectorAll('#camera-controls button, #camera-controls .btn-cam, .layer-btn, .layer-toggle-btn, .layer-apply-btn, .settings-btn').forEach(el => {
+                    if (el.id !== 'play-btn' && el.id !== 'pause-btn') {
+                        if (locked) el.classList.add('anim-locked');
+                        else el.classList.remove('anim-locked');
+                    }
                 });
             }
 
@@ -1377,7 +1407,8 @@
             };
 
             jumpBtn.onclick = () => {
-                const target = jumpDate.value;
+                const rawVal = jumpDate.value ? jumpDate.value.trim() : '';
+                const target = fromMMDDYYYY(rawVal);
                 if (!target) return;
                 
                 const idx = dates.findIndex(d => d >= target);
