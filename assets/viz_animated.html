@@ -66,7 +66,7 @@
                     <div class="menu-item" data-mode="dep">Depth</div>
                 </div>
             </div>
-            <div class="settings-group">
+            <div class="settings-group" id="color-scale-group">
                 <div class="label">Color Scale</div>
                 <button class="settings-btn" id="scale-toggle">Viridis ▾</button>
                 <div class="glass-panel glass-menu" id="scale-menu">
@@ -81,7 +81,7 @@
                 </div>
             </div>
 
-            <label class="glass-checkbox">
+            <label class="glass-checkbox" id="invert-scale-group">
                 <input type="checkbox" id="invert-scale">
                 Invert Scale
             </label>
@@ -116,7 +116,7 @@
             </div>
 
             <div class="settings-group" id="structural-settings-group">
-                <div class="label">Structural Analysis</div>
+                <div class="label">Cylinder volume analysis</div>
                 <label class="glass-checkbox">
                     <input type="radio" name="analysis_mode" id="show-planes">
                     Enable Planes
@@ -769,8 +769,14 @@
                     } else {
                         const container = document.getElementById('legend-container');
                         const clusterList = document.getElementById('cluster-list');
+                        const swapBtn = document.getElementById('btn-swap-legend');
+                        const scaleGroup = document.getElementById('color-scale-group');
+                        const invertGroup = document.getElementById('invert-scale-group');
                         if (container) container.style.display = 'flex';
                         if (clusterList) clusterList.style.display = 'none';
+                        if (swapBtn) swapBtn.style.display = '';
+                        if (scaleGroup) scaleGroup.style.display = '';
+                        if (invertGroup) invertGroup.style.display = '';
                         
                         updateGlassLegend(
                             true,
@@ -943,6 +949,9 @@
             function updateClusterLegend(presentLabels) {
                 const clusterList = document.getElementById('cluster-list');
                 const legend = document.getElementById('glass-legend');
+                const swapBtn = document.getElementById('btn-swap-legend');
+                const scaleGroup = document.getElementById('color-scale-group');
+                const invertGroup = document.getElementById('invert-scale-group');
                 if (!clusterList) return;
                 if (legend) {
                     legend.style.width = '10.5rem';
@@ -950,6 +959,9 @@
                     legend.style.maxWidth = '10.5rem';
                     legend.style.padding = '0.6rem 0.6rem';
                 }
+                if (swapBtn) swapBtn.style.display = 'none';
+                if (scaleGroup) scaleGroup.style.display = 'none';
+                if (invertGroup) invertGroup.style.display = 'none';
                 const savedScrollTop = clusterList.scrollTop || 0;
                 window._lastPresentLabels = presentLabels;
                 clusterList.style.display = 'flex';
