@@ -1,11 +1,15 @@
-
-
 <div id="loader">
     <div class="loader-ring"></div>
     <p class="loader-text" style="margin-top:0.938rem;font-size:0.875rem">Processing dataset...</p>
 </div>
 
-<button id="back-btn" class="glass-panel" onclick="transitionToHub()">← Hub</button>
+<div id="top-left-controls" style="position:fixed; top:1.25rem; left:1.25rem; z-index:99999; display:flex; gap:0.5rem; align-items:center;">
+    <button id="back-btn" class="glass-panel" onclick="transitionToHub()">← Hub</button>
+    <div id="history-controls" style="display:none; padding: 0.35rem; flex-direction:row; gap:0.35rem;">
+        <button id="history-back-btn" class="btn-circle-nav" onclick="historyGoBack()" title="Go Back">↺</button>
+        <button id="history-forward-btn" class="btn-circle-nav" onclick="historyGoForward()" title="Go Forward">↻</button>
+    </div>
+</div>
 
 <div id="glass-legend" class="glass-panel">
     <div id="legend-title">Variable</div>
@@ -14,7 +18,7 @@
         <div id="legend-ticks"></div>
     </div>
     <div id="cluster-list" class="legend-list" style="display:none; width:100%;"></div>
-    <button id="btn-swap-legend" class="btn-legend-swap" onclick="SeismicUI.swapLegend()" title="Swap Color Scale Legend">⇄ Scale: Quakes</button>
+    <button id="btn-swap-legend" class="btn-legend-swap" style="display:none;" onclick="SeismicUI.swapLegend()" title="Swap Color Scale Legend">⇄ Scale: Quakes</button>
 </div>
 
 <div id="camera-controls" class="glass-panel">
@@ -242,14 +246,54 @@
         }
     }
 
-    function transitionToHub() {
+    async function transitionToHub() {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.clear_history) {
+            await window.pywebview.api.clear_history();
+        }
         showInitLoader('Returning to Hub...');
-        // Wait for the opacity transition (0.15s) before navigating
         setTimeout(() => {
             window.location.href = '/assets/index.html';
         }, 150);
     }
 
+    // --- History Navigation ---
+    async function historyGoBack() {
+        if (!window.pywebview || !window.pywebview.api) return;
+        showInitLoader('Loading previous view...');
+        if (typeof window.updateHistoryState === 'function') await window.updateHistoryState();
+        await pywebview.api.go_back();
+    }
+
+    async function historyGoForward() {
+        if (!window.pywebview || !window.pywebview.api) return;
+        showInitLoader('Loading next view...');
+        if (typeof window.updateHistoryState === 'function') await window.updateHistoryState();
+        await pywebview.api.go_forward();
+    }
+
+    async function checkHistoryStatus() {
+        if (!window.pywebview || !window.pywebview.api) return;
+        try {
+            const status = await pywebview.api.get_history_status();
+            const controls = document.getElementById('history-controls');
+            const backBtn = document.getElementById('history-back-btn');
+            const fwdBtn = document.getElementById('history-forward-btn');
+            
+            if (status.can_go_back || status.can_go_forward) {
+                controls.style.display = 'flex';
+                backBtn.disabled = !status.can_go_back;
+                fwdBtn.disabled = !status.can_go_forward;
+                backBtn.style.opacity = status.can_go_back ? '1' : '0.3';
+                backBtn.style.cursor = status.can_go_back ? 'pointer' : 'default';
+                fwdBtn.style.opacity = status.can_go_forward ? '1' : '0.3';
+                fwdBtn.style.cursor = status.can_go_forward ? 'pointer' : 'default';
+            } else {
+                controls.style.display = 'none';
+            }
+        } catch (e) {
+            console.error('Failed to get history status:', e);
+        }
+    }
 
     let initLoaderTimeout = null;
 
@@ -289,6 +333,41 @@
     const SeismicUI = {
         _activeTomographyData: null,
         _activeUpliftData: null,
+
+        updateLegendSwapButtonVisibility() {
+            const btn = document.getElementById('btn-swap-legend');
+            if (!btn) return;
+
+            let isClustering = false;
+            if (typeof window.animClusteringEnabled !== 'undefined' && window.animClusteringEnabled) {
+                isClustering = true;
+            } else if (typeof window.lockedClusters !== 'undefined') {
+                isClustering = true;
+            }
+
+            const available = [];
+            if (isClustering) available.push('clusters');
+            else available.push('earthquakes');
+            if (this._activeTomographyData) available.push('tomo');
+            if (this._activeUpliftData) available.push('uplift');
+
+            if (available.length <= 1) {
+                btn.style.display = 'none';
+            } else {
+                btn.style.display = '';
+                // Ensure the button shows the correct current mode
+                const current = window._currentLegendMode || (isClustering ? 'clusters' : 'earthquakes');
+                if (current === 'clusters' && btn.innerHTML.indexOf('Clusters') === -1) {
+                    btn.innerHTML = '⇄ Scale: Clusters';
+                } else if (current === 'earthquakes' && btn.innerHTML.indexOf('Quakes') === -1) {
+                    btn.innerHTML = '⇄ Scale: Quakes';
+                } else if (current === 'tomo' && btn.innerHTML.indexOf('Tomo') === -1) {
+                    btn.innerHTML = '⇄ Scale: Tomo';
+                } else if (current === 'uplift' && btn.innerHTML.indexOf('Uplift') === -1) {
+                    btn.innerHTML = '⇄ Scale: Uplift';
+                }
+            }
+        },
 
         initMenu(btn, menu) {
             if (!btn || !menu) return;
@@ -941,6 +1020,7 @@
                             }
 
                             showStatusToast('Layers applied successfully!', true);
+                            self.updateLegendSwapButtonVisibility();
                         }
                     } else if (res && res.message) {
                         showStatusToast('Error: ' + res.message, false);
@@ -1422,7 +1502,19 @@
         },
 
         swapLegend() {
-            const available = ['earthquakes'];
+            let isClustering = false;
+            if (typeof window.animClusteringEnabled !== 'undefined' && window.animClusteringEnabled) {
+                isClustering = true;
+            } else if (typeof window.lockedClusters !== 'undefined') {
+                isClustering = true;
+            }
+
+            const available = [];
+            if (isClustering) {
+                available.push('clusters');
+            } else {
+                available.push('earthquakes');
+            }
             if (this._activeTomographyData) {
                 available.push('tomo');
             }
@@ -1435,22 +1527,35 @@
                 return;
             }
 
-            let currentIdx = available.indexOf(window._currentLegendMode || 'earthquakes');
+            let currentIdx = available.indexOf(window._currentLegendMode || (isClustering ? 'clusters' : 'earthquakes'));
             if (currentIdx === -1) currentIdx = 0;
             const nextIdx = (currentIdx + 1) % available.length;
             const nextMode = available[nextIdx];
             window._currentLegendMode = nextMode;
 
             const btn = document.getElementById('btn-swap-legend');
+            const container = document.getElementById('legend-container');
+            const clusterList = document.getElementById('cluster-list');
+
             if (nextMode === 'earthquakes') {
                 if (btn) btn.innerHTML = '⇄ Scale: Quakes';
+                if (container) container.style.display = 'flex';
+                if (clusterList) clusterList.style.display = 'none';
                 if (window._earthquakeLegendState) {
                     const s = window._earthquakeLegendState;
                     updateGlassLegendInternal(s.show, s.title, s.scaleName, s.invert, s.limits, s.dateInfo);
                 }
                 showStatusToast('Swapped legend to Earthquakes scale', true);
+            } else if (nextMode === 'clusters') {
+                if (btn) btn.innerHTML = '⇄ Scale: Clusters';
+                if (container) container.style.display = 'none';
+                if (clusterList) clusterList.style.display = 'flex';
+                document.getElementById('legend-title').textContent = 'Clusters';
+                showStatusToast('Swapped legend to Clusters', true);
             } else if (nextMode === 'tomo') {
                 if (btn) btn.innerHTML = '⇄ Scale: Tomo';
+                if (container) container.style.display = 'flex';
+                if (clusterList) clusterList.style.display = 'none';
                 const t = this._activeTomographyData;
                 let minV = t.min_vp_vs, maxV = t.max_vp_vs;
                 if (minV === undefined || maxV === undefined) {
@@ -1466,6 +1571,8 @@
                 showStatusToast('Swapped legend to Tomography Vp/Vs scale', true);
             } else if (nextMode === 'uplift') {
                 if (btn) btn.innerHTML = '⇄ Scale: Uplift';
+                if (container) container.style.display = 'flex';
+                if (clusterList) clusterList.style.display = 'none';
                 const u = this._activeUpliftData;
                 const vals = u.up_m || (u.interp_grid ? u.interp_grid.up_m : []) || [];
                 let minU = 9999, maxU = -9999;
@@ -1803,6 +1910,10 @@
             }
         }
     };
+    
+    // Esponi SeismicUI globalmente per permettere agli altri script (come viz_animated.html e viz_cluster.html) di accedervi
+    window.SeismicUI = SeismicUI;
+
     document.onclick = () => {
         document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
         if (typeof SeismicUI !== 'undefined' && SeismicUI.closeBottomLeftPopups) {
@@ -2140,9 +2251,13 @@
     window.IS_3D_VIEW = true; // Force flag since this is viz_common
 
     window.addEventListener('pywebviewready', () => {
-        if (window.SeismicUI && typeof window.SeismicUI.restoreStoredLayers === 'function') {
-            window.SeismicUI.restoreStoredLayers();
+        if (window.SeismicUI) {
+            window.SeismicUI.updateLegendSwapButtonVisibility();
+            if (typeof window.SeismicUI.restoreStoredLayers === 'function') {
+                window.SeismicUI.restoreStoredLayers();
+            }
         }
+        checkHistoryStatus();
     });
     setTimeout(() => {
         if (window.pywebview && window.pywebview.api && window.SeismicUI && typeof window.SeismicUI.restoreStoredLayers === 'function') {

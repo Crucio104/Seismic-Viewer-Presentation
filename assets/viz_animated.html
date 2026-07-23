@@ -959,15 +959,18 @@
                     legend.style.maxWidth = '10.5rem';
                     legend.style.padding = '0.6rem 0.6rem';
                 }
-                if (swapBtn) swapBtn.style.display = 'none';
                 if (scaleGroup) scaleGroup.style.display = 'none';
                 if (invertGroup) invertGroup.style.display = 'none';
+                
                 const savedScrollTop = clusterList.scrollTop || 0;
                 window._lastPresentLabels = presentLabels;
-                clusterList.style.display = 'flex';
-                const container = document.getElementById('legend-container');
-                if (container) container.style.display = 'none';
-                document.getElementById('legend-title').textContent = 'Clusters';
+                
+                if (!window._currentLegendMode || window._currentLegendMode === 'clusters' || window._currentLegendMode === 'earthquakes') {
+                    clusterList.style.display = 'flex';
+                    const container = document.getElementById('legend-container');
+                    if (container) container.style.display = 'none';
+                    document.getElementById('legend-title').textContent = 'Clusters';
+                }
                 
                 if (!presentLabels || presentLabels.length === 0) {
                     clusterList.innerHTML = '';

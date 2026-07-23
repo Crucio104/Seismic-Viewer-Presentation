@@ -13,27 +13,22 @@
 
 /* Global Custom Scrollbars */
 * {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
+    scrollbar-width: none;
+    -ms-overflow-style: none; /* IE and Edge */
 }
 
 ::-webkit-scrollbar {
-    width: 0.25rem;
-    height: 0.25rem;
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
 }
 
-::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 1rem;
-}
-
-::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 1rem;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
+#settings-bar::-webkit-scrollbar,
+.legend-list::-webkit-scrollbar,
+.glass-panel::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
 }
 
 /* Initial Loader Styles from Python */
@@ -123,10 +118,7 @@ body {
 
 
 #back-btn {
-    position: fixed;
-    top: 1rem;
-    left: 1rem;
-    z-index: 100000;
+    position: relative;
     padding: 0.6rem 1.2rem;
     font-weight: 600;
     cursor: pointer;
@@ -205,7 +197,7 @@ body {
 
 #left-panel-wrapper {
     position: fixed;
-    top: 8vh;
+    top: 4.5rem;
     left: 1.25rem;
     z-index: 99999;
     display: flex;
@@ -227,20 +219,6 @@ body {
     max-height: 100%;
     overflow-y: auto;
     overflow-x: visible;
-}
-
-#settings-bar::-webkit-scrollbar {
-    width: 4px;
-}
-#settings-bar::-webkit-scrollbar-track {
-    background: transparent;
-}
-#settings-bar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-}
-#settings-bar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
 }
 
 #stats-hud {
@@ -621,23 +599,30 @@ body {
     padding-right: 0.3rem;
 }
 
-/* Custom Scrollbar for Legend */
-.legend-list::-webkit-scrollbar {
-    width: 0.25rem;
+/* Custom Scrollbar for Legend rimosse globalmente */
+
+.btn-circle-nav {
+    width: 1.85rem;
+    height: 1.85rem;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    cursor: pointer;
+    font-size: 1.15rem;
+    transition: all 0.2s ease;
 }
 
-.legend-list::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 1rem;
+.btn-circle-nav:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.4);
 }
 
-.legend-list::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 1rem;
-}
-
-.legend-list::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
+.btn-circle-nav:disabled {
+    cursor: default;
 }
 
 #legend-title {
@@ -699,7 +684,7 @@ body {
     text-align: center;
     font-weight: 600;
     transition: all 0.2s ease;
-    margin-top: 0.2rem;
+    margin-top: auto;
     flex-shrink: 0;
 }
 

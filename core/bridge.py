@@ -36,6 +36,7 @@ class Api:
         self._stored_layer_paths: dict[str, dict[str, str] | None] = {'stations': None, 'uplift': None, 'tomography': None}
         self._html_cache: dict[tuple, str] = {} 
         self._history_stack: list[dict[str, Any]] = []
+        self._history_idx: int = -1
         self._socket_manager: object | None = None
         self._event_loop: asyncio.AbstractEventLoop | None = None
         self._last_cluster_result: dict[str, Any] | None = None
@@ -52,6 +53,14 @@ class Api:
 
     def _make_data_url(self, session_id: str) -> str:
         return f'http://127.0.0.1:{get_http_port()}/api/data/{session_id}'
+
+    def clear_history(self) -> dict:
+        """Clear all history sessions and caches."""
+        self._history_stack.clear()
+        self._history_idx = -1
+        self._html_cache.clear()
+        logger.info("History and clustering sessions cleared.")
+        return {'status': 'success'}
 
     def _push_progress(self, msg: str) -> None:
         """Send a progress message to the UI."""
@@ -197,6 +206,7 @@ class Api:
         }
         self._history_stack.clear()
         self._history_stack.append({'view_style': view_style, 'kwargs': kwargs})
+        self._history_idx = 0
         threading.Thread(target=self._generate_and_navigate, args=(view_style,), kwargs=kwargs, daemon=True).start()
 
     def load_subcluster_view(self, indices: list[int], context_indices: list[int] | None = None, clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None, locked_clusters: dict[str, list[int]] | None = None) -> None:
@@ -218,13 +228,18 @@ class Api:
             'context_indices': context_indices,
             'locked_clusters': locked_map
         }
+        # Truncate future history if we diverge
+        if self._history_idx >= 0:
+            self._history_stack = self._history_stack[:self._history_idx + 1]
+        
         self._history_stack.append({'view_style': 4, 'kwargs': kwargs})
+        self._history_idx = len(self._history_stack) - 1
         threading.Thread(target=self._generate_and_navigate, args=(4,), kwargs=kwargs, daemon=True).start()
 
     def go_back(self) -> None:
-        if len(self._history_stack) > 1:
-            self._history_stack.pop()
-            prev = self._history_stack[-1]
+        if self._history_idx > 0:
+            self._history_idx -= 1
+            prev = self._history_stack[self._history_idx]
             threading.Thread(target=self._generate_and_navigate, args=(prev['view_style'],), kwargs=prev['kwargs'], daemon=True).start()
         else:
             try:
@@ -232,15 +247,37 @@ class Api:
             except Exception:
                 pass
 
+    def go_forward(self) -> None:
+        if self._history_idx < len(self._history_stack) - 1:
+            self._history_idx += 1
+            nxt = self._history_stack[self._history_idx]
+            threading.Thread(target=self._generate_and_navigate, args=(nxt['view_style'],), kwargs=nxt['kwargs'], daemon=True).start()
+
+    def get_history_status(self) -> dict[str, bool]:
+        return {
+            'can_go_back': self._history_idx > 0,
+            'can_go_forward': self._history_idx < len(self._history_stack) - 1
+        }
+
+    def update_history_state(self, clustering_method: str, clustering_params: dict, locked_clusters: dict | None) -> None:
+        if 0 <= self._history_idx < len(self._history_stack):
+            curr = self._history_stack[self._history_idx]
+            curr['kwargs']['clustering_method'] = clustering_method
+            curr['kwargs']['clustering_params'] = clustering_params
+            if locked_clusters:
+                curr['kwargs']['locked_clusters'] = {int(k): list(v) for k, v in locked_clusters.items()}
+            else:
+                curr['kwargs']['locked_clusters'] = None
+
     def apply_subclusters(self, new_sub_labels: list[int]) -> dict[str, Any]:
         if not self._data:
             return {'error': 'No data'}
         try:
-            if len(self._history_stack) < 2:
+            if self._history_idx < 1:
                 return {'error': 'No previous view to apply to'}
             
-            curr_view = self._history_stack[-1]
-            prev_view = self._history_stack[-2]
+            curr_view = self._history_stack[self._history_idx]
+            prev_view = self._history_stack[self._history_idx - 1]
             
             method = prev_view['kwargs'].get('clustering_method', 'dbscan')
             params = prev_view['kwargs'].get('clustering_params', {})
@@ -306,26 +343,17 @@ class Api:
     def _generate_and_navigate(self, view_style: int, **kwargs) -> None:
         """Generate HTML and navigate the window."""
         try:
-            # 1. Check Cache
-            c_params = kwargs.get('clustering_params')
-            c_params_frozen = frozenset((k, tuple(v) if isinstance(v, list) else v) for k, v in c_params.items()) if c_params else None
-            
-            t_idx = kwargs.get('target_indices')
-            t_idx_frozen = tuple(t_idx) if t_idx else None
-            
-            c_idx = kwargs.get('context_indices')
-            c_idx_frozen = tuple(c_idx) if c_idx else None
+            # 1. Check History Cache
+            curr_history = None
+            if hasattr(self, '_history_idx') and 0 <= self._history_idx < len(self._history_stack):
+                curr_history = self._history_stack[self._history_idx]
 
-            locked_map = kwargs.get('locked_clusters')
-            locked_frozen = frozenset((int(k), tuple(v)) for k, v in locked_map.items()) if locked_map else None
+            if curr_history and 'viz_id' in curr_history:
+                self._push_progress("Loading session from memory…")
+                # Clear last_cluster_result so export relies on JS payload
+                self._last_cluster_result = None
 
-            cache_key = (self._csv_path, view_style, kwargs.get('anim_mode'), kwargs.get('window_days'), kwargs.get('step_days'), kwargs.get('clustering_method'), c_params_frozen, t_idx_frozen, c_idx_frozen, locked_frozen)
-
-            if cache_key in self._html_cache:
-                self._push_progress("Loading from cache…")
-                if view_style != 4:
-                    self._inject_dark_overlay()
-                url = self._make_url(self._html_cache[cache_key]) + f"?t={int(time.time()*1000)}"
+                url = self._make_url(curr_history['viz_id']) + f"?t={int(time.time()*1000)}"
                 if view_style == 4:
                     url += "&subcluster=true"
                 self._window().load_url(url)
@@ -347,7 +375,13 @@ class Api:
             if not is_fallback:
                 if len(self._html_cache) >= 10:
                     self._html_cache.pop(next(iter(self._html_cache)))
-                self._html_cache[cache_key] = viz_id
+                # The old cache_key logic is gone, we don't strictly need to store it in _html_cache unless we want 
+                # cross-history caching (not needed here). But I'll keep it as a safety dict so the html is kept alive 
+                # (although store_viz_html handles survival).
+                
+                # Store it in the current history state!
+                if curr_history is not None:
+                    curr_history['viz_id'] = viz_id
 
             if view_style in (3, 4):
                 s_data = get_session_data(session_id)
@@ -361,8 +395,6 @@ class Api:
 
             # 3. Navigate
             self._push_progress("Opening visualization…")
-            if view_style != 4:
-                self._inject_dark_overlay()
             url = self._make_url(viz_id)
             if view_style == 4:
                 url += "?subcluster=true"

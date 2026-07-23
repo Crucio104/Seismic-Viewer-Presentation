@@ -92,7 +92,7 @@
             </div>
         </div>
 
-        <div id="filter-loader"><div class="loader-ring" style="width:2rem; height:2rem"></div></div>
+
         <div id="ws-status" title="Server Disconnected"></div>
 
 
@@ -265,7 +265,6 @@
 
 
 
-            const loader = document.getElementById('filter-loader');
 
             function applyCombinedFilters() {
                 const params = {
@@ -310,7 +309,7 @@
                     }
                 }
 
-                loader.classList.add('show');
+                if(typeof showInitLoader === 'function') showInitLoader('Applying clustering...');
 
                 setTimeout(async () => {
                     if (window.seismicSocket) {
@@ -362,7 +361,7 @@
                         // Fallback for dev
                         applyDisplayMode();
                     }
-                    loader.classList.remove('show');
+                    if(typeof hideInitLoader === 'function') hideInitLoader();
                 }, 100);
             }
 
@@ -426,32 +425,17 @@
             if (isSubcluster) {
                 const contextGroup = document.getElementById('context-points-group');
                 if (contextGroup) contextGroup.style.display = 'block';
-                
-                const backBtn = document.getElementById('back-btn');
-                if (backBtn) {
-                    backBtn.textContent = '← Back';
-                    backBtn.onclick = () => {
-                        showInitLoader('Loading previous view...');
-                        if (window.pywebview && window.pywebview.api) {
-                            pywebview.api.go_back();
-                        } else {
-                            transitionToHub();
-                        }
-                    };
-                }
             }
             
             window.applyAllSubclusters = async function() {
-                const overlay = document.getElementById('filter-loader');
-                overlay.classList.add('show');
+                if(typeof showInitLoader === 'function') showInitLoader('Applying subclusters to main view...');
                 try {
-                    showInitLoader('Applying subclusters to main view...');
                     const clusterArr = Array.from(quakeData.cluster);
                     await pywebview.api.apply_subclusters(clusterArr);
                 } catch(e) {
                     console.error("Failed to apply subclusters:", e);
                     if (typeof showStatusToast === 'function') showStatusToast('Engine failure: ' + e);
-                    overlay.classList.remove('show');
+                    if(typeof hideInitLoader === 'function') hideInitLoader();
                 }
             };
 
@@ -481,8 +465,7 @@
             };
 
             window.subclusterUnlocked = async function() {
-                const overlay = document.getElementById('filter-loader');
-                overlay.classList.add('show');
+                if(typeof showInitLoader === 'function') showInitLoader('Loading subcluster view...');
 
                 let targetIndices = [];
                 let lockedClustersMap = {};
@@ -509,7 +492,7 @@
                 if (targetIndices.length === 0) {
                     console.warn("Tutti i cluster sono bloccati o nessun punto disponibile.");
                     if (typeof showStatusToast === 'function') showStatusToast('Nessun cluster sbloccato da suddividere.');
-                    overlay.classList.remove('show');
+                    if(typeof hideInitLoader === 'function') hideInitLoader();
                     return;
                 }
 
@@ -521,29 +504,33 @@
 
                     const method = quakeData.clustering_method || 'dbscan';
                     const params = quakeData.clustering_params || {};
+                    if (typeof window.updateHistoryState === 'function') await window.updateHistoryState();
                     await pywebview.api.load_subcluster_view(targetIndices, contextIndices, method, params, lockedClustersMap);
                 } catch(e) {
                     console.error("Failed to load subcluster view:", e);
                     if (typeof showStatusToast === 'function') showStatusToast('Engine failure: ' + e);
                 }
-                setTimeout(() => overlay.classList.remove('show'), 2000);
             };
 
             // Build custom glass legend for clusters
             function updateClusterLegend() {
+                const clusterList = document.getElementById('cluster-list');
                 const legend = document.getElementById('glass-legend');
-                if (!legend) return;
-                const oldList = legend.querySelector('.legend-list');
-                const savedScrollTop = oldList ? oldList.scrollTop : 0;
-
-                legend.style.display = 'flex';
-                legend.style.width = '10.5rem';
-                legend.style.minWidth = '10.5rem';
-                legend.style.maxWidth = '10.5rem';
-                legend.style.padding = '0.6rem 0.6rem';
-                legend.style.minHeight = 'auto'; // Fit content natively
+                const swapBtn = document.getElementById('btn-swap-legend');
+                if (!clusterList) return;
                 
-                let html = '<div id="legend-title">Clusters</div>';
+                if (legend) {
+                    legend.style.display = 'flex';
+                    legend.style.width = '10.5rem';
+                    legend.style.minWidth = '10.5rem';
+                    legend.style.maxWidth = '10.5rem';
+                    legend.style.padding = '0.6rem 0.6rem';
+                    legend.style.minHeight = 'auto'; // Fit content natively
+                }
+
+                const savedScrollTop = clusterList.scrollTop || 0;
+                
+                let html = '';
 
                 if (quakeData.n_clusters > 0) {
                     html += `
@@ -557,8 +544,7 @@
                     `;
                 }
 
-                html += '<div class="legend-list">';
-                
+
                 for (let i = 0; i < quakeData.n_clusters; i++) {
                     const internalLbl = i;
                     const displayNum = i;
@@ -579,18 +565,23 @@
                         </div>
                     `;
                 }
-                html += '</div>';
-                legend.innerHTML = html;
+                
+                clusterList.innerHTML = html;
 
-                const newList = legend.querySelector('.legend-list');
-                if (newList && savedScrollTop > 0) {
-                    newList.scrollTop = savedScrollTop;
+                if (!window._currentLegendMode || window._currentLegendMode === 'clusters' || window._currentLegendMode === 'earthquakes') {
+                    clusterList.style.display = 'flex';
+                    const container = document.getElementById('legend-container');
+                    if (container) container.style.display = 'none';
+                    document.getElementById('legend-title').textContent = 'Clusters';
+                }
+
+                if (savedScrollTop > 0) {
+                    clusterList.scrollTop = savedScrollTop;
                 }
             }
 
             window.analyzeCluster = async function(internalLbl) {
-                const overlay = document.getElementById('filter-loader');
-                overlay.classList.add('show');
+                if(typeof showInitLoader === 'function') showInitLoader('Loading main view...');
                 
                 let indices = [];
                 if (quakeData.cluster_indices && quakeData.cluster_indices[internalLbl]) {
@@ -605,7 +596,7 @@
                 
                 if (indices.length === 0) {
                     console.error("No points found for cluster " + internalLbl);
-                    overlay.classList.remove('show');
+                    if(typeof hideInitLoader === 'function') hideInitLoader();
                     return;
                 }
 
@@ -622,7 +613,6 @@
                     console.error("Failed to load subcluster view:", e);
                     if (typeof showStatusToast === 'function') showStatusToast('Engine failure: ' + e);
                 }
-                setTimeout(() => overlay.classList.remove('show'), 2000);
             };
 
             // --- INITIAL RENDER ---
@@ -637,6 +627,20 @@
             });
 
             // Initial view is already rendered by backend, just sync legend
+            window.updateHistoryState = async function() {
+                if (window.pywebview && window.pywebview.api && typeof quakeData !== 'undefined') {
+                    const method = quakeData.clustering_method || 'dbscan';
+                    const params = quakeData.clustering_params || {};
+                    const lockedMap = {};
+                    if (window.lockedClusters) {
+                        for (const [k, v] of window.lockedClusters.entries()) {
+                            lockedMap[k] = Array.from(v);
+                        }
+                    }
+                    await pywebview.api.update_history_state(method, params, Object.keys(lockedMap).length > 0 ? lockedMap : null);
+                }
+            };
+            
             applyDisplayMode();
             updateClusterLegend();
 
