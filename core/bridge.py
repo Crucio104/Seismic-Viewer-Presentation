@@ -140,6 +140,38 @@ class Api:
             logger.error("Error in save_screenshot", exc_info=True)
             return {'error': str(e)}
 
+    def save_current_csv(self) -> dict[str, Any]:
+        """Open native save dialog and save a copy of the currently loaded dataset CSV."""
+        try:
+            if not self._csv_path or not Path(self._csv_path).exists():
+                return {'error': 'No dataset loaded or file not found.'}
+
+            original_filename = Path(self._csv_path).name
+            if not original_filename.lower().endswith('.csv'):
+                original_filename += '.csv'
+
+            result = self._window().create_file_dialog(
+                webview.FileDialog.SAVE,
+                directory=str(Path.home()),
+                save_filename=original_filename,
+                file_types=('CSV Files (*.csv)',),
+            )
+
+            if not result:
+                return {'status': 'cancelled'}
+
+            save_path = result[0] if isinstance(result, (list, tuple)) else result
+            save_path = str(save_path)
+            if not save_path.lower().endswith('.csv'):
+                save_path += '.csv'
+
+            shutil.copy2(self._csv_path, save_path)
+            logger.info(f"Dataset successfully saved to: {save_path}")
+            return {'status': 'success', 'path': save_path}
+        except Exception as e:
+            logger.error("Error in save_current_csv", exc_info=True)
+            return {'error': str(e)}
+
     def download_online_data(self, params: dict[str, Any]) -> dict[str, Any]:
         """Fetch data from INGV servers."""
         try:

@@ -255,6 +255,57 @@
     .vcard h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem; color: #f8fafc; }
     .vcard p { font-size: 0.8rem; color: #94a3b8; line-height: 1.4; font-weight: 300; margin:0;}
 
+    .hub-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.750rem;
+        margin-top: 0.250rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .hub-btn-export {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.500rem;
+        padding: 0.450rem 1.000rem;
+        background: rgba(99, 102, 241, 0.12);
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        border-radius: 6.250rem;
+        font-size: 0.812rem;
+        color: #c7d2fe;
+        font-weight: 500;
+        font-family: inherit;
+        cursor: pointer;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        backdrop-filter: blur(0.625rem);
+        -webkit-backdrop-filter: blur(0.625rem);
+    }
+
+    .hub-btn-export:hover {
+        background: rgba(99, 102, 241, 0.25);
+        border-color: rgba(129, 140, 248, 0.5);
+        color: #ffffff;
+        transform: translateY(-0.063rem);
+        box-shadow: 0 0.250rem 0.875rem rgba(99, 102, 241, 0.25);
+    }
+
+    .hub-btn-export:active {
+        transform: translateY(0);
+    }
+
+    .hub-btn-export:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .hub-btn-export svg {
+        width: 0.950rem;
+        height: 0.950rem;
+        stroke: currentColor;
+    }
+
     .change-link {
         font-size: 0.875rem; color: #64748b; cursor: pointer;
         padding: 0.500rem 1.000rem; border-radius: 0.500rem; transition: all 0.2s;

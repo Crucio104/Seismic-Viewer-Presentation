@@ -78,7 +78,17 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                 <span id="badge-text">Synchronizing dataset...</span>
             </div>
-            <div class="change-link" onclick="changeFileJS()">Import another dataset</div>
+            <div class="hub-actions">
+                <button class="hub-btn-export" id="export-csv-btn" onclick="saveCurrentCsvJS()" title="Save CSV dataset locally">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span>Download CSV</span>
+                </button>
+                <div class="change-link" onclick="changeFileJS()">Import another dataset</div>
+            </div>
         </header>
 
 
@@ -495,6 +505,26 @@
             showFilePicker();
             refreshRecentFiles();
         });
+    }
+
+    async function saveCurrentCsvJS() {
+        const btn = document.getElementById('export-csv-btn');
+        if (btn) btn.disabled = true;
+        try {
+            const res = await pywebview.api.save_current_csv();
+            if (res && res.status === 'success') {
+                const filename = res.path ? res.path.split(/[/\\]/).pop() : 'dataset.csv';
+                showToast(`Dataset saved: ${filename}`, 'success');
+            } else if (res && res.status === 'cancelled') {
+                // User dismissed the system dialog - do nothing
+            } else if (res && res.error) {
+                showToast(res.error, 'error');
+            }
+        } catch(e) {
+            showToast('Save failed: ' + e, 'error');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
     }
 
     async function clearCacheJS() {
