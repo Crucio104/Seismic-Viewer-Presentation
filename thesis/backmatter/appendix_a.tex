@@ -1,0 +1,133 @@
+% ══════════════════════════════════════════════════════════════════════
+% APPENDIX A: SUPPLEMENTARY TECHNICAL DETAILS
+% ══════════════════════════════════════════════════════════════════════
+
+\chapter{Supplementary Technical Details}
+\label{app:technical_details}
+
+This appendix provides a formal specification of the data structures and the core algorithmic logic utilized within Seismic Viewer. Standardizing the input and internal formats ensures that the system can easily parse external catalogs and efficiently render them, while the computational pipeline ensures robust data analysis. By documenting these structures and algorithms, future extensions to the software can maintain compatibility with the existing core architecture.
+
+\section{Seismic Data Structures}
+\label{sec:data_structures}
+
+The design of Seismic Viewer places a strong emphasis on maintaining a clear separation between the external data representation and the internal state used for high-performance computation. This section outlines both formats in detail, illustrating how raw textual data is efficiently translated into numerical matrices.
+
+\subsection{Input Catalog Format}
+
+Seismological data must be structured in a CSV following the specifications detailed in \cref{tab:csv-schema}. The schema requires specific temporal and spatial fields to ensure correct localization within the 3D WebGL environment. To accommodate the vast amount of data often recorded during seismic swarms, the format is kept as lightweight as possible. External catalogs, such as those provided by the INGV, must be pre-processed or mapped to this standard structure before ingestion. The mandatory fields include unique identifiers, precise origin timestamps, and geographical coordinates expressed in decimal degrees.
+
+\begin{table}[htbp]
+\centering
+\caption{Expected schema for input seismic catalogs.}
+\label{tab:csv-schema}
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Field Name} & \textbf{Data Type} & \textbf{Description} \\
+\midrule
+\texttt{id} & \texttt{string} & Unique identifier for the seismic event \\
+\texttt{time} & \texttt{ISO 8601 string} & Origin time of the event (e.g., 2024-01-01T12:00:00) \\
+\texttt{latitude} & \texttt{float} & Event epicenter latitude in WGS84 decimal degrees \\
+\texttt{longitude} & \texttt{float} & Event epicenter longitude in WGS84 decimal degrees \\
+\texttt{depth} & \texttt{float} & Hypocentral depth in kilometers \\
+\texttt{mag} & \texttt{float} & Magnitude of the event \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Internal Application State}
+
+Once parsed by the Python backend, the catalog is transformed into an internal state object optimized for rendering and clustering algorithms. The data is held in memory as multi-dimensional \texttt{numpy} arrays to support the matrix operations required by DBSCAN and RANSAC. Transitioning from a row-based CSV structure to a column-based array format significantly improves memory locality and cache performance during heavy numerical computations. This design choice helps achieve interactive frame rates in the application's user interface.
+
+\begin{table}[htbp]
+\centering
+\caption{Internal data representation in the processing pipeline.}
+\label{tab:internal-schema}
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Variable} & \textbf{Type} & \textbf{Purpose} \\
+\midrule
+\texttt{coordinates} & \texttt{numpy.ndarray} & An $N \times 3$ matrix storing projected UTM coordinates and depth \\
+\texttt{magnitudes} & \texttt{numpy.ndarray} & An $N$-length array used for scaling the visual markers \\
+\texttt{timestamps} & \texttt{numpy.ndarray} & Unix epoch timestamps used for temporal filtering and animation \\
+\texttt{labels} & \texttt{numpy.ndarray} & Cluster assignments ($ -1 $ for noise, $ 0 \dots K $ for structural groups) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{\revised{Network Protocol and Message Schemas}}
+\label{sec:protocol_schemas}
+
+\revised{This section provides the JSON schemas used for WebSocket communication and REST API endpoints.}
+
+\subsection{\revised{WebSocket Message Specification}}
+
+\revised{Messages sent by the client over the \texttt{/ws} WebSocket channel follow this structure:}
+
+\begin{lstlisting}[language=Python, caption={\revised{JSON Schema for Client-to-Server WebSocket Requests.}}, label={lst:ws-req}]
+{
+    "type": "object",
+    "required": ["action"],
+    "properties": {
+        "action": {
+            "type": "string",
+            "enum": ["ping", "get_cluster_update", "get_structural_planes", "get_animated_clustering"]
+        },
+        "session_id": {"type": "string"},
+        "params": {
+            "type": "object",
+            "properties": {
+                "method": {"type": "string", "enum": ["dbscan", "kmeans", "cylinders"]},
+                "eps_m": {"type": "number", "minimum": 10.0, "maximum": 5000.0},
+                "min_samples": {"type": "integer", "minimum": 3},
+                "k_clusters": {"type": "integer", "minimum": 2, "maximum": 20},
+                "locked_clusters": {"type": "array", "items": {"type": "integer"}}
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\revised{Progress updates and task notifications sent by the server follow this structure:}
+
+\begin{lstlisting}[language=Python, caption={\revised{JSON Schema for Server Progress and Telemetry Broadcasts.}}, label={lst:ws-progress}]
+{
+    "type": "progress",
+    "task": "ransac_plane_fitting",
+    "percentage": 85.0,
+    "status": "Fitting cylinder planes across 120 temporal frames...",
+    "elapsed_sec": 1.42
+}
+\end{lstlisting}
+
+\subsection{\revised{Core Default Configuration Parameters}}
+
+\revised{\Cref{tab:default-config} summarizes the default settings and thresholds defined in \texttt{core/config.py}:}
+
+\begin{table}[htbp]
+\centering
+\caption{\revised{Centralized configuration constants and default thresholds (\texttt{core/config.py}).}}
+\label{tab:default-config}
+\footnotesize
+\color{red}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Configuration Key} & \textbf{Default Value} & \textbf{Description / Purpose} \\
+\midrule
+\texttt{MAX\_DATA\_SESSIONS} & 30 & Maximum concurrent in-memory dataset sessions (FIFO eviction) \\
+\texttt{MAX\_HTML\_SESSIONS} & 15 & Maximum cached pre-rendered HTML visualization views \\
+\texttt{DEFAULT\_DBSCAN\_EPS\_M} & 300.0 & Default neighborhood search radius $\varepsilon$ (meters) \\
+\texttt{DEFAULT\_DBSCAN\_MIN\_PTS} & 6 & Minimum core points for density reachability \\
+\texttt{DEFAULT\_KMEANS\_CLUSTERS} & 6 & Initial centroid count for MiniBatchKMeans \\
+\texttt{CYLINDER\_GRID\_DIMS} & $(60, 50)$ & Longitudinal and latitudinal cell resolution for 4D tracking \\
+\texttt{RANSAC\_MAX\_ITER} & 100 & Candidate triplet sampling iterations for plane fitting \\
+\texttt{RANSAC\_INLIER\_DIST\_M} & 150.0 & Maximum perpendicular point-to-plane tolerance (meters) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+

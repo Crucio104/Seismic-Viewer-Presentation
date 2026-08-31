@@ -1,0 +1,28 @@
+% ══════════════════════════════════════════════════════════════════════
+% DEDICATION AND ABSTRACT
+% ══════════════════════════════════════════════════════════════════════
+
+\dedication{To my family, colleagues, and friends, by my side today or carved into my memories,\\
+whose support is etched in the surface of every page,\\
+shaping every step of this path.}
+
+\begin{acknowledgments}
+\upshape
+First and foremost, I would like to express my gratitude to my academic supervisor, Prof. Danilo Avola, for his availability and for accepting to supervise my internship project. I am equally indebted to my internship supervisor, Dr. Daniele Bailo, for the trust he placed in me by welcoming me under his wing and for providing continuous guidance and mentorship during this project.
+
+I am grateful to Giada and Rossella for their collaboration. Their constant readiness to share their knowledge and their moral support were a valuable help throughout this work.
+
+A special thanks goes to Alessandro and all my friends from the ``bunker''. Thank you for being by my side through the many highs and lows of these past three years of my bachelor's degree. I also want to extend my sincere appreciation to Gianmaria for his patience and help during our countless hours of study together.
+
+Finally, my heartfelt gratitude goes to my family for their patience, emotional support, and for always believing in me.
+\end{acknowledgments}
+
+\begin{abstract}
+\revised{This thesis documents the design, implementation, and evaluation of \textbf{Seismic Viewer}, a desktop application for four-dimensional (spatial and temporal) visualisation and analysis of seismological data. The system was developed during an internship to address a limitation in existing tools: the lack of software capable of rendering large hypocentral point clouds in real time while integrating spatial clustering and structural analysis.}
+
+\revised{Traditional seismic analysis often relies on two-dimensional maps or static plots that do not show the spatial and temporal evolution of earthquake sequences. Seismic Viewer addresses this limitation through a dual architecture that combines a Python computational backend (using vectorised numerical computing, clustering algorithms, and geospatial processing) with a hardware-accelerated WebGL frontend rendered through an embedded web engine.}
+
+\revised{The application supports four visualisation modes: 2D geospatial mapping, 3D static hypocentral distribution, 4D time-animated sequences, and interactive cluster analysis with structural plane fitting. It integrates data from local CSV files, the INGV GOSSIP online API, GNSS vertical ground deformation, and seismic tomography datasets. Analytical algorithms, including auto-tuned DBSCAN, MiniBatchKMeans clustering, RANSAC plane fitting, and a label matching method for temporal consistency, are used to identify geological structures in the data.}
+
+\revised{This thesis presents the development process from requirements and system architecture to implementation, testing, and performance optimization. The application was evaluated using earthquake data from the Campi Flegrei caldera, showing that it can render and analyze datasets with more than 50{,}000 seismic events in real time.}
+\end{abstract}

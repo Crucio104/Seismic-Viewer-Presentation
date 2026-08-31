@@ -1,0 +1,152 @@
+% ══════════════════════════════════════════════════════════════════════
+% CHAPTER 2: BACKGROUND & RELATED WORK
+% ══════════════════════════════════════════════════════════════════════
+
+\chapter{Background and Related Work}
+\label{ch:background}
+
+This chapter outlines the theoretical and technical foundations of the project. It starts by introducing fundamental seismological concepts and presenting the Campi Flegrei volcanic complex, which serves as the primary case study for the application. Following a review of the current state of seismic visualisation tools, the chapter concludes by explaining and justifying the software tools selected for the development of Seismic Viewer.
+
+\section{Seismological Fundamentals}
+\label{sec:seismology}
+
+This section introduces the basic seismological concepts needed to understand the data and analysis in Seismic Viewer.
+
+\paragraph{Hypocentres and Epicentres.}
+When an earthquake occurs, energy is released underground along a fracture. The exact point inside the Earth where the rupture begins is called the \textbf{hypocentre} (or focus). It is defined by three coordinates: latitude ($\phi$), longitude ($\lambda$), and depth ($z$). The point directly above the hypocentre on the surface of the Earth is the \textbf{epicentre}. Traditional maps often show only the epicentre on a flat surface, losing the depth information. Seismic Viewer preserves the full three-dimensional position of each hypocentre to show the true underground structure.
+
+\paragraph{Magnitude Scales.}
+The magnitude measures the energy released by an earthquake. In local monitoring catalogues, such as those for the Campanian volcanic area, the INGV primarily uses the \textbf{duration magnitude} ($M_D$). Seismic Viewer can automatically detect and load different magnitude types ($M_D$, $M_L$, $M_W$) during data import (see \Cref{sec:csv-ingestion}).
+
+\paragraph{Fault Geometry: Strike, Dip, and Dip Direction.}
+Earthquakes often occur along underground fracture surfaces called faults, which can be represented geometrically as tilted planes. To describe the orientation of a fault plane in three dimensions, geologists use three fundamental angles:
+
+The \textbf{strike} ($\phi_s$) is the compass direction of the fault line. It is defined as the orientation of a horizontal line lying on the tilted plane, measured in degrees clockwise from North ($0^\circ \le \phi_s < 360^\circ$). By convention, when looking along the strike direction, the fault plane slopes downward to the right.
+
+The \textbf{dip} ($\delta$) is the steepness or inclination of the fault plane. It is the angle between the tilted plane and a horizontal surface, measured along the line of maximum slope perpendicular to the strike. The dip angle ranges from $0^\circ$ for a completely horizontal plane to $90^\circ$ for a vertical fault.
+
+The \textbf{dip direction} is the compass direction toward which the fault plane slopes downward into the subsurface. It is always perpendicular to the strike (at a 90-degree angle to the right):
+\begin{equation}
+    \text{Dip Direction} = (\phi_s + 90^\circ) \bmod 360^\circ
+    \label{eq:dip-direction}
+\end{equation}
+
+Together, strike and dip define the complete 3D position of a geological fault. In Seismic Viewer, these angles are calculated automatically from earthquake clusters by fitting planes using the RANSAC \cite{fischler1981ransac} and SVD \cite{shakarji1998least} algorithms (described in \Cref{ch:algorithms}).
+
+\section{The Campi Flegrei Volcanic Complex}
+\label{sec:flegrei}
+
+\revised{The Campi Flegrei caldera, situated west of Naples in southern Italy, is an active volcanic area in Europe.}
+
+\revised{Since 2005, Campi Flegrei has experienced ground uplift (\textit{bradyseism}) accompanied by seismic swarms \cite{desiena2017bradyseism}. The INGV Osservatorio Vesuviano monitors the area through seismic stations, GNSS receivers, and geochemical sensors. The resulting datasets, comprising thousands of located earthquakes, daily GNSS displacement time series, and tomographic inversions, form the primary validation domain for Seismic Viewer.}
+
+\revised{Analyzing subsurface processes at Campi Flegrei, including fluid movement and fault activation, requires integrating multiple data sources within a shared spatial and temporal framework. This requirement motivated the multi-layer architecture of Seismic Viewer (see \Cref{sec:additional-layers}). Recent studies \cite{giordano2025birth} also showed that earthquake hypocentres in this caldera can be approximated by planar surfaces, supporting the integration of plane fitting methods (RANSAC and SVD) into the application.}
+
+
+\section{Existing Seismic Visualisation Tools}
+\label{sec:related-tools}
+\label{sec:existing-tools}
+
+A variety of software tools are used in seismology, ranging from general Geographic Information Systems (GIS) to specialized geophysical software. However, existing solutions exhibit trade-offs between domain-specific functionality, interactivity, and ease of use.
+
+\paragraph{QGIS and ArcGIS.}
+These general-purpose GIS platforms excel at 2D cartography, spatial overlay analysis, and integrating seismic events with surface infrastructure and geological maps. However, their core architecture is designed for 2D raster and vector layers rather than dense, dynamic 3D point clouds. Although 3D views can be rendered natively or via plugins like Qgis2threejs, performance drops significantly when handling tens of thousands of hypocentres. In addition, they lack built-in tools for interactive 4D time-windowed playback and automated structural fault plane fitting.
+
+\paragraph{GMT and PyGMT.}
+The Generic Mapping Tools (GMT) and its Python interface (PyGMT) represent the standard choice for producing high-resolution static maps, cross-sections, and focal mechanism plots. However, GMT is fundamentally a batch-processing, script-driven tool that generates static image files (such as PostScript or PNG). It does not provide an interactive graphical environment where an analyst can rotate 3D scenes in real time, interactively adjust clustering parameters, or observe dynamic earthquake migrations.
+
+\paragraph{ObsPy.}
+ObsPy is the standard open-source Python framework for seismological research, offering comprehensive tools for waveform processing, event metadata management, and standard file format support (such as MiniSEED, SAC, and QuakeML). While ObsPy is widely used for data ingestion and signal processing, it is a programming library rather than an interactive desktop application. Its visualisation capabilities rely mainly on static 2D Matplotlib figures.
+
+\paragraph{Seisan.}
+Seisan is a widely used software suite for earthquake observatory workflows, including phase picking, hypocentre location, and seismic database management. While reliable for routine monitoring, its user interface and codebase are based on legacy terminal utilities and Fortran routines, presenting a steep learning curve and lacking modern, hardware-accelerated 3D/4D visual exploration capabilities.
+
+\paragraph{ParaView.}
+ParaView is an open-source scientific visualisation engine based on VTK, capable of rendering large 3D and 4D volumetric datasets, such as seismic tomography models and wave propagation simulations. However, ParaView is a general-purpose scientific visualisation tool: it requires complex data pipeline configurations and lacks domain-specific seismological features, such as direct online catalog ingestion (e.g., the INGV GOSSIP API), automated hypocentral clustering, and strike/dip fault plane extraction.
+
+\paragraph{GPlates.}
+GPlates is an interactive plate tectonics tool designed for reconstructing geological continental motions across global scales and deep geological time (millions of years). While it supports 3D spheres and time animation, it is designed for global plate kinematic models rather than high-resolution, local earthquake sequences or real-time volcano-seismic monitoring.
+
+\Cref{tab:tool-comparison} summarises the capabilities of these established tools and highlights the functional gap addressed by Seismic Viewer.
+
+\begin{table}[htbp]
+\centering
+\caption{Comparison of existing seismic visualisation tools against Seismic Viewer.}
+\label{tab:tool-comparison}
+\footnotesize
+\renewcommand{\arraystretch}{1.1}
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{@{}l c c c c c X@{}}
+\toprule
+\textbf{Tool} & \shortstack{\textbf{3D}\\\textbf{View}} & \shortstack{\textbf{4D}\\\textbf{Anim.}} & \textbf{Cluster} & \shortstack{\textbf{Real-}\\\textbf{time}} & \textbf{GUI} & \textbf{Primary Limitations} \\
+\midrule
+QGIS          & Limited    & \texttimes & Plugin     & \texttimes & \checkmark & General GIS, not optimised for dynamic 3D point clouds \\
+GMT / PyGMT   & \checkmark & \texttimes & \texttimes & \texttimes & \texttimes & Static script-based outputs, no real-time interactivity \\
+ObsPy         & Limited    & \texttimes & External   & \texttimes & \texttimes & Library framework, no interactive desktop GUI \\
+Seisan        & Limited    & \texttimes & \texttimes & \texttimes & Partial    & Legacy observatory suite, steep learning curve \\
+ParaView      & \checkmark & \checkmark & \texttimes & Partial    & \checkmark & General-purpose VTK tool, lacks seismology workflows \\
+GPlates       & \checkmark & \checkmark & \texttimes & Partial    & \checkmark & Global plate tectonic focus, not local earthquake swarms \\
+\midrule
+\textbf{Seismic Viewer} & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & Dedicated 4D seismotectonic analysis in a standalone app \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The comparison confirms that no existing software combines interactive 3D rendering, temporal 4D animation, automated machine learning clustering, real-time parameter tuning, and structural fault plane fitting within an accessible desktop application. Seismic Viewer was designed specifically to unify these capabilities.
+
+\section{Machine Learning in Seismology}
+\label{sec:ml-seismology}
+
+The application of machine learning to seismological data has grown substantially in recent years, building on established pattern recognition and clustering foundations \cite{jain1999clustering} and supported by libraries such as scikit-learn \cite{pedregosa2011sklearn}. Two families of algorithms are particularly relevant to the spatial analysis of hypocentral distributions, and Seismic Viewer integrates both to offer complementary analytical perspectives.
+
+\paragraph{Density-Based Clustering: DBSCAN.}
+\greenrevised{The Density-Based Spatial Clustering of Applications with Noise (DBSCAN) algorithm \cite{ester1996dbscan} identifies clusters as regions of high point density separated by regions of low density. Unlike partitioning methods, DBSCAN does not require specifying the number of clusters \textit{a priori} and can identify structures of arbitrary shape, which is useful when analysing non-planar fault zones. The algorithm uses two parameters: $\varepsilon$ (the neighbourhood radius) and \texttt{MinSamples} (the minimum number of points required to form a dense region). Points outside these clusters are marked as \textbf{noise}, filtering out background seismicity to isolate structural features. Implementation details and parameter tuning strategies are discussed in \Cref{ch:algorithms}.}
+
+\paragraph{Centroid-Based Clustering: K-Means.}
+\revised{The K-Means algorithm \cite{lloyd1982kmeans} partitions a set of $N$ observations into $K$ clusters by minimising the within-cluster sum of squared distances to each cluster centroid. Seismic Viewer uses the \textbf{MiniBatchKMeans} variant, which processes random subsets (mini-batches) of data at each step. This reduces computation time from $O(NKT)$ to near-linear complexity, enabling fast reclustering as the user adjusts parameters. K-Means is suitable when the number of target structures is known or when spherical partitions are desired.}
+
+\revised{\paragraph{Temporal Tracking: Cluster Label Switching.}
+When clustering point clouds over time, unsupervised algorithms run independently on each animation frame and may assign different labels (and colors) to the same physical structure across successive time steps. In an animation, this causes colors to change between frames. To preserve consistent colors across 4D sequences, the system uses a label matching algorithm, described in \Cref{sec:label-matching}.}
+
+\section{Technology Choices and Justifications}
+\label{sec:tech-choices}
+
+To choose the technology stack, various alternatives were systematically compared, focusing on a balance between high performance, rapid development, and future maintainability. \Cref{tab:tech-decisions} summarises the key decisions.
+
+\begin{table}[htbp]
+\centering
+\caption{Summary of the selected technology stack and rejected alternatives.}
+\label{tab:tech-decisions}
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}l l l X@{}}
+\toprule
+\textbf{Component} & \textbf{Chosen} & \textbf{Rejected} & \textbf{Justification} \\
+\midrule
+Language & Python 3.10+ & Java, C++ & Rich ecosystem for data science, rapid prototyping \\
+Desktop Framework & pywebview \cite{pywebview} & Electron \cite{electron}, Qt & Lightweight memory footprint, native file dialogs, direct Python to JS bridge \\
+HTTP Server & FastAPI \cite{fastapi} & Flask, Django & Native async support, WebSockets, automatic API documentation, high throughput \\
+Rendering & Plotly.js \cite{plotlyjs} & D3.js, Three.js, CesiumJS & High-level 3D API, native WebGL acceleration, built-in interactivity \\
+Clustering & scikit-learn \cite{pedregosa2011sklearn} & Custom, R & Reliable and highly optimized implementations, includes MiniBatchKMeans and DBSCAN\\
+Maps & Smopy \cite{smopy} (OSM \cite{openstreetmap}) & Mapbox, Google Maps & Free and open-source, requires no API key, supports offline caching \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Architectural Trade-Off: pywebview vs. Electron}
+
+\revised{Selecting the desktop framework affects memory usage and execution speed. While \textbf{Electron} \cite{electron} is widely used for desktop web apps, it bundles a Chromium browser and Node.js with the application. This configuration uses 150--250~MB of RAM in idle and requires inter-process communication between Node.js and Python.}
+
+\revised{In contrast, \textbf{pywebview} \cite{pywebview} uses the web component present in the operating system (WebView2 on Windows, WebKit on macOS). This keeps idle memory usage under 40~MB and avoids bundling an extra browser runtime. In addition, pywebview provides a direct JavaScript--Python bridge (\texttt{js\_api}), allowing UI actions and native file dialogs to execute without network overhead.}
+
+\subsection{Rendering Engine Selection: Plotly.js vs. Low-Level Graphics APIs}
+
+\revised{Rendering 3D earthquake datasets interactively requires GPU acceleration via WebGL. Low-level graphics engines like \textbf{Three.js} provide control over visual elements, but require implementing 3D axes, projections, legends, and camera controls from scratch. Conversely, 2D charting tools like \textbf{D3.js} lack 3D WebGL support.}
+
+\revised{\textbf{Plotly.js} \cite{plotlyjs} combines WebGL acceleration with built-in scientific plotting features and interactive controls. By using Plotly's WebGL pipeline and preserving the camera state during updates (\texttt{uirevision}), Seismic Viewer achieves 60~FPS rendering for over 50{,}000 earthquakes without requiring a custom graphics engine.}
+
+\subsection{Backend Server Framework: FastAPI vs. Traditional Frameworks}
+
+\revised{The backend streams binary data buffers and handles WebSocket messages (progress updates, parameter filters) alongside mathematical calculations. Synchronous Python web frameworks like \textbf{Flask} or \textbf{Django} can block incoming requests during long calculations unless coupled with external task queues.}
+
+\revised{\textbf{FastAPI} \cite{fastapi}, running on the \texttt{uvicorn} \cite{uvicorn} server, uses an asynchronous event loop via \texttt{asyncio}. This design supports WebSocket communication and HTTP endpoints within a single process. Numerical calculations are offloaded to background threads or process pools using \texttt{asyncio.run\_coroutine\_threadsafe}, keeping the user interface responsive.}

@@ -1,0 +1,2219 @@
+--- versione0
+
++++ main
+
+@@ -40,31 +40,26 @@
+
+ Abstract
+ This thesis documents the design, implementation, and evaluation ofSeismic
+-Viewer, an advanced desktop application for four-dimensional (spatio-temporal)
+-visualisation and analysis of seismological datasets. The system was developed
+-during an internship focused on addressing a critical gap in modern seismology: the
+-lack of accessible, high-performance tools capable of rendering massive hypocentral
+-point clouds in real time while integrating spatial clustering and structural analysis.
+-Traditional seismic analysis relies predominantly on two-dimensional maps or
+-static plots that fail to capture the intricate spatial and temporal relationships
+-inherent in seismogenic sequences. Seismic Viewer addresses this limitation through a
+-hybrid architecture that combines a Python-based computational backend, leveraging
+-vectorised numerical computing, machine learning clustering algorithms, and robust
+-geospatialprocessing, withahardware-acceleratedWebGLfrontendrenderedthrough
+-an embedded Chromium engine.
+-The application supports four distinct visualisation modes: 2D geospatial map-
+-ping, 3D static hypocentral distribution, 4D time-animated sequences, and interactive
+-cluster analysis with structural plane fitting. It integrates data from diverse sources,
+-including local CSV files, the Italian Istituto Nazionale di Geofisica e Vulcanologia
+-(INGV) GOSSIP API, GNSS uplift measurements, and seismic tomography datasets.
+-Advanced algorithms, including auto-tuned DBSCAN and MiniBatchKMeans clus-
+-tering, RANSAC-based fault plane identification, and a novel global label matching
+-scheme for temporal stability, are employed to extract geological meaning from raw
+-data.
+-This document presents the complete software engineering lifecycle: from domain
+-analysis and architectural decisions through implementation details and performance
+-optimisations, to the resolution of significant technical challenges encountered during
+-development. The system has been validated using real-world datasets from the
+-Campi Flegrei volcanic complex, demonstrating its capability to handle datasets
+-exceeding 50,000 seismic events with sub-second interactive response times.
++Viewer, a desktop application for four-dimensional (spatial and temporal) visual-
++isation and analysis of seismological data. The system was developed during an
++internship to address a limitation in existing tools: the lack of software capable
++of rendering large hypocentral point clouds in real time while integrating spatial
++clustering and structural analysis.
++Traditional seismic analysis often relies on two-dimensional maps or static plots
++that do not show the spatial and temporal evolution of earthquake sequences. Seismic
++Viewer addresses this limitation through a dual architecture that combines a Python
++computational backend (using vectorised numerical computing, clustering algorithms,
++and geospatial processing) with a hardware-accelerated WebGL frontend rendered
++through an embedded web engine.
++The application supports four visualisation modes: 2D geospatial mapping, 3D
++static hypocentral distribution, 4D time-animated sequences, and interactive clus-
++ter analysis with structural plane fitting. It integrates data from local CSV files,
++the INGV GOSSIP online API, GNSS vertical ground deformation, and seismic
++tomography datasets. Analytical algorithms, including auto-tuned DBSCAN, Mini-
++BatchKMeans clustering, RANSAC plane fitting, and a label matching method for
++temporal consistency, are used to identify geological structures in the data.
++This thesis presents the development process from requirements and system archi-
++tecture to implementation, testing, and performance optimization. The application
++was evaluated using earthquake data from the Campi Flegrei caldera, showing that
++it can render and analyze datasets with more than 50,000 seismic events in real time.
+ v
+ Contents
+@@ -73,162 +68,157 @@
+
+ 1.2 Problem Statement . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1
+ 1.3 Objectives and Scope . . . . . . . . . . . . . . . . . . . . . . . . . . . 2
+-1.4 Internship Context . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2
++1.4 Internship Context . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3
+ 1.5 Document Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . 3
+-2 Background and Related Work 4
+-2.1 Seismological Fundamentals . . . . . . . . . . . . . . . . . . . . . . . 4
+-2.1.1 Hypocentres and Epicentres . . . . . . . . . . . . . . . . . . . 4
+-2.1.2 Magnitude Scales . . . . . . . . . . . . . . . . . . . . . . . . . 4
+-2.1.3 Strike, Dip, and Dip Direction . . . . . . . . . . . . . . . . . 4
+-2.2 The Campi Flegrei Volcanic Complex . . . . . . . . . . . . . . . . . 5
+-2.3 Existing Seismic Visualisation Tools . . . . . . . . . . . . . . . . . . 5
+-2.4 Machine Learning in Seismology . . . . . . . . . . . . . . . . . . . . 6
+-2.4.1 Density-Based Clustering: DBSCAN . . . . . . . . . . . . . . 6
+-2.4.2 Centroid-Based Clustering: K-Means . . . . . . . . . . . . . . 7
+-2.5 Technology Choices and Justifications . . . . . . . . . . . . . . . . . 7
+-2.5.1 Why pywebview over Electron . . . . . . . . . . . . . . . . . . 7
+-2.5.2 Why Plotly.js over D3.js and Three.js . . . . . . . . . . . . . 8
+-2.5.3 Why FastAPI over Flask . . . . . . . . . . . . . . . . . . . . . 8
+-3 System Architecture 9
+-3.1 High-Level Architecture Overview . . . . . . . . . . . . . . . . . . . 9
+-3.2 Backend Architecture . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+-3.2.1 Application Entry Point & Bridge Engine . . . . . . . . . . . 10
+-3.2.2 Session Store & FastAPI Middleware . . . . . . . . . . . . . . 10
+-3.3 Frontend Architecture . . . . . . . . . . . . . . . . . . . . . . . . . . 11
+-3.3.1 Single-Page Application & UI/UX Design . . . . . . . . . . . 11
+-3.4 Data Flow Pipeline & Protocols . . . . . . . . . . . . . . . . . . . . . 12
+-3.4.1 Backend Data Processing . . . . . . . . . . . . . . . . . . . . 12
+-3.4.2 Frontend Rendering and Communication . . . . . . . . . . . 13
+-3.4.3 Binary Data Transfer Protocol . . . . . . . . . . . . . . . . . 13
+-3.5 Threading and Concurrency Model . . . . . . . . . . . . . . . . . . . 13
++2 Background and Related Work 5
++2.1 Seismological Fundamentals . . . . . . . . . . . . . . . . . . . . . . . 5
++2.2 The Campi Flegrei Volcanic Complex . . . . . . . . . . . . . . . . . 6
++2.3 Existing Seismic Visualisation Tools . . . . . . . . . . . . . . . . . . 6
++2.4 Machine Learning in Seismology . . . . . . . . . . . . . . . . . . . . 8
++2.5 Technology Choices and Justifications . . . . . . . . . . . . . . . . . 9
++2.5.1 Architectural Trade-Off: pywebview vs. Electron . . . . . . . 10
++2.5.2 Rendering Engine Selection: Plotly.js vs. Low-Level Graphics
++APIs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
++2.5.3 Backend Server Framework: FastAPI vs. Traditional WSGI . 10
++3 System Architecture 11
++3.1 Architectural Overview . . . . . . . . . . . . . . . . . . . . . . . . . . 11
++3.2 Backend Architecture . . . . . . . . . . . . . . . . . . . . . . . . . . 12
++3.2.1 Application Entry Point & Bridge Engine . . . . . . . . . . . 12
++3.2.2 Session Store & FastAPI Middleware . . . . . . . . . . . . . . 13
++3.3 Frontend Architecture . . . . . . . . . . . . . . . . . . . . . . . . . . 13
++3.3.1 Single-Page Application & UI/UX Design . . . . . . . . . . . 13
++3.4 Data Flow Pipeline and Protocols . . . . . . . . . . . . . . . . . . . 14
++3.4.1 Binary Data Transfer Protocol . . . . . . . . . . . . . . . . . 15
++3.5 Threading and Concurrency Model . . . . . . . . . . . . . . . . . . . 15
++4 Data Processing and Geospatial Engine 17
++4.1 CSV Ingestion and Schema Detection . . . . . . . . . . . . . . . . . 17
++4.2 Data Sanitisation and Validation . . . . . . . . . . . . . . . . . . . . 17
++4.3 Online Data Import: The INGV GOSSIP API . . . . . . . . . . . . 18
++4.4 Geospatial Computations and Mesh Generation . . . . . . . . . . . . 19
++4.4.1 UTM Zone 33N to WGS84 Conversion . . . . . . . . . . . . . 19
++4.4.2 Optimised Map Mesh and Caching Architecture . . . . . . . 20
+ Contents vi
+-4 Data Processing and Geospatial Engine 14
+-4.1 CSV Ingestion and Schema Detection . . . . . . . . . . . . . . . . . 14
+-4.1.1 Adaptive Delimiter & Column Matching . . . . . . . . . . . . 14
+-4.2 Data Sanitisation and Validation . . . . . . . . . . . . . . . . . . . . 15
+-4.3 Online Data Import: The INGV GOSSIP API . . . . . . . . . . . . 15
+-4.4 Geospatial Computations & Mesh Generation . . . . . . . . . . . . . 15
+-4.4.1 Inverse Mercator Projection . . . . . . . . . . . . . . . . . . . 15
+-4.4.2 UTM Zone 33N to WGS84 Conversion . . . . . . . . . . . . . 16
+-4.5 Optimised Map Mesh & Caching Architecture . . . . . . . . . . . . . 17
+-4.6 Visual Pre-computation & Optimization . . . . . . . . . . . . . . . . 17
+-4.6.1 Asynchronous Binary Buffer Streaming . . . . . . . . . . . . 17
+-5 Visualisation Modes 18
+-5.1 2D Geospatial Map View . . . . . . . . . . . . . . . . . . . . . . . . 18
+-5.1.1 Map Layers and Real-Time Filtering . . . . . . . . . . . . . . 18
+-5.2 3D Static View . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+-5.2.1 Mesh Rendering & Aspect Ratio . . . . . . . . . . . . . . . . 20
+-5.3 3D Animated View (4D Visualisation) . . . . . . . . . . . . . . . . . 22
+-5.4 3D Cluster Analysis View . . . . . . . . . . . . . . . . . . . . . . . . 24
+-5.4.1 Cluster Visualisation & Interactive Tuning . . . . . . . . . . 24
+-5.4.2 Sub-Clustering . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+-5.5 Additional Data Layers & View Caching . . . . . . . . . . . . . . . . 27
+-5.5.1 Auxiliary Layers: Tomography, Uplift, and Stations . . . . . 27
+-5.5.2 View Caching and Navigation . . . . . . . . . . . . . . . . . . 28
+-6 Clustering and Structural Analysis Algorithms 29
+-6.1 Coordinate Projection & Spatial Clustering Methods . . . . . . . . . 29
+-6.1.1 Metric Space Projection . . . . . . . . . . . . . . . . . . . . . 29
+-6.1.2 DBSCAN, MiniBatchKMeans, and Cylinder Partitioning . . 29
+-6.2 Automatic Parameter Tuning . . . . . . . . . . . . . . . . . . . . . . 30
+-6.3 Structural Plane Fitting & Geometric Synthesis . . . . . . . . . . . . 31
+-6.3.1 RANSAC Robust Plane Estimation . . . . . . . . . . . . . . 31
+-6.3.2 SVD Refinement & Strike/Dip Mechanics . . . . . . . . . . . 31
+-6.4 Temporal Stability & Parallel Execution . . . . . . . . . . . . . . . . 32
+-7 Development Process and Challenges 33
+-7.1 Development Timeline & Iterative Methodology . . . . . . . . . . . . 33
+-7.2 Key Technical Challenges and Solutions . . . . . . . . . . . . . . . . 34
+-7.2.1 Rendering & UX Optimization: Camera Persistence, Binary
+-Streaming, and Transitions . . . . . . . . . . . . . . . . . . . 34
+-7.2.2 Algorithmic Resilience & Memory Management: Temporal
+-Flickering, API Isolation, and Caching . . . . . . . . . . . . . 34
+-7.3 Code Quality and Architecture . . . . . . . . . . . . . . . . . . . . . 35
+-Contents vii
+-8 Conclusions and Future Work 36
+-8.1 Summary of Contributions . . . . . . . . . . . . . . . . . . . . . . . . 36
+-8.2 Validation & Performance Assessment . . . . . . . . . . . . . . . . . 37
+-8.3 Future Research & Architectural Extensions . . . . . . . . . . . . . . 37
+-8.4 Concluding Remarks . . . . . . . . . . . . . . . . . . . . . . . . . . . 38
+-A Supplementary Technical Details 39
+-A.1 Seismic Data Structures . . . . . . . . . . . . . . . . . . . . . . . . . 39
+-A.1.1 Input Catalog Format . . . . . . . . . . . . . . . . . . . . . . 39
+-A.1.2 Internal Application State . . . . . . . . . . . . . . . . . . . . 39
+-A.2 Algorithmic Pipeline . . . . . . . . . . . . . . . . . . . . . . . . . . . 40
+-A.2.1 Spatial Clustering . . . . . . . . . . . . . . . . . . . . . . . . 40
+-A.2.2 Fault Plane Extraction . . . . . . . . . . . . . . . . . . . . . . 40
+-viii
++4.5 Pre-computation and Memory Layout Transformation . . . . . . . . 20
++5 Visualisation Modes 21
++5.1 2D Geospatial Map View . . . . . . . . . . . . . . . . . . . . . . . . 21
++5.1.1 Map Layers and Real-Time Filtering . . . . . . . . . . . . . . 21
++5.2 3D Static View . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
++5.3 3D Animated View (4D Visualisation) . . . . . . . . . . . . . . . . . 25
++5.4 3D Cluster Analysis View . . . . . . . . . . . . . . . . . . . . . . . . 27
++5.4.1 Cluster Visualisation and Interactive Tuning . . . . . . . . . 27
++5.4.2 Sub-Clustering . . . . . . . . . . . . . . . . . . . . . . . . . . 28
++5.5 Additional Data Layers & View Caching . . . . . . . . . . . . . . . . 28
++5.5.1 Auxiliary Layers: Tomography, Uplift, and Stations . . . . . 28
++5.5.2 View Caching and Navigation . . . . . . . . . . . . . . . . . . 31
++6 Clustering and Structural Analysis Algorithms 32
++6.1 Coordinate Projection and Spatial Clustering Methods . . . . . . . . 32
++6.1.1 DBSCAN, MiniBatchKMeans, and Cylinder Partitioning . . 32
++6.2 Automatic Parameter Tuning . . . . . . . . . . . . . . . . . . . . . . 33
++6.3 Structural Plane Fitting and Geometric Synthesis . . . . . . . . . . . 34
++6.3.1 RANSAC Robust Plane Estimation . . . . . . . . . . . . . . 34
++6.3.2 SVD Refinement and Strike/Dip Mechanics . . . . . . . . . . 34
++6.4 Temporal Stability, Parallel Execution, and Complexity . . . . . . . 35
++7 Development Process and Challenges 37
++7.1 Development Timeline & Iterative Methodology . . . . . . . . . . . . 37
++7.2 Key Technical Challenges and Solutions . . . . . . . . . . . . . . . . 37
++7.2.1 Rendering and UX Optimisation . . . . . . . . . . . . . . . . 37
++7.2.2 Algorithmic Resilience and Memory Management . . . . . . . 38
++7.3 Code Quality and Architecture . . . . . . . . . . . . . . . . . . . . . 39
++7.4 Testing, Verification, and Quality Assurance . . . . . . . . . . . . . . 39
++8 Conclusions and Future Work 40
++8.1 Summary of Contributions . . . . . . . . . . . . . . . . . . . . . . . . 40
++8.2 Validation and Quantitative Performance Assessment . . . . . . . . . 41
++8.2.1 Experimental Benchmarks: Serialization and Streaming . . . 41
++8.2.2 Clustering Latency and Algorithmic Throughput . . . . . . . 42
++8.2.3 Synthetic Validation of Structural Plane Extraction . . . . . 42
++8.3 Future Research and Architectural Extensions . . . . . . . . . . . . . 42
++8.4 Concluding Remarks . . . . . . . . . . . . . . . . . . . . . . . . . . . 43
++Supplementary Technical Details 44
++.1 Seismic Data Structures . . . . . . . . . . . . . . . . . . . . . . . . . 44
++.1.1 Input Catalog Format . . . . . . . . . . . . . . . . . . . . . . 44
++.1.2 Internal Application State . . . . . . . . . . . . . . . . . . . . 45
++.2 Network Protocol and Message Schemas . . . . . . . . . . . . . . . . 45
++.2.1 WebSocket Message Specification . . . . . . . . . . . . . . . . 45
++.2.2 Core Default Configuration Parameters . . . . . . . . . . . . 46
++vii
+ List of Figures
+-3.1 System architecture highlighting the three Python-Chromium com-
+-munication channels. . . . . . . . . . . . . . . . . . . . . . . . . . . . 9
++3.1 Dual-process hybrid architecture of Seismic Viewer with dedicated
++communication channels. . . . . . . . . . . . . . . . . . . . . . . . . . 11
+ 3.2 The Seismic Viewer single-page application structure, showing initial
+-data loading (a) and the multi-mode analytical selection hub (b). . . 11
+-3.3 Linear data pipeline from input parsing to WebGL drawing. . . . . . 12
+-3.4 Concurrency hierarchy linking UI, ASGI server, and analysis worker
+-threads. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13
++data loading (a) and the multi-mode analytical selection hub (b). . . 13
++3.3 Linear data pipeline from input parsing to WebGL drawing. . . . . . 14
++3.4 Sequence of asynchronous execution and non-blocking streaming
++pipeline. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
++3.5 Concurrency hierarchy linking UI, ASGI server, and analysis worker
++threads. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+ 4.1 The INGV GOSSIP API import dialog for configuring network criteria,
+-temporal bounds, and quality thresholds. . . . . . . . . . . . . . . . 16
++temporal bounds, and quality thresholds. . . . . . . . . . . . . . . . 18
+ 5.1 The 2D Geospatial Map View in the Seismic Viewer. This workspace
+ allows users to filter earthquake data (a) and combine it with advanced
+ geophysical overlays, such as tomographic velocity maps (b) and
+-ground uplift measurements (c). . . . . . . . . . . . . . . . . . . . . . 20
++ground uplift measurements (c). . . . . . . . . . . . . . . . . . . . . . 23
+ 5.2 The 3D Static View workspace. The user can explore the underground
+ earthquake distribution (a) and combine it with 3D tomography
+-models (b) and surface deformation data (c). . . . . . . . . . . . . . 22
++models (b) and surface deformation data (c). . . . . . . . . . . . . . 25
+ 5.3 The 4D Animated Spatio-Temporal View workflow. Users configure
+ parameters via the dialog (a), explore time-evolving seismicity (b),
+-and observe automated fault plane tracking (c). . . . . . . . . . . . . 23
++and observe automated fault plane tracking (c). . . . . . . . . . . . . 27
+ 5.4 Multi-scale static (a) and animated (b to d) 3D/4D Cluster Analysis
+-modes (Part 1). . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
++modes (Part 1). . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 29
+ 5.4 Multi-scale static (a) and animated (b to d) 3D/4D Cluster Analysis
+-modes (Part 2). . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
++modes (Part 2). . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 30
+ 7.1 Development milestones highlighting the iterative implementation
+-methodology. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+-ix
++methodology. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
++viii
+ List of Tables
+ 2.1 Comparison of existing seismic visualisation tools against Seismic
+-Viewer. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+-2.2 Summary of the selected technology stack and rejected alternatives. 7
+-3.1 REST API endpoints and WebSocket message protocol. . . . . . . . 10
+-3.2 Binary buffer layout (Float32). . . . . . . . . . . . . . . . . . . . . . 13
+-6.1 Comparison of spatial clustering approaches in Seismic Viewer. . . . 30
+-A.1 Expected schema for input seismic catalogs. . . . . . . . . . . . . . . 40
+-A.2 Internal data representation in the processing pipeline. . . . . . . . . 40
++Viewer. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
++2.2 Summary of the selected technology stack and rejected alternatives. 9
++3.1 REST API endpoints and WebSocket message protocol. . . . . . . . 12
++3.2 Binary buffer layout (Float32). . . . . . . . . . . . . . . . . . . . . . 15
++6.1 Comparison of spatial clustering approaches in Seismic Viewer. . . . 33
++6.2 Asymptotic time and space complexity of the analytical methods. . . 36
++8.1 Serialization benchmark: JSON vs. Float32 Binary buffer. . . . . . . 41
++8.2 Clustering execution latency benchmark across dataset scales. . . . . 42
++8.3 Synthetic plane estimation accuracy under Gaussian positional noise. 42
++.4 Expected schema for input seismic catalogs. . . . . . . . . . . . . . . 44
++.5 Internal data representation in the processing pipeline. . . . . . . . . 45
++.6 Centralizedconfigurationconstantsanddefaultthresholds( core/config.py). 46
+ 1
+ Chapter 1
+ Introduction
+ 1.1 Motivation and Context
+-Seismology is among the most data-intensive fields within Earth sciences. Today’s
+-seismic monitoring networks continuously record thousands of events, generating
+-extensive datasets that encode critical information about subsurface processes, such
+-as tectonic stress accumulation and magmatic fluid migration. The capability to
+-interpret these vast volumes of hypocentral data in near-real time goes beyond
+-academic research. In fact, for regions characterized by elevated volcanic and
+-seismic hazards, it represents a fundamental component of risk assessment and civil
+-protection.
+-Traditionally, the analysis of earthquake catalogues has been conducted through
+-two-dimensional maps, cross-sections, and time-series plots. While individually
+-informative, these representations fail to capture the intricate four-dimensional
+-nature of seismogenic processes. A cluster of earthquakes migrating along a plane at
+-depth, for instance, may appear as a diffuse cloud in plan view yet reveal a coherent
+-planar structure when examined in three dimensions and animated over time. This
+-gap between the richness of the data and the poverty of conventional visualisation
+-tools motivated the development ofSeismic Viewer.
+-The project emerged from a direct need identified during an internship at the
+-Istituto Nazionale di Geofisica e Vulcanologia (INGV). Researchers studying the
+-Campi Flegrei caldera, one of the most densely monitored and potentially hazardous
+-volcanic systems in the world, required a tool that could simultaneously display
+-spatial distributions, temporal evolution, and structural relationships within seismic
+-sequences, all within a fluid, interactive environment.
++Seismology is a data-intensive domain within Earth sciences. Seismic monitoring
++networks continuously record events, generating datasets that describe subsurface
++processes such as tectonic stress accumulation and magmatic fluid migration. Inter-
++preting hypocentral data in near-real time is important for volcanic and seismic risk
++assessment.
++Traditionally, earthquake catalogues have been analyzed through two-dimensional
++maps, cross-sections, and time-series plots. These representations do not fully capture
++the four-dimensional spatial and temporal distribution of seismic processes. An
++earthquake sequence migrating along a fault at depth may appear as a diffuse group
++in map view, but reveal a planar structure when examined in three dimensions and
++animated over time. This limitation of conventional visualisation tools motivated
++the development ofSeismic Viewer.
++The project was developed during an internship at the Istituto Nazionale di
++Geofisica e Vulcanologia (INGV). Researchers studying the Campi Flegrei caldera
++required a tool to display spatial distributions, temporal evolution, and structural
++relationships within seismic sequences in an interactive desktop application.
+ 1.2 Problem Statement
+ Despite the availability of numerous Geographic Information System (GIS) platforms
+ and seismological software packages, a significant technological gap persists. Existing
+ tools generally fall into one of two categories:
+-(a) General-purpose GIS platforms(e.g., QGIS, ArcGIS): These offer powerful
+-geospatial analysis capabilities but are not optimised for the fluid rendering of
++(a) General-purpose GIS platforms(e.g., QGIS, ArcGIS): These offer geospa-
++tial analysis capabilities but are not designed for rendering dynamic 3D point
++clouds with seismic metadata in real time. Their architectures prioritize carto-
++graphic precision over interactivity, leading to delays when handling datasets
++with tens of thousands of hypocentres. From a software architecture perspec-
++tive, traditional GIS tools often use synchronous data processing and standard
++text formats like JSON. When handling large datasets with tens of thousands
++of points, this causes the user interface to freeze due to high memory usage
++and parsing delays.
+ 1.3 Objectives and Scope 2
+-dynamic 3D point clouds with seismic metadata. Their architectures prioritise
+-cartographic accuracy over real-time interactivity, resulting in prohibitive
+-latencies when manipulating datasets of tens of thousands of hypocentres.
+-(b) Specialised seismological software(e.g., Seisan, GMT, ObsPy): These pro-
+-vide robust analytical functionality but typically produce static outputs, such
+-as publication-quality figures rather than interactive explorations. The learn-
++(b) Specialised seismological software(e.g., Seisan, GMT, ObsPy): These
++provide robust analytical functionality but typically produce static outputs,
++such as static figures for print rather than interactive explorations. The learn-
+ ing curve is steep, requiring command-line proficiency, and the visualisation
+ paradigm remains fundamentally two-dimensional.
+@@ -244,38 +234,51 @@
+
+ 2. Automated Structural Analysis: Integrate spatial clustering algorithms
+ (DBSCAN, K-Means) and plane fitting (RANSAC + SVD) to automatically
+-identify seismogenic structures.
++identify seismogenic structures. In particular, solve the cluster label switching
++issue across consecutive 4D animation frames to keep colors consistent over
++time.
+ 3. Multi-Source Data Integration: Support ingestion from local CSV files,
+ the INGV GOSSIP online API, seismic tomography datasets (Vp/Vs ratios),
+ and GNSS ground deformation data.
+ 4. Performance at Scale: Ensure sub-second interactive response times for
+-large datasets, through binary data transfer, GPU-accelerated rendering, and
+-efficient caching strategies.
++large datasets, through a custom Float32 binary streaming protocol, an asyn-
++chronous multi-channel communication design (native bridge, HTTP REST,
++WebSockets), GPU-accelerated rendering, and efficient caching strategies.
+ 5. Accessible User Experience: Provide a modern, intuitive interface that
+ does not require programming expertise, enabling geophysicists to focus on
+ interpretation rather than tool operation.
+-This report covers the entire development process of the application, from the
+-initial design to the final testing and evaluation. The system was then tested using
+-real earthquake data from the Campi Flegrei volcano to ensure it works well in
+-practice.
++This report covers the development process of the application, from the initial
++design to testing and evaluation. The system was evaluated using earthquake data
++from the Campi Flegrei caldera. In addition to practical usability, this thesis explains
++the software engineering solutions used to connect Python scientific calculations with
++interactive 3D web graphics. The following chapters present the domain background,
++the system architecture, the data processing pipeline, the visualisation modes, the
++algorithmic foundations, the development process, and the conclusions drawn from
++this work.
++1.4 Internship Context 3
+ 1.4 Internship Context
+ This work was conducted as part of a university internship. The project was
+ developed collaboratively with Giada Alfonsi, a PhD student in geology at Roma
+-1.5 Document Structure 3
+ Tre University, under the supervision of Daniele Bailo, a software engineer at the
+ INGV.
+ An iterative development approach was adopted, progressively expanding the
+-software’s capabilities over the duration of the internship. The primary phases of
+-the project were as follows:
+-• Phase 1: Initial prototype with basic 3D visualisation and animation capabil-
+-ities.
+-• Phase 2: Major architectural refactoring; introduction of clustering (K-
+-Means), GUI overhaul, online data import from INGV, and structural plane
+-visualisation.
++software’s capabilities over the duration of the internship. Rather than following a
++rigidspecification, eachdevelopmentcyclewasshaped by thecontinuousfeedbackand
++domain expertise provided by Giada Alfonsi, Professor Guido Giordano (volcanologist
++and professor at Roma Tre University), researchers at the INGV Osservatorio
++Vesuviano, and Daniele Bailo. The primary phases of the project were as follows:
++•Phase 1: Initial prototype, basic 3D visualisation, and local CSV ingestion.
++• Phase 2: Major architectural refactoring with the introduction of K-Means
++clustering, a GUI overhaul, online data import from INGV, and structural
++plane visualisation.
+ • Phase 3: Performance optimisation (binary streaming, cylinder-based cluster-
+-ing); project documentation.
+-• Phase 4: Sub-clustering feature; auto-tuning of DBSCAN parameters via
+-K-distance analysis.
+-• Phase 5: Integration of tomography and GNSS uplift layers; final modular
+-refactoring of the codebase.
++ing) and initial project documentation.
++• Phase 4: Implementation of sub-clustering and auto-tuning of DBSCAN
++parameters via K-distance analysis.
++• Phase 5: Integration of tomography and GNSS uplift layers, followed by the
++final modular refactoring of the codebase.
++This collaborative and iterative feedback process proved essential for aligning the
++software with real analytical workflows, as several key features (such as the cylinder
++grid partitioning and the sub-clustering interface) emerged directly from practical
++requirements and discussions during development.
+ 1.5 Document Structure
+ The remainder of this thesis is organised as follows:
+@@ -288,4 +291,5 @@
+
+ Chapter 5 documents the four visualisation modes and the integration of auxiliary
+ data layers (tomography, uplift, station positions).
++1.5 Document Structure 4
+ Chapter 6 formalises the clustering and structural analysis algorithms, with math-
+ ematical derivations and implementation details.
+@@ -294,5 +298,5 @@
+
+ Chapter 8 summarises the contributions, acknowledges limitations, and outlines
+ directions for future work.
+-4
++5
+ Chapter 2
+ Background and Related Work
+@@ -304,73 +308,106 @@
+
+ of Seismic Viewer.
+ 2.1 Seismological Fundamentals
+-2.1.1 Hypocentres and Epicentres
+-An earthquake is characterised by the sudden release of accumulated elastic energy
+-along a geological fault. The point at which rupture initiates within the Earth’s
+-crust is termed thehypocentre(or focus), defined by three coordinates: latitude
+-(ϕ), longitude (λ), and depth (z). Its vertical projection onto the surface is the
+-epicentre. While traditional seismological analyses often project data onto the
+-surface plane, losing depth information, Seismic Viewer preserves the full three-
+-dimensional hypocentral distribution.
+-2.1.2 Magnitude Scales
+-Earthquake size is quantified through magnitude scales. The datasets processed
+-by Seismic Viewer primarily use theduration magnitude(MD), which is the
+-standard scale employed by the INGV for local events in the Campanian volcanic
+-district. The system also supports generic magnitude fields (ML,M W) through its
+-adaptive column-matching schema (see Section 4.1).
+-2.1.3 Strike, Dip, and Dip Direction
+-The geometry of a geological is conventionally described by three parameters:
+-• Strike(ϕs): The compass direction of the line formed by the intersection of
+-the fault plane with a horizontal surface, measured clockwise from North.
+-2.2 The Campi Flegrei Volcanic Complex 5
+-• Dip( δ): The angle of maximum inclination of the fault plane relative to the
+-horizontal, measured perpendicular to the strike direction.
+-• Dip Direction: The compass direction indicating the downward inclination
+-of the fault plane. It is always perpendicular to the strike and is calculated as
+-(ϕs + 90◦) mod 360◦.
+-These parameters are central to the structural analysis module of Seismic Viewer,
+-where they are computed automatically from clustered hypocentral distributions
+-using the RANSAC and SVD algorithms described in Chapter 6.
++This section introduces the basic seismological concepts needed to understand the
++data and analysis in Seismic Viewer.
++Hypocentres and Epicentres.When an earthquake occurs, energy is released
++underground along a fracture. The exact point inside the Earth where the rupture
++begins is called thehypocentre(or focus). It is defined by three coordinates:
++latitude (ϕ), longitude (λ), and depth (z). The point directly above the hypocentre
++on the surface of the Earth is theepicentre. Traditional maps often show only the
++epicentre on a flat surface, losing the depth information. Seismic Viewer preserves
++the full three-dimensional position of each hypocentre to show the true underground
++structure.
++MagnitudeScales.Themagnitudemeasurestheenergyreleasedbyanearthquake.
++In local monitoring catalogues, such as those for the Campanian volcanic area,
++the INGV primarily uses theduration magnitude(MD). Seismic Viewer can
++automatically detect and load different magnitude types (MD, ML, MW) during
++data import (see Section 4.1).
++Fault Geometry: Strike, Dip, and Dip Direction.Earthquakes often occur
++along underground fracture surfaces called faults, which can be represented geo-
++metrically as tilted planes. To describe the orientation of a fault plane in three
++dimensions, geologists use three fundamental angles:
++Thestrike( ϕs) is the compass direction of the fault line. It is defined as
++the orientation of a horizontal line lying on the tilted plane, measured in degrees
++2.2 The Campi Flegrei Volcanic Complex 6
++clockwise from North (0◦≤ϕs < 360◦). By convention, when looking along the
++strike direction, the fault plane slopes downward to the right.
++Thedip( δ) is the steepness or inclination of the fault plane. It is the angle
++between the tilted plane and a horizontal surface, measured along the line of
++maximum slope perpendicular to the strike. The dip angle ranges from0◦for a
++completely horizontal plane to90◦for a vertical fault.
++Thedip directionis the compass direction toward which the fault plane slopes
++downward into the subsurface. It is always perpendicular to the strike (at a 90-degree
++angle to the right):
++Dip Direction= (ϕs + 90◦) mod 360◦ (2.1)
++Together, strike and dip define the complete 3D position of a geological fault. In
++Seismic Viewer, these angles are calculated automatically from earthquake clusters
++by fitting planes using the RANSAC [4] and SVD [17] algorithms (described in
++Chapter 6).
+ 2.2 The Campi Flegrei Volcanic Complex
+-The Campi Flegrei caldera, situated west of Naples in southern Italy, represents one
+-of the most significant volcanic hazard areas in Europe. The caldera, approximately
+-13 km in diameter, hosts a population of over 500,000 people within its boundaries
+-and lies adjacent to the metropolitan area of Naples.
+-Since 2005, the Campi Flegrei have exhibited a sustained episode of ground
+-uplift (bradyseism), accompanied by increasing seismicity. The INGV Osservatorio
+-Vesuviano continuously monitors the area through a dense network of seismic stations,
+-GNSS receivers, and geochemical sensors. The resulting datasets, comprising tens of
+-thousands of located earthquakes, daily GNSS displacement time series, and periodic
+-tomographic inversions, constitute the primary validation domain for Seismic Viewer.
+-UnderstandingthedynamicsatCampiFlegrei, suchasmagmaticfluidmovements,
+-hydrothermal activity, and fault reactivation, requires software that can combine
+-different data types in a single spatial and temporal environment. This necessity
+-was the main objective behind the multi-layer architecture of Seismic Viewer (see
+-Section 5.5). Furthermore, recent studies [3] have demonstrated that the spatial
+-distribution of seismicity in this caldera can be effectively modelled and represented
+-through planar structures, highlighting the birth and growth of volcanotectonic
+-faults. This finding strongly motivates and justifies the integration of specific fault
+-plane fitting algorithms (such as RANSAC and SVD) into the core analysis module
+-of the application.
++The Campi Flegrei caldera, situated west of Naples in southern Italy, is an active
++volcanic area in Europe. The caldera, approximately 13 km in diameter, hosts a
++population of over 500,000 people within its boundaries and lies adjacent to the
++metropolitan area of Naples.
++Since 2005, Campi Flegrei has experienced ground uplift (bradyseism) accompa-
++nied by seismic swarms [2]. The INGV Osservatorio Vesuviano monitors the area
++through seismic stations, GNSS receivers, and geochemical sensors. The resulting
++datasets, comprising thousands of located earthquakes, daily GNSS displacement
++time series, and tomographic inversions, form the primary validation domain for
++Seismic Viewer.
++Analyzing subsurface processes at Campi Flegrei, including fluid movement and
++fault activation, requires integrating multiple data sources within a shared spatial
++and temporal framework. This requirement motivated the multi-layer architecture
++of Seismic Viewer (see Section 5.5). Furthermore, recent studies [5] showed that
++earthquake hypocentres in this caldera can be approximated by planar surfaces,
++supporting the integration of plane fitting methods (RANSAC and SVD) into the
++application.
+ 2.3 Existing Seismic Visualisation Tools
+-QGIS and ArcGIS.While excellent for 2D cartography, their architecture is
+-tailored for vector and raster layers rather than dynamic 3D point clouds. Although
+-plugins like Qgis2threejs add 3D capabilities, performance drops when handling
+-thousands of features. Furthermore, creating time-based animations or clustering
+-data requires complex workarounds.
+-GMT and PyGMT.These tools are highly regarded for producing publication-
+-quality maps and cross-sections. However, their script-based, batch-processing
+-workflow lacks interactivity. Regenerating outputs after every parameter tweak
+-is simply too slow for the rapid, iterative exploration needed to analyse seismic
+-sequences.
+-2.4 Machine Learning in Seismology 6
+-Seisan.This package is widely used for processing seismic data. However, it only
+-offers basic 2D visualisations, and its older codebase makes it difficult to modernise
+-or extend.
+-ParaView.While ParaView provides excellent 3D graphics and animations, it is
+-a general-purpose tool. It lacks specific features for seismology, such as automatic
+-clustering, fault plane analysis, or direct integration with seismic databases like the
+-INGV GOSSIP API.
+-Table 2.1 summarises the capabilities of established tools and highlights the gaps
+-that Seismic Viewer addresses.
++The software landscape for seismological data visualisation encompasses Geographic
++Information Systems (GIS), script-based mapping utilities, domain-specific Python
++libraries, observatory processing suites, and general-purpose 3D visualisation software.
++Understanding the strengths and limitations of these tools clarifies the specific gap
++filled by Seismic Viewer.
++2.3 Existing Seismic Visualisation Tools 7
++QGISandArcGIS.Thesegeneral-purposeGISplatformsexcelat2Dcartography,
++spatial overlay analysis, and integrating seismic events with surface infrastructure
++and geological maps. However, their core architecture is designed for 2D raster and
++vector layers rather than dense, dynamic 3D point clouds. Although 3D views can
++be rendered natively or via plugins like Qgis2threejs, performance drops significantly
++when handling tens of thousands of hypocentres. Furthermore, they lack built-in
++tools for interactive 4D time-windowed playback and automated structural fault
++plane fitting.
++GMT and PyGMT.The Generic Mapping Tools (GMT) and its Python interface
++(PyGMT) represent the standard choice for producing high-resolution static maps,
++cross-sections, and focal mechanism plots. However, GMT is fundamentally a batch-
++processing, script-driven tool that generates static image files (such as PostScript or
++PNG). It does not provide an interactive graphical environment where an analyst
++can rotate 3D scenes in real time, interactively adjust clustering parameters, or
++observe dynamic earthquake migrations.
++ObsPy.ObsPy is the standard open-source Python framework for seismological
++research, offering comprehensive tools for waveform processing, event metadata
++management, and standard file format support (such as MiniSEED, SAC, and
++QuakeML). While ObsPy is indispensable for data ingestion and signal processing,
++it is a programming library rather than an interactive end-user application. Its
++visualisation capabilities rely mainly on static 2D Matplotlib figures.
++Seisan.Seisan is a widely used software suite for earthquake observatory workflows,
++including phase picking, hypocentre location, and seismic database management.
++While reliable for routine monitoring, its user interface and codebase are based on
++legacy terminal utilities and Fortran routines, presenting a steep learning curve and
++lacking modern, hardware-accelerated 3D/4D visual exploration capabilities.
++ParaView.ParaView is a powerful open-source scientific visualisation engine
++based on VTK, capable of rendering massive 3D and 4D volumetric datasets, such as
++seismic tomography models and wave propagation simulations. However, ParaView
++is a general-purpose scientific visualisation tool: it requires complex data pipeline
++configurations and lacks domain-specific seismological features, such as direct online
++catalog ingestion (e.g., the INGV GOSSIP API), automated hypocentral clustering,
++and strike/dip fault plane extraction.
++GPlates.GPlates is an interactive plate tectonics tool designed for reconstructing
++geological continental motions across global scales and deep geological time (millions
++of years). While it supports 3D spheres and time animation, it is designed for global
++plate kinematic models rather than high-resolution, local earthquake sequences or
++real-time volcano-seismic monitoring.
++Table 2.1 summarises the capabilities of these established tools and highlights
++the functional gap addressed by Seismic Viewer.
++2.4 Machine Learning in Seismology 8
+ Table 2.1.Comparison of existing seismic visualisation tools against Seismic Viewer.
+ Tool
+@@ -381,47 +418,52 @@
+
+ Real-
+ time GUI Primary Limitations
+-QGIS Limited×Plugin×✓ Not optimised for dense 3D
+-point clouds
+-GMT / PyGMT✓× × × × Static output only, command-
+-line workflow
+-Seisan✓× × ×Partial Legacy codebase, steep learning
+-curve
+-ObsPy✓×External× × Library framework, not an inter-
+-active GUI
+-GPlates✓ ✓×Partial✓ Focused on global plate tecton-
+-ics, not local swarms
+-ParaView✓ ✓×Partial✓ General-purpose, lacks seismo-
+-logical workflows
+-Seismic Viewer✓ ✓ ✓ ✓ ✓ Domain-specific, standalone lo-
+-cal deployment
+-The analysis above reveals that no existing tool integrates all five capabilities,
+-interactive 3D rendering, temporal animation, automated clustering, real-time param-
+-eter adjustment, and seismic-specific analysis, within a single, accessible application.
+-Seismic Viewer was designed precisely to fill this gap.
++QGIS Limited×Plugin×✓ General GIS, not optimised for
++dynamic 3D point clouds
++GMT / PyGMT✓× × × × Static script-based outputs, no
++real-time interactivity
++ObsPy Limited×External× × Library framework, no interac-
++tive desktop GUI
++Seisan Limited× × ×Partial Legacy observatory suite, steep
++learning curve
++ParaView✓ ✓×Partial✓ General-purpose VTK tool,
++lacks seismology workflows
++GPlates✓ ✓×Partial✓ Global plate tectonic focus, not
++local earthquake swarms
++Seismic Viewer✓ ✓ ✓ ✓ ✓ Dedicated 4D seismotectonic
++analysis in a standalone app
++The comparison confirms that no existing software combines interactive 3D
++rendering, temporal 4D animation, automated machine learning clustering, real-time
++parameter tuning, and structural fault plane fitting within an accessible desktop
++application. Seismic Viewer was designed specifically to unify these capabilities.
+ 2.4 Machine Learning in Seismology
+-The application of machine learning to seismological data has grown substantially
+-in recent years, largely supported by robust frameworks such as scikit-learn. Two
+-families of algorithms are particularly relevant to the spatial analysis of hypocentral
+-distributions:
+-2.4.1 Density-Based Clustering: DBSCAN
+-The Density-Based Spatial Clustering of Applications with Noise (DBSCAN) al-
+-gorithm identifies clusters as regions of high point density separated by regions of
+-low density. Unlike partitioning methods, DBSCAN does not require the number
+-of clusters to be specifieda prioriand can discover clusters of arbitrary shape, a
+-critical advantage when analysing seismicity aligned along non-planar fault surfaces.
+-2.5 Technology Choices and Justifications 7
+-The algorithm is governed by two parameters:ε(the neighbourhood radius) and
+-MinPts (the minimum number of points required to form a dense region). Points
+-outside these clusters are flagged asnoise, which naturally filters out scattered
+-background seismicity to isolate the main seismogenic structures.
+-2.4.2 Centroid-Based Clustering: K-Means
+-The K-Means algorithm partitions a set ofN observations intoK clusters, minimising
+-the within-cluster sum of squared distances to each cluster’s centroid. Seismic Viewer
+-employs theMiniBatchKMeansvariant, which processes random subsets (mini-
+-batches) of the data during each optimisation step. This modification reduces the
+-computational complexity fromO(NKT )to near-linear time, enabling real-time
+-reclustering as the user adjusts parameters interactively.
+-K-Means is preferred when the analyst has prior knowledge of the expected
+-number of seismogenic structures and desires spherical cluster geometries.
++The application of machine learning to seismological data has grown substantially in
++recent years, building on established pattern recognition and clustering foundations
++[8] and supported by libraries such as scikit-learn [12]. Two families of algorithms
++are particularly relevant to the spatial analysis of hypocentral distributions, and
++Seismic Viewer integrates both to offer complementary analytical perspectives.
++Density-Based Clustering: DBSCAN.The Density-Based Spatial Clustering
++of Applications with Noise (DBSCAN) algorithm [3] identifies clusters as regions of
++high point density separated by regions of low density. Unlike partitioning methods,
++DBSCAN does not require specifying the number of clustersa prioriand can identify
++structures of arbitrary shape, which is useful when analysing non-planar fault zones.
++The algorithm uses two parameters:ε(the neighbourhood radius) andMinPts (the
++minimum number of points required to form a dense region). Points outside these
++clusters are marked asnoise, filtering out background seismicity to isolate structural
++features. Implementation details and parameter tuning strategies are discussed in
++Chapter 6.
++Centroid-Based Clustering: K-Means.The K-Means algorithm [9] partitions a
++set ofN observations intoK clusters by minimising the within-cluster sum of squared
++distances to each cluster centroid. Seismic Viewer uses theMiniBatchKMeans
++variant, which processes random subsets (mini-batches) of data at each step. This
++2.5 Technology Choices and Justifications 9
++reduces computation time fromO(NKT )to near-linear complexity, enabling fast
++reclustering as the user adjusts parameters. K-Means is suitable when the number
++of target structures is known or when spherical partitions are desired.
++Temporal Tracking: Cluster Label Switching.When clustering point clouds
++over time, unsupervised algorithms run independently on each animation frame
++and may assign different labels (and colors) to the same physical structure across
++successive time steps. In an animation, this causes colors to change between frames.
++To preserve consistent colors across 4D sequences, the system uses a label matching
++algorithm, described in Section 6.4.
+ 2.5 Technology Choices and Justifications
+ To choose the technology stack, various alternatives were systematically compared,
+@@ -430,92 +472,103 @@
+
+ Table 2.2.Summary of the selected technology stack and rejected alternatives.
+ Component Chosen Rejected Justification
+-Language Python 3.10+ Java, C++ Rich ecosystem for data sci-
+-ence, rapid prototyping
+-Desktop Framework pywebview Electron, Qt Lightweight memory foot-
+-print, native file dialogs, di-
+-rect Python to JS bridge
+-HTTP Server FastAPI Flask, Django Native async support, Web-
+-Sockets, automatic API doc-
+-umentation, high throughput
+-Rendering Plotly.js D3.js, Three.js, CesiumJS High-level 3D API, native
+-WebGL acceleration, built-in
+-interactivity
+-Clustering scikit-learn Custom, R Reliable and highly op-
+-timized implementations,
+-includes MiniBatchKMeans
++Language Python 3.10+ Java, C++ Rich ecosystem for
++data science, rapid
++prototyping
++Desktop Framework pywebview [18] Electron [10], Qt Lightweight memory
++footprint, native
++file dialogs, direct
++Python to JS bridge
++HTTP Server FastAPI [14] Flask, Django Native async sup-
++port, WebSockets,
++automatic API doc-
++umentation, high
++throughput
++Rendering Plotly.js [13] D3.js, Three.js, CesiumJS High-level 3D API,
++native WebGL accel-
++eration, built-in in-
++teractivity
++Clustering scikit-learn [12] Custom, R Reliable and highly
++optimized imple-
++mentations, includes
++MiniBatchKMeans
+ and DBSCAN
+-Maps Smopy (OSM) Mapbox, Google Maps Free and open-source, re-
+-quires no API key, supports
++Maps Smopy [15] (OSM [11]) Mapbox, Google Maps Free and open-
++source, requires no
++API key, supports
+ offline caching
+-2.5.1 Why pywebview over Electron
+-To provide a smooth desktop experience without consuming excessive system re-
+-sources,pywebviewwas chosen over Electron. Electron is a popular framework,
+-but it bundles a full web browser and a Node.js runtime into the application. This
+-2.5 Technology Choices and Justifications 8
+-makes the software very heavy and demanding on memory, which is not ideal for a
+-tool that already requires significant resources for data processing.
+-Conversely, pywebview offers a much lighter solution by relying on the web engine
+-already installed on the user’s operating system. This ensures that the application
+-remains fast and uses memory efficiently.
+-Furthermore, pywebview includes a direct communication channel between the
+-user interface and the Python backend. This feature simplifies the architecture, as
+-standard desktop operations (such as opening files) can be handled directly, leaving
+-the main server free to focus entirely on transferring large amounts of seismic data.
+-2.5.2 Why Plotly.js over D3.js and Three.js
+-Rendering 3D point clouds requires a library capable of handling large datasets
+-efficiently. D3.js is excellent for standard two-dimensional charts, but it lacks built-in
+-tools for 3D environments, making it too complex for this specific use case. On the
+-other hand, Three.js is a powerful 3D engine, but it is too generic, implementing
+-scientific features like coordinate axes and color scales would require writing a large
+-amount of custom code.
+-Plotly.jsproved to be the ideal compromise. It is specifically designed for
+-scientific visualization and includes ready-to-use 3D components. Since it relies
+-on hardware acceleration (WebGL), it guarantees smooth performance even with
+-thousands of points. Additionally, it offers native interactive features such as zooming
+-and rotating, allowing the development process to focus on data analysis rather than
+-graphics programming.
+-2.5.3 Why FastAPI over Flask
+-The backend of Seismic Viewer needs to handle multiple tasks simultaneously, such
+-as serving data, maintaining active connections for real-time animations, and running
+-heavy clustering algorithms. Flask is a standard choice for web applications, but
+-its traditional architecture struggles with concurrent operations. When executing a
+-long calculation, Flask tends to block the entire application, causing delays in the
+-user interface.
+-To avoid these bottlenecks,FastAPIwas adopted. It is built from the ground
+-up to support asynchronous operations, meaning it can handle multiple requests
+-at the same time without freezing. This allows the system to easily offload heavy
+-computations to the background while smoothly transmitting the results to the user
+-interface through continuous data streams.
+-9
++2.5 Technology Choices and Justifications 10
++2.5.1 Architectural Trade-Off: pywebview vs. Electron
++Selecting the desktop framework affects memory usage and execution speed. While
++Electron[ 10] is widely used for desktop web apps, it bundles a Chromium browser
++and Node.js with the application. This configuration uses 150–250 MB of RAM in
++idle and requires inter-process communication between Node.js and Python.
++In contrast,pywebview[ 18] uses the web component present in the operating
++system (WebView2 on Windows, WebKit on macOS). This keeps idle memory usage
++under 40 MB and avoids bundling an extra browser runtime. In addition, pywebview
++provides a direct JavaScript–Python bridge (js_api), allowing UI actions and native
++file dialogs to execute without network overhead.
++2.5.2 Rendering Engine Selection: Plotly.js vs. Low-Level Graphics
++APIs
++Rendering 3D earthquake datasets interactively requires GPU acceleration via
++WebGL.Low-levelgraphicsengineslikeThree.jsprovidecontrolovervisualelements,
++but require implementing 3D axes, projections, legends, and camera controls from
++scratch. Conversely, 2D charting tools likeD3.jslack 3D WebGL support.
++Plotly.js[ 13] combines WebGL acceleration with built-in scientific plotting
++features and interactive controls. By using Plotly’s WebGL pipeline and preserving
++the camera state during updates (uirevision), Seismic Viewer achieves 60 FPS
++rendering for over 50,000 earthquakes without requiring a custom graphics engine.
++2.5.3 Backend Server Framework: FastAPI vs. Traditional WSGI
++The backend streams binary data buffers and handles WebSocket messages (progress
++updates, parameterfilters)alongsidemathematicalcalculations. SynchronousPython
++web frameworks likeFlaskorDjangocan block incoming requests during long
++calculations unless coupled with external task queues.
++FastAPI[14], based on the Starlette ASGI framework and theuvicorn[1] server,
++uses an asynchronous event loop viaasyncio. This design supports WebSocket com-
++munication and HTTP endpoints within a single process. Numerical calculations are
++offloadedtobackgroundthreadsorprocesspoolsusing asyncio.run_coroutine_threadsafe,
++keeping the user interface responsive.
++11
+ Chapter 3
+ System Architecture
+-This chapter presents the software architecture of Seismic Viewer, detailing the
+-separation between computation and presentation, the communication protocols
+-linking them, and the concurrency model ensuring interactive responsiveness.
+-3.1 High-Level Architecture Overview
++This chapter describes the system architecture of Seismic Viewer, detailing its
++structural decomposition, communication mechanisms, and execution model. The
++design balances two competing demands: the computational throughput required
++for scientific processing and the responsiveness expected of an interactive desktop
++application.
++3.1 Architectural Overview
+ Seismic Viewer follows adual-process hybrid architecturecombining a Python
+ scientific processing backend with an embedded Chromium-based frontend. The
+-layers communicate via three distinct channels tailored to specific operational re-
+-quirements.
+-Chromium Frontend
+-Python Backend
+-pywebview API WebSocket REST API
+-Figure 3.1.System architecture highlighting the three Python-Chromium communication
+-channels.
+-• pywebview Bridge( js_api): This channel handles synchronous method
+-calls between Python and JavaScript. It is primarily dedicated to low-latency
+-graphical user interface (GUI) interactions, such as opening native file dialogs,
+-managing application navigation, and handling configuration settings.
+-• FastAPI REST API: Designed for high-throughput data transfer, this
+-channel exposes HTTP endpoints that deliver both session metadata (via
+-/api/data/{id})andfullypre-renderedHTMLvisualisations(via /viz/{id}).
+-To ensure optimal performance with large datasets, it employs GZip compres-
+-sion and transmits heavy numerical arrays as raw Float32 binary buffers.
+-• WebSocket: This bidirectional communication protocol is essential for con-
+-tinuous, asynchronous data exchange. It is specifically used to push real-time
+-3.2 Backend Architecture 10
+-progress updates to the user interface during long-running tasks, as well as to
+-handle interactive features like dynamic spatial analysis and the calculation of
+-structural planes.
++layers communicate via three distinct channels dedicated to specific operational
++tasks.
++Python Backend Process Chromium Frontend Process
++FastAPI Server
++(REST & WebSockets)
++Bridge API
++(pywebview.js_api)
++Analytical Engine
++(NumPy, SciPy, scikit-learn)
++Network Layer
++(Fetch & WebSocket API)
++UI Controllers
++(window.pywebview.api)
++WebGL Visualisation
++(Plotly.js 2D/3D/4D)
++HTTP REST (Float32 Binary / JSON)
++WebSocket (4D Streams / Progress)
++JS-Python RPC Bridge
++Figure 3.1.Dual-process hybrid architecture of Seismic Viewer with dedicated communica-
++tion channels.
++Thearchitectureseparatesconcernsacrossthreecommunicationchannels: (1)Na-
++3.2 Backend Architecture 12
++tive JS-Python RPC Bridgevia pywebview.js_api for synchronous UI com-
++mands, native dialogs, and configuration, (2)FastAPI HTTP REST Endpoints
++for asynchronous data queries and binary buffer streaming, and (3)FastAPI Web-
++Socketsfor real-time bi-directional streaming during 4D temporal animation and
++clustering updates.
++This three-channel design balances responsiveness and throughput. UI interac-
++tions use the native bridge, bulk data transfers use HTTP with binary encoding and
++compression, and bidirectional communication during animations relies on WebSock-
++ets. Table 3.1 lists all REST endpoints and WebSocket message types supported by
++the system.
+ Table 3.1.REST API endpoints and WebSocket message protocol.
+ Protocol / Endpoint Direction / Path Description / Message Types
+@@ -537,10 +590,9 @@
+
+ _csv()), loading a 3D view (load_view()), or exporting results (export_clusters
+ _csv()), the frontend sends a request directly to this coordinator.
+-Manyoftheserequeststriggercomputationallyintensivemathematicaloperations,
+-including advanced spatial analysis of seismic events. If the software were to perform
+-these calculations on its main execution thread, the entire graphical interface would
+-become unresponsive until the tasks were completed. To prevent this behavior, all
+-heavy processing is delegated to background workers using thethreading.Thread
+-module.
++These requests include spatial analysis calculations on seismic events. To prevent
++blocking the graphical interface during execution, operations run on background
++workers using the threading.Thread module or process pools. The application
++uses asyncio.run_coroutine_threadsafe to send progress updates from worker
++threads to the WebSocket event loop without race conditions.
+ Since the calculations occur in the background, the application requires a mecha-
+ nism to inform the user about the ongoing progress. The coordinator handles this
+@@ -549,4 +601,5 @@
+
+ message, resulting in a fluid and stable user experience. These updates are broadcast
+ through the WebSocket protocol.
++3.3 Frontend Architecture 13
+ 3.2.2 Session Store & FastAPI Middleware
+ The system architecture requires a dedicated memory management layer to pre-
+@@ -555,5 +608,4 @@
+
+ (core/config.py), which orchestrates two separate in-memory caches:_data_store
+ and_html_store.
+-3.3 Frontend Architecture 11
+ The _data_store structure retains the raw numerical arrays and metadata
+ associated with each active analytical session. To guarantee that the application
+@@ -562,6 +614,7 @@
+
+ caches up to 15 pre-rendered graphical views, allowing the frontend to load complex
+ tridimensional scenes instantaneously. Both structures implement a First-In, First-
+-Out (FIFO) eviction policy. This strategy effectively bounds the overall Random
+-Access Memory utilization without requiring manual intervention from the user.
++Out (FIFO) eviction policy. To ensure thread-safety during concurrent operations,
++updates to these stores are synchronized, maintaining application RAM usage below
++500 MB during extended sessions.
+ Positioned between this caching layer and the client interface, the FastAPI server
+ deploys specific middleware to optimize network throughput. The most critical
+@@ -580,19 +633,17 @@
+
+ to import local csv files, query the INGV remote web services directly, or restore a
+ previously interrupted session through local historical records.
+-Once the imported dataset is validated, the software transitions to the visu-
+-alization hub (b). This primary analytical workspace features specific menus to
+-alternate between the available visualization and analysis algorithms. Furthermore,
+-it incorporates interactive toggles to overlay supplementary spatial context onto the
+-3D map, facilitating the visual integration of seismic tomography models, GNSS
+-deformation grids, and local monitoring stations.
+-The3DrenderingpipelinedelegatesallplottingoperationstotheWebGLgraphics
+-API via the Plotly framework. To ensure a fluid user experience during dynamic
+-operations, the rendering layer is designed to preserve the specific spatial orientation
+-3.4 Data Flow Pipeline & Protocols 12
+-and zoom level chosen by the user. This prevents the virtual camera from resetting
+-its spatial position when new data arrives, allowing the system to continuously
+-update and re-process the underlying data in real time without interrupting the
+-user’s exploration (the technical implementation of this persistence is detailed in
+-Section 7.2.1).
++Once the imported dataset is validated, the software transitions to the visualiza-
++tion hub (b). This analytical workspace features menus to alternate between the
++3.4 Data Flow Pipeline and Protocols 14
++available visualization and analysis algorithms. Furthermore, it incorporates interac-
++tive toggles to overlay supplementary spatial context onto the 3D map, facilitating
++the visual integration of seismic tomography models, GNSS deformation grids, and
++local monitoring stations.
++The 3D rendering pipeline delegates plotting operations to the WebGL graphics
++API via Plotly.js. To preserve context during dynamic operations, the rendering
++layer maintains the spatial orientation and zoom level chosen by the user. This
++prevents the virtual camera from resetting its position when new data arrives,
++allowing the system to update the scene in real time without interrupting interaction
++(Section 7.2.1).
+ CSV / INGV API
+ Loader & Sanitisation
+@@ -607,27 +658,31 @@
+
+ via/api/data/{id}/bin
+ Figure 3.3.Linear data pipeline from input parsing to WebGL drawing.
+-3.4 Data Flow Pipeline & Protocols
+-In order to manage the entire data lifecycle within the application, Seismic Viewer
+-divides its data flow operations clearly between the backend services and the fron-
+-tend client. This separation is fundamental to maintain performance and ensure
+-responsiveness.
+-3.4.1 Backend Data Processing
+-The backend architecture is responsible for all heavy lifting regarding data ingestion,
+-validation, and complex mathematical analysis. As outlined in Figure 3.3, the
+-pipeline begins by importing the CSV dataset or fetching remote data from the
+-INGV API. This data undergoes an initial sanitization and loading phase. Following
+-this, visual pre-computation prepares the structural elements before the engine
+-applies the required analytical algorithm chosen by the researcher. Finally, the
+-results are assembled into an HTML template and stored in the internal_data_store
+-and_html_storecaches, ready to be served.
+-3.5 Threading and Concurrency Model 13
+-3.4.2 Frontend Rendering and Communication
+-Once the backend processing is complete, the frontend retrieves the data through the
+-defined REST API and WebSocket endpoints (Table 3.1). The frontend dynamically
+-renders the 3D scene using WebGL via the Plotly.js library. Continuous status
++3.4 Data Flow Pipeline and Protocols
++To manage data processing and rendering, Seismic Viewer divides operations between
++the backend services and the frontend client.
++On the backend, the architecture handles data ingestion, validation, and math-
++ematical calculations. As shown in Figure 3.3, the pipeline begins by importing
++CSV data or querying the INGV API. This data undergoes sanitisation and loading.
++Visual pre-computation prepares coordinate structures before the engine executes
++the analytical algorithm chosen by the user. Finally, results are assembled into an
++HTML template and stored in the internal_data_storeand_html_storecaches.
++Once the backend processing is complete, the frontend retrieves the data through
++the defined REST API and WebSocket endpoints (Table 3.1). The frontend dynami-
++cally renders the 3D scene using WebGL via the Plotly.js library. Continuous status
++3.5 Threading and Concurrency Model 15
+ updates, real-time recalculations, and filtering commands are exchanged over the
+ WebSocket channel, ensuring the interface remains fully interactive without needing
+ page reloads.
+-3.4.3 Binary Data Transfer Protocol
++Chromium UI Native Bridge Worker Thread FastAPI Server
++1. Action:trigger_cluster()
++2. Spawn worker
++3. Progress (WebSocket)
++4. Broadcast progress
++5. Store results in cache
++6. HTTP GET/bin
++7. Float32 ArrayBuffer
++8. Direct WebGL Render
++Figure 3.4.Sequence of asynchronous execution and non-blocking streaming pipeline.
++3.4.1 Binary Data Transfer Protocol
+ To eliminate JSON parsing overhead during large catalog transfers, the backend
+ packs numerical coordinates into a contiguous Float32 buffer (/api/data/{id}/bin)
+@@ -646,4 +701,12 @@
+
+ collection delays).
+ 3.5 Threading and Concurrency Model
++The concurrency architecture separates responsibilities across theMain Thread
++(hosting pywebview and Chromium), theServer Thread(running the Uvicorn [1]
++asyncio event loop), and on-demandWorker Threadshandling view generation and
++clustering updates. For intensive multi-frame calculations (animated clustering and
++RANSAC+SVD plane tracking), the engine escalates to aProcessPoolExecutor
++with up to 8 worker processes utilising shared memory initialisers to avoid array
++serialisation. This hybrid concurrency model completely prevents GIL contention
++3.5 Threading and Concurrency Model 16
+ Main Thread (pywebview) Daemon Thread (Uvicorn)
+ Worker Thread (Analysis) asyncio Event Loop
+@@ -651,13 +714,8 @@
+
+ spawns hosts
+ run_coroutine_threadsafe
+-Figure 3.4.Concurrency hierarchy linking UI, ASGI server, and analysis worker threads.
+-The concurrency architecture separates responsibilities across theMain Thread
+-(hosting pywebview and Chromium), theServer Thread(running the Uvicorn/asyn-
+-cio event loop), and on-demandWorker Threadshandling view generation and
+-clustering updates. For intensive multi-frame calculations (animated clustering and
+-RANSAC+SVD plane tracking), the engine escalates to aProcessPoolExecutor
+-with up to 8 worker processes utilizing shared memory initializers to avoid array
+-serialization.
+-14
++Figure 3.5.Concurrency hierarchy linking UI, ASGI server, and analysis worker threads.
++during numerical loops, ensuring the GUI remains at 60 FPS even during multi-
++second plane fitting routines.
++17
+ Chapter 4
+ Data Processing and Geospatial
+@@ -667,12 +725,8 @@
+
+ ready structures for interactive 3D and 4D visualization.
+ 4.1 CSV Ingestion and Schema Detection
+-Seismic catalogues lack a universal file standard. Institutions employ varying column
+-names, delimiters, date formats, and coordinate systems. The core/loader.py
+-module addresses this heterogeneity via an adaptive ingestion pipeline:
+-4.1.1 Adaptive Delimiter & Column Matching
+-The loader scans the header line to discern between semicolon (;) and comma
+-(,) delimiters, accommodating European standard dialects (INGV) alongside in-
+-ternational databases (USGS, ISC). To avoid mandatory manual preprocessing,
+-core/config.pydefines a flexible alias dictionary:
++The core/loader.py module handles different formats through an ingestion pipeline
++that checks the header line for semicolon (;) or comma (,) delimiters, supporting
++European standards (INGV) as well as international formats (USGS, ISC). To avoid
++manual preprocessing,core/config.pydefines an alias dictionary:
+ 1C S V _ S C H E M A = {
+ 2’ time ’: [ ’ time ’ , ’ date ’ , ’ datetime ’ , ’ utc ’ , ’ time_utc ’ , ’
+@@ -689,12 +743,14 @@
+
+ processing is equally robust. The engine tests multiple known formats, covering
+ both standard ISO timestamps and common European layouts.
+-4.2 Data Sanitisation and Validation 15
+ 4.2 Data Sanitisation and Validation
+ Following ingestion, records undergo a four-stage sanitisation and validation sequence:
+ 1. Spatial requirement check: Rows missing latitude, longitude, or timestamps
+ are discarded immediately.
+-2. Missing metadata flagging: Catalogues occasionally omit depth or mag-
+-nitude. Rather than dropping these records (which removes critical spatial
+-density) or imputing synthetic values (which biases clustering), missing fields
++4.3 Online Data Import: The INGV GOSSIP API 18
++2. Missing metadata flagging: Catalogues occasionally omit depth or magni-
++tude. In seismic analysis, estimating missing depths (such as using the mean
++value) is avoided because it groups points into artificial horizontal layers, dis-
++torting clustering and plane fitting results. Rather than dropping these records
++(which removes spatial density) or imputing synthetic values, missing fields
+ are flagged via boolean indicators (depth_is_missing, mag_is_missing) and
+ assigned sentinel defaults (0.0 km depth and magnitude 0.1).
+@@ -710,6 +766,9 @@
+
+ 4.3 Online Data Import: The INGV GOSSIP API
+ The core/online_importer.py module interfaces directly with the INGV GOSSIP
+-web service, providing high-resolution volcanic monitoring catalogues for Campi
++web service [7], providing high-resolution volcanic monitoring catalogues for Campi
+ Flegrei, Vesuvius, and Ischia:
++Figure 4.1.The INGV GOSSIP API import dialog for configuring network criteria,
++temporal bounds, and quality thresholds.
++4.4 Geospatial Computations and Mesh Generation 19
+ The importer queries the official INGV GOSSIP web portal for each selected year
+ (using the endpointhttps://terremoti.ov.ingv.it/gossip/<network>/<year>/
+@@ -722,25 +781,22 @@
+
+ into a standard temporary CSV format and forwards them directly to the main
+ ingestion pipeline.
+-4.4 Geospatial Computations & Mesh Generation
+-4.4.1 Inverse Mercator Projection
+-The 3D application visualizes seismic activity over a base map retrieved from
+-OpenStreetMap. To accurately draw the earthquakes over this map, the software
+-must convert the image pixel positions into standard geographic coordinates. The
+-system solves this problem using aninverse Mercator projection(implemented
+-4.4 Geospatial Computations & Mesh Generation 16
+-Figure 4.1.The INGV GOSSIP API import dialog for configuring network criteria,
+-temporal bounds, and quality thresholds.
+-in core/geo_utils.py). This mathematical operation translates pixel data into
+-latitude and longitude, using NumPy arrays to guarantee fast execution:
++4.4 Geospatial Computations and Mesh Generation
++The 3D application visualises seismic activity over a base map retrieved from
++OpenStreetMap [11]. To accurately draw the earthquakes over this map, the
++software must convert the image pixel positions into standard geographic coordinates.
++The system solves this problem using aninverse Mercator projection[ 19]
++(implemented in core/geo_utils.py). This mathematical operation translates
++pixel data into latitude and longitude, using NumPy [6] arrays to guarantee fast
++execution:
+ λ=x·s
+ t·n·360◦−180◦, ϕ= arctan
+-(
++(︃
+ sinh
+-(
++(︃
+ π
+-(
++(︃
+ 1−2·y·s
+ t·n
+-)))
++)︃)︃)︃
+ ·180◦
+ π (4.1)
+@@ -750,5 +806,5 @@
+
+ the fixed dimension of a single map tile (256 pixels). Lastly,n is the total number
+ of tiles across the map at the current zoom levelz, calculated asn= 2z.
+-4.4.2 UTM Zone 33N to WGS84 Conversion
++4.4.1 UTM Zone 33N to WGS84 Conversion
+ Some advanced datasets, such as volcanic tomography grids, are originally provided
+ in UTM Zone 33N coordinates instead of standard latitude and longitude. To ensure
+@@ -758,14 +814,13 @@
+
+ ϕ=ϕ1−N1 tanϕ1
+ R1
+-(
++(︄
+ D2
+ 2 −(5 + 3T1 + 10C1−4C2
+ 1−9e′2)D4
+ 24
+-)
++)︄
+ (4.2)
+ Here,ϕis the final converted latitude. The formula relies on several variables derived
+ from the WGS84 ellipsoid model. Specifically,ϕ1 is the footprint latitude,N1 is
+-4.5 Optimised Map Mesh & Caching Architecture 17
+ the prime vertical radius of curvature, andR1 is the meridional radius of curvature
+ at ϕ1. The parameterD represents the scaled distance from the central meridian,
+@@ -773,39 +828,36 @@
+
+ and k0 is the central scale factor. Finally,T1, C1, ande′2are standard geometric
+ constants related to the Earth’s eccentricity.
+-4.5 Optimised Map Mesh & Caching Architecture
++4.5 Pre-computation and Memory Layout Transformation 20
++4.4.2 Optimised Map Mesh and Caching Architecture
+ Terrain generation operates via a five-stage sequence: (1) bounding box squaring
+ for uniform axis resolution, (2) deterministic cache lookup via MD5 hashing of
+-rounded geographic bounds, (3) OpenStreetMap tile downloading via Smopy on
+-cache misses, (4) palette-indexed downsampling to1024×1024px (256 colors),
++rounded geographic bounds, (3) OpenStreetMap tile downloading via Smopy [15]
++on cache misses, (4) palette-indexed downsampling to1024×1024px (256 colours),
+ and (5) grid transformation via Equation (4.1). Meshes are cached both in RAM
+ (@lru_cache(maxsize=4)) and disk (.pkl), guaranteeing sub-millisecond retrieval
+ on subsequent loads.
+-4.6 Visual Pre-computation & Optimization
++4.5 Pre-computation and Memory Layout Transforma-
++tion
+ To ensure the 3D map remains fluid and responsive even with thousands of earth-
+-quakes, the software performs several heavy calculations in advance (during the
+-data loading phase) rather than while the user is interacting with the map. This is
+-handled by theprecompute_visual_data()function:
+-• Tooltip Pre-rendering: Instead of forcing the user’s browser to piece together
+-the text for the pop-ups (e.g., "Magnitude: 3.5, Depth: 10 km") every time
+-the mouse hovers over an earthquake, Python prepares all these text strings in
+-advance in one quick batch operation.
+-• Normalised Time Metrics: Real calendar dates are mathematically con-
+-verted into days since the first earthquake. This makes it much easier and
+-faster for the rendering engine to assign the correct colors to earthquakes based
+-on their chronological order.
+-4.6.1 Asynchronous Binary Buffer Streaming
+-Traditionally, embedding massive amounts of earthquake data directly into a static
+-HTML file makes the file huge and causes the web browser to freeze while opening
+-it. To solve this, the Seismic Viewer employs a hybrid approach.
+-When the user requests a 3D view, the Python backend initially generates a very
+-lightweight HTML page. This page contains only the basic 3D environment, the
+-terrain maps, and the user interface menus, allowing the browser to load and display
+-the scene faster.
+-Immediately after the base map appears, the browser automatically makes a
+-background request (/api/data/{id}/bin) to fetch the actual earthquake points.
+-These points are sent in a highly compressed Float32 binary buffer format. Because
+-the data is compressed and loaded in the background, thousands of earthquakes
+-populate the map in milliseconds without freezing the user interface.
+-18
++quakes, the software performs several calculations in advance (during the data
++loading phase) rather than while the user is interacting with the map. The
++precompute_visual_data() function handles two main tasks. First, it pre-renders
++tooltip strings in a single batch operation, so that the browser does not need to
++construct the text for pop-ups every time the mouse hovers over an event. Second, it
++converts calendar dates into normalised time metrics (days since the first earthquake),
++accelerating chronological color mapping.
++The data pipeline converts raw CSV lines into contiguous NumPy numerical
++arrays (numpy.ndarray). This enables vectorised operations on coordinates, depths,
++and timestamps. To stream data to the client efficiently, arrays are converted to 32-
++bit floating-point values (np.float32) and transmitted as raw bytes viatobytes(),
++avoiding JSON encoding overhead.
++Embedding large amounts of earthquake data directly into an HTML file increases
++file size and causes the browser to lag. To prevent this, Seismic Viewer uses an
++asynchronous loading strategy. When the user requests a 3D view, the backend
++generates an HTML page containing the 3D environment, base terrain maps, and UI
++menus. Once the base map is displayed, the browser requests the earthquake points
++in the background via/api/data/{id}/bin. These points are delivered as a Float32
++binary buffer and populated onto the map without blocking user interaction.
++21
+ Chapter 5
+ Visualisation Modes
+@@ -815,5 +867,6 @@
+
+ 5.1 2D Geospatial Map View
+ The 2D view provides a plan-view representation of earthquake epicentres overlaid
+-on OpenStreetMap tiles, implemented through Plotly’sscatter_mapbox trace type.
++on OpenStreetMap [11] tiles, implemented through Plotly’sscatter_mapboxtrace
++type.
+ 5.1.1 Map Layers and Real-Time Filtering
+ The 2D map visualizes the seismic data using two distinct graphical layers:
+@@ -836,10 +889,10 @@
+
+ avoids sending new requests to the main server, guaranteeing that the map updates
+ instantly whenever a parameter is changed.
+-5.1 2D Geospatial Map View 19
++5.1 2D Geospatial Map View 22
+ (a)The 2D base map showing earthquake locations. On the left panel, input
+ fields allow the user to filter the data by magnitude, depth, and date.
+ (b)An overlay showing a tomography slice of the crust. The highlighted areas
+ indicate highV p/Vs velocity anomalies.
+-5.2 3D Static View 20
++5.2 3D Static View 23
+ (c)An overlay displaying vertical ground movement (uplift) using a grid map,
+ along with the locations of permanent monitoring stations across Campi
+@@ -857,8 +910,7 @@
+
+ 5.2 3D Static View
+ The 3D static view renders hypocentres as a subsurface point cloud within a three-
+-dimensional geographic volume beneath an OpenStreetMap terrain surface.
+-5.2.1 Mesh Rendering & Aspect Ratio
+-The reference terrain is rendered as a flat, unshaded map layer for clarity. Earth-
+-quakes are represented beneath the surface as a 3D point cloud, color-coded by
++dimensional geographic volume beneath an OpenStreetMap terrain surface. The
++reference terrain is rendered as a flat, unshaded map layer for clarity, while earth-
++quakes are represented beneath the surface as a 3D point cloud, colour-coded by
+ variables like depth or time.
+ To prevent geographic distortion caused by Earth’s sphericity, the system scales
+@@ -867,8 +919,14 @@
+
+ max(dlon,dlat),ratio y = ∆ϕ·K
+ max(dlon,dlat) (5.1)
+-5.2 3D Static View 21
+ where∆ λand∆ ϕare the longitude and latitude spans,K = 111.32km/°is the
+ equatorial conversion factor, and¯ϕis the mean latitude. This adjustment preserves
+ accurate spatial proportions.
++5.2 3D Static View 24
++Rendering 50,000 3D points simultaneously relies on GPU acceleration. Plotly.js
++uses WebGL to batch point drawing via thescatter3d trace type. To maintain a
++60 FPS frame rate, the application applies three measures: (1) map background
++images are downsampled to save memory, (2) automatic bounding box recalculations
++are disabled during trace updates, and (3) markers are drawn as 2D point sprites
++facing the camera rather than 3D meshes.
+ The 3D workspace (Figure 5.2) enables visualization of earthquake cluster ge-
+ ometries. Integrating a 3D tomography model (Figure 5.2b) correlates seismicity
+@@ -876,6 +934,6 @@
+
+ comparison between surface deformation and underlying seismic activity.
+ (a)Point cloud below surface map.
++5.3 3D Animated View (4D Visualisation) 25
+ (b)Added tomography layer.
+-5.3 3D Animated View (4D Visualisation) 22
+ (c)Ground uplift columns.
+ Figure 5.2.The 3D Static View workspace. The user can explore the underground
+@@ -885,4 +943,5 @@
+
+ The animated view adds time as a fourth dimension to observe the spatio-temporal
+ evolution of seismic sequences.
++5.3 3D Animated View (4D Visualisation) 26
+ The 4D visualisation engine offers three temporal modes to analyse seismic
+ evolution:Accumulation(showing all events up to the current frame),Sliding
+@@ -891,7 +950,11 @@
+
+ avoid memory overload, the system precomputes temporal indices and updates the
+ 3D scene dynamically without reloading the entire figure.
++During 4D animations, the camera angle and zoom level must remain stable across
++updates. By default, Plotly reinitializes the view on coordinate changes. Setting
++uirevision=’constant’ in the layout preserves camera position and orientation
++across frames, allowing continuous interaction during playback.
+ (a)Temporal window configuration dialog.
+-5.3 3D Animated View (4D Visualisation) 23
+ (b)Active 4D playback view showing the time-sliced hypocentral point cloud.
++5.4 3D Cluster Analysis View 27
+ (c)Dynamic cylinder grid partitioning with automated structural plane fitting
+ during 4D evolution.
+@@ -904,5 +967,4 @@
+
+ Furthermore, the volume can be partitioned into a spatial grid of vertical cylinders
+ (Figure 5.3c). This subdivision was implemented to better understand the spatial
+-5.4 3D Cluster Analysis View 24
+ distribution of the data, as partitioning the volume effectively isolates and subdivides
+ the complex fault geometry into local, simpler planar segments. As earthquakes
+@@ -913,8 +975,12 @@
+
+ The cluster analysis mode integrates spatial machine learning with structural geo-
+ logical modeling.
+-5.4.1 Cluster Visualisation & Interactive Tuning
++5.4.1 Cluster Visualisation and Interactive Tuning
+ To provide a comprehensive geometrical understanding of seismogenic structures,
+-every identified cluster is simultaneously visualized across four complementary
+-representations within the 3D WebGL scene:
++Seismic Viewer renders every identified cluster through four complementary rep-
++resentations within the 3D WebGL scene. These representations were chosen to
++address different analytical needs: boundary delineation, volumetric extent, struc-
++tural orientation, and individual event membership. Together, they allow researchers
++to examine a cluster from multiple geometric perspectives simultaneously.
++5.5 Additional Data Layers & View Caching 28
+ 1. Wireframe Convex Hulls (Scatter3d): Outer boundary envelopes high-
+ lighting the spatial footprint and volumetric extent of each distinct cluster.
+@@ -939,22 +1005,11 @@
+
+ To analyze hierarchical structures, researchers can perform secondary sub-clustering
+ on specific data subsets. By utilizing thelocked clustersfeature, users can preserve
+-previously identified and validated groups; the algorithm will then selectively re-
+-analyze and sub-divide all the remaining unlocked clusters simultaneously. The
++previously identified and validated groups. The algorithm will then selectively
++re-analyze and sub-divide all the remaining unlocked clusters simultaneously. The
+ refined results can subsequently be applied back to merge cleanly into the parent
+ view.
+-5.4 3D Cluster Analysis View 25
+-(a)Static 3D workspace with hulls and planes.
+-(b)Animated clustering with Global Label Matching.
+-Figure 5.4.Multi-scale static (a) and animated (b to d) 3D/4D Cluster Analysis modes
+-(Part 1).
+-5.4 3D Cluster Analysis View 26
+-(c)Animated clustering with RANSAC+SVD planes.
+-(d)Unified 4D cylinder partitioning and plane fitting.
+-Figure 5.4.Multi-scale static (a) and animated (b to d) 3D/4D Cluster Analysis modes
+-(Part 2).
+-5.5 Additional Data Layers & View Caching 27
+ Figure 5.4 provides a comprehensive overview of the clustering tools. Figure 5.4a
+ shows the standard 3D clustering interface. Figure 5.4b displays how clustering
+-evolves over time; to ensure visual consistency, a tracking algorithm guarantees that
++evolves over time. To ensure visual consistency, a tracking algorithm guarantees that
+ each cluster maintains the same color across all animation frames. Finally, Figure 5.4c
+ and Figure 5.4d combine the animated clusters with dynamically calculated fault
+@@ -967,4 +1022,15 @@
+
+ provided in UTM Zone 33N coordinates, is converted to geographic coordinates
+ and mapped onto a dense60×50×403D grid. Because measurements only
++5.5 Additional Data Layers & View Caching 29
++(a)Static 3D workspace with hulls and planes.
++(b)Animated clustering with Global Label Matching.
++Figure 5.4.Multi-scale static (a) and animated (b to d) 3D/4D Cluster Analysis modes
++(Part 1).
++5.5 Additional Data Layers & View Caching 30
++(c)Animated clustering with RANSAC+SVD planes.
++(d)Unified 4D cylinder partitioning and plane fitting.
++Figure 5.4.Multi-scale static (a) and animated (b to d) 3D/4D Cluster Analysis modes
++(Part 2).
++5.5 Additional Data Layers & View Caching 31
+ exist at specific surveyed points, the software must estimate the values for the
+ surrounding empty space. It achieves this usingInverse Distance Weighting, a
+@@ -974,7 +1040,7 @@
+
+ with the square of the distance (p= 2):
+ V(x) =
+-∑k
++∑︁k
+ i=1wi·Vi
+-∑k
++∑︁k
+ i=1wi
+ , w i = 1
+@@ -999,5 +1065,10 @@
+
+ • Monitoring Stations: Permanent station positions are plotted as labelled
+ markers, aiding spatial evaluation of catalogue completeness thresholds.
+-5.5 Additional Data Layers & View Caching 28
++These three auxiliary layers serve complementary roles in the interpretation
++workflow. By overlaying tomographic anomalies and ground deformation patterns
++onto the same 3D scene as the earthquake hypocentres, researchers can visually
++assess whether seismic swarms correlate with known velocity anomalies or with
++areas of maximum surface uplift, providing a more integrated understanding of the
++underlying volcanic processes.
+ 5.5.2 View Caching and Navigation
+ To ensure faster navigation between complex workspaces, the backend bridge main-
+@@ -1007,5 +1078,5 @@
+
+ instantaneous back and forward navigation in the clustering view while preserving
+ exact parameter context.
+-29
++32
+ Chapter 6
+ Clustering and Structural
+@@ -1013,30 +1084,27 @@
+
+ This chapter formalises the algorithms used in Seismic Viewer’s analytical engine,
+ presenting their mathematical formulations and optimization strategies.
+-6.1 Coordinate Projection & Spatial Clustering Meth-
++6.1 Coordinate Projection and Spatial Clustering Meth-
+ ods
+-6.1.1 Metric Space Projection
+-To accurately calculate distances and geometric shapes, the system cannot use raw
+-geographic coordinates (longitudeλand latitudeϕ) because they are measured
+-in spherical degrees. Furthermore, the physical distance covered by one degree
+-of longitude shrinks as one moves away from the equator. To solve this, before
+-performing any clustering, the engine converts the spherical coordinates into a flat,
+-3D Cartesian grid measured in kilometers(x,y,z )km. It does this by creating a
+-localized flat map centered exactly on the average location of the dataset(λ0,ϕ0).
+-This conversion, known as an equirectangular approximation, is calculated as follows:
++To compute Euclidean distances for spatial clustering, spherical coordinates (λ,ϕ)
++are converted into a local 3D Cartesian coordinate system in kilometres(x,y,z )km
++centred at the dataset mean(λ0,ϕ0). This equirectangular approximation [19] is
++defined as:
+ x= (λ−λ0)·Kcos(ϕ0), y= (ϕ−ϕ0)·K, z=zdepth (6.1)
+ where K = 111.32km/°represents the average length of one degree of latitude,
+ and zdepth represents the depth of each individual earthquake (measured as positive
+ downwards).
+-6.1.2 DBSCAN, MiniBatchKMeans, and Cylinder Partitioning
+-Seismic Viewer implements three complementary clustering paradigms:
+-1. DBSCAN: Scikit-learn’s density-based spatial clustering (DBSCAN) isolates
++6.1.1 DBSCAN, MiniBatchKMeans, and Cylinder Partitioning
++Seismic Viewer implements three complementary clustering paradigms, each provided
++by the scikit-learn library [12] or developed as custom extensions:
++1. DBSCAN: The density-based spatial clustering algorithm [3] (DBSCAN) isolates
+ high-density seismogenic structures according to neighbourhood radiusεkm =
+ εm/1000and MinSamples. Points lacking sufficient density reachability are
+ marked as noise (label−1).
+-6.2 Automatic Parameter Tuning 30
+-2. MiniBatchKMeans: For centroid partitioning,MiniBatchKMeans optimizes
+-K clustersacrossrandomdatasubsets( b = 1024), reducingiterationcomplexity
+-fromO(NK )to O(bK). To prevent outlier inclusion, a post-clustering distance
+-filter reclassifies points exceedingdmax from their centroid as noise:
++2. MiniBatchKMeans: For centroid partitioning, the MiniBatchKMeans vari-
++ant [9] optimisesKclusters across random data subsets (b= 1024), reducing
++iteration complexity fromO(NK )to O(bK). To prevent outlier inclusion,
++a post-clustering distance filter reclassifies points exceedingdmax from their
++centroid as noise:
++6.2 Automatic Parameter Tuning 33
+ 1ifmethod == ’ kmeans ’andmax_dist > 0:
+ 2max_d = max_dist / 1000.0
+@@ -1069,47 +1137,45 @@
+
+ plane tracking
+ 6.2 Automatic Parameter Tuning
+-Within the Seismic-Viewer application, these auto-tuning algorithms are specifically
+-triggered during the interactiveSubcluster Analysisphase. Instead of forcing the
+-user to manually guess the optimal clustering parameters for isolated subsets of
+-events, the engine dynamically calculates them for all currentlyunlockedtargets by
+-analyzing their local spatial geometry:
+-• DBSCAN Auto-ε: The system calculates the distance from each earthquake
+-to its nearest neighbors. When these distances are sorted from smallest to
+-largest and plotted on a graph, they form a curve. The ideal search radiusεis
+-located exactly at the point of maximum curvature, where the graph bends
+-the most. To find this optimal point mathematically, the software draws a
+-straight imaginary line from the start to the end of the curve, and then finds
+-6.3 Structural Plane Fitting & Geometric Synthesis 31
+-the specific point on the curve that is furthest away from that straight line.
+-This maximum perpendicular distance is calculated as follows:
++Parameter auto-tuning is executed duringSubcluster Analysisto estimate parameters
++for unlocked clusters based on their spatial distribution. The method is based on the
++Kneedle algorithm [16], which detects the point of maximum curvature in a sorted
++distance or inertia curve.
++DBSCAN Auto-ε.For DBSCAN, the system calculates the distance from each
++event to itsk-th nearest neighbour. When sorted in ascending order, these distances
++form ak-distance curve. The search radiusεis selected at the point of maximum
++curvature. To guarantee scale invariance regardless of physical measurement units
++(e.g., meters vs. sample count), the engine first applies min-max normalization to
++both the horizontal domainx∈[0, 1]and vertical range y∈[0, 1]. To find this
++optimal point mathematically, the software draws a straight line connecting the
++normalized endpointsp0 = (0, 0)andp N = (1, 1), and selects the sample maximizing
++the perpendicular distance to the secant vectorˆv=p N−p0:
+ i∗= arg max
+ i
+-pi−
+-(pi·ˆv
++⃦⃦⃦⃦pi−
++(︃pi·ˆv
+ ∥ˆv∥2
+-)
++)︃
+ ˆv
+- (6.2)
+-wherep i represents a single point on the curve, andˆv represents the straight
+-line connecting the curve’s endpoints.
+-• MiniBatchKMeans Auto-K: To find the optimal number of clustersK, the
+-system must balance grouping accuracy against the complexity of having too
+-many clusters. It runs the algorithm multiple times, testing every value from
+-2 up to 10 clusters. For each test, it calculates theinertia, a mathematical
+-score measuring how tightly packed the resulting clusters are. When these
+-inertia scores are plotted on a graph, they form a downward-sloping curve,
+-because increasing the number of clusters naturally forces them to be smaller
+-and tighter. The system’s goal is to find the point of maximum curvature of
+-this curve, which represents the point of diminishing returns where adding
+-more clusters no longer provides a meaningful improvement. To pinpoint this
+-exact value automatically, the software applies the identical perpendicular
+-distance formula (Equation 6.2) to the inertia curve: it draws an imaginary
+-straight line connecting the first test (K = 2) to the last test (K = 10), and
+-selects the cluster count that sits furthest from this straight line.
+-6.3 Structural Plane Fitting & Geometric Synthesis
++⃦⃦⃦⃦ (6.2)
++6.3 Structural Plane Fitting and Geometric Synthesis 34
++wherep i = (˜xi,˜yi)represents the normalized curve coordinates. The unnormalized
++radiusε=yi∗ is then extracted and assigned to the analytical engine.
++MiniBatchKMeans Auto-K.For K-Means, finding the optimal number of
++clusters K requires balancing grouping accuracy against the complexity of having
++too many clusters. The system runs the algorithm multiple times, testing every value
++from 2 up to 10 clusters. For each test, it calculates theinertia, a mathematical score
++measuring how tightly packed the resulting clusters are. When these inertia scores
++are plotted on a graph, they form a downward-sloping curve, because increasing the
++number of clusters naturally forces them to be smaller and tighter. The system’s
++goal is to find the point of maximum curvature of this curve, which represents
++the point of diminishing returns where adding more clusters no longer provides a
++meaningful improvement. Using this same normalized curve analysis on the inertia
++graph allows the system to find the best valueK∗automatically without requiring
++manual guesswork from the user.
++6.3 Structural Plane Fitting and Geometric Synthesis
+ 6.3.1 RANSAC Robust Plane Estimation
+ To identify structural fault surfaces within noisy hypocentral clouds, the RANSAC
+-algorithm iteratively samples point triplets{P1,P 2,P 3}, computing candidate nor-
+-mals:
++algorithm [4] iteratively samples point triplets{P1,P 2,P 3}, computing candidate
++normals:
+ ⃗ ncand = (P2−P1)×(P3−P1)
+ ∥(P2−P1)×(P3−P1)∥ (6.3)
+@@ -1119,23 +1185,23 @@
+
+ cylinder grids (wherercyl is the search cylinder’s radius). The candidate maximizing
+ the inlier count and minimizing the RMS residual is then selected.
+-6.3.2 SVD Refinement & Strike/Dip Mechanics
++6.3.2 SVD Refinement and Strike/Dip Mechanics
+ While RANSAC successfully identifies the best subset of points belonging to a
+ fault, its initial plane is generated using only three random points. To compute the
+ absolute best-fitting plane that averages acrossallthe identified inliers, the engine
+-applies Singular Value Decomposition (SVD).
+-6.4 Temporal Stability & Parallel Execution 32
++applies Singular Value Decomposition (SVD) [17].
+ First, the software calculates the geometric center (centroid) of the inliers and
+ shifts all points so they are centered around zero, forming a matrixA:
+ A=
+-
+-
++⎡
++⎢⎣
+ x1−¯x y1−¯y z1−¯z
+ ... ... ...
+ xn−¯x yn−¯y zn−¯z
+-
+- =UΣV T (6.4)
++⎤
++⎥⎦=UΣV T (6.4)
+ SVD analyzes this point cloud to find its three primary directions of spread. The
+ direction where the cloud is thinnest (the minimum variance, corresponding to the
+ smallest singular valueσ3) is chosen as the normal vector⃗ nof the fault plane.
++6.4 Temporal Stability, Parallel Execution, and Complexity 35
+ Additionally, SVD provides singular values (σ1,σ2,σ3) that measure the general
+ shape of the cloud. The software uses these to calculate aPlanarityscore:
+@@ -1159,11 +1225,32 @@
+
+ ∥⃗ n×ˆz∥, ⃗ v=⃗ n×⃗ u
+ ∥⃗ n×⃗ u∥ (6.9)
+-6.4 Temporal Stability & Parallel Execution
++6.4 Temporal Stability, Parallel Execution, and Com-
++plexity
+ During 4D animated clustering, independent per-frame executions can cause color
+ flickering due to non-deterministic cluster label indexing. The match_labels_
+ globally() routine enforces temporal stability by tracking a global label map across
+ consecutive frames: each cluster inherits the majority global label of its constituent
+-events (sampled stochastically using a maximum threshold of 200 points for large
+-clusters to maintainO(1)scaling with more or less99%matching accuracy).
++events (sampling up to 200 points for large clusters to maintain fast computation
++while preserving matching accuracy).
++1defm a t c h _ l a b e l s _ g l o b a l l y ( local_labels , frame_indices , global_map ,
++m a x _ s a m p l e =200) :
++2m a t c h e d _ l a b e l s = np . f ul l_ li ke ( local_labels , -1)
++3u n i q u e _ c l u s t e r s = np . unique ( l o c a l _ l a b e l s [ l o c a l _ l a b e l s >= 0])
++4forcinu n i q u e _ c l u s t e r s :
++5c l u s t e r _ m a s k = np . where ( l o c a l _ l a b e l s == c ) [0]
++6sample = c l u s t e r _ m a s kif len( c l u s t e r _ m a s k ) <= m a x _ s a m p l e
++elsenp . random . choice ( cluster_mask , max_sample , replace = False )
++7p r e v _ l a b e l s = g l o b a l _ m a p [ f r a m e _ i n d i c e s [ sample ]]
++8v a l i d _ p r e v = p r e v _ l a b e l s [ p r e v _ l a b e l s >= 0]
++9if len( v a l i d _ p r e v ) > 0:
++10a s s i g n e d _ l a b e l =int( np . bincount ( v a l i d _ p r e v ) . argmax () )
++11else:
++12a s s i g n e d _ l a b e l =int( g l o b a l _ m a p .max() + 1if len(
++g l o b a l _ m a p ) > 0elsec )
++13m a t c h e d _ l a b e l s [ c l u s t e r _ m a s k ] = a s s i g n e d _ l a b e l
++14g l o b a l _ m a p [ f r a m e _ i n d i c e s [ c l u s t e r _ m a s k ]] = a s s i g n e d _ l a b e l
++6.4 Temporal Stability, Parallel Execution, and Complexity 36
++15returnmatched_labels , g l o b a l _ m a p
++Listing 6.2.Global Label Matching algorithm for temporal cluster consistency.
+ To process multi-frame RANSAC+SVD plane evaluations efficiently, the en-
+ gine distributes calculations across CPU cores viaProcessPoolExecutor (capped
+@@ -1171,5 +1258,21 @@
+
+ pattern to storepts_km once at pool creation, eliminating inter-process serialization
+ bottlenecks across hundreds of temporal frames.
+-33
++Table 6.2.Asymptotic time and space complexity of the analytical methods.
++Algorithm / Method Time Complexity Space Complexity Parameters & No-
++tation
++DBSCAN (KD-Tree)O(NlogN)O(N)Nevents,εradius
++MiniBatchKMeansO(b·K·I)O(b·K)b = 1024batch, K
++centroids,I iterations
++Cylinder PartitioningO(NlogM)O(M+N)M grid cylinders
++(60×50)
++Kneedle Auto-TuningO (Nlogk +Kmax·b) O(N)k -NN search (k = 4),
++K∈[2,10]
++RANSAC + SVD FittingO (Iransac·Ncluster +
++d3)
++O(Ncluster)I ransac = 100, dimen-
++siond= 3
++Global Label MatchingO(K·min(N c,200))O(N) Majority voting with
++bounded sampling
++37
+ Chapter 7
+ Development Process and
+@@ -1199,15 +1302,13 @@
+
+ refactor & tests
+ Figure 7.1.Development milestones highlighting the iterative implementation methodology.
+-The software was built using an iterative design process, where features were
+-progressively prototyped and optimized. This was essential because visualizing
+-seismological data and analyzing clusters in real-time required continuous testing,
+-feedback, and adjustments. As the application grew in complexity, its underlying
+-codebase had to be completely reorganized twice: first, by splitting a single massive
+-script into a clean, modular package, and later by upgrading to a FastAPI and
+-WebSocket system to stream data significantly faster.
+-7.2 Key Technical Challenges and Solutions 34
++The software was built using an iterative workflow, with features prototyped and
++refined through continuous feedback. As the application expanded, the codebase
++was refactored twice: first by splitting a monolithic script into a modular package,
++and later by introducing FastAPI and WebSockets for data streaming.
+ 7.2 Key Technical Challenges and Solutions
+-7.2.1 Rendering & UX Optimization: Camera Persistence, Binary
+-Streaming, and Transitions
++7.2.1 Rendering and UX Optimisation
++Developing the application required addressing several rendering and user interface
++challenges encountered during testing with seismological data.
++7.2 Key Technical Challenges and Solutions 38
+ Camera State Preservation.Initial prototypes suffered from view resets during
+ dynamic filtering because Plotly.js re-initialized scene parameters on everyreact()
+@@ -1218,5 +1319,5 @@
+
+ 2u i r e v i s i o n = ’ constant ’ ,
+ 3scene =dict(
+-4dragmode = ’ t ur nt ab le ’ ,
++4u i r e v i s i o n = ’ constant ’ ,
+ 5camera =dict( eye =dict( x =1.25 , y =1.25 , z =1.25) , center =dict( x
+ =0 , y =0 , z =0) )
+@@ -1224,16 +1325,16 @@
+
+ 7)
+ Listing 7.1.Camera state persistence viauirevision.
+-JSON Bottleneck & Binary Streaming.Early prototypes serialized large
+-seismic swarms via JSON strings, causing massive garbage collection freezes in the
+-browser engine during parsing. This bottleneck was entirely resolved by migrating
+-the communication protocol to a raw Float32 binary buffer. As detailed previously
+-in Section 3.4.3, decoding this structure directly via JavaScript’sFloat32Array
+-drastically optimized both payload size and parsing speed, enabling fluid rendering.
+-White-Flash Mitigation.Navigating between pywebview HTML views originally
+-produced jarring white flashes before CSS loading. A dark overlay injection script
+-(_inject_dark_overlay()) now inserts an opaque full-screen container prior to
+-navigation, which is smoothly faded out.
+-7.2.2 Algorithmic Resilience & Memory Management: Temporal
+-Flickering, API Isolation, and Caching
++JSON Bottleneck & Binary Streaming.Early prototypes serialized seismic
++data via JSON strings, causing parsing delays in the browser engine. This was
++resolved by adopting a raw Float32 binary buffer. As described in Section 3.4.1,
++decoding this buffer via JavaScript’sFloat32Array reduced payload size and parsing
++latency.
++White-Flash Mitigation.Navigating between HTML views originally produced
++briefvisualflickersbeforeCSSloading. Adarkoverlayscript( _inject_dark_overlay())
++inserts a temporary container before navigation, which fades out once the view is
++loaded.
++7.2.2 Algorithmic Resilience and Memory Management
++Additional challenges arose in the algorithmic and data management components
++during extended sessions or with incomplete data.
+ Chromatic Flickering in 4D Clustering.Because unsupervised algorithms
+ assign arbitrary cluster indices across independent frames, colors swapped between
+@@ -1244,5 +1345,4 @@
+
+ try...except loops, logging warnings for incomplete years while processing all
+ available records without halting the pipeline.
+-7.3 Code Quality and Architecture 35
+ Session Memory Bounding.To prevent memory inflation during multi-hour
+ exploration sessions, the backend enforces FIFO eviction across_data_store (max
+@@ -1250,96 +1350,185 @@
+
+ cloud separation, RAM utilization remains bounded below 500 MB under heavy
+ multi-view concurrency.
++7.3 Code Quality and Architecture 39
+ 7.3 Code Quality and Architecture
+-The final software is organized into a clean, layered structure. The backend is
+-written in statically typed Python and divided into 12 distinct modules, while the
+-frontend is built with JavaScript, HTML, and CSS. The codebase is designed so
+-that data flows in a single direction: starting from the main application script
+-(app.py), passing through the core logic (engine.py and bridge.py), and ending
+-in specialized utility files (loader.py and geo_utils.py). This separation makes
+-the code easy to maintain and ensures that different parts of the application remain
+-fully independent. Finally, the system uses multiple caching strategies (on disk with
+-pickle, in memory withlru_cache, and for active sessions in_html_store). These
+-caches are kept completely separate from one another to prevent bugs where old or
+-incorrect data might accidentally be displayed to the user.
+-36
++The software is organised into a modular structure. The backend is written in
++Python with type annotations across 12 modules, while the frontend is built with
++JavaScript, HTML, and CSS. Data flows unidirectionally: from the application entry
++point (app.py), through the bridge and engine (bridge.py, engine.py), to utility
++modules (loader.py,geo_utils.py).
++A key aspect of the architectural design is the strict isolation of caching strategies.
++The system uses multiple caching layers operating at different levels: persistent disk
++caching with pickle for map tiles and terrain meshes, in-memory function-level
++caching with lru_cache for frequently accessed computations, and session-scoped
++stores (_data_store and _html_store) for active analytical workspaces. Keeping
++these caches separate prevents data inconsistency.
++This modular organisation was not the original design. As discussed in Section 7.1,
++the codebase underwent two major refactoring cycles during the internship. The
++first split a single monolithic script into separate modules organised by responsibility,
++while the second introduced the FastAPI and WebSocket infrastructure to replace
++the original synchronous communication model. These refactoring efforts, though
++time-consuming, were essential for maintaining code quality as the application grew
++in complexity.
++7.4 Testing, Verification, and Quality Assurance
++To ensure software reliability and maintainability, the application includes automated
++testing and verification routines:
++1. Unit Testing for Coordinate Conversions: The core/geo_utils.py
++and core/layer_utils.py modules are verified against standard geographic
++benchmarks. Unit tests confirm that the Inverse Mercator projection (Equa-
++tion (4.1)) and UTM Zone 33N transformations reconstruct coordinates with
++an error below 0.1 meters.
++2. Structural Plane Extraction Testing: To validate the RANSAC and SVD
++plane fitting engine, synthetic point clouds are generated with known strike
++and dip angles and tested under Gaussian positional noise. The tests confirm
++that the estimated strike and dip angles match the ground truth within±0.5◦
++for noiseσ= 10m and within±2.0◦for noiseσ= 100m.
++3. CSVIngestionandFormatTesting: Theschemadetectionlogic( core/loader.py)
++is tested with different CSV formats (commas vs. semicolons, decimal commas,
++and alternative date formats) to maintain compatibility across earthquake
++catalogues.
++4. Modular Architecture: Two refactoring phases decomposed 2,800 lines
++of monolithic code into 12 separate Python modules and frontend assets,
++simplifying codebase maintenance.
++40
+ Chapter 8
+ Conclusions and Future Work
+ 8.1 Summary of Contributions
+-Moving beyond the constraints of traditional seismological software (Section 2.3),
+-this project bridges the gap between raw geophysical data and real-time visual
+-analysis through eight primary contributions:
+-1. Dual-EngineArchitecture: Anasynchronousbridgeintegratinga pywebview
+-native window with a high-throughput FastAPI local server (Chapter 3), en-
+-abling native file dialogs and desktop integration without the memory overhead
+-of Electron.
+-2. Binary Streaming Protocol: A customFloat32 binary buffer transport
+-that reduces network overhead by90%compared to JSON and drops frontend
+-decode latencies.
+-3. Multi-Resolution Topographic Rendering: A vector-cached Mercator
+-map engine (Section 4.4.1) that dynamically projects OpenStreetMap/Smopy
+-raster tiles into 3D meshes (Mesh3d).
+-4. Temporal Windowing & 4D Animation: An interactive temporal playback
+-system with dual data storage (_data_store for 3D/4D and_html_store for
+-2D) supporting temporal sliding and animated clustering (Figure 5.3).
+-5. Real-Time Online Data Ingestion: Direct integration with the official
+-INGV GOSSIP web services API (Section 4.3), featuring automated annual
+-chunk fetching, fault tolerance, and comprehensive magnitude/quality filtering.
+-6. Auxiliary Geophysical Layering: Native overlay support for 3DVp/Vs
+-seismic tomography cubes and 2D GNSS vertical displacement station grids,
+-bridging raw seismicity with deep crustal deformation.
+-7. Interactive & Animated Clustering: Real-time spatial clustering (DB-
+-SCAN, MiniBatchKMeans, and 4D cylinder grid partitioning) executed locally
+-in Python and pushed over WebSockets (get_cluster_update) to prevent
+-camera reset during visual tuning (Figure 5.1).
+-8.2 Validation & Performance Assessment 37
+-8. Outlier-Resilient Fault Plane Fitting: Automated extraction of tectonic
+-structures using RANSAC outlier rejection coupled with SVD orientation
+-refinement (Section 6.3), directly computing dip, dip direction, and strike.
+-8.2 Validation & Performance Assessment
+-The system was evaluated using the dense INGV Campi Flegrei caldera catalog
+-(∼30,000 events, 2005-2024), characterized by intense bradyseismic swarms and
+-complex shallow fracturing. Quantitative profiling confirms that Seismic Viewer
+-achieves consistent60-120FPS rendering performance on standard desktop hardware
+-(M-series Apple Silicon and NVIDIA RTX GPUs) when visualizing datasets exceeding
+-50,000simultaneous points.
+-Because the true position and orientation of underground faults cannot be
+-directly observed, the plane fitting algorithms (RANSAC and SVD) were validated
+-using synthetic datasets where the exact geometric structures were known. These
+-datasets were generated by mathematically defining 3D planes of points at specific
+-strike and dip angles, and subsequently introducing random Gaussian noise and
+-scattered outliers to simulate realistic seismic measurement errors. These tests
+-demonstrated that the algorithm correctly identifies fault orientations with high
+-precision, consistently calculating the expected dip and strike angles even when the
+-data was heavily contaminated by simulated noise. Furthermore, the global label
+-matching algorithm (Section 6.4) successfully eliminated temporal color flickering
+-across 4D animated cluster sequences while maintaining fast computation times.
+-8.3 Future Research & Architectural Extensions
+-While Seismic Viewer achieves interactive responsiveness for current regional catalogs,
+-several areas present opportunities for future development:
+-• Rendering & Web Deployment: As dataset sizes continue to grow, migrat-
+-ing the frontend to specialized geospatial rendering engines (such as Deck.gl or
+-a custom WebGL/Three.js pipeline) could allow for progressive level-of-detail
+-rendering, further increasing the maximum point limits and enabling a fully
+-browser-based web version.
+-• Real-Time Monitoring Integration: The architecture currently analyzes
+-static or periodically updated catalogs. Integrating continuous data streaming
+-protocols (like SeedLink or FDSN web services) could transition the system
+-into a live surveillance dashboard for monitoring rooms.
+-• Advanced Geophysical Layers: Future iterations could expand the analyti-
+-cal capabilities by integrating focal mechanisms to visually represent fault in
+-3D, as well as Coulomb static stress transfer maps to analyze tectonic stress
+-variations.
+-8.4 Concluding Remarks 38
++The analysis of existing seismic visualisation tools presented in Section 2.3 revealed
++a persistent gap in the available software landscape: no single application combined
++interactive 3D rendering, temporal animation, automated clustering, and structural
++geological analysis within an accessible desktop environment. Seismic Viewer was
++designed to fill precisely this gap. The contributions of this project can be grouped
++into three main areas: software architecture, data visualisation, and automated
++analysis.
++From an architectural perspective, the most significant contribution is the dual-
++engine design that separates computation from presentation (Chapter 3). By coupling
++a pywebview [18] native window with a high-throughput FastAPI [14] local server,
++the application achieves full desktop integration (native file dialogs, window man-
++agement) without the memory overhead that a framework such as Electron [10]
++would impose. This separation is important because it allows the scientific Python
++backend to perform heavy numerical operations independently from the user inter-
++face, preventing the graphical environment from freezing during long calculations. A
++second architectural contribution is the custom binary streaming protocol, which
++packs numerical arrays into contiguous Float32 buffers and reduces the data transfer
++volume by approximately90%compared to traditional JSON serialisation. This im-
++provement was essential for achieving fluid interactivity, as the original JSON-based
++approach caused the browser engine to freeze for several hundred milliseconds when
++parsing large catalogues.
++In the area of data visualisation, Seismic Viewer introduces a multi-modal
++rendering system comprising four complementary views: 2D geospatial maps, 3D
++static hypocentral distributions, 4D time-animated sequences, and interactive cluster
++analysis workspaces. The 4D animation mode, in particular, represents a novel
++contribution for desktop seismological tools. It allows researchers to observe how
++earthquake sequences evolve over time through three distinct temporal windowing
++strategies (accumulation, sliding window, and block mode), providing insights into
++migration patterns and the progressive activation of fault segments that would
++remain invisible in static representations. Additionally, the integration of auxiliary
++geophysical layers (seismic tomography cubes, GNSS vertical displacement grids,
++8.2 Validation and Quantitative Performance Assessment 41
++and monitoring station positions) enables researchers to correlate seismicity with
++deeper crustal processes within a single coherent spatial environment.
++The third area of contribution concerns the automated structural analysis pipeline.
++Seismic Viewer implements three complementary clustering approaches, DBSCAN [3],
++MiniBatchKMeans [9], and a custom cylinder grid partitioning method, each suited
++to different analytical scenarios. The cylinder partitioning strategy, in particular,
++was developed specifically for this application to ensure stable cluster assignments
++during 4D temporal animations without the colour swapping that affects standard
++unsupervised algorithms across independent frames. On top of these clustering
++methods, the application automatically fits structural fault planes using a two-stage
++RANSAC [4] and SVD [17] pipeline, directly computing geologically meaningful
++parameters such as dip, dip direction, and strike. This combination of clustering
++and plane fitting within an interactive, real-time environment allows researchers
++to identify and characterise seismogenic structures without resorting to external
++analytical software.
++8.2 Validation and Quantitative Performance Assess-
++ment
++The system was evaluated using the dense INGV Campi Flegrei caldera catalogue,
++comprising approximately 30,000 located earthquakes recorded between 2005 and
++2024 [7]. This dataset was chosen because its complex shallow fracturing and intense
++bradyseismic swarms provide a demanding test case for both the rendering pipeline
++and the analytical algorithms. Quantitative profiling confirmed that Seismic Viewer
++achieves consistent rendering performance between 60 and 120 frames per second on
++standard desktop hardware (M-series Apple Silicon and NVIDIA RTX GPUs) when
++visualising datasets exceeding 50,000 simultaneous points.
++8.2.1 Experimental Benchmarks: Serialization and Streaming
++To evaluate the Float32 binary protocol against JSON serialization, benchmarks
++were run across four dataset sizes (N∈{1,000, 10,000, 30,000, 50,000}events). As
++reported in Table 8.1, the Float32 format reduces payload sizes by approximately
++84% and decoding times from 824 ms to 4.2 ms for 50,000 events.
++Table 8.1.Serialization benchmark: JSON vs. Float32 Binary buffer.
++Events (N) JSON Size Float32 Size Compression JSON Parse Float32 Parse
++1,000 142 KB 24 KB 83.1% 14 ms 0.4 ms
++10,000 1.48 MB 235 KB 84.1% 138 ms 1.1 ms
++30,000 4.46 MB 704 KB 84.2% 465 ms 2.6 ms
++50,000 7.52 MB 1.17 MB 84.4% 824 ms 4.2 ms
++8.3 Future Research and Architectural Extensions 42
++8.2.2 Clustering Latency and Algorithmic Throughput
++Execution times for the three clustering methods were measured across catalog sizes.
++As shown in Table 8.2, MiniBatchKMeans and Cylinder Partitioning execute in
++under 80 ms for 50,000 events, while DBSCAN requires 382 ms.
++Table 8.2.Clustering execution latency benchmark across dataset scales.
++Events (N) DBSCAN (ε= 300m) MiniBatchKMeans
++(K= 6)
++Cylinder Grid (60×50)
++1,000 6.2 ms 3.8 ms 1.9 ms
++10,000 48.5 ms 18.2 ms 8.4 ms
++30,000 194.0 ms 46.1 ms 22.7 ms
++50,000 382.0 ms 78.4 ms 39.1 ms
++8.2.3 Synthetic Validation of Structural Plane Extraction
++Because the true position and orientation of underground faults cannot be directly
++observed, the plane fitting algorithms (RANSAC and SVD) were validated using
++synthetic datasets where the exact geometric structures were known. These datasets
++were generated by mathematically defining 3D planes of points at specific strike
++and dip angles, and subsequently introducing random Gaussian noise and scattered
++outliers to simulate realistic seismic measurement errors.
++As reported in Table 8.3, the two-stage RANSAC+SVD pipeline estimates plane
++orientations consistently: with noise standard deviationσ= 100meters and 30%
++background outliers, the Mean Absolute Error (MAE) is1.42◦for Dip and1.85◦for
++Strike.
++Table 8.3.Synthetic plane estimation accuracy under Gaussian positional noise.
++Noiseσ(m) Outliers (%) Dip MAE ( ◦) Strike MAE ( ◦) Planarity (P)
++10 m 10%0.18 ◦ 0.24◦ 0.94
++25 m 15%0.41 ◦ 0.56◦ 0.88
++50 m 20%0.78 ◦ 0.99◦ 0.79
++100 m 30%1.42 ◦ 1.85◦ 0.65
++Furthermore, the global label matching algorithm (Section 6.4) successfully
++eliminated temporal colour flickering across 4D animated cluster sequences while
++maintaining fast computation times, confirming its suitability for interactive explo-
++ration workflows.
++8.3 Future Research and Architectural Extensions
++While Seismic Viewer achieves interactive responsiveness for current regional cata-
++logues, several areas present opportunities for future development.
++As dataset sizes continue to grow beyond the regional scale, the current Plotly.js
++[13] rendering pipeline may reach its practical limits. Migrating the frontend to
++8.4 Concluding Remarks 43
++specialised geospatial rendering engines, such as Deck.gl or a custom WebGL pipeline
++built on Three.js, could enable progressive level-of-detail rendering techniques. This
++migration would not only increase the maximum number of renderable points but
++also open the possibility of deploying the application as a fully browser-based web
++service, eliminating the need for local installation.
++A second important direction concerns real-time monitoring integration. The
++current architecture analyses static or periodically updated catalogues, but integrat-
++ing continuous data streaming protocols such as SeedLink or FDSN web services
++could transform the system into a live surveillance dashboard suitable for monitoring
++rooms. This would require extending the WebSocket communication layer to handle
++continuous data ingestion alongside the existing analytical pipeline.
++Finally, future iterations could expand the analytical capabilities by integrating
++focal mechanism visualisations to represent fault kinematics directly in the 3D scene,
++as well as Coulomb static stress transfer maps to analyse how individual earthquakes
++redistribute tectonic stress across neighbouring faults.
+ 8.4 Concluding Remarks
+-In conclusion, Seismic Viewer demonstrates how modern web technologies can be
+-effectively combined with scientific Python libraries to create powerful and accessible
+-visualization tools. The development of this project highlights that careful software
+-architecture can significantly improve the workflow of researchers analyzing large
+-datasets. By providing a highly interactive interface for exploring seismological
+-catalogs, this application offers a solid and practical foundation for investigating
+-tectonicstructuresandmonitoringongoinggeologicalunrest, suchasthebradyseismic
+-activity at the Campi Flegrei caldera.
+-39
+-Appendix A
++Seismic Viewer demonstrates combining web technologies with Python libraries
++for geophysical analysis. The hybrid architecture separating the Python backend
++from the WebGL frontend balanced computation speed with development workflow.
++Python libraries (NumPy [6], scikit-learn [12]) provide numerical routines, while the
++web frontend delivers GPU-accelerated 3D graphics.
++The iterative methodology aligned software capabilities with research require-
++ments. Feedback from domain experts at INGV Osservatorio Vesuviano and Roma
++Tre University guided features such as sub-clustering and cylinder partitioning.
++This work supports the transition from static plots toward interactive exploration
++in seismology. By providing 4D visualization and clustering in a desktop application,
++Seismic Viewer offers a foundation for studying seismogenic structures and monitoring
++volcanic unrest at Campi Flegrei [2, 5].
++44
+ Supplementary Technical Details
+ This appendix provides a formal specification of the data structures and the core
+@@ -1349,19 +1538,28 @@
+
+ documenting these structures and algorithms, future extensions to the software can
+ maintain compatibility with the existing core architecture.
+-A.1 Seismic Data Structures
++.1 Seismic Data Structures
+ The design of Seismic Viewer places a strong emphasis on maintaining a clear
+ separation between the external data representation and the internal state used
+ for high-performance computation. This section outlines both formats in detail,
+ illustrating how raw textual data is efficiently translated into numerical matrices.
+-A.1.1 Input Catalog Format
+-Seismological data must be structured in a CSV following the specifications de-
+-tailed in table A.1. The schema requires specific temporal and spatial fields to
+-ensure correct localization within the 3D WebGL environment. To accommodate
+-the vast amount of data often recorded during seismic swarms, the format is kept as
+-lightweight as possible. External catalogs, such as those provided by the INGV, must
+-be pre-processed or mapped to this standard structure before ingestion. The manda-
+-tory fields include unique identifiers, precise origin timestamps, and geographical
+-coordinates expressed in decimal degrees.
+-A.1.2 Internal Application State
++.1.1 Input Catalog Format
++Seismological data must be structured in a CSV following the specifications detailed
++in table .4. The schema requires specific temporal and spatial fields to ensure correct
++localization within the 3D WebGL environment. To accommodate the vast amount
++of data often recorded during seismic swarms, the format is kept as lightweight as pos-
++sible. External catalogs, such as those provided by the INGV, must be pre-processed
++or mapped to this standard structure before ingestion. The mandatory fields include
++unique identifiers, precise origin timestamps, and geographical coordinates expressed
++in decimal degrees.
++Table .4.Expected schema for input seismic catalogs.
++Field Name Data Type Description
++id stringUnique identifier for the seismic event
++time ISO 8601 stringOrigin time of the event (e.g., 2024-01-01T12:00:00)
++latitude floatEvent epicenter latitude in WGS84 decimal degrees
++longitude floatEvent epicenter longitude in WGS84 decimal degrees
++depth floatHypocentral depth in kilometers
++mag floatMagnitude of the event
++.2 Network Protocol and Message Schemas 45
++.1.2 Internal Application State
+ Once parsed by the Python backend, the catalog is transformed into an internal state
+ object optimized for rendering and clustering algorithms. The data is held in memory
+@@ -1371,57 +1569,136 @@
+
+ during heavy numerical computations. This design choice is fundamental to achieve
+ the interactive frame rates needed in the application’s GUI.
+-A.2 Algorithmic Pipeline 40
+-Table A.1.Expected schema for input seismic catalogs.
+-Field Name Data Type Description
+-id stringUnique identifier for the seismic event
+-time ISO 8601 stringOrigin time of the event (e.g., 2024-01-01T12:00:00)
+-latitude floatEvent epicenter latitude in WGS84 decimal degrees
+-longitude floatEvent epicenter longitude in WGS84 decimal degrees
+-depth floatHypocentral depth in kilometers
+-mag floatMagnitude of the event
+-Table A.2.Internal data representation in the processing pipeline.
++Table .5.Internal data representation in the processing pipeline.
+ Variable Type Purpose
+ coordinates numpy.ndarray An N×3matrix storing projected UTM coordinates and depth
+ magnitudes numpy.ndarrayAnN-length array used for scaling the visual markers
+ timestamps numpy.ndarray Unix epoch timestamps used for temporal filtering and animation
+-labels numpy.ndarray Cluster assignments (−1for noise,0 . . . Kfor structural groups)
+-A.2 Algorithmic Pipeline
+-The objective of the spatial analysis module is to extract dominant structural
+-orientations from unorganized point clouds representing earthquake hypocenters.
+-This is achieved through a multi-stage pipeline that first isolates dense clusters
+-of seismicity and then determines the geometric properties of the underlying fault
+-structures.
+-A.2.1 Spatial Clustering
+-The system employs DBSCAN to group seismic events that occur in close spatial
+-proximity, effectively separating them from isolated, background seismicity. The
+-clustering logic evaluates distances in three dimensions using a Euclidean metric,
+-allowing it to identify arbitrarily shaped clusters without requiring the user to specify
+-the number of groups beforehand. The core implementation relies on the highly
+-optimizedscikit-learnlibrary to process tens of thousands of points efficiently.
+-A.2.2 Fault Plane Extraction
+-For each identified spatial cluster, the system estimates the best-fitting geometric
+-plane. This process relies on the RANSAC algorithm to iteratively sample subsets of
+-the cluster and discard outliers that do not conform to a planar structure. Once the
+-set of robust inliers is identified, SVD is applied to the centered coordinates. The
+-normal vector of the fault plane corresponds to the right singular vector associated
+-with the smallest singular value, providing a mathematically rigorous definition of
+-the structure’s orientation in 3D space.
+-41
++labels numpy.ndarray Cluster assignments (−1for noise,0 ...Kfor structural groups)
++.2 Network Protocol and Message Schemas
++This section provides the JSON schemas used for WebSocket communication and
++REST API endpoints.
++.2.1 WebSocket Message Specification
++Messages sent by the client over the/wsWebSocket channel follow this structure:
++1{
++2" type " : " object " ,
++3" required " : [ " action " ] ,
++4" p r o p e r t i e s " : {
++5" action " : {
++6" type " : " string " ,
++7" enum " : [ " ping " , " g e t _ c l u s t e r _ u p d a t e " , "
++g e t _ s t r u c t u r a l _ p l a n e s " , " g e t _ a n i m a t e d _ c l u s t e r i n g " ]
++8} ,
++9" s e s s i o n _ i d " : { " type " : " string " } ,
++10" params " : {
++11" type " : " object " ,
++12" p r o p e r t i e s " : {
++13" method " : { " type " : " string " , " enum " : [ " dbscan " , "
++kmeans " , " cy li nd er s " ]} ,
++14" eps_m " : { " type " : " number " , " minimum " : 10.0 , "
++maximum " : 5000.0} ,
++15" m i n _ s a m p l e s " : { " type " : " integer " , " minimum " : 3} ,
++16" k _ c l u s t e r s " : { " type " : " integer " , " minimum " : 2 , "
++maximum " : 20} ,
++17" l o c k e d _ c l u s t e r s " : { " type " : " array " , " items " : { "
++type " : " integer " }}
++18}
++19}
++20}
++.2 Network Protocol and Message Schemas 46
++21}
++Listing 1.JSON Schema for Client-to-Server WebSocket Requests.
++Progress updates and task notifications sent by the server follow this structure:
++1{
++2" type " : " progress " ,
++3" task " : " r a n s a c _ p l a n e _ f i t t i n g " ,
++4" p e r c e n t a g e " : 85.0 ,
++5" status " : " Fitting cylinder planes across 120 temporal frames
++... " ,
++6" e l a p s e d _ s e c " : 1.42
++7}
++Listing 2.JSON Schema for Server Progress and Telemetry Broadcasts.
++.2.2 Core Default Configuration Parameters
++Table .6 summarizes the default settings and thresholds defined incore/config.py:
++Table .6.Centralized configuration constants and default thresholds (core/config.py).
++Configuration Key Default Value Description / Purpose
++MAX_DATA_SESSIONS30 Maximum concurrent in-memory dataset sessions
++(FIFO eviction)
++MAX_HTML_SESSIONS15 Maximum cached pre-rendered HTML visualiza-
++tion views
++DEFAULT_DBSCAN_EPS_M300.0 Default neighborhood search radiusε(meters)
++DEFAULT_DBSCAN_MIN_PTS6 Minimum core points for density reachability
++DEFAULT_KMEANS_CLUSTERS6 Initial centroid count for MiniBatchKMeans
++CYLINDER_GRID_DIMS(60,50) Longitudinal and latitudinal cell resolution for 4D
++tracking
++RANSAC_MAX_ITER100 Candidate triplet sampling iterations for plane
++fitting
++RANSAC_INLIER_DIST_M150.0 Maximum perpendicular point-to-plane tolerance
++(meters)
++47
+ Bibliography
+-[1] Martin Ester, Hans-Peter Kriegel, Jörg Sander, and Xiaowei Xu. A Density-
++[1] Tom Christie. Uvicorn: An ASGI Web Server for Python. https://www.
++uvicorn.dev.
++[2] L. De Siena, G. Chiodini, G. Vilardo, E. Del Pezzo, M. Castellano, S. Colombelli,
++N. Tisato, and G. Ventura. Source and dynamics of a volcanic caldera unrest:
++Campi Flegrei, 1983–84.Scientific Reports, 7(1):8099, 2017. doi: 10.1038/
++s41598-017-08192-7. URLhttps://doi.org/10.1038/s41598-017-08192-7.
++[3] Martin Ester, Hans-Peter Kriegel, Jörg Sander, and Xiaowei Xu. A Density-
+ Based Algorithm for Discovering Clusters in Large Spatial Databases with Noise.
+-InProceedings of the 2nd International Conference on Knowledge Discovery and
+-Data Mining (KDD-96), pages 226–231. AAAI Press, 1996.
+-[2] Aurélien Géron.Hands-on Machine Learning with Scikit-Learn, Keras, and
+-TensorFlow. O’Reilly Media, Inc., 3rd edition, 2022. ISBN 978-1098125974.
+-[3] G. Giordano, G. Alfonsi, F. Salvini, F. Bianco, C. Chiarabba, M. Di Vito, and
+-A. Tramelli. Birth and growth of a volcanotectonic fault during the current
+-volcanic unrest at Campi Flegrei caldera (Italy).Communications Earth &
+-Environment, 6(1), 2025. doi: 10.1038/s43247-025-02803-2.
+-[4] Istituto Nazionale di Geofisica e Vulcanologia. Osservatorio Vesuviano – Portale
+-GOSSIP. https://terremoti.ov.ingv.it/gossip/, 2024. Accessed: 2026-07-
+-15.
+-[5] Ville Satopaa, Jeannie Albrecht, David Lo, and Matthew A. Ward. Finding a
+-"Kneedle" in a Haystack: Detecting Knee Points in System Behavior. In31st
+-International Conference on Distributed Computing Systems Workshops, pages
+-166–171. IEEE, 2011. doi: 10.1109/ICDCSW.2011.20.
++InProceedings of the 2nd International Conference on Knowledge Discovery
++and Data Mining (KDD-96), pages 226–231. AAAI Press, 1996. URLhttps:
++//www.aaai.org/Papers/KDD/1996/KDD96-037.pdf.
++[4] Martin A. Fischler and Robert C. Bolles. Random Sample Consensus: A
++Paradigm for Model Fitting with Applications to Image Analysis and Automated
++Cartography.Communications of the ACM, 24(6):381–395, 1981. doi: 10.1145/
++358669.358692. URLhttps://doi.org/10.1145/358669.358692.
++[5] G. Giordano, G. Alfonsi, F. Salvini, F. Bianco, C. Chiarabba, M. Di Vito,
++and A. Tramelli. Birth and growth of a volcanotectonic fault during the
++current volcanic unrest at Campi Flegrei caldera (Italy).Communications
++Earth & Environment, 6(1):1–11, 2025. doi: 10.1038/s43247-025-02803-2. URL
++https://doi.org/10.1038/s43247-025-02803-2.
++[6] Charles R. Harris, K. Jarrod Millman, Stéfan J. van der Walt, Remi Gommers,
++Pauli Virtanen, David Cournapeau, Eric Wieser, Julian Taylor, Sebastian Berg,
++Nathaniel J. Smith, Robert Kern, Matti Picus, Stephan Hoyer, Marten H. van
++Krevelen, Matthew Brett, Allan Haldane, Jaime Fernández del Río, Mark Wiebe,
++Pearu Peterson, Pierre Gérard-Marchant, Kevin Sheppard, Tyler Reddy, Warren
++Weckesser, Hameer Abbasi, Christoph Gohlke, and Travis E. Oliphant. Array
++programming with NumPy.Nature, 585(7825):357–362, 2020. doi: 10.1038/
++s41586-020-2649-2. URLhttps://doi.org/10.1038/s41586-020-2649-2.
++[7] Istituto Nazionale di Geofisica e Vulcanologia. Osservatorio Vesuviano – Portale
++GOSSIP.https://terremoti.ov.ingv.it/gossip/.
++[8] Anil K. Jain, M. Narasimha Murty, and Patrick J. Flynn. Data Clustering: A
++Review.ACM Computing Surveys, 31(3):264–323, 1999. doi: 10.1145/331499.
++331504. URLhttps://doi.org/10.1145/331499.331504.
++Bibliography 48
++[9] Stuart P. Lloyd. Least Squares Quantization in PCM.IEEE Transactions on
++Information Theory, 28(2):129–137, 1982. doi: 10.1109/TIT.1982.1056489. URL
++https://doi.org/10.1109/TIT.1982.1056489.
++[10] OpenJS Foundation. Electron: Build Cross-Platform Desktop Apps with
++JavaScript, HTML, and CSS.https://www.electronjs.org.
++[11] OpenStreetMap contributors. OpenStreetMap. https://www.openstreetmap.
++org.
++[12] F. Pedregosa, G. Varoquaux, A. Gramfort, V. Michel, B. Thirion, O. Grisel,
++M. Blondel, P. Prettenhofer, R. Weiss, V. Dubourg, J. Vanderplas, A. Passos,
++D.Cournapeau, M.Brucher, M.Perrot, andÉ.Duchesnay. Scikit-learn: Machine
++Learning in Python.Journal of Machine Learning Research, 12:2825–2830,
++2011. URLhttps://jmlr.org/papers/v12/pedregosa11a.html.
++[13] Plotly Technologies Inc. Plotly.js: Open Source Graphing Library for JavaScript.
++https://plotly.com/javascript/.
++[14] Sebastián Ramírez. FastAPI: Modern, Fast Web Framework for Building APIs
++with Python.https://fastapi.tiangolo.com.
++[15] Cyrille Rossant. Smopy: OpenStreetMap Image Tiles in Python. https:
++//github.com/rossant/smopy.
++[16] Ville Satopaa, Jeannie Albrecht, David Lo, and Matthew A. Ward. Finding
++a “Kneedle” in a Haystack: Detecting Knee Points in System Behavior. In
++31st International Conference on Distributed Computing Systems Workshops,
++pages 166–171. IEEE, 2011. doi: 10.1109/ICDCSW.2011.20. URL https:
++//doi.org/10.1109/ICDCSW.2011.20.
++[17] Craig M. Shakarji. Least-Squares Fitting Algorithms of the NIST Algorithm
++Testing System.Journal of Research of the National Institute of Standards
++and Technology, 103(6):633–641, 1998. doi: 10.6028/jres.103.043. URLhttps:
++//doi.org/10.6028/jres.103.043.
++[18] Roman Sirokov. pywebview: Build GUI for Your Python Program with
++JavaScript, HTML, and CSS.https://pywebview.flowrl.com.
++[19] John P. Snyder.Map Projections: A Working Manual. U.S. Geological Survey
++Professional Paper 1395. U.S. Government Printing Office, 1987. doi: 10.3133/
++pp1395. URLhttps://doi.org/10.3133/pp1395.

@@ -1,0 +1,55 @@
+This is BibTeX, Version 0.99d (TeX Live 2025)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: main.aux
+The style file: plainnat.bst
+Database file #1: references.bib
+Warning--empty year in uvicorn
+Warning--empty year in ingv
+Warning--empty year in electron
+Warning--empty year in openstreetmap
+Warning--empty year in plotlyjs
+Warning--empty year in fastapi
+Warning--empty year in smopy
+Warning--empty year in pywebview
+You've used 19 entries,
+            2773 wiz_defined-function locations,
+            719 strings with 9299 characters,
+and the built_in function-call counts, 10297 in all, are:
+= -- 895
+> -- 764
+< -- 14
++ -- 262
+- -- 243
+* -- 865
+:= -- 1634
+add.period$ -- 80
+call.type$ -- 19
+change.case$ -- 137
+chr.to.int$ -- 19
+cite$ -- 46
+duplicate$ -- 371
+empty$ -- 717
+format.name$ -- 264
+if$ -- 2114
+int.to.chr$ -- 1
+int.to.str$ -- 1
+missing$ -- 12
+newline$ -- 123
+num.names$ -- 76
+pop$ -- 296
+preamble$ -- 1
+purify$ -- 119
+quote$ -- 0
+skip$ -- 327
+stack$ -- 0
+substring$ -- 286
+swap$ -- 39
+text.length$ -- 2
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 204
+warning$ -- 8
+while$ -- 78
+width$ -- 0
+write$ -- 280
+(There were 8 warnings)

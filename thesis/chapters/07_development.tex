@@ -1,0 +1,116 @@
+% ══════════════════════════════════════════════════════════════════════
+% CHAPTER 7: DEVELOPMENT PROCESS & CHALLENGES
+% ══════════════════════════════════════════════════════════════════════
+
+\chapter{Development Process and Challenges}
+\label{ch:development}
+
+This chapter documents the software engineering process behind Seismic Viewer, detailing the development timeline, the iterative implementation methodology, major technical challenges and key architectural decisions.
+
+\section{Development Timeline \& Iterative Methodology}
+\label{sec:timeline}
+\label{sec:methodology}
+
+The project evolved through continuous iterations. As depicted in \Cref{fig:timeline}, development progressed through six distinct phases: (1)~3D visualization prototyping, (2)~pywebview bridge integration and clustering, (3)~UI/UX redesign and INGV API integration, (4)~binary streaming and cylinder grid implementation, (5)~integration of tomography and GNSS station layers, and (6)~modular package refactoring and testing.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    milestone/.style={circle, draw=NavyBlue, fill=NavyBlue!20, inner sep=2pt, minimum size=6pt},
+    desc/.style={font=\scriptsize, text width=2.5cm, align=center},
+    scale=0.84, transform shape
+]
+\draw[thick, -Stealth, black!60] (0,0) -- (12.2,0) node[right, font=\small] {Project Progress};
+
+\node[milestone] (m1) at (0.8,0) {}; \node[desc, above=0.3cm of m1] {3D prototype \& basic animations};
+\node[milestone] (m2) at (2.8,0) {}; \node[desc, below=0.45cm of m2] {KMeans clustering, bridge setup};
+\node[milestone] (m3) at (4.8,0) {}; \node[desc, above=0.3cm of m3] {UI redesign, INGV API integration};
+\node[milestone] (m4) at (6.8,0) {}; \node[desc, below=0.45cm of m4] {Binary streaming \& cylinder grid};
+\node[milestone] (m5) at (8.8,0) {}; \node[desc, above=0.3cm of m5] {Tomography, GNSS uplift \& stations};
+\node[milestone] (m6) at (10.8,0) {}; \node[desc, below=0.45cm of m6] {Modular package refactor \& tests};
+\end{tikzpicture}
+\caption{Development milestones highlighting the iterative implementation methodology.}
+\label{fig:timeline}
+\end{figure}
+
+\revised{The software was built using an iterative workflow, with features prototyped and refined through continuous feedback. As the application expanded, the codebase was refactored twice: first by splitting a monolithic script into a modular package, and later by introducing FastAPI and WebSockets for data streaming.}
+
+\section{Key Technical Challenges and Solutions}
+\label{sec:challenges}
+
+\greenrevised{Developing a high-performance, desktop-grade seismological analysis application combining a native Python runtime with a modern browser-based rendering engine presented significant software engineering challenges. This section analyses the primary technical bottlenecks encountered during development, the architectural and algorithmic solutions designed to overcome them, and their practical impact on system stability and responsiveness.}
+
+\subsection{Rendering Performance and UX Optimisation}
+\label{sec:challenge-camera}
+\label{sec:challenge-binary}
+\label{sec:challenge-flash}
+\label{sec:challenge-webgl}
+
+\greenrevised{The graphical user interface must handle large, multi-dimensional point clouds with interactive frame rates while maintaining a smooth desktop user experience.}
+
+\paragraph{Camera State Preservation across Dynamic Re-clustering.}
+\greenrevised{In early prototypes, interactive operations such as re-clustering, parameter adjustments, or depth filtering triggered a complete view reset. Because the Plotly.js engine re-evaluates the entire 3D scene definition upon receiving updated trace collections, the virtual camera automatically snapped back to default spatial coordinates $(x=1.25, y=1.25, z=1.25)$. This disruptive behaviour disoriented domain experts who had carefully aligned the perspective with specific seismogenic fault planes. The issue was resolved by injecting persistent state tracking using the \texttt{uirevision} attribute within the figure layout (\Cref{lst:uirevision}). By maintaining \texttt{uirevision='constant'} across all subsequent updates, Plotly compares existing camera transformations against incoming scene payloads, permanently preserving user orientation, elevation, zoom level, and centre of rotation.}
+
+\begin{lstlisting}[language=Python, caption={Camera state persistence via \texttt{uirevision}.}, label={lst:uirevision}]
+fig.update_layout(
+    uirevision='constant',
+    scene=dict(
+        uirevision='constant',
+        camera=dict(eye=dict(x=1.25, y=1.25, z=1.25), center=dict(x=0, y=0, z=0))
+    )
+)
+\end{lstlisting}
+
+\paragraph{JSON Deserialization Bottlenecks and Binary Streaming.}
+\greenrevised{The standard web communication pattern relies on JSON serialization for tabular and numerical data exchange. However, transferring dense earthquake catalogues (exceeding 50{,}000 hypocentral events with multiple spatial and temporal attributes) exposed severe throughput limitations. In Python, serializing large NumPy arrays into textual JSON representations incurred substantial CPU overhead. More critically, the browser's JavaScript engine suffered severe main-thread blocking when parsing multi-megabyte JSON strings, instantiating tens of thousands of intermediate heap objects and dropping the rendering frame rate below 10 FPS. To eliminate this bottleneck, the architecture was redesigned around a raw Float32 binary streaming protocol (\Cref{sec:binary-protocol}). Hypocentral coordinates, cluster identifiers, and metadata scalars are flattened into a contiguous C-order binary buffer directly on the backend and transmitted over WebSocket connections. On the client side, the payload is ingested at zero-copy latency into a native \texttt{Float32Array} typed array. This architectural shift reduced payload transfer size by approximately 65\% and cut data deserialization latency from several seconds to under 15 milliseconds, sustaining smooth 60 FPS viewport interactions.}
+
+\paragraph{WebGL Context Lifecycle and GPU Resource Management.}
+\greenrevised{In an embedded WebView environment, frequent transitions between complex analytical views (2D static maps, 3D hypocentral volumes, and 4D spatiotemporal animations) risk exhausting the host GPU's available WebGL contexts. Desktop operating systems strictly limit concurrent WebGL instances per rendering process (typically between 8 and 16 contexts). When unmanaged view switches allocate new canvas elements without reclaiming previous ones, the browser engine triggers a catastrophic \texttt{webglcontextlost} error, terminating rendering entirely. To ensure robust GPU resource management, an explicit view cleanup lifecycle was implemented. Before navigating away from an active analytical workspace, the frontend invokes \texttt{Plotly.purge()} on existing chart DOM nodes, explicitly deallocating shader programs, vertex buffers, and texture bindings from GPU memory. Furthermore, 3D hypocentral markers are rendered as hardware-accelerated 2D point sprites facing the camera rather than tessellated geometric spheres, capping GPU VRAM consumption below 150~MB even during large-scale catalog visualization.}
+
+\paragraph{White-Flash Mitigation in Embedded Navigation.}
+\greenrevised{Because the desktop interface relies on a dark-mode palette tailored for high-contrast seismological visualization, standard navigation between distinct HTML views caused jarring visual flickers. During the transition interval before external stylesheets and Plotly runtime bundles finish parsing, the WebView's default white background canvas was momentarily exposed. To maintain visual continuity, a proactive dark overlay mechanism (\texttt{\_inject\_dark\_overlay()}) was integrated into the view generation pipeline. A lightweight inline script injects an opaque, dark container into the document header before any stylesheet requests are dispatched. Once the DOM content and client-side styling are fully initialized, the overlay smoothly fades out via a CSS transition, delivering an aesthetically seamless desktop transition.}
+
+\subsection{Backend Architecture, Concurrency, and Algorithmic Resilience}
+\label{sec:challenge-concurrency}
+\label{sec:challenge-flickering}
+\label{sec:challenge-ipc}
+\label{sec:challenge-ingv}
+\label{sec:challenge-memory}
+
+\greenrevised{Managing intensive mathematical computations, asynchronous data streaming, and external web APIs within a unified desktop application required solving critical concurrency and resilience challenges.}
+
+\paragraph{Native GUI Event Loop and Asynchronous Backend Coexistence.}
+\greenrevised{A foundational software engineering hurdle in \texttt{pywebview}-based architectures is the coexistence of the native OS window loop and the asynchronous backend server. Native GUI toolkits (Cocoa on macOS, Win32/WebView2 on Windows, and GTK on Linux) demand exclusive control over the operating system's main thread to process window events, user inputs, and message queues. Simultaneously, the application backend relies on FastAPI and Uvicorn running an asynchronous \texttt{asyncio} event loop for WebSocket streaming and REST endpoints. Attempting to run both loops on the main thread results in mutual deadlocks. To resolve this, the startup lifecycle was decoupled: the FastAPI ASGI server is spawned within a dedicated daemon thread, while \texttt{pywebview.start()} retains control of the main thread. Inter-thread communication is coordinated through thread-safe asynchronous dispatchers and local HTTP/WebSocket loopback channels, ensuring that computationally intensive backend routines never starve the GUI thread of input events.}
+
+\paragraph{Chromatic Stability in 4D Spatiotemporal Clustering.}
+\greenrevised{When unsupervised clustering algorithms (such as DBSCAN or MiniBatchKMeans) are evaluated independently on consecutive temporal time windows during 4D animations, they assign cluster identifiers arbitrarily without historical memory. Consequently, a single continuous geological fault structure could receive label 0 in frame $t$, label 2 in frame $t+1$, and label 1 in frame $t+2$. In animated playback, this caused rapid chromatic flickering, severely hindering the geologist's ability to track fault propagation and seismic swarm migration over time. This was overcome by designing the Global Label Matching algorithm (\Cref{sec:label-matching}). By preserving a global hypocentre-to-label registry and applying majority voting across active cluster members (\Cref{eq:majority-voting}), the analytical engine re-maps local frame labels to temporally coherent global identifiers, ensuring seamless colour persistence across the entire seismic sequence.}
+
+\paragraph{Zero-Copy Inter-Process Communication for Parallel Computation.}
+\greenrevised{Computing RANSAC consensus inlier sets and SVD planar fits across hundreds of animation frames is computationally demanding. While Python's standard multithreading is constrained by the Global Interpreter Lock (GIL) for CPU-bound numerical tasks, spawning standard multi-process pools via \texttt{multiprocessing} or \texttt{concurrent.futures} introduces severe serialization overhead when passing large coordinate arrays across process boundaries. To achieve true parallel scaling without memory duplication, the backend leverages shared memory buffers (\texttt{multiprocessing.shared\_memory}). The primary coordinate array is loaded once into a shared POSIX memory segment, and lightweight integer slice references are dispatched to worker processes. This zero-copy IPC design bypasses the GIL entirely and eliminates IPC copy overhead, achieving a near-linear speedup across available CPU cores during 4D batch synthesis.}
+
+\paragraph{Resilience against Remote INGV API Failures.}
+\greenrevised{The integrated INGV GOSSIP web service exposes a REST API for querying historical earthquake catalogues. However, querying multi-year seismic sequences frequently exposed connection timeouts, rate limiting, and truncated responses for specific annual intervals. In naive implementations, a single network drop or empty payload would crash the entire ingestion pipeline. To guarantee system resilience, the online importer module (\texttt{core/online\_importer.py}) partitions large historical queries into isolated per-year asynchronous request blocks wrapped in defensive \texttt{try...except} handlers. If a specific year encounters a timeout or malformed XML/JSON payload, the importer logs a structured warning, records the missing temporal interval, and seamlessly continues fetching subsequent years. The user is presented with a complete summary of successfully ingested records alongside any flagged intervals, preventing data loss without halting application execution.}
+
+\paragraph{Session Memory Bounding and FIFO Store Eviction.}
+\greenrevised{During multi-hour exploratory research sessions, seismologists frequently generate dozens of alternative 3D views, parameter variations, and sub-cluster models. Storing all generated Plotly figures and processed dataframes in RAM caused steady memory inflation, eventually leading to process termination on memory-constrained workstations. To enforce a strictly bounded memory footprint, a dual First-In, First-Out (FIFO) eviction policy was implemented. The analytical engine restricts \texttt{\_data\_store} to a maximum of 30 active session datasets and \texttt{\_html\_store} to 15 pre-rendered analytical views. When store capacity is reached, the oldest session objects are evicted and reclaimed by the garbage collector. Additionally, the \texttt{strip\_data()} routine decouples heavy coordinate arrays from rendered HTML templates prior to caching. As a result, total application RAM usage remains strictly bounded below 500~MB even under heavy continuous usage.}
+
+\section{Code Quality and Architecture}
+\label{sec:code-quality}
+
+\revised{The software is organised into a modular structure. The backend is written in Python with type annotations across 12 modules, while the frontend is built with JavaScript, HTML, and CSS. Data flows unidirectionally: from the application entry point (\texttt{app.py}), through the bridge and engine (\texttt{bridge.py}, \texttt{engine.py}), to utility modules (\texttt{loader.py}, \texttt{geo\_utils.py}).}
+
+\revised{A key aspect of the architectural design is the strict isolation of caching strategies. The system uses multiple caching layers operating at different levels: persistent disk caching with \texttt{pickle} for map tiles and terrain meshes, in-memory function-level caching with \texttt{lru\_cache} for frequently accessed computations, and session-scoped stores (\texttt{\_data\_store} and \texttt{\_html\_store}) for active analytical workspaces. Keeping these caches separate prevents data inconsistency.}
+
+This modular organisation was not the original design. As discussed in \Cref{sec:timeline}, the codebase underwent two major refactoring cycles during the internship. The first split a single monolithic script into separate modules organised by responsibility, while the second introduced the FastAPI and WebSocket infrastructure to replace the original synchronous communication model. These refactoring efforts, though time-consuming, were essential for maintaining code quality as the application grew in complexity.
+
+\section{\revised{Testing, Verification, and Quality Assurance}}
+\label{sec:testing-qa}
+
+\revised{To ensure software reliability and maintainability, the application includes automated testing and verification routines:}
+
+\begin{enumerate}
+    \item \revised{\textbf{Unit Testing for Coordinate Conversions}: The \texttt{core/geo\_utils.py} and \texttt{core/layer\_utils.py} modules are verified against standard geographic benchmarks. Unit tests confirm that the Inverse Mercator projection (\Cref{eq:mercator}) and UTM Zone 33N transformations reconstruct coordinates with an error below 0.1~meters.}
+    \item \revised{\textbf{Structural Plane Extraction Testing}: To validate the RANSAC and SVD plane fitting engine, synthetic point clouds are generated with known strike and dip angles and tested under Gaussian positional noise. The tests confirm that the estimated strike and dip angles match the ground truth within $\pm 0.5^\circ$ for noise $\sigma = 10$~m and within $\pm 2.0^\circ$ for noise $\sigma = 100$~m.}
+    \item \revised{\textbf{CSV Ingestion and Format Testing}: The schema detection logic (\texttt{core/}\allowbreak\texttt{loader.py}) is tested with different CSV formats (commas vs. semicolons, decimal commas, and alternative date formats) to maintain compatibility across earthquake catalogues.}
+    \item \revised{\textbf{Modular Architecture}: Two refactoring phases decomposed 2{,}800 lines of monolithic code into 12 separate Python modules and frontend assets, simplifying codebase maintenance.}
+\end{enumerate}

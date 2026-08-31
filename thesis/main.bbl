@@ -1,0 +1,158 @@
+\begin{thebibliography}{19}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Christie()]{uvicorn}
+Tom Christie.
+\newblock {Uvicorn: An ASGI Web Server for Python}.
+\newblock \url{https://www.uvicorn.dev}.
+
+\bibitem[De~Siena et~al.(2017)De~Siena, Chiodini, Vilardo, Del~Pezzo,
+  Castellano, Colombelli, Tisato, and Ventura]{desiena2017bradyseism}
+L.~De~Siena, G.~Chiodini, G.~Vilardo, E.~Del~Pezzo, M.~Castellano,
+  S.~Colombelli, N.~Tisato, and G.~Ventura.
+\newblock {Source and dynamics of a volcanic caldera unrest: Campi Flegrei,
+  1983--84}.
+\newblock \emph{Scientific Reports}, 7\penalty0 (1):\penalty0 8099, 2017.
+\newblock \doi{10.1038/s41598-017-08192-7}.
+\newblock URL \url{https://doi.org/10.1038/s41598-017-08192-7}.
+
+\bibitem[Ester et~al.(1996)Ester, Kriegel, Sander, and Xu]{ester1996dbscan}
+Martin Ester, Hans-Peter Kriegel, J{\"o}rg Sander, and Xiaowei Xu.
+\newblock {A Density-Based Algorithm for Discovering Clusters in Large Spatial
+  Databases with Noise}.
+\newblock In \emph{Proceedings of the 2nd International Conference on Knowledge
+  Discovery and Data Mining (KDD-96)}, pages 226--231. AAAI Press, 1996.
+\newblock URL \url{https://www.aaai.org/Papers/KDD/1996/KDD96-037.pdf}.
+
+\bibitem[Fischler and Bolles(1981)]{fischler1981ransac}
+Martin~A. Fischler and Robert~C. Bolles.
+\newblock {Random Sample Consensus: A Paradigm for Model Fitting with
+  Applications to Image Analysis and Automated Cartography}.
+\newblock \emph{Communications of the ACM}, 24\penalty0 (6):\penalty0 381--395,
+  1981.
+\newblock \doi{10.1145/358669.358692}.
+\newblock URL \url{https://doi.org/10.1145/358669.358692}.
+
+\bibitem[Giordano et~al.(2025)Giordano, Alfonsi, Salvini, Bianco, Chiarabba,
+  Di~Vito, and Tramelli]{giordano2025birth}
+G.~Giordano, G.~Alfonsi, F.~Salvini, F.~Bianco, C.~Chiarabba, M.~Di~Vito, and
+  A.~Tramelli.
+\newblock {Birth and growth of a volcanotectonic fault during the current
+  volcanic unrest at Campi Flegrei caldera (Italy)}.
+\newblock \emph{Communications Earth \& Environment}, 6\penalty0 (1):\penalty0
+  1--11, 2025.
+\newblock \doi{10.1038/s43247-025-02803-2}.
+\newblock URL \url{https://doi.org/10.1038/s43247-025-02803-2}.
+
+\bibitem[Harris et~al.(2020)Harris, Millman, van~der Walt, Gommers, Virtanen,
+  Cournapeau, Wieser, Taylor, Berg, Smith, Kern, Picus, Hoyer, van Krevelen,
+  Brett, Haldane, del R{\'\i}o, Wiebe, Peterson, G{\'e}rard-Marchant, Sheppard,
+  Reddy, Weckesser, Abbasi, Gohlke, and Oliphant]{numpy2020}
+Charles~R. Harris, K.~Jarrod Millman, St{\'e}fan~J. van~der Walt, Remi Gommers,
+  Pauli Virtanen, David Cournapeau, Eric Wieser, Julian Taylor, Sebastian Berg,
+  Nathaniel~J. Smith, Robert Kern, Matti Picus, Stephan Hoyer, Marten~H. van
+  Krevelen, Matthew Brett, Allan Haldane, Jaime~Fern{\'a}ndez del R{\'\i}o,
+  Mark Wiebe, Pearu Peterson, Pierre G{\'e}rard-Marchant, Kevin Sheppard, Tyler
+  Reddy, Warren Weckesser, Hameer Abbasi, Christoph Gohlke, and Travis~E.
+  Oliphant.
+\newblock {Array programming with NumPy}.
+\newblock \emph{Nature}, 585\penalty0 (7825):\penalty0 357--362, 2020.
+\newblock \doi{10.1038/s41586-020-2649-2}.
+\newblock URL \url{https://doi.org/10.1038/s41586-020-2649-2}.
+
+\bibitem[{Istituto Nazionale di Geofisica e Vulcanologia}()]{ingv}
+{Istituto Nazionale di Geofisica e Vulcanologia}.
+\newblock {Osservatorio Vesuviano -- Portale GOSSIP}.
+\newblock \url{https://terremoti.ov.ingv.it/gossip/}.
+
+\bibitem[Jain et~al.(1999)Jain, Murty, and Flynn]{jain1999clustering}
+Anil~K. Jain, M.~Narasimha Murty, and Patrick~J. Flynn.
+\newblock {Data Clustering: A Review}.
+\newblock \emph{ACM Computing Surveys}, 31\penalty0 (3):\penalty0 264--323,
+  1999.
+\newblock \doi{10.1145/331499.331504}.
+\newblock URL \url{https://doi.org/10.1145/331499.331504}.
+
+\bibitem[Lloyd(1982)]{lloyd1982kmeans}
+Stuart~P. Lloyd.
+\newblock {Least Squares Quantization in PCM}.
+\newblock \emph{IEEE Transactions on Information Theory}, 28\penalty0
+  (2):\penalty0 129--137, 1982.
+\newblock \doi{10.1109/TIT.1982.1056489}.
+\newblock URL \url{https://doi.org/10.1109/TIT.1982.1056489}.
+
+\bibitem[{OpenJS Foundation}()]{electron}
+{OpenJS Foundation}.
+\newblock {Electron: Build Cross-Platform Desktop Apps with JavaScript, HTML,
+  and CSS}.
+\newblock \url{https://www.electronjs.org}.
+
+\bibitem[{OpenStreetMap contributors}()]{openstreetmap}
+{OpenStreetMap contributors}.
+\newblock {OpenStreetMap}.
+\newblock \url{https://www.openstreetmap.org}.
+
+\bibitem[Pedregosa et~al.(2011)Pedregosa, Varoquaux, Gramfort, Michel, Thirion,
+  Grisel, Blondel, Prettenhofer, Weiss, Dubourg, Vanderplas, Passos,
+  Cournapeau, Brucher, Perrot, and Duchesnay]{pedregosa2011sklearn}
+F.~Pedregosa, G.~Varoquaux, A.~Gramfort, V.~Michel, B.~Thirion, O.~Grisel,
+  M.~Blondel, P.~Prettenhofer, R.~Weiss, V.~Dubourg, J.~Vanderplas, A.~Passos,
+  D.~Cournapeau, M.~Brucher, M.~Perrot, and {\'E}.~Duchesnay.
+\newblock {Scikit-learn: Machine Learning in Python}.
+\newblock \emph{Journal of Machine Learning Research}, 12:\penalty0 2825--2830,
+  2011.
+\newblock URL \url{https://jmlr.org/papers/v12/pedregosa11a.html}.
+
+\bibitem[{Plotly Technologies Inc.}()]{plotlyjs}
+{Plotly Technologies Inc.}
+\newblock {Plotly.js: Open Source Graphing Library for JavaScript}.
+\newblock \url{https://plotly.com/javascript/}.
+
+\bibitem[Ram{\'\i}rez()]{fastapi}
+Sebasti{\'a}n Ram{\'\i}rez.
+\newblock {FastAPI: Modern, Fast Web Framework for Building APIs with Python}.
+\newblock \url{https://fastapi.tiangolo.com}.
+
+\bibitem[Rossant()]{smopy}
+Cyrille Rossant.
+\newblock {Smopy: OpenStreetMap Image Tiles in Python}.
+\newblock \url{https://github.com/rossant/smopy}.
+
+\bibitem[Satopaa et~al.(2011)Satopaa, Albrecht, Lo, and
+  Ward]{satopaa2011kneedle}
+Ville Satopaa, Jeannie Albrecht, David Lo, and Matthew~A. Ward.
+\newblock {Finding a ``Kneedle'' in a Haystack: Detecting Knee Points in System
+  Behavior}.
+\newblock In \emph{31st International Conference on Distributed Computing
+  Systems Workshops}, pages 166--171. IEEE, 2011.
+\newblock \doi{10.1109/ICDCSW.2011.20}.
+\newblock URL \url{https://doi.org/10.1109/ICDCSW.2011.20}.
+
+\bibitem[Shakarji(1998)]{shakarji1998least}
+Craig~M. Shakarji.
+\newblock {Least-Squares Fitting Algorithms of the NIST Algorithm Testing
+  System}.
+\newblock \emph{Journal of Research of the National Institute of Standards and
+  Technology}, 103\penalty0 (6):\penalty0 633--641, 1998.
+\newblock \doi{10.6028/jres.103.043}.
+\newblock URL \url{https://doi.org/10.6028/jres.103.043}.
+
+\bibitem[Sirokov()]{pywebview}
+Roman Sirokov.
+\newblock {pywebview: Build GUI for Your Python Program with JavaScript, HTML,
+  and CSS}.
+\newblock \url{https://pywebview.flowrl.com}.
+
+\bibitem[Snyder(1987)]{snyder1987map}
+John~P. Snyder.
+\newblock \emph{{Map Projections: A Working Manual}}.
+\newblock U.S. Geological Survey Professional Paper 1395. U.S. Government
+  Printing Office, 1987.
+\newblock \doi{10.3133/pp1395}.
+\newblock URL \url{https://doi.org/10.3133/pp1395}.
+
+\end{thebibliography}

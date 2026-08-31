@@ -1,0 +1,22 @@
+\babel@toc {english}{}\relax 
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Dual-process hybrid architecture of Seismic Viewer with dedicated communication channels.}}{11}{figure.caption.18}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces The Seismic Viewer single-page application structure, showing initial data loading (\subref {fig:start-page}) and the multi-mode analytical selection hub (\subref {fig:viz-hub}).}}{14}{figure.caption.20}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Linear data pipeline from input parsing to WebGL drawing.}}{15}{figure.caption.21}%
+\contentsline {figure}{\numberline {3.4}{\ignorespaces \revised {Sequence of asynchronous execution and non-blocking streaming pipeline.}}}{15}{figure.caption.22}%
+\contentsline {figure}{\numberline {3.5}{\ignorespaces Concurrency hierarchy linking UI, server thread, and analysis worker threads.}}{16}{figure.caption.24}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {4.1}{\ignorespaces The INGV GOSSIP API import dialog for configuring network criteria, temporal bounds, and quality thresholds.}}{18}{figure.caption.25}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {5.1}{\ignorespaces The 2D Geospatial Map View in the Seismic Viewer. This workspace allows users to filter earthquake data (\subref {fig:2d-viz}) and combine it with advanced geophysical overlays, such as tomographic velocity maps (\subref {fig:2d-viz-tomo}) and ground uplift measurements (\subref {fig:2d-viz-uplift}).}}{23}{figure.caption.28}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces The 3D Static View workspace. The user can explore the underground earthquake distribution (\subref {fig:3d-viz}) and combine it with 3D tomography models (\subref {fig:3d-viz-tomo}) and surface deformation data (\subref {fig:3d-viz-uplift}).}}{25}{figure.caption.31}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces The 4D Animated Spatio-Temporal View workflow. Users configure parameters via the dialog (\subref {fig:anim-menu}), explore time-evolving seismicity (\subref {fig:anim-viz}), and observe automated fault plane tracking (\subref {fig:anim-cylinder-planes}).}}{27}{figure.caption.34}%
+\contentsline {figure}{\numberline {5.4}{\ignorespaces Multi-scale static (\subref {fig:cluster-viz}) and animated (\subref {fig:anim-clustering-noplanes} to \subref {fig:anim-clustering-unified}) 3D/4D Cluster Analysis modes (Part 1).}}{29}{figure.caption.35}%
+\contentsline {figure}{\numberline {5.4}{\ignorespaces Multi-scale static (\subref {fig:cluster-viz}) and animated (\subref {fig:anim-clustering-noplanes} to \subref {fig:anim-clustering-unified}) 3D/4D Cluster Analysis modes (Part 2).}}{30}{figure.caption.36}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {7.1}{\ignorespaces Development milestones highlighting the iterative implementation methodology.}}{37}{figure.caption.41}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }

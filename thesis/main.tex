@@ -1,0 +1,191 @@
+\documentclass[english,oneside,a4paper,noexaminfo]{sapthesis}
+
+% ─── Encoding & Language ─────────────────────────────────────────────
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+
+% ─── Typography ──────────────────────────────────────────────────────
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% ─── Thesis Metadata ─────────────────────────────────────────────────
+\title{Seismic Viewer: Design, Implementation and\\ Evaluation of an Interactive 4D Spatio-Temporal Visualisation System for Seismological Data}
+\author{Alessio Curcio}
+\IDnumber{2120317}
+\course{Applied Computer Science and Artificial Intelligence}
+\courseorganizer{Faculty of Information Engineering, Computer Science and Statistics}
+\thesistype{Bachelor's thesis}
+\customadvisorlabel{Supervisor}
+\advisor{Danilo Avola}
+\customcoadvisorlabel{Co-supervisor}
+\coadvisor{Daniele Bailo}
+\submitdate{2025/2026}
+\copyyear{2026}
+\authoremail{alessio.curcio04@gmail.com}
+
+% ─── Mathematics ─────────────────────────────────────────────────────
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{bm}
+
+% ─── Graphics & Figures ──────────────────────────────────────────────
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{subcaption}
+\usepackage[table,dvipsnames]{xcolor}
+
+% ─── TikZ for Diagrams ──────────────────────────────────────────────
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, shadows, calc, fit, backgrounds, decorations.markings}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% ─── Tables ──────────────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{longtable}
+
+% ─── Code Listings ───────────────────────────────────────────────────
+\usepackage{listings}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.96,0.96,0.94}
+\definecolor{keyblue}{rgb}{0.13,0.29,0.53}
+
+\lstdefinestyle{pythonstyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen}\itshape,
+    keywordstyle=\color{keyblue}\bfseries,
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=4,
+    frame=single,
+    rulecolor=\color{codegray!30},
+    xleftmargin=1.5em,
+    framexleftmargin=1em,
+}
+\lstset{style=pythonstyle}
+
+% Note: geometry, fancyhdr, titlesec handled directly by sapthesis class
+
+% ─── Hyperlinks ──────────────────────────────────────────────────────
+\usepackage[
+    colorlinks=true,
+    linkcolor=NavyBlue,
+    citecolor=OliveGreen,
+    urlcolor=BrickRed,
+    bookmarks=true,
+    bookmarksnumbered=true
+]{hyperref}
+\usepackage[nameinlink,noabbrev]{cleveref}
+
+% ─── Bibliography ────────────────────────────────────────────────────
+\usepackage[numbers,sort&compress]{natbib}
+
+% ─── Enumeration ─────────────────────────────────────────────────────
+\usepackage{enumitem}
+
+% Line spacing handled cleanly by sapthesis for standard book layout
+
+% ─── Glossary/Acronyms ──────────────────────────────────────────────
+\usepackage[acronym,toc]{glossaries}
+\makeglossaries
+
+\newacronym{api}{API}{Application Programming Interface}
+\newacronym{asgi}{ASGI}{Asynchronous Server Gateway Interface}
+\newacronym{cli}{CLI}{Command-Line Interface}
+\newacronym{csv}{CSV}{Comma-Separated Values}
+\newacronym{dbscan}{DBSCAN}{Density-Based Spatial Clustering of Applications with Noise}
+\newacronym{fps}{FPS}{Frames Per Second}
+\newacronym{gui}{GUI}{Graphical User Interface}
+\newacronym{gis}{GIS}{Geographic Information System}
+\newacronym{gnss}{GNSS}{Global Navigation Satellite System}
+\newacronym{gpu}{GPU}{Graphics Processing Unit}
+\newacronym{html}{HTML}{HyperText Markup Language}
+\newacronym{http}{HTTP}{HyperText Transfer Protocol}
+\newacronym{idw}{IDW}{Inverse Distance Weighting}
+\newacronym{ingv}{INGV}{Istituto Nazionale di Geofisica e Vulcanologia}
+\newacronym{json}{JSON}{JavaScript Object Notation}
+\newacronym{lru}{LRU}{Least Recently Used}
+\newacronym{ml}{ML}{Machine Learning}
+\newacronym{orm}{ORM}{Object-Relational Mapping}
+\newacronym{pca}{PCA}{Principal Component Analysis}
+\newacronym{png}{PNG}{Portable Network Graphics}
+\newacronym{ram}{RAM}{Random Access Memory}
+\newacronym{ransac}{RANSAC}{Random Sample Consensus}
+\newacronym{rest}{REST}{Representational State Transfer}
+\newacronym{rpc}{RPC}{Remote Procedure Call}
+\newacronym{sql}{SQL}{Structured Query Language}
+\newacronym{svd}{SVD}{Singular Value Decomposition}
+\newacronym{svg}{SVG}{Scalable Vector Graphics}
+\newacronym{url}{URL}{Uniform Resource Locator}
+\newacronym{utm}{UTM}{Universal Transverse Mercator}
+\newacronym{ux}{UX}{User Experience}
+\newacronym{webgl}{WebGL}{Web Graphics Library}
+\newacronym{wgs84}{WGS84}{World Geodetic System 1984}
+
+
+% ─── TikZ Styles ─────────────────────────────────────────────────────
+\tikzset{
+    startstop/.style={rectangle, rounded corners=6pt, minimum width=3.8cm, minimum height=1cm, text centered, draw=black!60, fill=red!15, drop shadow={opacity=0.3}, font=\small\bfseries},
+    io/.style={trapezium, trapezium left angle=70, trapezium right angle=110, minimum width=3.5cm, minimum height=1cm, text centered, draw=black!60, fill=blue!15, drop shadow={opacity=0.3}, font=\small\bfseries},
+    process/.style={rectangle, minimum width=3.8cm, minimum height=1cm, text centered, draw=black!60, fill=orange!15, drop shadow={opacity=0.3}, font=\small\bfseries},
+    decision/.style={diamond, aspect=2.2, minimum width=3.5cm, minimum height=1cm, text centered, draw=black!60, fill=green!15, drop shadow={opacity=0.3}, font=\small\bfseries},
+    component/.style={rectangle, rounded corners=4pt, minimum width=3cm, minimum height=0.9cm, text centered, draw=black!50, fill=white, font=\small},
+    module/.style={rectangle, rounded corners=4pt, minimum width=2.8cm, minimum height=0.8cm, text centered, draw=NavyBlue!70, fill=NavyBlue!8, font=\small},
+    arrow/.style={thick, -{Stealth[length=3mm]}, black!60},
+    dashedarrow/.style={thick, dashed, -{Stealth[length=3mm]}, black!40},
+}
+
+% ─── Revision Highlighting ─────────────────────────────────────────
+\colorlet{RED}{red}
+\DeclareRobustCommand{\revised}[1]{\textcolor{red}{#1}}
+\DeclareRobustCommand{\greenrevised}[1]{\textcolor{ForestGreen}{#1}}
+
+% ══════════════════════════════════════════════════════════════════════
+% DOCUMENT
+% ══════════════════════════════════════════════════════════════════════
+\begin{document}
+
+\frontmatter
+\maketitle
+
+\input{frontmatter/abstract}
+
+\tableofcontents
+\listoffigures
+\listoftables
+
+\mainmatter
+
+\input{chapters/01_introduction}
+\input{chapters/02_background}
+\input{chapters/03_architecture}
+\input{chapters/04_data_processing}
+\input{chapters/05_visualization}
+\input{chapters/06_algorithms}
+\input{chapters/07_development}
+\input{chapters/08_conclusions}
+
+\backmatter
+\appendix
+\input{backmatter/appendix_a}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
