@@ -5,12 +5,12 @@
 \chapter{System Architecture}
 \label{ch:architecture}
 
-This chapter describes the system architecture of Seismic Viewer, detailing its structural decomposition, communication mechanisms, and execution model. The design balances two competing demands: the computational throughput required for scientific processing and the responsiveness expected of an interactive desktop application.
+This chapter describes the system architecture of Seismic Viewer, detailing its structural decomposition, communication mechanisms, and execution model. The design balances two competing demands: the computational throughput required for data processing and the responsiveness expected of an interactive desktop application.
 
 \section{Architectural Overview}
 \label{sec:arch-overview}
 
-Seismic Viewer follows a \textbf{dual-process hybrid architecture} combining a Python scientific processing backend with an embedded Chromium-based frontend. The layers communicate via three distinct channels dedicated to specific operational tasks.
+\bluerevised{Seismic Viewer uses a hybrid desktop architecture that combines a Python processing backend with an embedded Chromium frontend. The two layers communicate through three dedicated channels: a native bridge, HTTP REST endpoints, and WebSockets.}
 
 \begin{figure}[htbp]
 \centering
@@ -68,13 +68,13 @@ Seismic Viewer follows a \textbf{dual-process hybrid architecture} combining a P
 \label{fig:arch-overview}
 \end{figure}
 
-\revised{The architecture separates responsibilities across three dedicated communication channels, balancing responsiveness and throughput:
+\bluerevised{The architecture divides tasks across three dedicated communication channels, balancing responsiveness and data transfer speed:
 \begin{enumerate}
-    \item \textbf{Native JS-Python RPC Bridge}: This channel connects the user interface with the Python runtime for desktop interactions. When the application window initializes, pywebview exposes the methods of the Python \texttt{Api} class to the JavaScript environment via \texttt{window.pywebview.api}. User interface actions, such as selecting a file or opening dialogs, invoke these methods as asynchronous Remote Procedure Calls (RPC). The framework serializes the call across the process boundary and returns the result as a resolved JavaScript Promise, executing desktop commands without network overhead.
-    \item \textbf{FastAPI HTTP REST Endpoints}: This channel handles high-throughput data transfer between the backend and the browser. Rather than embedding large datasets into HTML pages, the frontend requests earthquake catalogs asynchronously using REST endpoints. Numerical coordinates are streamed as contiguous Float32 binary buffers via \texttt{/api/data/\{id\}/bin}, while catalog metadata and pre-rendered visualization views are served with automatic GZip compression.
-    \item \textbf{FastAPI WebSockets}: This bi-directional channel manages real-time updates and interactive streaming during continuous operations. When running 4D temporal animations or clustering calculations, the backend streams progress notifications and frame updates directly to the client over an open socket connection. This allows the interface to update 3D scene elements and progress bars continuously without polling or page reloads.
+    \item \textbf{Native Bridge}: Connects the user interface with the Python runtime for desktop actions. When the window opens, pywebview exposes methods of the Python \texttt{Api} class to JavaScript via \texttt{window.pywebview.api}. Actions such as selecting files or opening dialogs call these methods directly without network delay.
+    \item \textbf{HTTP REST Endpoints}: Handles data transfer between backend and frontend. Rather than embedding large datasets into HTML pages, the frontend requests catalogs asynchronously. Numerical coordinates are streamed as Float32 binary buffers via \texttt{/api/data/\{id\}/bin}, while catalog metadata and views are served with standard compression.
+    \item \textbf{WebSockets}: Manages live updates and streaming during long calculations. When running temporal animations or clustering routines, the backend streams progress notifications and frame updates directly to the client over an open connection, updating the interface without page reloads.
 \end{enumerate}
-\Cref{tab:rest-api} lists all REST endpoints and WebSocket message types supported by the system.}
+\Cref{tab:rest-api} lists the REST endpoints and WebSocket message types supported by the system.}
 
 \begin{table}[htbp]
 \centering
@@ -104,7 +104,7 @@ WebSocket & Server $\to$ Client & \texttt{pong}, \texttt{rpc\_response}, \texttt
 
 Once the application is running, the \texttt{Api} module acts as the central coordinator. Whenever the user interacts with the interface, such as selecting a file (\texttt{select\allowbreak\_csv()}), loading a 3D view (\texttt{load\allowbreak\_view()}), or exporting results (\texttt{export\allowbreak\_clusters\allowbreak\_csv()}), the frontend sends a request directly to this coordinator.
 
-\revised{These requests include spatial analysis calculations on seismic events. To prevent blocking the graphical interface during execution, operations run on background workers using the \texttt{threading.Thread} module or process pools. The application uses \texttt{asyncio.run\_coroutine\_threadsafe} to send progress updates from worker threads to the WebSocket event loop without race conditions.}
+\bluerevised{These requests include spatial analysis calculations on seismic events. To prevent blocking the graphical interface during execution, operations run on background workers using threads or process pools. The application sends progress updates from worker threads to the WebSocket event loop without conflicts.}
 
 Since the calculations occur in the background, the application requires a mechanism to inform the user about the ongoing progress. The coordinator handles this requirement by continuously transmitting real-time updates back to the interface. This ensures the user is constantly provided with a responsive progress bar or status message, resulting in a fluid and stable user experience. These updates are broadcast through the WebSocket protocol.
 
@@ -113,7 +113,7 @@ Since the calculations occur in the background, the application requires a mecha
 
 The system architecture requires a dedicated memory management layer to preserve state between user interactions and to serve data efficiently to the graphical frontend. This functionality is centralized within an internal configuration module (\texttt{core/config.py}), which orchestrates two separate in-memory caches: \texttt{\_data\_store} and \texttt{\_html\_store}.
 
-The \texttt{\_data\_store} structure retains the raw numerical arrays and metadata associated with each active analytical session. To guarantee that the application maintains a stable memory profile even during extensive analytical workflows, this cache is strictly limited to 30 concurrent sessions. In parallel, the \texttt{\_html\_store} caches up to 15 pre-rendered graphical views, allowing the frontend to load complex tridimensional scenes instantaneously. Both structures implement a First-In, First-Out (FIFO) eviction policy. \revised{To ensure thread-safety during concurrent operations, updates to these stores are synchronized, maintaining application RAM usage below 500~MB during extended sessions.}
+The \texttt{\_data\_store} structure retains the raw numerical arrays and metadata associated with each active analytical session. To guarantee that the application maintains a stable memory profile even during extensive analytical workflows, this cache is strictly limited to 30 concurrent sessions. In parallel, the \texttt{\_html\_store} caches up to 15 pre-rendered graphical views, allowing the frontend to load complex tridimensional scenes instantaneously. Both structures implement a First-In, First-Out (FIFO) eviction policy. \bluerevised{To ensure safety during simultaneous operations, updates to these stores are synchronized, keeping application memory use low during long sessions.}
 
 Positioned between this caching layer and the client interface, the FastAPI server deploys specific middleware to optimize network throughput. An important optimization is the automatic application of GZip compression for any outgoing data payload larger than 500 bytes. Compressing the data prior to transmission accelerates the rendering process, particularly when transferring datasets containing tens of thousands of seismic events.
 
@@ -123,7 +123,13 @@ Positioned between this caching layer and the client interface, the FastAPI serv
 \subsection{Single-Page Application \& UI/UX Design}
 \label{sec:spa}
 
-\begin{figure}[htbp]
+As illustrated in \Cref{fig:gui-hub}, the primary workflow begins at the landing screen (\subref{fig:start-page}). Here, the system exposes multiple data ingestion pathways, allowing researchers to import local csv files, query the INGV remote web services directly, or restore a previously interrupted session through local historical records.
+
+\bluerevised{Once the imported dataset is validated, the software opens the visualization hub (\subref{fig:viz-hub}). This view provides menus to switch between the available display modes and clustering algorithms. In addition, it includes toggles to display extra data layers on the 3D map, such as seismic tomography, ground uplift, and monitoring stations.}
+
+\bluerevised{The 3D graphics pipeline delegates rendering to WebGL through Plotly.js. To preserve context during updates, the system retains the view angle and zoom level selected by the user. This prevents the camera from resetting when new data arrives, maintaining smooth interaction (\Cref{sec:challenge-camera}).}
+
+\begin{figure}[H]
 \centering
 \begin{subfigure}{0.48\textwidth}
 \includegraphics[width=\textwidth]{images/start_page.png}
@@ -139,13 +145,13 @@ Positioned between this caching layer and the client interface, the FastAPI serv
 \label{fig:gui-hub}
 \end{figure}
 
-As illustrated in \Cref{fig:gui-hub}, the primary workflow begins at the landing screen (\subref{fig:start-page}). Here, the system exposes multiple data ingestion pathways, allowing researchers to import local csv files, query the INGV remote web services directly, or restore a previously interrupted session through local historical records.
+\section{Data Flow Pipeline and Protocols}
+\label{sec:dataflow}
+\label{sec:protocols}
 
-\revised{Once the imported dataset is validated, the software transitions to the visualization hub (\subref{fig:viz-hub}). This analytical workspace features menus to alternate between the available visualization and analysis algorithms. In addition, it incorporates interactive toggles to overlay supplementary spatial context onto the 3D map, allowing researchers to integrate seismic tomography models, GNSS deformation grids, and local monitoring stations visually.}
+\bluerevised{To manage data processing and rendering, Seismic Viewer divides operations between backend services and the frontend client. On the backend, the system handles data loading, validation, and mathematical calculations. As shown in \Cref{fig:dataflow}, the pipeline begins by importing CSV data or querying the INGV API. This data is cleaned and loaded. Visual pre-computations prepare coordinate structures before the engine executes the selected algorithm. Finally, results are stored in the internal caches and rendered in HTML.}
 
-\revised{The 3D rendering pipeline delegates plotting operations to the WebGL graphics API via Plotly.js. To preserve context during dynamic operations, the rendering layer maintains the spatial orientation and zoom level chosen by the user. This prevents the virtual camera from resetting its position when new data arrives, allowing the system to update the scene in real time without interrupting interaction (\Cref{sec:challenge-camera}).}
-
-\begin{figure}[htbp]
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}[node distance=1.4cm, auto, scale=0.82, transform shape]
     \node (input) [io] {CSV / INGV API};
@@ -171,14 +177,6 @@ As illustrated in \Cref{fig:gui-hub}, the primary workflow begins at the landing
 \caption{Linear data pipeline from input parsing to WebGL drawing.}
 \label{fig:dataflow}
 \end{figure}
-
-\section{Data Flow Pipeline and Protocols}
-\label{sec:dataflow}
-\label{sec:protocols}
-
-\revised{To manage data processing and rendering, Seismic Viewer divides operations between the backend services and the frontend client.}
-
-\revised{On the backend, the architecture handles data ingestion, validation, and mathematical calculations. As shown in \Cref{fig:dataflow}, the pipeline begins by importing CSV data or querying the INGV API. This data undergoes sanitisation and loading. Visual pre-computation prepares coordinate structures before the engine executes the analytical algorithm chosen by the user. Finally, results are assembled into an HTML template and stored in the internal \texttt{\_data\_store} and \texttt{\_html\_store} caches.}
 
 Once the backend processing is complete, the frontend retrieves the data through the defined REST API and WebSocket endpoints (\Cref{tab:rest-api}). The frontend dynamically renders the 3D scene using WebGL via the Plotly.js library. Continuous status updates, real-time recalculations, and filtering commands are exchanged over the WebSocket channel, ensuring the interface remains fully interactive without needing page reloads.
 
@@ -206,9 +204,11 @@ Once the backend processing is complete, the frontend retrieves the data through
     \draw[msg, draw=NavyBlue] (7.2, -3.2) -- node[above, font=\scriptsize] {5. Store results in cache} (10.8, -3.2);
     \draw[msg, draw=NavyBlue] (0, -3.8) -- node[above, font=\scriptsize] {6. HTTP GET \texttt{/bin}} (10.8, -3.8);
     \draw[msg, draw=NavyBlue] (10.8, -4.3) -- node[above, font=\scriptsize] {7. Float32 ArrayBuffer} (0, -4.3);
-    \draw[msg, draw=OliveGreen] (0, -4.8) -- node[above, font=\scriptsize] {8. Direct WebGL Render} (0, -4.8);
+    \node[fill=OliveGreen!15, draw=OliveGreen!60, rounded corners=3pt,
+          font=\scriptsize, inner sep=3pt, anchor=west]
+          at (0.12, -4.8) {8. Direct WebGL Render};
 \end{tikzpicture}
-\caption{\revised{Sequence of asynchronous execution and non-blocking streaming pipeline.}}
+\caption{Sequence of asynchronous execution and non-blocking streaming pipeline.}
 \label{fig:seq-diagram}
 \end{figure}
 
@@ -235,7 +235,7 @@ $2+2N$ ($N$ floats) & Magnitude array & & \\
 \end{tabular}
 \end{table}
 
-On the frontend, decoding via JavaScript's \texttt{Float32Array} directly over an \texttt{ArrayBuffer} completes in under 5~ms for 50{,}000 events (reducing transfer volume by approximately 90\% and bypassing over 800~ms of JSON parsing and garbage collection delays).
+\bluerevised{On the frontend, decoding via JavaScript's \texttt{Float32Array} directly over an \texttt{ArrayBuffer} completes in a few milliseconds even for large datasets, reducing transfer volume by approximately 80\% and avoiding JSON parsing delays.}
 
 \section{Threading and Concurrency Model}
 \label{sec:threading}
@@ -257,4 +257,4 @@ On the frontend, decoding via JavaScript's \texttt{Float32Array} directly over a
 \label{fig:threading}
 \end{figure}
 
-The concurrency architecture separates responsibilities across the \textbf{Main Thread} (hosting pywebview and Chromium), the \textbf{Server Thread} (running the Uvicorn \cite{uvicorn} asyncio event loop), and on-demand \textbf{Worker Threads} handling view generation and clustering updates. For intensive multi-frame calculations (animated clustering and RANSAC+SVD plane tracking), the engine escalates to a \texttt{ProcessPoolExecutor} with up to 8 worker processes utilising shared memory initialisers to avoid array serialisation. \revised{This hybrid concurrency model completely prevents contention during numerical loops, ensuring the GUI remains at 60~FPS even during multi-second plane fitting routines.}
+The concurrency architecture separates responsibilities across the \textbf{Main Thread} (hosting pywebview and Chromium), the \textbf{Server Thread} (running the Uvicorn \cite{uvicorn} asyncio event loop), and on-demand \textbf{Worker Threads} handling view generation and clustering updates. For intensive multi-frame calculations (animated clustering and RANSAC+SVD plane tracking), the engine escalates to a \texttt{ProcessPoolExecutor} with up to 8 worker processes utilising shared memory initialisers to avoid array serialisation. \bluerevised{This concurrency model prevents lock contention during numerical loops, ensuring the interface remains smooth and responsive during intensive calculations.}

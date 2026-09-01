@@ -7,10 +7,95 @@
 
 This chapter details the processing pipeline that transforms raw seismic observations (whether sourced from local catalogs or remote web services) into optimized, GPU-ready structures for interactive 3D and 4D visualization.
 
+\section{Pipeline Architecture and Multi-Source Ingestion}
+\label{sec:pipeline-overview}
+
+\bluerevised{Seismic Viewer uses a unified data pipeline to import, validate, and convert seismological and geophysical data for 3D and 4D visualization. As illustrated in \Cref{fig:data-ingestion-pipeline}, the architecture consists of three main stages:}
+\begin{enumerate}
+    \item \bluerevised{\textbf{Multi-source ingestion}: The application receives seismic catalogs from local CSV files, queries the INGV GOSSIP API for remote datasets, and loads auxiliary geophysical layers such as seismic tomography grids and GNSS station coordinates.}
+    \item \bluerevised{\textbf{Catalogue sanitisation}: Incoming earthquake records pass through a validation sequence that checks spatial fields, flags missing metadata, enforces coordinate and depth limits, removes future dates, and sorts events in chronological order.}
+    \item \bluerevised{\textbf{Unified memory and streaming}: Validated records are converted into contiguous numerical arrays in memory and packed into Float32 binary buffers for hardware-accelerated rendering.}
+\end{enumerate}
+\bluerevised{The following sections describe each component of this pipeline in detail.}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    scale=0.76, transform shape,
+    box_src/.style={rectangle, draw=NavyBlue!80, fill=NavyBlue!8, rounded corners=4pt, text width=3.8cm, minimum height=1.35cm, align=center, font=\footnotesize},
+    box_tomo_proc/.style={rectangle, draw=NavyBlue!80, fill=NavyBlue!8, rounded corners=4pt, text width=4.0cm, minimum height=1.45cm, align=center, font=\footnotesize},
+    box_seq/.style={rectangle, draw=BrickRed!80, fill=BrickRed!8, rounded corners=4pt, text width=8.8cm, minimum height=1.15cm, align=center, font=\footnotesize},
+    box_unif/.style={rectangle, draw=OliveGreen!85, fill=OliveGreen!10, rounded corners=5pt, text width=14.0cm, minimum height=1.5cm, align=center, font=\small},
+    box_out/.style={rectangle, draw=NavyBlue!90, fill=NavyBlue!12, rounded corners=4pt, text width=6.4cm, minimum height=1.4cm, align=center, font=\footnotesize},
+    container_val/.style={rectangle, draw=BrickRed!60, dashed, rounded corners=6pt, inner sep=14pt, fill=BrickRed!2},
+    lbl_pipe/.style={font=\bfseries\footnotesize, text=BrickRed!90, fill=white, draw=BrickRed!50, rounded corners=3pt, inner sep=4pt},
+    arrow_blue/.style={-Stealth, very thick, draw=NavyBlue!85},
+    arrow_red/.style={-Stealth, very thick, draw=BrickRed!85},
+    arrow_green/.style={-Stealth, very thick, draw=OliveGreen!85}
+]
+
+    % ─── Tier 1: Ingestion Sources ───
+    \node[box_src] (src_csv) at (-5.3, 1.2) {\textbf{Local CSV Catalogues}\\[1pt]\scriptsize Delimiter \& Schema Detection\\[-1pt]\scriptsize (\texttt{core/loader.py})};
+    \node[box_src] (src_api) at (-0.9, 1.2) {\textbf{INGV GOSSIP API}\\[1pt]\scriptsize Remote JSON Query \& Filter\\[-1pt]\scriptsize (\texttt{core/online\_importer.py})};
+    \node[box_src] (src_tomo) at (4.7, 1.2) {\textbf{Tomography / GNSS}\\[1pt]\scriptsize $V_p/V_s$ Grids \& Station Data\\[-1pt]\scriptsize (\texttt{core/layer\_utils.py})};
+
+    % ─── Tier 2 Left: Sequential Catalogue Sanitisation ───
+    \node[box_seq] (val_step1) at (-3.1, -2.2) {\textbf{Stage 1: Spatial Requirement Check}\\[1pt]\scriptsize Discard rows missing latitude, longitude, or origin time};
+    \node[box_seq] (val_step2) at (-3.1, -3.9) {\textbf{Stage 2: Missing Metadata Flagging}\\[1pt]\scriptsize Sentinel Flagging (\texttt{is\_missing}) \& Minimum Magnitude Filter};
+    \node[box_seq] (val_step3) at (-3.1, -5.6) {\textbf{Stage 3: Geographic \& Depth Bounds}\\[1pt]\scriptsize $\phi \in [\pm 90^\circ], \lambda \in [\pm 180^\circ], z \in [-10, 800]\text{ km}$};
+    \node[box_seq] (val_step4) at (-3.1, -7.3) {\textbf{Stage 4: Future Date Removal}\\[1pt]\scriptsize Discard events with timestamp after the current date};
+    \node[box_seq] (val_step5) at (-3.1, -9.0) {\textbf{Stage 5: Chronological Sorting}\\[1pt]\scriptsize Ascending Order ($t_0 \le t_1 \le \dots \le t_N$) for correct animation slicing};
+
+    % Validation Container with internal title
+    \begin{scope}[on background layer]
+        \node[container_val, fit=(val_step1) (val_step5)] (bg_pipe) {};
+    \end{scope}
+    % Label placed inside the top border to avoid clipping with incoming arrows
+    \node[lbl_pipe, anchor=north] at ([yshift=-6pt]bg_pipe.north) {Catalogue Sanitisation \& Validation Pipeline};
+
+    % ─── Tier 2 Right: Auxiliary Data Processing ───
+    \node[box_tomo_proc] (tomo_proc) at (4.7, -4.75) {\textbf{Geospatial Conversion}\\[1pt]\scriptsize Transverse Mercator Projection\\[-1pt]\scriptsize UTM Zone 33N $\to$ WGS84\\[-1pt]\scriptsize 3D IDW Isosurface Interpolation};
+
+    % ─── Tier 3: Unified In-Memory Model ───
+    \node[box_unif] (unif_mem) at (0, -11.7) {\textbf{Unified In-Memory Model: Canonical Data Structures}\\[2pt]\small \texttt{pandas.DataFrame} \& \texttt{numpy.ndarray} \quad $\vert$ \quad Normalised Schema: $(t, \lambda, \phi, z, M, \text{flags})$\\[2pt]\footnotesize Local Equirectangular Cartesian Coordinates $(x, y, z)_\text{km}$ (\texttt{core/geo\_utils.py})};
+
+    % ─── Tier 4: Downstream Consumers ───
+    \node[box_out] (out_analysis) at (-3.8, -14.3) {\textbf{Analytical Engine (\texttt{engine/analysis.py})}\\[1pt]\scriptsize DBSCAN / MiniBatchKMeans / Cylinder Grid\\[-1pt]\scriptsize RANSAC + SVD Fault Plane Fitting};
+    \node[box_out] (out_stream) at (3.8, -14.3) {\textbf{Binary Streaming Engine (\texttt{bridge.py})}\\[1pt]\scriptsize Float32 Contiguous Buffer $\to$ Zero-Copy\\[-1pt]\scriptsize WebGL / Plotly.js Hardware Rendering};
+
+    % ─── Connecting Arrows ───
+    % Ingestion -> Stage 1:
+    % Strictly orthogonal (horizontal/vertical) routing running well above
+    % the container (y = -0.2) and descending entirely outside its side boundaries.
+    \draw[arrow_blue] (src_csv.south) -- (-5.3, -0.2) -- (-8.2, -0.2) -- (-8.2, -2.2) -- (val_step1.west);
+    \draw[arrow_blue] (src_api.south) -- (-0.9, -0.2) -- (2.0, -0.2) -- (2.0, -2.2) -- (val_step1.east);
+
+    % Sequential Steps
+    \draw[arrow_red] (val_step1.south) -- (val_step2.north);
+    \draw[arrow_red] (val_step2.south) -- (val_step3.north);
+    \draw[arrow_red] (val_step3.south) -- (val_step4.north);
+    \draw[arrow_red] (val_step4.south) -- (val_step5.north);
+
+    % Left Pipeline Output -> Unified Memory
+    \draw[arrow_red] (val_step5.south) -- ([xshift=-3.1cm]unif_mem.north);
+
+    % Right Branch (Tomography Ingestion -> Conversion -> Unified Memory)
+    \draw[arrow_blue] (src_tomo.south) -- (tomo_proc.north);
+    \draw[arrow_blue] (tomo_proc.south) -- ([xshift=4.7cm]unif_mem.north);
+
+    % Unified Memory -> Consumers
+    \draw[arrow_green] ([xshift=-3.8cm]unif_mem.south) -- (out_analysis.north);
+    \draw[arrow_green] ([xshift=3.8cm]unif_mem.south) -- (out_stream.north);
+
+\end{tikzpicture}
+\caption{\bluerevised{Data ingestion pipeline of Seismic Viewer, showing data sources (Local CSV, INGV GOSSIP API, and Tomography or GNSS data), the validation pipeline, and data conversion into memory arrays and binary buffers.}}
+\label{fig:data-ingestion-pipeline}
+\end{figure}
+
 \section{CSV Ingestion and Schema Detection}
 \label{sec:csv-ingestion}
 
-\revised{The \texttt{core/loader.py} module handles different formats through an ingestion pipeline that checks the header line for semicolon (\texttt{;}) or comma (\texttt{,}) delimiters, supporting European standards (INGV) as well as international formats (USGS, ISC). To avoid manual preprocessing, \texttt{core/config.py} defines an alias dictionary:}
+\bluerevised{The \texttt{core/loader.py} module handles different formats through an ingestion pipeline that checks the header line for comma or semicolon delimiters, supporting European standards (INGV) as well as international formats (USGS, ISC). To avoid manual formatting, \texttt{core/config.py} defines an alias dictionary:}
 
 \begin{lstlisting}[language=Python, caption={Flexible column schema definition in \texttt{core/config.py}.}, label={lst:schema}]
 CSV_SCHEMA = {
@@ -27,12 +112,13 @@ The ingestion pipeline identifies data columns by reading their headers. It igno
 \section{Data Sanitisation and Validation}
 \label{sec:sanitisation}
 
-Following ingestion, records undergo a four-stage sanitisation and validation sequence:
+\bluerevised{After ingestion, data records pass through a validation and cleaning sequence:}
 \begin{enumerate}
     \item \textbf{Spatial requirement check}: Rows missing latitude, longitude, or timestamps are discarded immediately.
-    \item \textbf{Missing metadata flagging}: Catalogues occasionally omit depth or magnitude. \revised{In seismic analysis, estimating missing depths (such as using the mean value) is avoided because it groups points into artificial horizontal layers, distorting clustering and plane fitting results.} Rather than dropping these records (which removes spatial density) or imputing synthetic values, missing fields are flagged via boolean indicators (\texttt{depth\_is\_missing}, \texttt{mag\_is\_missing}) and assigned sentinel defaults (0.0~km depth and magnitude 0.1).
+    \item \textbf{Missing metadata flagging}: Catalogues occasionally omit depth or magnitude. \bluerevised{In seismic analysis, estimating missing depths (such as using the mean value) is avoided because it groups points into artificial horizontal layers, distorting clustering and plane fitting results.} Rather than dropping these records (which removes spatial density) or imputing synthetic values, missing fields are flagged via boolean indicators (\texttt{depth\_is\_missing}, \texttt{mag\_is\_missing}) and assigned sentinel defaults (0.0~km depth and magnitude 0.1). \bluerevised{Events with magnitude below the minimum limit (\texttt{MIN\_MAGNITUDE}) are also removed. This threshold defaults to $-10.0$, which keeps all real seismic events. The user can raise it from the import dialog to filter out events below a chosen magnitude level.}
     \item \textbf{Geographic and depth bounds check}: The system excludes any event with mathematically invalid geographic coordinates (i.e., latitude outside the $\pm 90^\circ$ range or longitude outside the $\pm 180^\circ$ range). Additionally, it discards events with a depth falling outside the realistic geological range of $-10$~km to $800$~km, where negative values are specifically permitted to accommodate earthquakes occurring above sea level within mountains or volcanic edifices.
-    \item \textbf{Chronological sorting \& future filtering}: Events with future timestamps are discarded, and the remaining catalog is sorted chronologically to optimize slicing.
+    \item \textbf{Future date removal}: Events whose timestamp lies after the current date are discarded, as they indicate erroneous catalog entries.
+    \item \textbf{Chronological sorting}: The remaining events are sorted in ascending time order to ensure correct slicing during animation and filtering operations.
 \end{enumerate}
 
 \section{Online Data Import: The INGV GOSSIP API}
@@ -79,6 +165,6 @@ Terrain generation operates via a five-stage sequence: (1) bounding box squaring
 
 To ensure the 3D map remains fluid and responsive even with thousands of earthquakes, the software performs several calculations in advance (during the data loading phase) rather than while the user is interacting with the map. The \texttt{precompute\_visual\_data()} function handles two main tasks. First, it pre-renders tooltip strings in a single batch operation, so that the browser does not need to construct the text for pop-ups every time the mouse hovers over an event. Second, it converts calendar dates into normalised time metrics (days since the first earthquake), accelerating chronological color mapping.
 
-\revised{The data pipeline converts raw CSV lines into contiguous NumPy numerical arrays (\texttt{numpy.ndarray}). This enables vectorised operations on coordinates, depths, and timestamps. To stream data to the client efficiently, arrays are converted to 32-bit floating-point values (\texttt{np.float32}) and transmitted as raw bytes via \texttt{tobytes()}, avoiding JSON encoding overhead.}
+\bluerevised{The data pipeline converts raw CSV lines into numerical arrays (\texttt{numpy.ndarray}). This enables fast operations on coordinates, depths, and timestamps. To stream data to the client efficiently, arrays are converted to 32-bit floating-point values (\texttt{np.float32}) and transmitted as raw bytes, avoiding JSON conversion overhead.}
 
-\revised{Embedding large amounts of earthquake data directly into an HTML file increases file size and causes the browser to lag. To prevent this, Seismic Viewer uses an asynchronous loading strategy. When the user requests a 3D view, the backend generates an HTML page containing the 3D environment, base terrain maps, and UI menus. Once the base map is displayed, the browser requests the earthquake points in the background via \texttt{/api/data/\{id\}/bin}. These points are delivered as a Float32 binary buffer and populated onto the map without blocking user interaction.}
+\bluerevised{Embedding large amounts of earthquake data directly into an HTML file increases file size and causes the browser to slow down. To prevent this, Seismic Viewer uses an asynchronous loading strategy. When the user opens a 3D view, the backend generates an HTML page containing the 3D scene, terrain map, and menus. Once the base map is displayed, the browser requests the earthquake points in the background via \texttt{/api/data/\{id\}/bin}. These points are delivered as a Float32 binary buffer and displayed on the map without blocking user interaction.}

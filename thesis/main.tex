@@ -33,6 +33,7 @@
 % ─── Graphics & Figures ──────────────────────────────────────────────
 \usepackage{graphicx}
 \usepackage{float}
+\usepackage[section]{placeins}
 \usepackage{subcaption}
 \usepackage[table,dvipsnames]{xcolor}
 
@@ -152,9 +153,11 @@
 }
 
 % ─── Revision Highlighting ─────────────────────────────────────────
+% NOTE: Commands redefined as identity for final submission (no coloured markup).
 \colorlet{RED}{red}
-\DeclareRobustCommand{\revised}[1]{\textcolor{red}{#1}}
-\DeclareRobustCommand{\greenrevised}[1]{\textcolor{ForestGreen}{#1}}
+\DeclareRobustCommand{\revised}[1]{#1}
+\DeclareRobustCommand{\greenrevised}[1]{#1}
+\DeclareRobustCommand{\bluerevised}[1]{#1}
 
 % ══════════════════════════════════════════════════════════════════════
 % DOCUMENT

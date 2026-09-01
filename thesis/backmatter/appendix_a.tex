@@ -42,7 +42,7 @@ Once parsed by the Python backend, the catalog is transformed into an internal s
 
 \begin{table}[htbp]
 \centering
-\caption{Internal data representation in the processing pipeline.}
+\caption[\bluerevised{Internal data representation in the processing pipeline}]{\bluerevised{Internal data representation in the processing pipeline.}}
 \label{tab:internal-schema}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
@@ -50,50 +50,57 @@ Once parsed by the Python backend, the catalog is transformed into an internal s
 \toprule
 \textbf{Variable} & \textbf{Type} & \textbf{Purpose} \\
 \midrule
-\texttt{coordinates} & \texttt{numpy.ndarray} & An $N \times 3$ matrix storing projected UTM coordinates and depth \\
-\texttt{magnitudes} & \texttt{numpy.ndarray} & An $N$-length array used for scaling the visual markers \\
-\texttt{timestamps} & \texttt{numpy.ndarray} & Unix epoch timestamps used for temporal filtering and animation \\
+\bluerevised{\texttt{longitude}, \texttt{latitude}} & \bluerevised{\texttt{numpy.ndarray (float32)}} & \bluerevised{Arrays of WGS84 coordinates in decimal degrees ($N$ events)} \\
+\bluerevised{\texttt{depth}} & \bluerevised{\texttt{numpy.ndarray (float32)}} & \bluerevised{Array of hypocentral depths in kilometers ($N$ events)} \\
+\bluerevised{\texttt{magnitude}} & \texttt{numpy.ndarray} & An $N$-length array used for scaling the visual markers \\
+\bluerevised{\texttt{dates\_num}} & \bluerevised{\texttt{numpy.ndarray (float32)}} & \bluerevised{Days elapsed from the first event, used for temporal filtering and animation} \\
 \texttt{labels} & \texttt{numpy.ndarray} & Cluster assignments ($ -1 $ for noise, $ 0 \dots K $ for structural groups) \\
+\bluerevised{\texttt{pts\_km}} & \bluerevised{\texttt{numpy.ndarray}} & \bluerevised{Array of Cartesian coordinates in kilometers ($N \times 3$), generated for clustering} \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\section{\revised{Network Protocol and Message Schemas}}
+\section{Network Protocol and Message Schemas}
 \label{sec:protocol_schemas}
 
-\revised{This section provides the JSON schemas used for WebSocket communication and REST API endpoints.}
+\bluerevised{This section provides the JSON schemas used for WebSocket communication and REST API endpoints.}
 
-\subsection{\revised{WebSocket Message Specification}}
+\subsection{WebSocket Message Specification}
 
-\revised{Messages sent by the client over the \texttt{/ws} WebSocket channel follow this structure:}
+\bluerevised{Messages sent by the client over the \texttt{/ws} WebSocket channel follow this structure:}
 
-\begin{lstlisting}[language=Python, caption={\revised{JSON Schema for Client-to-Server WebSocket Requests.}}, label={lst:ws-req}]
+\begin{lstlisting}[language=Python, caption={JSON Schema for Client-to-Server WebSocket Requests.}, label={lst:ws-req}]
 {
     "type": "object",
-    "required": ["action"],
+    "required": ["type"],
     "properties": {
-        "action": {
+        "type": {
             "type": "string",
             "enum": ["ping", "get_cluster_update", "get_structural_planes", "get_animated_clustering"]
         },
-        "session_id": {"type": "string"},
+        "id": {"type": "string"},
         "params": {
             "type": "object",
             "properties": {
                 "method": {"type": "string", "enum": ["dbscan", "kmeans", "cylinders"]},
-                "eps_m": {"type": "number", "minimum": 10.0, "maximum": 5000.0},
-                "min_samples": {"type": "integer", "minimum": 3},
-                "k_clusters": {"type": "integer", "minimum": 2, "maximum": 20},
-                "locked_clusters": {"type": "array", "items": {"type": "integer"}}
+                "params": {
+                    "type": "object",
+                    "properties": {
+                        "dbscan_eps": {"type": "number", "minimum": 10.0, "maximum": 5000.0},
+                        "dbscan_min_samples": {"type": "integer", "minimum": 3},
+                        "kmeans_clusters": {"type": "integer", "minimum": 2, "maximum": 20},
+                        "locked_clusters": {"type": "array", "items": {"type": "integer"}}
+                    }
+                }
             }
         }
     }
 }
 \end{lstlisting}
 
-\revised{Progress updates and task notifications sent by the server follow this structure:}
+\bluerevised{Progress updates and task notifications sent by the server follow this structure:}
 
-\begin{lstlisting}[language=Python, caption={\revised{JSON Schema for Server Progress and Telemetry Broadcasts.}}, label={lst:ws-progress}]
+\begin{lstlisting}[language=Python, caption={JSON Schema for Server Progress and Telemetry Broadcasts.}, label={lst:ws-progress}]
 {
     "type": "progress",
     "task": "ransac_plane_fitting",
@@ -103,16 +110,15 @@ Once parsed by the Python backend, the catalog is transformed into an internal s
 }
 \end{lstlisting}
 
-\subsection{\revised{Core Default Configuration Parameters}}
+\subsection{Core Default Configuration Parameters}
 
-\revised{\Cref{tab:default-config} summarizes the default settings and thresholds defined in \texttt{core/config.py}:}
+\bluerevised{\Cref{tab:default-config} summarizes the default settings and thresholds defined in \texttt{core/config.py}:}
 
 \begin{table}[htbp]
 \centering
-\caption{\revised{Centralized configuration constants and default thresholds (\texttt{core/config.py}).}}
+\caption[\bluerevised{Configuration constants and default parameters in core/config.py}]{\bluerevised{Configuration constants and default parameters (\texttt{core/config.py}).}}
 \label{tab:default-config}
 \footnotesize
-\color{red}
 \renewcommand{\arraystretch}{1.15}
 \begin{tabularx}{\textwidth}{@{}l l X@{}}
 \toprule
@@ -120,12 +126,12 @@ Once parsed by the Python backend, the catalog is transformed into an internal s
 \midrule
 \texttt{MAX\_DATA\_SESSIONS} & 30 & Maximum concurrent in-memory dataset sessions (FIFO eviction) \\
 \texttt{MAX\_HTML\_SESSIONS} & 15 & Maximum cached pre-rendered HTML visualization views \\
-\texttt{DEFAULT\_DBSCAN\_EPS\_M} & 300.0 & Default neighborhood search radius $\varepsilon$ (meters) \\
-\texttt{DEFAULT\_DBSCAN\_MIN\_PTS} & 6 & Minimum core points for density reachability \\
-\texttt{DEFAULT\_KMEANS\_CLUSTERS} & 6 & Initial centroid count for MiniBatchKMeans \\
+\bluerevised{\texttt{DEFAULT\_DBSCAN\_EPS\_M}} & \bluerevised{500.0} & \bluerevised{Search radius $\varepsilon$ in meters} \\
+\bluerevised{\texttt{DEFAULT\_DBSCAN\_MIN\_PTS}} & \bluerevised{5} & \bluerevised{Minimum points to define a cluster core} \\
+\bluerevised{\texttt{DEFAULT\_KMEANS\_CLUSTERS}} & \bluerevised{3} & \bluerevised{Initial cluster count for MiniBatchKMeans} \\
 \texttt{CYLINDER\_GRID\_DIMS} & $(60, 50)$ & Longitudinal and latitudinal cell resolution for 4D tracking \\
 \texttt{RANSAC\_MAX\_ITER} & 100 & Candidate triplet sampling iterations for plane fitting \\
-\texttt{RANSAC\_INLIER\_DIST\_M} & 150.0 & Maximum perpendicular point-to-plane tolerance (meters) \\
+\bluerevised{\texttt{RANSAC\_THRESHOLD}} & \bluerevised{Adaptive} & \bluerevised{$\max(0.02, r_{\text{km}} \times 0.1)$, proportional to cylinder radius} \\
 \bottomrule
 \end{tabularx}
 \end{table}

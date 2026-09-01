@@ -1,4 +1,4 @@
-\begin{thebibliography}{19}
+\begin{thebibliography}{21}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -141,6 +141,12 @@ Craig~M. Shakarji.
 \newblock \doi{10.6028/jres.103.043}.
 \newblock URL \url{https://doi.org/10.6028/jres.103.043}.
 
+\bibitem[Shearer(2019)]{shearer2019introduction}
+Peter~M. Shearer.
+\newblock \emph{{Introduction to Seismology}}.
+\newblock Cambridge University Press, 3rd edition, 2019.
+\newblock \doi{10.1017/9781316877111}.
+
 \bibitem[Sirokov()]{pywebview}
 Roman Sirokov.
 \newblock {pywebview: Build GUI for Your Python Program with JavaScript, HTML,
@@ -154,5 +160,11 @@ John~P. Snyder.
   Printing Office, 1987.
 \newblock \doi{10.3133/pp1395}.
 \newblock URL \url{https://doi.org/10.3133/pp1395}.
+
+\bibitem[Tan et~al.(2018)Tan, Steinbach, Karpatne, and
+  Kumar]{tan2018datamining}
+Pang-Ning Tan, Michael Steinbach, Anuj Karpatne, and Vipin Kumar.
+\newblock \emph{{Introduction to Data Mining}}.
+\newblock Pearson, 2nd edition, 2018.
 
 \end{thebibliography}

@@ -8,91 +8,93 @@
 \section{Summary of Contributions}
 \label{sec:contributions}
 
-\revised{The analysis of existing seismic visualisation tools presented in \Cref{sec:related-tools} revealed a persistent gap in the available software landscape: no single application combined interactive 3D rendering, temporal animation, automated clustering, and structural geological analysis within an accessible desktop environment. Seismic Viewer was designed to fill precisely this gap. The contributions of this project can be grouped into three main areas: software architecture, data visualisation, and automated analysis.}
+\bluerevised{The analysis in \Cref{sec:related-tools} highlighted a gap in seismological software: no accessible tool combined 3D rendering, time animations, clustering, and structural analysis. Seismic Viewer was developed to address this need across three key areas: software architecture, data visualization, and automated analysis.}
 
-\revised{From an architectural perspective, the most significant contribution is the dual-engine design that separates computation from presentation (\Cref{ch:architecture}). By coupling a pywebview \cite{pywebview} native window with a high-throughput FastAPI \cite{fastapi} local server, the application achieves full desktop integration (native file dialogs, window management) without the memory overhead that a framework such as Electron \cite{electron} would impose. This separation is important because it allows the scientific Python backend to perform heavy numerical operations independently from the user interface, preventing the graphical environment from freezing during long calculations. A second architectural contribution is the custom binary streaming protocol, which packs numerical arrays into contiguous Float32 buffers and reduces the data transfer volume by approximately $90\%$ compared to traditional JSON serialisation. This improvement was essential for achieving fluid interactivity, as the original JSON-based approach caused the browser engine to freeze for several hundred milliseconds when parsing large catalogues.}
+\vspace{0.8em}
+\bluerevised{\textbf{Software Architecture.} A key contribution is the dual-engine design that separates computation from presentation (\Cref{ch:architecture}). Coupling a \texttt{pywebview} \cite{pywebview} window with a local \texttt{FastAPI} \cite{fastapi} server provides desktop integration without high memory overhead, allowing the Python backend to calculate independently without freezing the interface. Additionally, the Float32 binary streaming protocol packs numerical arrays into continuous buffers, reducing payload size by $80\%$ compared to JSON and eliminating parsing delays during data transfer.}
 
-\revised{In the area of data visualisation, Seismic Viewer introduces a multi-modal rendering system comprising four complementary views: 2D geospatial maps, 3D static hypocentral distributions, 4D time-animated sequences, and interactive cluster analysis workspaces. The 4D animation mode, in particular, represents a novel contribution for desktop seismological tools. It allows researchers to observe how earthquake sequences evolve over time through three distinct temporal windowing strategies (accumulation, sliding window, and block mode), providing insights into migration patterns and the progressive activation of fault segments that would remain invisible in static representations. Additionally, the integration of auxiliary geophysical layers (seismic tomography cubes, GNSS vertical displacement grids, and monitoring station positions) enables researchers to correlate seismicity with deeper crustal processes within a single coherent spatial environment.}
+\vspace{0.8em}
+\bluerevised{\textbf{Data Visualization.} Seismic Viewer provides four display modes: 2D maps, 3D static views, 4D animated sequences, and cluster analysis workspaces. The 4D animation mode tracks how earthquake sequences evolve across time using three temporal strategies (accumulation, sliding window, and block mode), revealing migration patterns hidden in static views. Furthermore, integrating auxiliary geophysical layers (seismic tomography, ground uplift, and stations) enables direct correlation between hypocentres and subsurface structures.}
 
-\revised{The third area of contribution concerns the automated structural analysis pipeline. Seismic Viewer implements three complementary clustering approaches, DBSCAN \cite{ester1996dbscan}, MiniBatchKMeans \cite{lloyd1982kmeans}, and a custom cylinder grid partitioning method, each suited to different analytical scenarios. The cylinder partitioning strategy, in particular, was developed specifically for this application to ensure stable cluster assignments during 4D temporal animations without the colour swapping that affects standard unsupervised algorithms across independent frames. On top of these clustering methods, the application automatically fits structural fault planes using a two-stage RANSAC \cite{fischler1981ransac} and SVD \cite{shakarji1998least} pipeline, directly computing geologically meaningful parameters such as dip, dip direction, and strike. This combination of clustering and plane fitting within an interactive, real-time environment allows researchers to identify and characterise seismogenic structures without resorting to external analytical software.}
+\vspace{0.8em}
+\bluerevised{\textbf{Automated Structural Analysis.} The automated analytical pipeline integrates three spatial clustering algorithms: DBSCAN \cite{ester1996dbscan}, MiniBatchKMeans \cite{lloyd1982kmeans}, and cylinder grid partitioning, which prevents color changes across animation frames. Building on clustering, the system fits fault planes using RANSAC \cite{fischler1981ransac} and SVD \cite{shakarji1998least} to calculate dip, dip direction, and strike, allowing researchers to characterize fault structures interactively.}
 
 \section{Validation and Quantitative Performance Assessment}
 \label{sec:validation}
 
-\revised{The system was evaluated using the dense INGV Campi Flegrei caldera catalogue, comprising approximately 30,000 located earthquakes recorded between 2005 and 2024 \cite{ingv}. This dataset was chosen because its complex shallow fracturing and intense bradyseismic swarms provide a demanding test case for both the rendering pipeline and the analytical algorithms. Quantitative profiling confirmed that Seismic Viewer achieves consistent rendering performance between 60 and 120 frames per second on standard desktop hardware (M-series Apple Silicon and NVIDIA RTX GPUs) when visualising datasets exceeding 50,000 simultaneous points.}
+\bluerevised{The system was validated using INGV Campi Flegrei seismic datasets \cite{ingv} alongside synthetic benchmark catalogs. Testing confirmed that Seismic Viewer maintains fluid interaction and responsive frame rates on standard desktop hardware, even when rendering dense point clouds and multi-layer geophysical models.}
 
-\subsection{\revised{Experimental Benchmarks: Serialization and Streaming}}
+\subsection{Experimental Benchmarks: Serialization and Streaming}
 
-\revised{To evaluate the Float32 binary protocol against JSON serialization, benchmarks were run across four dataset sizes ($N \in \{1{,}000, 10{,}000, 30{,}000, 50{,}000\}$ events). As reported in \Cref{tab:bench-serialization}, the Float32 format reduces payload sizes by approximately 84\% and decoding times from 824~ms to 4.2~ms for 50{,}000 events.}
+\bluerevised{To evaluate the Float32 binary protocol against JSON, benchmarks were run across multiple dataset scales. As reported in \Cref{tab:bench-serialization}, the Float32 format reduces payload size by about 80\% and significantly lowers decoding time, allowing fast data transfer even on large catalogs.}
 
 \begin{table}[htbp]
 \centering
-\caption{\revised{Serialization benchmark: JSON vs. Float32 Binary buffer.}}
+\caption{Serialization benchmark: JSON vs. Float32 Binary buffer.}
 \label{tab:bench-serialization}
 \footnotesize
-\color{red}
 \renewcommand{\arraystretch}{1.15}
 \begin{tabularx}{\textwidth}{@{}r r r r r r@{}}
 \toprule
 \textbf{Events ($N$)} & \textbf{JSON Size} & \textbf{Float32 Size} & \textbf{Compression} & \textbf{JSON Parse} & \textbf{Float32 Parse} \\
 \midrule
-1{,}000   & 142~KB   & 24~KB   & 83.1\% & 14~ms  & 0.4~ms \\
-10{,}000  & 1.48~MB  & 235~KB  & 84.1\% & 138~ms & 1.1~ms \\
-30{,}000  & 4.46~MB  & 704~KB  & 84.2\% & 465~ms & 2.6~ms \\
-50{,}000  & 7.52~MB  & 1.17~MB & 84.4\% & 824~ms & 4.2~ms \\
+1{,}000   & 95.5~KB  & 19.5~KB & 79.5\% & 0.8~ms  & $<0.01$~ms \\
+10{,}000  & 954.3~KB & 195.3~KB & 79.5\% & 8.1~ms  & $<0.01$~ms \\
+30{,}000  & 2.80~MB  & 585.9~KB & 79.5\% & 24.1~ms & $<0.01$~ms \\
+50{,}000  & 4.66~MB  & 976.6~KB & 79.5\% & 40.9~ms & $<0.01$~ms \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\subsection{\revised{Clustering Latency and Algorithmic Throughput}}
+\subsection{Clustering Latency and Algorithmic Throughput}
 
-\revised{Execution times for the three clustering methods were measured across catalog sizes. As shown in \Cref{tab:bench-clustering}, MiniBatchKMeans and Cylinder Partitioning execute in under 80~ms for 50{,}000 events, while DBSCAN requires 382~ms.}
+\bluerevised{Execution times for the three clustering methods were measured across catalog sizes. As shown in \Cref{tab:bench-clustering}, MiniBatchKMeans and Cylinder Partitioning execute rapidly across all tested scales, while DBSCAN exhibits higher computation time as dataset density increases.}
 
 \begin{table}[htbp]
 \centering
-\caption{\revised{Clustering execution latency benchmark across dataset scales.}}
+\caption{Clustering execution latency benchmark across dataset scales.}
 \label{tab:bench-clustering}
 \footnotesize
-\color{red}
 \renewcommand{\arraystretch}{1.15}
 \begin{tabularx}{\textwidth}{@{}r X X X@{}}
 \toprule
 \textbf{Events ($N$)} & \textbf{DBSCAN ($\varepsilon=300$m)} & \textbf{MiniBatchKMeans ($K=6$)} & \textbf{Cylinder Grid ($60\times50$)} \\
 \midrule
-1{,}000   & 6.2~ms   & 3.8~ms  & 1.9~ms \\
-10{,}000  & 48.5~ms  & 18.2~ms & 8.4~ms \\
-30{,}000  & 194.0~ms & 46.1~ms & 22.7~ms \\
-50{,}000  & 382.0~ms & 78.4~ms & 39.1~ms \\
+1{,}000   & 80.4~ms   & 68.3~ms  & 1.0~ms \\
+10{,}000  & 94.9~ms   & 165.9~ms & 5.8~ms \\
+30{,}000  & 976.3~ms  & 83.0~ms  & 15.7~ms \\
+50{,}000  & 2{,}244.0~ms & 208.4~ms & 22.8~ms \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\subsection{\revised{Synthetic Validation of Structural Plane Extraction}}
+\subsection{Synthetic Validation of Structural Plane Extraction}
 
 Because the true position and orientation of underground faults cannot be directly observed, the plane fitting algorithms (RANSAC and SVD) were validated using synthetic datasets where the exact geometric structures were known. These datasets were generated by mathematically defining 3D planes of points at specific strike and dip angles, and subsequently introducing random Gaussian noise and scattered outliers to simulate realistic seismic measurement errors. 
 
-\revised{As reported in \Cref{tab:bench-synthetic}, the two-stage RANSAC+SVD pipeline estimates plane orientations consistently: with noise standard deviation $\sigma = 100$~meters and 30\% background outliers, the Mean Absolute Error (MAE) is $1.42^\circ$ for Dip and $1.85^\circ$ for Strike.}
+\bluerevised{As reported in \Cref{tab:bench-synthetic}, the two-stage RANSAC and SVD pipeline estimates plane orientations accurately, maintaining low angular errors for both dip and strike even under significant measurement noise and outlier contamination.}
 
 \begin{table}[htbp]
 \centering
-\caption{\revised{Synthetic plane estimation accuracy under Gaussian positional noise.}}
+\caption{Synthetic plane estimation accuracy under Gaussian positional noise.}
 \label{tab:bench-synthetic}
 \footnotesize
-\color{red}
 \renewcommand{\arraystretch}{1.15}
 \begin{tabularx}{\textwidth}{@{}r r X X X@{}}
 \toprule
 \textbf{Noise $\sigma$ (m)} & \textbf{Outliers (\%)} & \textbf{Dip MAE ($^\circ$)} & \textbf{Strike MAE ($^\circ$)} & \textbf{Planarity ($P$)} \\
 \midrule
-10~m   & 10\% & $0.18^\circ$ & $0.24^\circ$ & 0.94 \\
-25~m   & 15\% & $0.41^\circ$ & $0.56^\circ$ & 0.88 \\
-50~m   & 20\% & $0.78^\circ$ & $0.99^\circ$ & 0.79 \\
-100~m  & 30\% & $1.42^\circ$ & $1.85^\circ$ & 0.65 \\
+10~m   & 10\% & $0.03^\circ$ & $0.04^\circ$ & 0.94 \\
+25~m   & 15\% & $0.06^\circ$ & $0.11^\circ$ & 0.93 \\
+50~m   & 20\% & $0.15^\circ$ & $0.22^\circ$ & 0.90 \\
+100~m  & 30\% & $0.44^\circ$ & $0.59^\circ$ & 0.84 \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 In parallel, the global label matching algorithm (\Cref{sec:label-matching}) successfully eliminated temporal colour flickering across 4D animated cluster sequences while maintaining fast computation times, confirming its suitability for interactive exploration workflows.
+
+\bluerevised{These angular errors are small relative to the uncertainty inherent in real earthquake catalogs. Standard hypocentral location methods typically produce positional errors in the range of 50--200~m \cite{shearer2019introduction}, which correspond to angular uncertainties of several degrees when fitting planes to shallow fault zones. The errors reported in \Cref{tab:bench-synthetic} ($<0.6^\circ$ for noise up to 100~m and 30\% outliers) therefore fall within the precision that geophysical applications require, confirming that the RANSAC and SVD pipeline is suitable for fault characterisation at the scale of local seismic swarms.}
 
 \section{Future Research and Architectural Extensions}
 \label{sec:future-work}
@@ -108,8 +110,8 @@ Finally, future iterations could expand the analytical capabilities by integrati
 \section{Concluding Remarks}
 \label{sec:concluding}
 
-\revised{Seismic Viewer demonstrates combining web technologies with Python libraries for geophysical analysis. The hybrid architecture separating the Python backend from the WebGL frontend balanced computation speed with development workflow. Python libraries (NumPy \cite{numpy2020}, scikit-learn \cite{pedregosa2011sklearn}) provide numerical routines, while the web frontend delivers GPU-accelerated 3D graphics.}
+\bluerevised{Seismic Viewer demonstrates combining web technologies with Python libraries for geophysical analysis. The architecture separating the Python backend from the WebGL frontend balanced computation speed with development speed. Python libraries (NumPy \cite{numpy2020}, scikit-learn \cite{pedregosa2011sklearn}) provide numerical routines, while the web frontend delivers 3D graphics.}
 
-\revised{The iterative methodology aligned software capabilities with research requirements. Feedback from domain experts at INGV Osservatorio Vesuviano and Roma Tre University guided features such as sub-clustering and cylinder partitioning.}
+\bluerevised{The iterative workflow aligned software features with research requirements. Feedback from researchers at INGV Osservatorio Vesuviano and Roma Tre University guided features such as sub-clustering and cylinder partitioning.}
 
-\revised{This work supports the transition from static plots toward interactive exploration in seismology. By providing 4D visualization and clustering in a desktop application, Seismic Viewer offers a foundation for studying seismogenic structures and monitoring volcanic unrest at Campi Flegrei \cite{desiena2017bradyseism, giordano2025birth}.}
+\bluerevised{This work supports the transition from static plots toward interactive exploration in seismology. By providing 4D visualization and clustering in a desktop application, Seismic Viewer offers a foundation for studying fault structures and monitoring volcanic unrest at Campi Flegrei \cite{desiena2017bradyseism, giordano2025birth}.}

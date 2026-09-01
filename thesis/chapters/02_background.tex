@@ -10,7 +10,7 @@ This chapter outlines the theoretical and technical foundations of the project. 
 \section{Seismological Fundamentals}
 \label{sec:seismology}
 
-This section introduces the basic seismological concepts needed to understand the data and analysis in Seismic Viewer.
+This section introduces the basic seismological concepts needed to understand the data and analysis in Seismic Viewer, drawing from standard geophysics foundations \cite{shearer2019introduction}.
 
 \paragraph{Hypocentres and Epicentres.}
 When an earthquake occurs, energy is released underground along a fracture. The exact point inside the Earth where the rupture begins is called the \textbf{hypocentre} (or focus). It is defined by three coordinates: latitude ($\phi$), longitude ($\lambda$), and depth ($z$). The point directly above the hypocentre on the surface of the Earth is the \textbf{epicentre}. Traditional maps often show only the epicentre on a flat surface, losing the depth information. Seismic Viewer preserves the full three-dimensional position of each hypocentre to show the true underground structure.
@@ -36,11 +36,11 @@ Together, strike and dip define the complete 3D position of a geological fault. 
 \section{The Campi Flegrei Volcanic Complex}
 \label{sec:flegrei}
 
-\revised{The Campi Flegrei caldera, situated west of Naples in southern Italy, is an active volcanic area in Europe.}
+\bluerevised{The Campi Flegrei caldera, situated west of Naples in southern Italy, is an active volcanic area in Europe.}
 
-\revised{Since 2005, Campi Flegrei has experienced ground uplift (\textit{bradyseism}) accompanied by seismic swarms \cite{desiena2017bradyseism}. The INGV Osservatorio Vesuviano monitors the area through seismic stations, GNSS receivers, and geochemical sensors. The resulting datasets, comprising thousands of located earthquakes, daily GNSS displacement time series, and tomographic inversions, form the primary validation domain for Seismic Viewer.}
+\bluerevised{Since 2005, Campi Flegrei has experienced ground uplift (\textit{bradyseism}) accompanied by seismic swarms \cite{desiena2017bradyseism}. The INGV Osservatorio Vesuviano monitors the area through seismic stations, GPS receivers, and geochemical sensors. The resulting datasets, containing thousands of earthquakes, ground movement series, and tomography data, form the main validation case for Seismic Viewer.}
 
-\revised{Analyzing subsurface processes at Campi Flegrei, including fluid movement and fault activation, requires integrating multiple data sources within a shared spatial and temporal framework. This requirement motivated the multi-layer architecture of Seismic Viewer (see \Cref{sec:additional-layers}). Recent studies \cite{giordano2025birth} also showed that earthquake hypocentres in this caldera can be approximated by planar surfaces, supporting the integration of plane fitting methods (RANSAC and SVD) into the application.}
+\bluerevised{Studying subsurface processes at Campi Flegrei, such as fluid movement and fault activation, requires combining multiple data sources within a shared spatial and temporal framework. This requirement motivated the layered design of Seismic Viewer (see \Cref{sec:additional-layers}). Recent studies \cite{giordano2025birth} also showed that earthquake locations in this caldera can be approximated by planar surfaces, supporting the integration of plane estimation methods (RANSAC and SVD).}
 
 
 \section{Existing Seismic Visualisation Tools}
@@ -81,7 +81,7 @@ GPlates is an interactive plate tectonics tool designed for reconstructing geolo
 \textbf{Tool} & \shortstack{\textbf{3D}\\\textbf{View}} & \shortstack{\textbf{4D}\\\textbf{Anim.}} & \textbf{Cluster} & \shortstack{\textbf{Real-}\\\textbf{time}} & \textbf{GUI} & \textbf{Primary Limitations} \\
 \midrule
 QGIS          & Limited    & \texttimes & Plugin     & \texttimes & \checkmark & General GIS, not optimised for dynamic 3D point clouds \\
-GMT / PyGMT   & \checkmark & \texttimes & \texttimes & \texttimes & \texttimes & Static script-based outputs, no real-time interactivity \\
+GMT / PyGMT   & Static     & \texttimes & \texttimes & \texttimes & \texttimes & Static script-based outputs, 3D views are rendered as fixed images, not interactive scenes \\
 ObsPy         & Limited    & \texttimes & External   & \texttimes & \texttimes & Library framework, no interactive desktop GUI \\
 Seisan        & Limited    & \texttimes & \texttimes & \texttimes & Partial    & Legacy observatory suite, steep learning curve \\
 ParaView      & \checkmark & \checkmark & \texttimes & Partial    & \checkmark & General-purpose VTK tool, lacks seismology workflows \\
@@ -97,16 +97,16 @@ The comparison confirms that no existing software combines interactive 3D render
 \section{Machine Learning in Seismology}
 \label{sec:ml-seismology}
 
-The application of machine learning to seismological data has grown substantially in recent years, building on established pattern recognition and clustering foundations \cite{jain1999clustering} and supported by libraries such as scikit-learn \cite{pedregosa2011sklearn}. Two families of algorithms are particularly relevant to the spatial analysis of hypocentral distributions, and Seismic Viewer integrates both to offer complementary analytical perspectives.
+The application of machine learning to seismological data has grown substantially in recent years, building on established pattern recognition and clustering foundations \cite{jain1999clustering, tan2018datamining} and supported by libraries such as scikit-learn \cite{pedregosa2011sklearn}. Two families of algorithms are particularly relevant to the spatial analysis of hypocentral distributions, and Seismic Viewer integrates both to offer complementary analytical perspectives.
 
 \paragraph{Density-Based Clustering: DBSCAN.}
-\greenrevised{The Density-Based Spatial Clustering of Applications with Noise (DBSCAN) algorithm \cite{ester1996dbscan} identifies clusters as regions of high point density separated by regions of low density. Unlike partitioning methods, DBSCAN does not require specifying the number of clusters \textit{a priori} and can identify structures of arbitrary shape, which is useful when analysing non-planar fault zones. The algorithm uses two parameters: $\varepsilon$ (the neighbourhood radius) and \texttt{MinSamples} (the minimum number of points required to form a dense region). Points outside these clusters are marked as \textbf{noise}, filtering out background seismicity to isolate structural features. Implementation details and parameter tuning strategies are discussed in \Cref{ch:algorithms}.}
+\bluerevised{The Density-Based Spatial Clustering of Applications with Noise (DBSCAN) algorithm \cite{ester1996dbscan} identifies clusters as areas of high point density separated by areas of low density. Unlike partitioning methods, DBSCAN does not require specifying the number of clusters in advance and can identify structures of arbitrary shape, which is useful when analysing non-planar fault zones. The algorithm uses two parameters: $\varepsilon$ (the search radius) and \texttt{MinSamples} (the minimum number of points required to form a dense group). Points outside these clusters are marked as noise, filtering out background events to isolate structural features.}
 
 \paragraph{Centroid-Based Clustering: K-Means.}
-\revised{The K-Means algorithm \cite{lloyd1982kmeans} partitions a set of $N$ observations into $K$ clusters by minimising the within-cluster sum of squared distances to each cluster centroid. Seismic Viewer uses the \textbf{MiniBatchKMeans} variant, which processes random subsets (mini-batches) of data at each step. This reduces computation time from $O(NKT)$ to near-linear complexity, enabling fast reclustering as the user adjusts parameters. K-Means is suitable when the number of target structures is known or when spherical partitions are desired.}
+\bluerevised{The K-Means algorithm \cite{lloyd1982kmeans} groups $N$ points into $K$ clusters by minimising the sum of squared distances to each cluster center. Seismic Viewer uses the \textbf{MiniBatchKMeans} variant, which processes random subsets (mini-batches) of data at each step. This reduces computation time and enables fast updates as the user adjusts parameters. K-Means is suitable when the number of target structures is known or when spherical partitions are desired.}
 
-\revised{\paragraph{Temporal Tracking: Cluster Label Switching.}
-When clustering point clouds over time, unsupervised algorithms run independently on each animation frame and may assign different labels (and colors) to the same physical structure across successive time steps. In an animation, this causes colors to change between frames. To preserve consistent colors across 4D sequences, the system uses a label matching algorithm, described in \Cref{sec:label-matching}.}
+\paragraph{Temporal Tracking: Cluster Label Switching.}
+\bluerevised{When clustering point clouds over time, unsupervised algorithms run independently on each animation frame and may assign different labels (and colors) to the same physical structure across successive time steps. In an animation, this causes colors to change between frames. To preserve consistent colors across temporal sequences, the system uses a label matching algorithm, described in \Cref{sec:label-matching}.}
 
 \section{Technology Choices and Justifications}
 \label{sec:tech-choices}
@@ -135,18 +135,18 @@ Maps & Smopy \cite{smopy} (OSM \cite{openstreetmap}) & Mapbox, Google Maps & Fre
 
 \subsection{Architectural Trade-Off: pywebview vs. Electron}
 
-\revised{Selecting the desktop framework affects memory usage and execution speed. While \textbf{Electron} \cite{electron} is widely used for desktop web apps, it bundles a Chromium browser and Node.js with the application. This configuration uses 150--250~MB of RAM in idle and requires inter-process communication between Node.js and Python.}
+\bluerevised{Selecting the desktop framework affects memory use and execution speed. While \textbf{Electron} \cite{electron} is widely used for desktop web apps, it bundles a browser and Node.js with the application. This configuration uses around 200~MB of memory in idle and requires communication between Node.js and Python.}
 
-\revised{In contrast, \textbf{pywebview} \cite{pywebview} uses the web component present in the operating system (WebView2 on Windows, WebKit on macOS). This keeps idle memory usage under 40~MB and avoids bundling an extra browser runtime. In addition, pywebview provides a direct JavaScript--Python bridge (\texttt{js\_api}), allowing UI actions and native file dialogs to execute without network overhead.}
+\bluerevised{In contrast, \textbf{pywebview} \cite{pywebview} uses the web component already present in the operating system (WebView2 on Windows, WebKit on macOS). This keeps memory usage low and avoids bundling an extra browser engine. In addition, pywebview provides a direct bridge (\texttt{js\_api}), allowing user actions and file dialogs to run without network overhead.}
 
 \subsection{Rendering Engine Selection: Plotly.js vs. Low-Level Graphics APIs}
 
-\revised{Rendering 3D earthquake datasets interactively requires GPU acceleration via WebGL. Low-level graphics engines like \textbf{Three.js} provide control over visual elements, but require implementing 3D axes, projections, legends, and camera controls from scratch. Conversely, 2D charting tools like \textbf{D3.js} lack 3D WebGL support.}
+\bluerevised{Rendering 3D earthquake datasets interactively requires GPU acceleration with WebGL. Low-level graphics engines like \textbf{Three.js} provide control over visual elements, but require writing 3D axes, projections, legends, and camera controls from scratch. Conversely, 2D charting tools like \textbf{D3.js} lack 3D WebGL support.}
 
-\revised{\textbf{Plotly.js} \cite{plotlyjs} combines WebGL acceleration with built-in scientific plotting features and interactive controls. By using Plotly's WebGL pipeline and preserving the camera state during updates (\texttt{uirevision}), Seismic Viewer achieves 60~FPS rendering for over 50{,}000 earthquakes without requiring a custom graphics engine.}
+\bluerevised{\textbf{Plotly.js} \cite{plotlyjs} combines WebGL acceleration with built-in plotting features and interactive controls. By using Plotly's WebGL pipeline and preserving camera orientation during updates (\texttt{uirevision}), Seismic Viewer achieves smooth rendering for large earthquake catalogs without requiring a custom graphics engine.}
 
 \subsection{Backend Server Framework: FastAPI vs. Traditional Frameworks}
 
-\revised{The backend streams binary data buffers and handles WebSocket messages (progress updates, parameter filters) alongside mathematical calculations. Synchronous Python web frameworks like \textbf{Flask} or \textbf{Django} can block incoming requests during long calculations unless coupled with external task queues.}
+\bluerevised{The backend transfers binary data buffers and handles WebSocket messages alongside numerical calculations. Synchronous Python web frameworks like \textbf{Flask} or \textbf{Django} can block incoming requests during long calculations unless coupled with external task queues.}
 
-\revised{\textbf{FastAPI} \cite{fastapi}, running on the \texttt{uvicorn} \cite{uvicorn} server, uses an asynchronous event loop via \texttt{asyncio}. This design supports WebSocket communication and HTTP endpoints within a single process. Numerical calculations are offloaded to background threads or process pools using \texttt{asyncio.run\_coroutine\_threadsafe}, keeping the user interface responsive.}
+\bluerevised{\textbf{FastAPI} \cite{fastapi}, running on the \texttt{uvicorn} \cite{uvicorn} server, uses an asynchronous event loop via \texttt{asyncio}. This design supports WebSocket communication and HTTP endpoints within a single process. Calculations are offloaded to background threads or process pools, keeping the user interface responsive.}
