@@ -63,8 +63,8 @@ fig.update_layout(
 \paragraph{JSON Deserialization Bottlenecks and Binary Streaming.}
 Standard web communication relies on JSON text formatting for data exchange. However, transferring dense earthquake catalogs with many events exposed performance limits. In Python, converting large numerical arrays into JSON text created CPU overhead. In addition, the browser engine paused while parsing large JSON strings, dropping the frame rate. To remove this bottleneck, the architecture was redesigned around a raw Float32 binary streaming protocol (\Cref{sec:binary-protocol}). Coordinates, cluster labels, and metadata are packed into a continuous binary buffer on the backend and sent directly to the client. On the frontend, the payload is read into a native \texttt{Float32Array} typed array. This shift reduced data transfer size by about 80\% and significantly lowered loading times, maintaining smooth interaction.
 
-\paragraph{WebGL Context Lifecycle and GPU Resource Management.}
-In an embedded web view, frequent transitions between analytical views (2D maps, 3D volumes, and 4D animations) can exhaust the available WebGL contexts. Operating systems limit concurrent WebGL instances per process (typically between 8 and 16 contexts). When view switches open new canvas elements without closing previous ones, the browser engine encounters a context lost error and stops rendering. To ensure proper GPU memory management, an explicit cleanup sequence was implemented. Before navigating away from an active view, the frontend calls \texttt{Plotly.purge()} on existing chart elements, freeing shader programs and buffers from GPU memory. Furthermore, 3D markers are drawn as point sprites facing the camera rather than complex 3D shapes, keeping GPU memory use below 150~MB.
+\paragraph{WebGL Resource Management.}
+Switching often between views can use a lot of graphics memory. To handle GPU resources cleanly, each view transition loads a fresh page, allowing the browser to release earlier graphics buffers. In addition, earthquakes in 3D views are drawn as flat point markers facing the camera rather than solid 3D shapes. This keeps memory usage low and maintains smooth frame rates during interaction.
 
 \subsection{Backend Architecture, Concurrency, and Algorithmic Resilience}
 \label{sec:challenge-concurrency}
@@ -102,7 +102,9 @@ This modular organisation was not the original design. As discussed in \Cref{sec
 \section{Validation and Quantitative Performance Assessment}
 \label{sec:validation}
 
-The system was validated using INGV Campi Flegrei seismic datasets \cite{ingv} alongside synthetic benchmark catalogs. Testing confirmed that Seismic Viewer maintains fluid interaction and responsive frame rates on standard desktop hardware, even when rendering dense point clouds and multi-layer geophysical models.
+The system was validated using INGV Campi Flegrei seismic datasets \cite{ingv} alongside synthetic benchmark catalogs. Testing confirmed that Seismic Viewer maintains fluid interaction and responsive frame rates even when rendering dense point clouds and multi-layer geophysical models.
+
+All experimental benchmarks and execution latency measurements were conducted on a desktop workstation featuring an Intel Core i9-13900K processor (24 cores, 32 threads, boost clock up to 5.8~GHz), 32~GB of RAM, and an NVIDIA GeForce RTX 4070 GPU running 64-bit Windows 11.
 
 \subsection{Experimental Benchmarks: Serialization and Streaming}
 
@@ -129,7 +131,7 @@ To evaluate the Float32 binary protocol against JSON, benchmarks were run across
 
 \subsection{Clustering Latency and Algorithmic Throughput}
 
-Execution times for the three clustering methods were measured across catalog sizes. As shown in \Cref{tab:bench-clustering}, MiniBatchKMeans and Cylinder Partitioning execute rapidly across all tested scales, while DBSCAN exhibits higher computation time as dataset density increases.
+Execution times for the three clustering methods were measured across catalog sizes. For cylinder partitioning, the cylinder radius was chosen to create a grid of about $60\times50$ cells over the catalog area. As shown in \Cref{tab:bench-clustering}, MiniBatchKMeans and Cylinder Partitioning remain fast across all tested sizes, while DBSCAN takes longer as the number of events grows.
 
 \begin{table}[htbp]
 \centering
