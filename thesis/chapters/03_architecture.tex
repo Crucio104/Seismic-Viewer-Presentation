@@ -10,7 +10,7 @@ This chapter describes the system architecture of Seismic Viewer, detailing its 
 \section{Architectural Overview}
 \label{sec:arch-overview}
 
-\bluerevised{Seismic Viewer uses a hybrid desktop architecture that combines a Python processing backend with an embedded Chromium frontend. The two layers communicate through three dedicated channels: a native bridge, HTTP REST endpoints, and WebSockets.}
+\bluerevised{Seismic Viewer uses a client-server desktop architecture that combines a Python processing backend with an embedded Chromium frontend. The two layers communicate through three dedicated channels: a native bridge, HTTP REST endpoints, and WebSockets.}
 
 \begin{figure}[htbp]
 \centering
@@ -64,7 +64,7 @@ This chapter describes the system architecture of Seismic Viewer, detailing its 
         (bridge_py.east) -- node[proto_red] {JS-Python RPC Bridge} (ui_ctrl.west);
 
 \end{tikzpicture}
-\caption{Dual-process hybrid architecture of Seismic Viewer with dedicated communication channels.}
+\caption{Client-server architecture of Seismic Viewer with dedicated communication channels.}
 \label{fig:arch-overview}
 \end{figure}
 
@@ -208,7 +208,7 @@ Once the backend processing is complete, the frontend retrieves the data through
           font=\scriptsize, inner sep=3pt, anchor=west]
           at (0.12, -4.8) {8. Direct WebGL Render};
 \end{tikzpicture}
-\caption{Sequence of asynchronous execution and non-blocking streaming pipeline.}
+\caption{Sequence diagram of asynchronous execution and non-blocking streaming pipeline.}
 \label{fig:seq-diagram}
 \end{figure}
 

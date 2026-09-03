@@ -10,11 +10,7 @@ Seismic Viewer provides four primary visualisation modes, each addressing a dist
 \section{2D Geospatial Map View}
 \label{sec:view-2d}
 
-The 2D view provides a plan-view representation of earthquake epicentres overlaid on OpenStreetMap \cite{openstreetmap} tiles, implemented through Plotly's \texttt{scatter\_mapbox} trace type.
-
-\subsection{Map Layers and Real-Time Filtering}
-
-The 2D map visualizes the seismic data using two distinct graphical layers:
+The 2D view provides a plan-view representation of earthquake epicentres overlaid on OpenStreetMap \cite{openstreetmap} tiles, implemented through Plotly's \texttt{scatter\_mapbox} trace type. The map visualises seismic data using two distinct graphical layers:
 \begin{itemize}
     \item \textbf{Scatter Markers}: Each earthquake is represented by a circular marker. The visual properties of these circles can be mapped to different physical parameters depending on the analytical needs. By default, the size of the circle indicates the magnitude of the event (with a minimum size threshold to ensure extremely weak micro-earthquakes remain visible), and the color represents the hypocentral depth. However, these mappings are highly flexible, allowing users to visualize other variables, such as chronological progression. Users can interact with these markers by hovering over them to reveal detailed statistics.
     \item \textbf{Density Heatmap}: A spatial density layer that visually aggregates tightly clustered earthquakes. By rendering a continuous color gradient over regions of high seismicity, this optional overlay allows researchers to intuitively identify active swarm locations and broader structural trends that might be difficult to perceive when analyzing individual scatter points alone.

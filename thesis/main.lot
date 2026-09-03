@@ -1,22 +1,22 @@
 \babel@toc {english}{}\relax 
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {2.1}{\ignorespaces Comparison of existing seismic visualisation tools against Seismic Viewer.}}{8}{table.caption.13}%
-\contentsline {table}{\numberline {2.2}{\ignorespaces Summary of the selected technology stack and rejected alternatives.}}{9}{table.caption.17}%
+\contentsline {table}{\numberline {2.1}{\ignorespaces Comparison of existing seismic visualisation tools against Seismic Viewer.}}{7}{table.caption.13}%
+\contentsline {table}{\numberline {2.2}{\ignorespaces Summary of the selected technology stack and rejected alternatives.}}{8}{table.caption.17}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {3.1}{\ignorespaces REST API endpoints and WebSocket message protocol.}}{12}{table.caption.19}%
-\contentsline {table}{\numberline {3.2}{\ignorespaces Binary buffer layout (Float32).}}{15}{table.caption.23}%
-\addvspace {10\p@ }
-\addvspace {10\p@ }
-\addvspace {10\p@ }
-\contentsline {table}{\numberline {6.1}{\ignorespaces Comparison of spatial clustering approaches in Seismic Viewer.}}{36}{table.caption.38}%
-\contentsline {table}{\numberline {6.2}{\ignorespaces \bluerevised {Asymptotic time and space complexity of the analytical methods.}}}{39}{table.caption.41}%
+\contentsline {table}{\numberline {3.1}{\ignorespaces REST API endpoints and WebSocket message protocol.}}{11}{table.caption.19}%
+\contentsline {table}{\numberline {3.2}{\ignorespaces Binary buffer layout (Float32).}}{14}{table.caption.23}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {8.1}{\ignorespaces Serialization benchmark: JSON vs. Float32 Binary buffer.}}{45}{table.caption.51}%
-\contentsline {table}{\numberline {8.2}{\ignorespaces Clustering execution latency benchmark across dataset scales.}}{45}{table.caption.52}%
-\contentsline {table}{\numberline {8.3}{\ignorespaces Synthetic plane estimation accuracy under Gaussian positional noise.}}{46}{table.caption.53}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {.4}{\ignorespaces Expected schema for input seismic catalogs.}}{48}{table.caption.55}%
-\contentsline {table}{\numberline {.5}{\ignorespaces \bluerevised {Internal data representation in the processing pipeline}}}{49}{table.caption.56}%
-\contentsline {table}{\numberline {.6}{\ignorespaces \bluerevised {Configuration constants and default parameters in core/config.py}}}{50}{table.caption.57}%
+\contentsline {table}{\numberline {6.1}{\ignorespaces Comparison of spatial clustering approaches in Seismic Viewer.}}{35}{table.caption.38}%
+\contentsline {table}{\numberline {6.2}{\ignorespaces \bluerevised {Asymptotic time and space complexity of the analytical methods.}}}{38}{table.caption.41}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {7.1}{\ignorespaces Serialization benchmark: JSON vs. Float32 Binary buffer.}}{43}{table.caption.51}%
+\contentsline {table}{\numberline {7.2}{\ignorespaces Clustering execution latency benchmark across dataset scales.}}{43}{table.caption.52}%
+\contentsline {table}{\numberline {7.3}{\ignorespaces Synthetic plane estimation accuracy under Gaussian positional noise.}}{44}{table.caption.53}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {.1}{\ignorespaces Expected schema for input seismic catalogs.}}{47}{table.caption.55}%
+\contentsline {table}{\numberline {.2}{\ignorespaces \bluerevised {Internal data representation in the processing pipeline}}}{48}{table.caption.56}%
+\contentsline {table}{\numberline {.3}{\ignorespaces \bluerevised {Configuration constants and default parameters in core/config.py}}}{49}{table.caption.57}%
