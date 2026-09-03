@@ -22,7 +22,7 @@ Seismological data must be structured in a CSV following the specifications deta
 \label{tab:csv-schema}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\begin{tabularx}{\textwidth}{@{}l l >{\raggedright\arraybackslash}X@{}}
 \toprule
 \textbf{Field Name} & \textbf{Data Type} & \textbf{Description} \\
 \midrule
@@ -46,7 +46,7 @@ Once parsed by the Python backend, the catalog is transformed into an internal s
 \label{tab:internal-schema}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\begin{tabularx}{\textwidth}{@{}l l >{\raggedright\arraybackslash}X@{}}
 \toprule
 \textbf{Variable} & \textbf{Type} & \textbf{Purpose} \\
 \midrule
@@ -120,7 +120,7 @@ Progress updates and task notifications sent by the server follow this structure
 \label{tab:default-config}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\begin{tabularx}{\textwidth}{@{}l l >{\raggedright\arraybackslash}X@{}}
 \toprule
 \textbf{Configuration Key} & \textbf{Default Value} & \textbf{Description / Purpose} \\
 \midrule

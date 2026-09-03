@@ -137,7 +137,7 @@ Execution times for the three clustering methods were measured across catalog si
 \label{tab:bench-clustering}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{\textwidth}{@{}r X X X@{}}
+\begin{tabularx}{\textwidth}{@{}r >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X@{}}
 \toprule
 \textbf{Events ($N$)} & \textbf{DBSCAN ($\varepsilon=300$m)} & \textbf{MiniBatchKMeans ($K=6$)} & \textbf{Cylinder Grid ($60\times50$)} \\
 \midrule
@@ -161,7 +161,7 @@ As reported in \Cref{tab:bench-synthetic}, the two-stage RANSAC and SVD pipeline
 \label{tab:bench-synthetic}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{\textwidth}{@{}r r X X X@{}}
+\begin{tabularx}{\textwidth}{@{}r r >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X@{}}
 \toprule
 \textbf{Noise $\sigma$ (m)} & \textbf{Outliers (\%)} & \textbf{Dip MAE ($^\circ$)} & \textbf{Strike MAE ($^\circ$)} & \textbf{Planarity ($P$)} \\
 \midrule

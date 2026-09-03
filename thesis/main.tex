@@ -89,6 +89,8 @@
     linkcolor=NavyBlue,
     citecolor=OliveGreen,
     urlcolor=BrickRed,
+    plainpages=false,
+    hypertexnames=true,
     bookmarks=true,
     bookmarksnumbered=true
 ]{hyperref}
@@ -123,7 +125,9 @@
 \begin{document}
 
 \frontmatter
+\hypersetup{pageanchor=false}
 \maketitle
+\hypersetup{pageanchor=true}
 
 \input{frontmatter/abstract}
 
@@ -142,9 +146,10 @@
 \input{chapters/07_development}
 \input{chapters/08_conclusions}
 
-\backmatter
 \appendix
 \input{backmatter/appendix_a}
+
+\backmatter
 
 \bibliographystyle{plainnat}
 \bibliography{references}

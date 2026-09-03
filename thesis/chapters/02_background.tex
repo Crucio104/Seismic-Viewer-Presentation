@@ -38,7 +38,7 @@ Together, strike and dip define the complete 3D position of a geological fault. 
 
 The Campi Flegrei caldera, situated west of Naples in southern Italy, is an active volcanic area in Europe.
 
-Since 2005, Campi Flegrei has experienced ground uplift (\textit{bradyseism}) accompanied by seismic swarms \cite{desiena2017bradyseism}. The INGV Osservatorio Vesuviano monitors the area through seismic stations, GPS receivers, and geochemical sensors. The resulting datasets, containing thousands of earthquakes, ground movement series, and tomography data, form the main validation case for Seismic Viewer.
+Since 2005, Campi Flegrei has experienced ground uplift (\textit{bradyseism}) accompanied by seismic swarms \cite{desiena2017bradyseism}. The INGV Osservatorio Vesuviano monitors the area through seismic stations, GNSS/GPS receivers, and geochemical sensors. The resulting datasets, containing thousands of earthquakes, ground movement series, and tomography data, form the main validation case for Seismic Viewer.
 
 Studying subsurface processes at Campi Flegrei, such as fluid movement and fault activation, requires combining multiple data sources within a shared spatial and temporal framework. This requirement motivated the layered design of Seismic Viewer (see \Cref{sec:additional-layers}). Recent studies \cite{giordano2025birth} also showed that earthquake locations in this caldera can be approximated by planar surfaces, supporting the integration of plane estimation methods (RANSAC and SVD).
 
@@ -76,7 +76,7 @@ GPlates is an interactive plate tectonics tool designed for reconstructing geolo
 \footnotesize
 \renewcommand{\arraystretch}{1.1}
 \setlength{\tabcolsep}{4pt}
-\begin{tabularx}{\textwidth}{@{}l c c c c c X@{}}
+\begin{tabularx}{\textwidth}{@{}l c c c c c >{\raggedright\arraybackslash}X@{}}
 \toprule
 \textbf{Tool} & \shortstack{\textbf{3D}\\\textbf{View}} & \shortstack{\textbf{4D}\\\textbf{Anim.}} & \textbf{Cluster} & \shortstack{\textbf{Real-}\\\textbf{time}} & \textbf{GUI} & \textbf{Primary Limitations} \\
 \midrule
@@ -119,7 +119,7 @@ To choose the technology stack, various alternatives were systematically compare
 \label{tab:tech-decisions}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{\textwidth}{@{}l l l X@{}}
+\begin{tabularx}{\textwidth}{@{}l l l >{\raggedright\arraybackslash}X@{}}
 \toprule
 \textbf{Component} & \textbf{Chosen} & \textbf{Rejected} & \textbf{Justification} \\
 \midrule

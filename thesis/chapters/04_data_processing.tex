@@ -21,7 +21,7 @@ The following sections describe each component of this pipeline in detail.
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-    scale=0.76, transform shape,
+    scale=0.71, transform shape,
     box_src/.style={rectangle, draw=NavyBlue!80, fill=NavyBlue!8, rounded corners=4pt, text width=3.8cm, minimum height=1.35cm, align=center, font=\footnotesize},
     box_tomo_proc/.style={rectangle, draw=NavyBlue!80, fill=NavyBlue!8, rounded corners=4pt, text width=4.0cm, minimum height=1.45cm, align=center, font=\footnotesize},
     box_seq/.style={rectangle, draw=BrickRed!80, fill=BrickRed!8, rounded corners=4pt, text width=8.8cm, minimum height=1.15cm, align=center, font=\footnotesize},
@@ -95,9 +95,9 @@ The following sections describe each component of this pipeline in detail.
 \section{CSV Ingestion and Schema Detection}
 \label{sec:csv-ingestion}
 
-The \texttt{core/loader.py} module handles different formats through an ingestion pipeline that checks the header line for comma or semicolon delimiters, supporting European standards (INGV) as well as international formats (USGS, ISC). To avoid manual formatting, \texttt{core/config.py} defines an alias dictionary:
+The \texttt{core/loader.py} module handles different formats through an ingestion pipeline that checks the header line for comma or semicolon delimiters, supporting European standards (INGV) as well as international formats (USGS, ISC). The expected catalog schema is documented in \Cref{tab:csv-schema} of \Cref{app:technical_details}. To avoid manual formatting, \texttt{core/config.py} defines an alias dictionary:
 
-\begin{lstlisting}[language=Python, caption={Flexible column schema definition in \texttt{core/config.py}.}, label={lst:schema}]
+\begin{lstlisting}[language=Python, basicstyle=\ttfamily\footnotesize, aboveskip=5pt, belowskip=5pt, caption={Flexible column schema definition in \texttt{core/config.py}.}, label={lst:schema}]
 CSV_SCHEMA = {
     'time':  ['time', 'date', 'datetime', 'utc', 'time_utc', 'origintime'],
     'lat':   ['lat', 'latitude'],
@@ -163,8 +163,8 @@ Terrain generation operates via a five-stage sequence: (1) bounding box squaring
 \label{sec:strip-data}
 \label{sec:binary-streaming}
 
-To ensure the 3D map remains fluid and responsive even with thousands of earthquakes, the software performs several calculations in advance (during the data loading phase) rather than while the user is interacting with the map. The \texttt{precompute\_\allowbreak visual\_\allowbreak data()} function handles two main tasks. First, it pre-renders tooltip strings in a single batch operation, so that the browser does not need to construct the text for pop-ups every time the mouse hovers over an event. Second, it converts calendar dates into normalised time metrics (days since the first earthquake), accelerating chronological color mapping.
+To keep the 3D view fast, the application calculates visual data in advance during data loading. The \texttt{precompute\_\allowbreak visual\_\allowbreak data()} function prepares popup texts and converts dates into numerical values (days from the first event). This allows quick color mapping over time without recalculating during user interaction.
 
-The data pipeline converts raw CSV lines into numerical arrays (\texttt{numpy.ndarray}). This enables fast operations on coordinates, depths, and timestamps. To stream data to the client efficiently, arrays are converted to 32-bit floating-point values (\texttt{np.float32}) and transmitted as raw bytes, avoiding JSON conversion overhead.
+The pipeline stores coordinates and depths into NumPy arrays (\texttt{np.float32}). Transmitting numbers as raw bytes instead of text JSON avoids conversion overhead and reduces data size.
 
-Embedding large amounts of earthquake data directly into an HTML file increases file size and causes the browser to slow down. To prevent this, Seismic Viewer uses an asynchronous loading strategy. When the user opens a 3D view, the backend generates an HTML page containing the 3D scene, terrain map, and menus. Once the base map is displayed, the browser requests the earthquake points in the background via \texttt{/api/\allowbreak data/\allowbreak\{id\}/\allowbreak bin}. These points are delivered as a Float32 binary buffer and displayed on the map without blocking user interaction.
+To avoid large HTML files, the application loads earthquake data in two steps. First, the backend creates an HTML page with the 3D map layout and controls. Next, the browser downloads the earthquake points in the background via \texttt{/api/\allowbreak data/\allowbreak\{id\}/\allowbreak bin} as a Float32 buffer. This keeps page loading fast and responsive.

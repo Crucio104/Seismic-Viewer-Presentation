@@ -46,7 +46,7 @@ if method == 'kmeans' and max_dist > 0:
 \label{tab:clustering-comparison}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{\textwidth}{@{}l X X X@{}}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X@{}}
 \toprule
 \textbf{Property} & \textbf{DBSCAN} & \textbf{MiniBatchKMeans} & \textbf{Cylinder Partition} \\
 \midrule
@@ -160,7 +160,7 @@ Calculating RANSAC inliers and SVD planes across animation frames involves separ
 \scriptsize
 \setlength{\tabcolsep}{2.5pt}
 \renewcommand{\arraystretch}{0.90}
-\begin{tabularx}{\textwidth}{@{}l l l X@{}}
+\begin{tabularx}{\textwidth}{@{}l l l >{\raggedright\arraybackslash}X@{}}
 \toprule
 \textbf{Algorithm / Method} & \textbf{Time Complexity} & \textbf{Space Complexity} & \textbf{Parameters \& Notation} \\
 \midrule

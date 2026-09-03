@@ -69,11 +69,11 @@ where $\Delta\lambda$ and $\Delta\phi$ are the longitude and latitude spans, $K 
 
 Rendering large point clouds simultaneously relies on GPU acceleration. Plotly.js uses WebGL to draw points via the \texttt{scatter3d} trace type. To maintain smooth interactive frame rates, the application applies three measures: (1) map background images are scaled to save memory, (2) automatic bounding box recalculations are disabled during updates, and (3) markers are drawn as point sprites facing the camera rather than complex 3D shapes.
 
-The 3D workspace (\Cref{fig:3d-multi}) enables visualization of earthquake cluster geometries. Integrating a 3D tomography model (\Cref{fig:3d-viz-tomo}) correlates seismicity with geological structures, while vertical uplift columns (\Cref{fig:3d-viz-uplift}) allow direct comparison between surface deformation and underlying seismic activity.
+As shown in \Cref{fig:3d-multi}, the 3D static workspace presents these data layers in three dimensions. The base view (\Cref{fig:3d-viz}) shows hypocentres below the map surface, using colours to represent depth intervals. In \Cref{fig:3d-viz-tomo}, the scene adds velocity slices from the tomography model. Finally, in \Cref{fig:3d-viz-uplift}, vertical columns indicate surface movement at each station, allowing direct comparisons between depth and surface observations.
 
 \begin{figure}[H]
 \centering
-\begin{subfigure}[t]{0.85\textwidth}
+\begin{subfigure}[t]{1.0\textwidth}
 \centering
 \includegraphics[width=\textwidth]{images/3d_visualization.png}
 \caption{Point cloud below surface map.}
@@ -84,7 +84,7 @@ The 3D workspace (\Cref{fig:3d-multi}) enables visualization of earthquake clust
 \begin{figure}[H]
 \ContinuedFloat
 \centering
-\begin{subfigure}[t]{0.85\textwidth}
+\begin{subfigure}[t]{1.0\textwidth}
 \centering
 \includegraphics[width=\textwidth]{images/3d_visualization_tomography.png}
 \caption{Added tomography layer.}
@@ -95,7 +95,7 @@ The 3D workspace (\Cref{fig:3d-multi}) enables visualization of earthquake clust
 \begin{figure}[H]
 \ContinuedFloat
 \centering
-\begin{subfigure}[t]{0.85\textwidth}
+\begin{subfigure}[t]{1.0\textwidth}
 \centering
 \includegraphics[width=\textwidth]{images/3d_visualization_uplift_stations.png}
 \caption{Ground uplift columns.}
@@ -104,8 +104,6 @@ The 3D workspace (\Cref{fig:3d-multi}) enables visualization of earthquake clust
 \caption{The 3D Static View workspace. The user can explore the underground earthquake distribution (\subref{fig:3d-viz}) and combine it with 3D tomography models (\subref{fig:3d-viz-tomo}) and surface deformation data (\subref{fig:3d-viz-uplift}).}
 \label{fig:3d-multi}
 \end{figure}
-
-As shown in \Cref{fig:3d-multi}, the 3D static workspace presents these data layers in three dimensions. The base view (\Cref{fig:3d-viz}) shows hypocentres below the map surface, using colours to represent depth intervals. In \Cref{fig:3d-viz-tomo}, the scene adds velocity slices from the tomography model. Finally, in \Cref{fig:3d-viz-uplift}, vertical columns indicate surface movement at each station, allowing direct comparisons between depth and surface observations.
 
 \section{3D Animated View (4D Visualisation)}
 \label{sec:view-animated}

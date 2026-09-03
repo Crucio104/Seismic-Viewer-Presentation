@@ -74,7 +74,7 @@ The architecture divides tasks across three dedicated communication channels, ba
     \item \textbf{HTTP REST Endpoints}: Handles data transfer between backend and frontend. Rather than embedding large datasets into HTML pages, the frontend requests catalogs asynchronously. Numerical coordinates are streamed as Float32 binary buffers via \texttt{/api/data/\{id\}/bin}, while catalog metadata and views are served with standard compression.
     \item \textbf{WebSockets}: Manages live updates and streaming during long calculations. When running temporal animations or clustering routines, the backend streams progress notifications and frame updates directly to the client over an open connection, updating the interface without page reloads.
 \end{enumerate}
-\Cref{tab:rest-api} lists the REST endpoints and WebSocket message types supported by the system.
+\Cref{tab:rest-api} lists the REST endpoints and WebSocket message types supported by the system. The full JSON schemas for these network messages are detailed in \Cref{sec:protocol_schemas} of \Cref{app:technical_details}.
 
 \begin{table}[htbp]
 \centering
@@ -127,14 +127,18 @@ Once the imported dataset is validated, the software opens the visualization hub
 
 The 3D graphics pipeline delegates rendering to WebGL through Plotly.js inside the native WebView component (WebKit or WebView2). This avoids the memory overhead of shipping a dedicated browser binary while providing access to hardware-accelerated 3D graphics. To preserve context during updates, the system retains the view angle and zoom level selected by the user. This prevents the camera from resetting when new data arrives, maintaining smooth interaction (\Cref{sec:challenge-camera}).
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\begin{subfigure}{0.48\textwidth}
+\begin{subfigure}{0.75\textwidth}
+\centering
 \includegraphics[width=\textwidth]{images/start_page.png}
 \caption{File Picker view.}
 \label{fig:start-page}
-\end{subfigure}\hfill
-\begin{subfigure}{0.48\textwidth}
+\end{subfigure}
+
+\vspace{3mm}
+\begin{subfigure}{0.75\textwidth}
+\centering
 \includegraphics[width=\textwidth]{images/visualization_hub.png}
 \caption{Visualisation Hub with mode selection.}
 \label{fig:viz-hub}
@@ -149,14 +153,14 @@ The 3D graphics pipeline delegates rendering to WebGL through Plotly.js inside t
 
 To manage data processing and rendering, Seismic Viewer divides operations between backend services and the frontend client. On the backend, the system handles data loading, validation, and mathematical calculations. As shown in \Cref{fig:dataflow}, the pipeline begins by importing CSV data or querying the INGV API. This data is cleaned and loaded. Visual pre-computations prepare coordinate structures before the engine executes the selected algorithm. Finally, results are stored in the internal caches and rendered in HTML.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\begin{tikzpicture}[node distance=1.4cm, auto, scale=0.82, transform shape]
+\begin{tikzpicture}[node distance=1.15cm, auto, scale=0.75, transform shape]
     \node (input) [io] {CSV / INGV API};
     \node (loader) [process, below of=input] {Loader \& Sanitisation};
     \node (precomp) [process, below of=loader] {Visual Pre-computation};
-    \node (decision) [decision, below of=precomp, yshift=-0.2cm] {View Style?};
-    \node (engine) [process, below of=decision, yshift=-0.4cm] {Engine (Viz/Analysis)};
+    \node (decision) [decision, below of=precomp, yshift=-0.15cm] {View Style?};
+    \node (engine) [process, below of=decision, yshift=-0.3cm] {Engine (Viz/Analysis)};
     \node (template) [process, below of=engine] {HTML Template Assembly};
     \node (store) [io, below of=template] {Session Store + HTML Store};
     \node (render) [startstop, below of=store] {WebGL Rendering};
@@ -176,11 +180,11 @@ To manage data processing and rendering, Seismic Viewer divides operations betwe
 \label{fig:dataflow}
 \end{figure}
 
-Once the backend processing is complete, the frontend retrieves the data through the defined REST API and WebSocket endpoints (\Cref{tab:rest-api}). The frontend dynamically renders the 3D scene using WebGL via the Plotly.js library. Continuous status updates, real-time recalculations, and filtering commands are exchanged over the WebSocket channel, ensuring the interface remains fully interactive without needing page reloads.
+Once the backend processing is complete, the frontend retrieves the data through the defined REST API and WebSocket endpoints (\Cref{tab:rest-api}). The frontend dynamically renders the 3D scene using WebGL via the Plotly.js library. Continuous status updates, real-time recalculations, and filtering commands are exchanged over the WebSocket channel, ensuring the interface remains fully interactive without needing page reloads (\Cref{fig:seq-diagram}).
 
 \begin{figure}[htbp]
 \centering
-\begin{tikzpicture}[scale=0.82, transform shape,
+\begin{tikzpicture}[scale=0.76, transform shape,
     lifeline/.style={draw=black!40, dashed, thick},
     msg/.style={-Stealth, thick},
     actor/.style={rectangle, draw=NavyBlue!80, fill=NavyBlue!10, rounded corners=3pt, minimum width=2.4cm, minimum height=0.8cm, font=\footnotesize\bfseries, align=center}
@@ -213,7 +217,7 @@ Once the backend processing is complete, the frontend retrieves the data through
 \subsection{Binary Data Transfer Protocol}
 \label{sec:binary-protocol}
 
-To eliminate JSON parsing overhead during large catalog transfers, the backend packs numerical coordinates into a contiguous Float32 buffer (\texttt{/api/data/\{id\}/bin}) structured as: header \texttt{[event\_count, cluster\_count]} followed sequentially by arrays for longitude, latitude, magnitude, depth, \texttt{dates\_num}, and cluster labels ($C$ floats).
+To eliminate JSON parsing overhead during large catalog transfers, the backend packs numerical coordinates into a contiguous Float32 buffer (\texttt{/api/data/\{id\}/bin}) structured as: header \texttt{[event\_count, cluster\_count]} followed sequentially by arrays for longitude, latitude, magnitude, depth, \texttt{dates\_num}, and cluster labels ($C$ floats), as summarized in \Cref{tab:binary-layout}. On the frontend, decoding via JavaScript's \texttt{Float32Array} directly over an \texttt{ArrayBuffer} completes in a few milliseconds even for large datasets, reducing transfer volume by approximately 80\% and avoiding JSON parsing delays.
 
 \begin{table}[htbp]
 \centering
@@ -233,18 +237,16 @@ $2+2N$ ($N$ floats) & Magnitude array & & \\
 \end{tabular}
 \end{table}
 
-On the frontend, decoding via JavaScript's \texttt{Float32Array} directly over an \texttt{ArrayBuffer} completes in a few milliseconds even for large datasets, reducing transfer volume by approximately 80\% and avoiding JSON parsing delays.
-
 \section{Threading and Concurrency Model}
 \label{sec:threading}
 
 \begin{figure}[htbp]
 \centering
-\begin{tikzpicture}[node distance=1.5cm and 4.2cm, scale=0.86, transform shape]
+\begin{tikzpicture}[node distance=1.3cm and 3.8cm, scale=0.80, transform shape]
     \node[module, minimum width=3.6cm, fill=OliveGreen!15] (main) {Main Thread (pywebview)};
-    \node[module, minimum width=3.6cm, fill=NavyBlue!15, right=4.2cm of main] (uvicorn) {Daemon Thread (Uvicorn)};
-    \node[module, minimum width=3.6cm, fill=orange!15, below=1.4cm of main] (worker) {Worker Thread (Analysis)};
-    \node[module, minimum width=3.6cm, fill=BrickRed!15, below=1.4cm of uvicorn] (asyncio) {asyncio Event Loop};
+    \node[module, minimum width=3.6cm, fill=NavyBlue!15, right=3.8cm of main] (uvicorn) {Daemon Thread (Uvicorn)};
+    \node[module, minimum width=3.6cm, fill=orange!15, below=1.2cm of main] (worker) {Worker Thread (Analysis)};
+    \node[module, minimum width=3.6cm, fill=BrickRed!15, below=1.2cm of uvicorn] (asyncio) {asyncio Event Loop};
 
     \draw[arrow] (main) -- node[above, font=\scriptsize] {starts} (uvicorn);
     \draw[arrow] (main) -- node[left, font=\scriptsize] {spawns} (worker);
@@ -255,8 +257,8 @@ On the frontend, decoding via JavaScript's \texttt{Float32Array} directly over a
 \label{fig:threading}
 \end{figure}
 
-The concurrency architecture separates responsibilities across the \textbf{Main Thread} (hosting the native GUI window and the WebView engine managed by \texttt{pywebview}), the \textbf{Server Thread} (running the Uvicorn \cite{uvicorn} asynchronous event loop), and on-demand \textbf{Worker Threads} handling analytical computations and view generation (\Cref{fig:threading}).
+The concurrency architecture divides responsibilities across the \textbf{Main Thread} (hosting the user interface managed by \texttt{pywebview}), the \textbf{Server Thread} (running the Uvicorn \cite{uvicorn} event loop), and background \textbf{Worker Threads} for data analysis (\Cref{fig:threading}).
 
-Because Python's standard \texttt{asyncio} event loop is inherently not thread-safe, invoking asynchronous WebSocket broadcast routines directly from a synchronous worker thread would trigger race conditions, inconsistent socket states, or event loop corruption. To resolve this, the backend routes all inter-thread notifications through \texttt{asyncio.run\_\allowbreak coroutine\_\allowbreak threadsafe(coroutine, loop)}. This function submits the broadcast coroutine to the target event loop via an internal thread-safe queue and wakes up the loop cleanly. The broadcast task is then executed safely within the context of the Uvicorn server thread, streaming real-time progress events to connected WebSocket clients without blocking the analytical computation.
+Because Python's standard \texttt{asyncio} event loop is not thread-safe, calling WebSocket functions directly from a background worker thread can cause conflicts and errors. To solve this, the backend sends notifications using \texttt{asyncio.run\_\allowbreak coroutine\_\allowbreak threadsafe(coroutine, loop)}. This function places the coroutine into a thread-safe queue. The Uvicorn server thread then sends the progress updates to the frontend without interrupting the data processing.
 
-For intensive multi-frame calculations (such as animated clustering and structural plane tracking across hundreds of time slices), the engine uses a \texttt{ProcessPool\allowbreak Executor} with up to 8 worker processes, utilising shared memory initialisers to avoid array serialisation. This multi-level concurrency model completely prevents Global Interpreter Lock contention during heavy numerical loops, ensuring the interface remains smooth and responsive during intensive calculations.
+For long calculations, such as animated clustering and plane tracking across multiple time windows, the engine uses a \texttt{ProcessPool\allowbreak Executor} with up to 8 worker processes. Running tasks across separate processes avoids Python Global Interpreter Lock limitations and utilizes multiple CPU cores. This keeps the application responsive while processing large datasets.
