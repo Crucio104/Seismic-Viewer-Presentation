@@ -1,9 +1,18 @@
-\begin{thebibliography}{21}
+\begin{thebibliography}{22}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
   \providecommand{\doi}[1]{doi: #1}\else
   \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Bergen et~al.(2019)Bergen, Johnson, de~Hoop, and
+  Beroza]{bergen2019machine}
+Karianne~J. Bergen, Paul~A. Johnson, Maarten~V. de~Hoop, and Gregory~C. Beroza.
+\newblock {Machine learning for data-driven discovery in solid-Earth
+  geoscience}.
+\newblock \emph{Science}, 363\penalty0 (6433):\penalty0 eaau0323, 2019.
+\newblock \doi{10.1126/science.aau0323}.
+\newblock URL \url{https://doi.org/10.1126/science.aau0323}.
 
 \bibitem[Christie()]{uvicorn}
 Tom Christie.
@@ -27,6 +36,14 @@ Martin Ester, Hans-Peter Kriegel, J{\"o}rg Sander, and Xiaowei Xu.
 \newblock In \emph{Proceedings of the 2nd International Conference on Knowledge
   Discovery and Data Mining (KDD-96)}, pages 226--231. AAAI Press, 1996.
 \newblock URL \url{https://www.aaai.org/Papers/KDD/1996/KDD96-037.pdf}.
+
+\bibitem[Fern{\'a}ndez(2005)]{fernandez2005plane}
+Oscar Fern{\'a}ndez.
+\newblock {Obtaining a best fitting plane through 3D georeferenced data}.
+\newblock \emph{Journal of Structural Geology}, 27\penalty0 (5):\penalty0
+  855--858, 2005.
+\newblock \doi{10.1016/j.jsg.2004.12.004}.
+\newblock URL \url{https://doi.org/10.1016/j.jsg.2004.12.004}.
 
 \bibitem[Fischler and Bolles(1981)]{fischler1981ransac}
 Martin~A. Fischler and Robert~C. Bolles.
@@ -69,14 +86,6 @@ Charles~R. Harris, K.~Jarrod Millman, St{\'e}fan~J. van~der Walt, Remi Gommers,
 \newblock {Osservatorio Vesuviano -- Portale GOSSIP}.
 \newblock \url{https://terremoti.ov.ingv.it/gossip/}.
 
-\bibitem[Jain et~al.(1999)Jain, Murty, and Flynn]{jain1999clustering}
-Anil~K. Jain, M.~Narasimha Murty, and Patrick~J. Flynn.
-\newblock {Data Clustering: A Review}.
-\newblock \emph{ACM Computing Surveys}, 31\penalty0 (3):\penalty0 264--323,
-  1999.
-\newblock \doi{10.1145/331499.331504}.
-\newblock URL \url{https://doi.org/10.1145/331499.331504}.
-
 \bibitem[Lloyd(1982)]{lloyd1982kmeans}
 Stuart~P. Lloyd.
 \newblock {Least Squares Quantization in PCM}.
@@ -84,6 +93,13 @@ Stuart~P. Lloyd.
   (2):\penalty0 129--137, 1982.
 \newblock \doi{10.1109/TIT.1982.1056489}.
 \newblock URL \url{https://doi.org/10.1109/TIT.1982.1056489}.
+
+\bibitem[Mousavi and Beroza(2022)]{mousavi2022deep}
+S.~Mostafa Mousavi and Gregory~C. Beroza.
+\newblock {Deep-learning seismology}.
+\newblock \emph{Science}, 377\penalty0 (6607):\penalty0 eabm4470, 2022.
+\newblock \doi{10.1126/science.abm4470}.
+\newblock URL \url{https://doi.org/10.1126/science.abm4470}.
 
 \bibitem[{OpenJS Foundation}()]{electron}
 {OpenJS Foundation}.
@@ -146,6 +162,7 @@ Peter~M. Shearer.
 \newblock \emph{{Introduction to Seismology}}.
 \newblock Cambridge University Press, 3rd edition, 2019.
 \newblock \doi{10.1017/9781316877111}.
+\newblock URL \url{https://doi.org/10.1017/9781316877111}.
 
 \bibitem[Sirokov()]{pywebview}
 Roman Sirokov.
@@ -160,11 +177,5 @@ John~P. Snyder.
   Printing Office, 1987.
 \newblock \doi{10.3133/pp1395}.
 \newblock URL \url{https://doi.org/10.3133/pp1395}.
-
-\bibitem[Tan et~al.(2018)Tan, Steinbach, Karpatne, and
-  Kumar]{tan2018datamining}
-Pang-Ning Tan, Michael Steinbach, Anuj Karpatne, and Vipin Kumar.
-\newblock \emph{{Introduction to Data Mining}}.
-\newblock Pearson, 2nd edition, 2018.
 
 \end{thebibliography}

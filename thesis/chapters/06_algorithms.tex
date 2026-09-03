@@ -11,7 +11,7 @@ This chapter formalises the algorithms used in Seismic Viewer's analytical engin
 \label{sec:projection}
 \label{sec:clustering-methods}
 
-\bluerevised{To compute distances for spatial clustering, spherical coordinates ($\lambda, \phi$) are converted into a local Cartesian coordinate system in kilometres $(x, y, z)_\text{km}$ centered at the dataset mean $(\lambda_0, \phi_0)$. This projection \cite{snyder1987map} is defined as:}
+To compute distances for spatial clustering, spherical coordinates ($\lambda, \phi$) are converted into a local Cartesian coordinate system in kilometres $(x, y, z)_\text{km}$ centered at the dataset mean $(\lambda_0, \phi_0)$. This projection \cite{snyder1987map} is defined as:
 \begin{equation}
     x = (\lambda - \lambda_0) \cdot K \cos(\phi_0), \quad
     y = (\phi - \phi_0) \cdot K, \quad
@@ -25,7 +25,7 @@ where $K = 111.32$~km/° represents the average length of one degree of latitude
 \label{sec:kmeans-impl}
 \label{sec:cylinder-clustering}
 
-Seismic Viewer implements three complementary clustering paradigms, building on standard data mining techniques \cite{tan2018datamining} and provided by the scikit-learn library \cite{pedregosa2011sklearn} or developed as custom extensions:
+Seismic Viewer implements three complementary clustering paradigms, building on machine learning techniques for seismic catalog analysis \cite{bergen2019machine} and provided by the scikit-learn library \cite{pedregosa2011sklearn} or developed as custom extensions:
 \begin{enumerate}
     \item \textbf{DBSCAN}: The density-based spatial clustering algorithm \cite{ester1996dbscan} (\texttt{DBSCAN}) isolates high-density seismogenic structures according to neighbourhood radius $\varepsilon_\text{km} = \varepsilon_\text{m}/1000$ and \texttt{MinSamples}. Points lacking sufficient density reachability are marked as noise (label $-1$).
     \item \textbf{MiniBatchKMeans}: For centroid partitioning, the MiniBatchKMeans variant \cite{lloyd1982kmeans} optimises $K$ clusters across random data subsets ($b=1024$), reducing iteration complexity from $O(NK)$ to $O(bK)$. To prevent outlier inclusion, a post-clustering distance filter reclassifies points exceeding $d_\text{max}$ from their centroid as noise:
@@ -62,41 +62,41 @@ if method == 'kmeans' and max_dist > 0:
 \section{Automatic Parameter Tuning}
 \label{sec:auto-tuning}
 
-\bluerevised{Parameter tuning is executed during \textit{Subcluster Analysis} to estimate parameters for unlocked clusters based on their spatial distribution. The method is based on the Kneedle algorithm \cite{satopaa2011kneedle}, which detects the point of maximum curvature in a sorted distance or inertia curve.}
+Parameter tuning is executed during \textit{Subcluster Analysis} to estimate parameters for unlocked clusters based on their spatial distribution. The method is based on the Kneedle algorithm \cite{satopaa2011kneedle}, which detects the point of maximum curvature in a sorted distance or inertia curve.
 
 \paragraph{DBSCAN Auto-$\varepsilon$.}
-\bluerevised{Density-based clustering depends on two parameters: the search radius $\varepsilon$ and the minimum number of points $k = \text{MinSamples}$. Because these parameters depend on each other, the analytical engine determines both automatically. First, the minimum sample threshold is computed from the dataset size $N$ as $k = \max(3, \lfloor \ln N \rfloor)$, allowing the density requirement to adapt to the data volume. Next, using a nearest neighbor search, the algorithm calculates the distance $d_i^{(k)}$ from each earthquake to its $k$-th closest neighbor. Sorting these distances in ascending order yields the $k$-distance curve, denoted as points $\mathbf{p}_i = (i, d_i^{(k)})$ for $i = 0, \dots, N-1$.}
+Density-based clustering depends on two parameters: the search radius $\varepsilon$ and the minimum number of points $k = \text{MinSamples}$. Because these parameters depend on each other, the analytical engine determines both automatically. First, the minimum sample threshold is computed from the dataset size $N$ as $k = \max(3, \lfloor \ln N \rfloor)$, allowing the density requirement to adapt to the data volume. Next, using a nearest neighbor search, the algorithm calculates the distance $d_i^{(k)}$ from each earthquake to its $k$-th closest neighbor. Sorting these distances in ascending order yields the $k$-distance curve, denoted as points $\mathbf{p}_i = (i, d_i^{(k)})$ for $i = 0, \dots, N-1$.
 
-\bluerevised{In spatial clustering theory, points belonging to seismic clusters exhibit lower distances, whereas boundary events and noise cause the curve to rise. The search radius $\varepsilon^*$ corresponds to the knee point of this curve, which marks the transition between cluster density and noise. To identify this point, the system constructs a line between the first point $\mathbf{p}_0 = (0, d_0^{(k)})$ and the last point $\mathbf{p}_{N-1} = (N-1, d_{N-1}^{(k)})$, defining the direction vector $\mathbf{v} = \mathbf{p}_{N-1} - \mathbf{p}_0$. The algorithm calculates the distance from each curve point $\mathbf{p}_i$ to the line and selects the index $i^*$ that maximizes this distance:}
+In spatial clustering theory, points belonging to seismic clusters exhibit lower distances, whereas boundary events and noise cause the curve to rise. The search radius $\varepsilon^*$ corresponds to the knee point of this curve, which marks the transition between cluster density and noise. To identify this point, the system constructs a line between the first point $\mathbf{p}_0 = (0, d_0^{(k)})$ and the last point $\mathbf{p}_{N-1} = (N-1, d_{N-1}^{(k)})$, defining the direction vector $\mathbf{v} = \mathbf{p}_{N-1} - \mathbf{p}_0$. The algorithm calculates the distance from each curve point $\mathbf{p}_i$ to the line and selects the index $i^*$ that maximizes this distance:
 \begin{equation}
-    \bluerevised{i^* = \arg\max_{0 \le i < N} \left\| (\mathbf{p}_i - \mathbf{p}_0) - \left( \frac{(\mathbf{p}_i - \mathbf{p}_0) \cdot \mathbf{v}}{\|\mathbf{v}\|^2} \right) \mathbf{v} \right\|}
+    i^* = \arg\max_{0 \le i < N} \left\| (\mathbf{p}_i - \mathbf{p}_0) - \left( \frac{(\mathbf{p}_i - \mathbf{p}_0) \cdot \mathbf{v}}{\|\mathbf{v}\|^2} \right) \mathbf{v} \right\|
     \label{eq:max-curvature}
 \end{equation}
-\bluerevised{The search radius is assigned as $\varepsilon^* = d_{i^*}^{(k)}$, providing a parameter that separates earthquake clusters from background noise.}
+The search radius is assigned as $\varepsilon^* = d_{i^*}^{(k)}$, providing a parameter that separates earthquake clusters from background noise.
 
 \paragraph{MiniBatchKMeans Auto-$K$.}
-\bluerevised{For centroid-based clustering, finding the number of clusters $K$ requires balancing group compactness against model complexity. The analytical engine evaluates values from $K=2$ to $K=\min(10, N)$, computing the clustering inertia $J(K) = \sum_{j=1}^K \sum_{\mathbf{x} \in C_j} \|\mathbf{x} - \bm{\mu}_j\|^2$ for each configuration. Plotting $J(K)$ against $K$ produces a decreasing curve. The cluster count $K^*$ is identified by applying the projection method described in \Cref{eq:max-curvature} to the inertia curve, locating the elbow point where adding clusters yields diminishing improvements in compactness.}
+For centroid-based clustering, finding the number of clusters $K$ requires balancing group compactness against model complexity. The analytical engine evaluates values from $K=2$ to $K=\min(10, N)$, computing the clustering inertia $J(K) = \sum_{j=1}^K \sum_{\mathbf{x} \in C_j} \|\mathbf{x} - \bm{\mu}_j\|^2$ for each configuration. Plotting $J(K)$ against $K$ produces a decreasing curve. The cluster count $K^*$ is identified by applying the projection method described in \Cref{eq:max-curvature} to the inertia curve, locating the elbow point where adding clusters yields diminishing improvements in compactness.
 
 \section{Structural Plane Fitting and Geometric Synthesis}
 \label{sec:ransac-svd}
 \label{sec:convex-hull}
 
-\bluerevised{To extract planar fault structures from earthquake distributions, Seismic Viewer uses a two-stage process combining Random Sample Consensus (RANSAC) \cite{fischler1981ransac} and Singular Value Decomposition (SVD) \cite{shakarji1998least}. RANSAC isolates points belonging to a plane while removing noise. SVD then computes the best-fitting plane across the identified inliers and evaluates the planarity of the structure.}
+To extract planar fault structures from earthquake distributions, Seismic Viewer uses a two-stage process combining Random Sample Consensus (RANSAC) \cite{fischler1981ransac} and Singular Value Decomposition (SVD) \cite{shakarji1998least}. RANSAC isolates points belonging to a plane while removing noise. SVD then computes the best-fitting plane across the identified inliers and evaluates the planarity of the structure.
 
 \subsection{RANSAC Robust Plane Estimation}
 
-\bluerevised{Seismic earthquakes rarely form perfect planes and contain background events. Fitting a plane directly using least squares is skewed by outliers. RANSAC addresses this through an iterative consensus search. In each step, the algorithm samples three points $\{P_1, P_2, P_3\}$ and calculates a candidate normal vector:}
+Seismic earthquakes rarely form perfect planes and contain background events. Fitting a plane directly using least squares is skewed by outliers. RANSAC addresses this through an iterative consensus search. In each step, the algorithm samples three points $\{P_1, P_2, P_3\}$ and calculates a candidate normal vector:
 \begin{equation}
     \vec{n}_\text{cand} = \frac{(P_2 - P_1) \times (P_3 - P_1)}{\|(P_2 - P_1) \times (P_3 - P_1)\|}
     \label{eq:ransac-normal}
 \end{equation}
-\bluerevised{The algorithm counts how many points in the cluster lie within a distance threshold of this candidate plane. Points meeting this condition are classified as inliers. This process is repeated across iterations, and the candidate model with the largest inlier count and lowest residual error is selected as the consensus set.}
+The algorithm counts how many points in the cluster lie within a distance threshold of this candidate plane. Points meeting this condition are classified as inliers. This process is repeated across iterations, and the candidate model with the largest inlier count and lowest residual error is selected as the consensus set.
 
 \subsection{SVD Refinement and Strike/Dip Mechanics}
 
-\bluerevised{Although RANSAC removes outliers and isolates the inlier set, the candidate plane itself is defined by three sample points. To obtain the plane that accounts for all identified inliers, the engine applies Singular Value Decomposition (SVD).}
+Although RANSAC removes outliers and isolates the inlier set, the candidate plane itself is defined by three sample points. To obtain the plane that accounts for all identified inliers, the engine applies Singular Value Decomposition (SVD).
 
-\bluerevised{The software computes the centroid $(\bar{x}, \bar{y}, \bar{z})$ of all $n$ inliers and centers the coordinates at the origin, constructing the data matrix $A \in \mathbb{R}^{n \times 3}$:}
+The software computes the centroid $(\bar{x}, \bar{y}, \bar{z})$ of all $n$ inliers and centers the coordinates at the origin, constructing the data matrix $A \in \mathbb{R}^{n \times 3}$:
 \begin{equation}
     A = \begin{bmatrix}
         x_1 - \bar{x} & y_1 - \bar{y} & z_1 - \bar{z} \\
@@ -106,22 +106,22 @@ if method == 'kmeans' and max_dist > 0:
     = U \Sigma V^T
     \label{eq:svd}
 \end{equation}
-\bluerevised{The decomposition factors $A$ into orthogonal vectors and singular values $\Sigma = \operatorname{diag}(\sigma_1, \sigma_2, \sigma_3)$, where $\sigma_1 \ge \sigma_2 \ge \sigma_3 \ge 0$. The singular vector corresponding to the smallest singular value $\sigma_3$ defines the normal vector $\vec{n}$ of the fitted plane.}
+The decomposition factors $A$ into orthogonal vectors and singular values $\Sigma = \operatorname{diag}(\sigma_1, \sigma_2, \sigma_3)$, where $\sigma_1 \ge \sigma_2 \ge \sigma_3 \ge 0$. The singular vector corresponding to the smallest singular value $\sigma_3$ defines the normal vector $\vec{n}$ of the fitted plane.
 
-\bluerevised{In addition to defining the normal vector, the singular values describe the geometric shape of the cluster. The engine calculates a Planarity metric $P$:}
+Beyond determining the plane orientation, the singular values provide direct insight into the geometric shape of the cluster. Following standard 3D point-cloud dimensionality metrics used in structural geology \cite{fernandez2005plane}, the analytical engine evaluates a normalized Planarity index $P$:
 \begin{equation}
     P = \frac{\sigma_2 - \sigma_3}{\sigma_1}
     \label{eq:planarity}
 \end{equation}
-\bluerevised{A high planarity score indicates a planar fault segment, whereas a low score indicates a dispersed group of events.}
+A high planarity score ($P \to 1$) indicates a planar fault segment, whereas a low score ($P \to 0$) denotes an isotropic or linear dispersion of seismic hypocenters.
 
-\bluerevised{To translate the normal vector $\vec{n} = [n_x, n_y, n_z]$ into standard geological angles, the vector is oriented downwards ($n_z \ge 0$). Trigonometric formulas then compute the orientation of the fault:}
+To translate the normal vector $\vec{n} = [n_x, n_y, n_z]$ into standard geological angles, the vector is oriented downwards ($n_z \ge 0$). Trigonometric formulas then compute the orientation of the fault:
 \begin{align}
     \text{Dip}: \quad & \delta = \arccos(n_z) \cdot \frac{180^\circ}{\pi} \label{eq:dip} \\
     \text{Dip Direction}: \quad & \theta_\text{DD} = \text{atan2}(n_x, n_y) \bmod 360^\circ \label{eq:dip-dir} \\
     \text{Strike}: \quad & \phi_s = (\theta_\text{DD} - 90^\circ) \bmod 360^\circ \label{eq:strike}
 \end{align}
-\bluerevised{The Dip measures the tilt angle relative to the surface, the Dip Direction indicates the direction of the downward slope, and the Strike defines the orientation of the horizontal fault line. For 3D visualization, planes are rendered as triangulated grids along orthogonal basis vectors $\vec{u}, \vec{v}$:}
+The Dip measures the tilt angle relative to the surface, the Dip Direction indicates the direction of the downward slope, and the Strike defines the orientation of the horizontal fault line. For 3D visualization, planes are rendered as triangulated grids along orthogonal basis vectors $\vec{u}, \vec{v}$:
 \begin{equation}
     \vec{u} = \frac{\vec{n} \times \hat{z}}{\|\vec{n} \times \hat{z}\|}, \quad \vec{v} = \frac{\vec{n} \times \vec{u}}{\|\vec{n} \times \vec{u}\|}
     \label{eq:basis-vectors}
@@ -131,31 +131,31 @@ if method == 'kmeans' and max_dist > 0:
 \label{sec:label-matching}
 \label{sec:parallel}
 
-\bluerevised{Computing structural models across temporal sequences requires visual consistency and computational efficiency. This section describes the temporal tracking mechanism, the parallel execution model, and the computational complexity of the analytical engine.}
+Computing structural models across temporal sequences requires visual consistency and computational efficiency. This section describes the temporal tracking mechanism, the parallel execution model, and the computational complexity of the analytical engine.
 
 \subsection{Temporal Stability via Global Label Matching}
 \enlargethispage{4\baselineskip}
 
-\bluerevised{When running unsupervised clustering algorithms frame by frame during 4D animations, each time step evaluates an independent subset of seismic events. Because unsupervised algorithms assign cluster labels without historical context, the label of a fault structure can change between consecutive frames. In an animation, this causes color changes (known as color flickering), which prevents tracking how faults evolve over time.}
+When running unsupervised clustering algorithms frame by frame during 4D animations, each time step evaluates an independent subset of seismic events. Because unsupervised algorithms assign cluster labels without historical context, the label of a fault structure can change between consecutive frames. In an animation, this causes color changes (known as color flickering), which prevents tracking how faults evolve over time.
 
-\bluerevised{To maintain color continuity across frames, the engine uses a label matching algorithm. The system maintains an array recording the most recent label assigned to each earthquake. For every cluster detected in a new frame, the algorithm inspects the previous labels of its events and applies majority voting:}
+To maintain color continuity across frames, the engine uses a label matching algorithm. The system maintains an array recording the most recent label assigned to each earthquake. For every cluster detected in a new frame, the algorithm inspects the previous labels of its events and applies majority voting:
 \begin{equation}
-    \bluerevised{L_\text{assigned} = \arg\max_k \sum_{j \in S_c} \mathbb{I}(\text{global\_map}[j] = k)}
+    L_\text{assigned} = \arg\max_k \sum_{j \in S_c} \mathbb{I}(\text{global\_map}[j] = k)
     \label{eq:majority-voting}
 \end{equation}
-\bluerevised{where $S_c$ is a sample of indices from the cluster (bounded to 200 events), and $\mathbb{I}$ is the indicator function. If a cluster contains only new events without previous history, the algorithm assigns a new label. The assigned label is applied to color the earthquakes in the active frame and saved in the global array so that subsequent frames reuse the same cluster identifier.}
+where $S_c$ is a sample of indices from the cluster (bounded to 200 events), and $\mathbb{I}$ is the indicator function. If a cluster contains only new events without previous history, the algorithm assigns a new label. The assigned label is applied to color the earthquakes in the active frame and saved in the global array so that subsequent frames reuse the same cluster identifier.
 
 \subsection{Parallel Execution Architecture}
 
-\bluerevised{Calculating RANSAC inliers and SVD planes across animation frames involves separate mathematical steps for each time window. To prevent these calculations from slowing down the user interface, the backend distributes frame tasks across CPU cores using a process pool. The coordinate array is stored once in worker memory at startup, allowing worker processes to read coordinates directly without making copies.}
+Calculating RANSAC inliers and SVD planes across animation frames involves separate mathematical steps for each time window. To prevent these calculations from slowing down the user interface, the backend distributes frame tasks across CPU cores using a process pool. The coordinate array is stored once in worker memory at startup, allowing worker processes to read coordinates directly without making copies.
 
 \subsection{Asymptotic Complexity Analysis}
 
-\bluerevised{\Cref{tab:complexity} summarizes the time and space complexity of each algorithm in the pipeline. Spatial neighbor searches in DBSCAN use a KD-Tree index to reduce query complexity to $O(N \log N)$, while MiniBatchKMeans scales with mini-batch size rather than full dataset dimensions. Plane fitting scales with the number of inliers per cluster, and label matching remains bounded by sampling.}
+\Cref{tab:complexity} summarizes the time and space complexity of each algorithm in the pipeline. Spatial neighbor searches in DBSCAN use a KD-Tree index to reduce query complexity to $O(N \log N)$, while MiniBatchKMeans scales with mini-batch size rather than full dataset dimensions. Plane fitting scales with the number of inliers per cluster, and label matching remains bounded by sampling.
 
 \begin{table}[H]
 \centering
-\caption{\bluerevised{Asymptotic time and space complexity of the analytical methods.}}
+\caption{Asymptotic time and space complexity of the analytical methods.}
 \label{tab:complexity}
 \scriptsize
 \setlength{\tabcolsep}{2.5pt}

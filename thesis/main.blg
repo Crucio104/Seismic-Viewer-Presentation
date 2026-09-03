@@ -1,12 +1,8 @@
-This is BibTeX, Version 0.99e (TeX Live 2026/Debian)
+This is BibTeX, Version 0.99d (TeX Live 2025)
 Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
 The top-level auxiliary file: main.aux
 The style file: plainnat.bst
 Database file #1: references.bib
-Repeated entry---line 48 of file references.bib
- : @book{shearer2019introduction
- :                              ,
-I'm skipping whatever remains of this entry
 Warning--empty year in uvicorn
 Warning--empty year in ingv
 Warning--empty year in electron
@@ -15,45 +11,45 @@ Warning--empty year in plotlyjs
 Warning--empty year in fastapi
 Warning--empty year in smopy
 Warning--empty year in pywebview
-You've used 21 entries,
+You've used 22 entries,
             2773 wiz_defined-function locations,
-            732 strings with 9554 characters,
-and the built_in function-call counts, 11076 in all, are:
-= -- 957
-> -- 813
-< -- 15
-+ -- 279
+            748 strings with 9965 characters,
+and the built_in function-call counts, 11570 in all, are:
+= -- 1016
+> -- 814
+< -- 17
++ -- 280
 - -- 258
-* -- 926
-:= -- 1762
-add.period$ -- 87
-call.type$ -- 21
-change.case$ -- 148
-chr.to.int$ -- 21
-cite$ -- 50
-duplicate$ -- 412
-empty$ -- 782
-format.name$ -- 281
-if$ -- 2274
+* -- 966
+:= -- 1837
+add.period$ -- 95
+call.type$ -- 22
+change.case$ -- 151
+chr.to.int$ -- 22
+cite$ -- 52
+duplicate$ -- 431
+empty$ -- 831
+format.name$ -- 284
+if$ -- 2382
 int.to.chr$ -- 1
 int.to.str$ -- 1
 missing$ -- 16
-newline$ -- 134
-num.names$ -- 84
-pop$ -- 322
+newline$ -- 144
+num.names$ -- 88
+pop$ -- 318
 preamble$ -- 1
-purify$ -- 128
+purify$ -- 130
 quote$ -- 0
-skip$ -- 354
+skip$ -- 369
 stack$ -- 0
-substring$ -- 290
-swap$ -- 41
+substring$ -- 340
+swap$ -- 42
 text.length$ -- 2
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 216
+type$ -- 232
 warning$ -- 8
-while$ -- 84
+while$ -- 89
 width$ -- 0
-write$ -- 308
-(There was 1 error message)
+write$ -- 331
+(There were 8 warnings)

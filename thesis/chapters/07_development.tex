@@ -33,22 +33,22 @@ The project evolved through continuous iterations. As depicted in \Cref{fig:time
 \label{fig:timeline}
 \end{figure}
 
-\bluerevised{The software was built using an iterative workflow, with features prototyped and refined through continuous feedback. As the application expanded, the codebase was refactored twice: first by splitting a single script into a modular package, and later by introducing FastAPI and WebSockets for data streaming.}
+The software was built using an iterative workflow, with features prototyped and refined through continuous feedback. As the application expanded, the codebase was refactored twice: first by splitting a single script into a modular package, and later by introducing FastAPI and WebSockets for data streaming.
 
 \section{Key Technical Challenges and Solutions}
 \label{sec:challenges}
 
-\bluerevised{Developing a desktop seismological analysis application combining a Python backend with a browser rendering engine presented software engineering challenges. This section analyzes the main technical bottlenecks encountered during development, the architectural solutions designed to solve them, and their impact on system stability and responsiveness.}
+Developing a desktop seismological analysis application combining a Python backend with a browser rendering engine presented software engineering challenges. This section analyzes the main technical bottlenecks encountered during development, the architectural solutions designed to solve them, and their impact on system stability and responsiveness.
 
 \subsection{Rendering Performance and UX Optimisation}
 \label{sec:challenge-camera}
 \label{sec:challenge-binary}
 \label{sec:challenge-webgl}
 
-\bluerevised{The graphical interface must handle large point clouds with interactive frame rates while maintaining a smooth user experience.}
+The graphical interface must handle large point clouds with interactive frame rates while maintaining a smooth user experience.
 
 \paragraph{Camera State Preservation across Dynamic Re-clustering.}
-\bluerevised{In early prototypes, interactive operations such as re-clustering, parameter adjustments, or depth filtering triggered a complete view reset. Because the Plotly.js engine re-evaluates the 3D scene when receiving updated traces, the virtual camera automatically snapped back to default coordinates. This behavior made it difficult for researchers who had aligned the view with specific fault planes. The issue was resolved by adding state tracking using the \texttt{uirevision} attribute within the figure layout (\Cref{lst:uirevision}). By maintaining \texttt{uirevision='constant'} across updates, Plotly preserves user orientation, elevation, zoom level, and center of rotation.}
+In early prototypes, interactive operations such as re-clustering, parameter adjustments, or depth filtering triggered a complete view reset. Because the Plotly.js engine re-evaluates the 3D scene when receiving updated traces, the virtual camera automatically snapped back to default coordinates. This behavior made it difficult for researchers who had aligned the view with specific fault planes. The issue was resolved by adding state tracking using the \texttt{uirevision} attribute within the figure layout (\Cref{lst:uirevision}). By maintaining \texttt{uirevision='constant'} across updates, Plotly preserves user orientation, elevation, zoom level, and center of rotation.
 
 \begin{lstlisting}[language=Python, caption={Camera state persistence via \texttt{uirevision}.}, label={lst:uirevision}]
 fig.update_layout(
@@ -61,10 +61,10 @@ fig.update_layout(
 \end{lstlisting}
 
 \paragraph{JSON Deserialization Bottlenecks and Binary Streaming.}
-\bluerevised{Standard web communication relies on JSON text formatting for data exchange. However, transferring dense earthquake catalogs with many events exposed performance limits. In Python, converting large numerical arrays into JSON text created CPU overhead. In addition, the browser engine paused while parsing large JSON strings, dropping the frame rate. To remove this bottleneck, the architecture was redesigned around a raw Float32 binary streaming protocol (\Cref{sec:binary-protocol}). Coordinates, cluster labels, and metadata are packed into a continuous binary buffer on the backend and sent directly to the client. On the frontend, the payload is read into a native \texttt{Float32Array} typed array. This shift reduced data transfer size by about 80\% and significantly lowered loading times, maintaining smooth interaction.}
+Standard web communication relies on JSON text formatting for data exchange. However, transferring dense earthquake catalogs with many events exposed performance limits. In Python, converting large numerical arrays into JSON text created CPU overhead. In addition, the browser engine paused while parsing large JSON strings, dropping the frame rate. To remove this bottleneck, the architecture was redesigned around a raw Float32 binary streaming protocol (\Cref{sec:binary-protocol}). Coordinates, cluster labels, and metadata are packed into a continuous binary buffer on the backend and sent directly to the client. On the frontend, the payload is read into a native \texttt{Float32Array} typed array. This shift reduced data transfer size by about 80\% and significantly lowered loading times, maintaining smooth interaction.
 
 \paragraph{WebGL Context Lifecycle and GPU Resource Management.}
-\bluerevised{In an embedded web view, frequent transitions between analytical views (2D maps, 3D volumes, and 4D animations) can exhaust the available WebGL contexts. Operating systems limit concurrent WebGL instances per process (typically between 8 and 16 contexts). When view switches open new canvas elements without closing previous ones, the browser engine encounters a context lost error and stops rendering. To ensure proper GPU memory management, an explicit cleanup sequence was implemented. Before navigating away from an active view, the frontend calls \texttt{Plotly.purge()} on existing chart elements, freeing shader programs and buffers from GPU memory. Furthermore, 3D markers are drawn as point sprites facing the camera rather than complex 3D shapes, keeping GPU memory use below 150~MB.}
+In an embedded web view, frequent transitions between analytical views (2D maps, 3D volumes, and 4D animations) can exhaust the available WebGL contexts. Operating systems limit concurrent WebGL instances per process (typically between 8 and 16 contexts). When view switches open new canvas elements without closing previous ones, the browser engine encounters a context lost error and stops rendering. To ensure proper GPU memory management, an explicit cleanup sequence was implemented. Before navigating away from an active view, the frontend calls \texttt{Plotly.purge()} on existing chart elements, freeing shader programs and buffers from GPU memory. Furthermore, 3D markers are drawn as point sprites facing the camera rather than complex 3D shapes, keeping GPU memory use below 150~MB.
 
 \subsection{Backend Architecture, Concurrency, and Algorithmic Resilience}
 \label{sec:challenge-concurrency}
@@ -73,40 +73,40 @@ fig.update_layout(
 \label{sec:challenge-ingv}
 \label{sec:challenge-memory}
 
-\bluerevised{Managing mathematical computations, data streaming, and external web APIs within a unified desktop application required solving concurrency and stability challenges.}
+Managing mathematical computations, data streaming, and external web APIs within a unified desktop application required solving concurrency and stability challenges.
 
 \paragraph{Native GUI Event Loop and Asynchronous Backend Coexistence.}
-\bluerevised{A central engineering challenge in \texttt{pywebview}-based systems is the coexistence of the native window loop and the asynchronous backend server. Native GUI toolkits demand control over the main operating system thread to process window events and user input. Simultaneously, the application backend relies on FastAPI running an asynchronous event loop for WebSockets and REST endpoints. Running both loops on the same thread causes deadlocks. To resolve this, the startup process was decoupled: the FastAPI server runs inside a background daemon thread, while \texttt{pywebview.start()} controls the main thread. Communication between threads is coordinated through thread-safe dispatchers, ensuring that backend calculations do not block the user interface.}
+A central engineering challenge in \texttt{pywebview}-based systems is the coexistence of the native window loop and the asynchronous backend server. Native GUI toolkits demand control over the main operating system thread to process window events and user input. Simultaneously, the application backend relies on FastAPI running an asynchronous event loop for WebSockets and REST endpoints. Running both loops on the same thread causes deadlocks. To resolve this, the startup process was decoupled: the FastAPI server runs inside a background daemon thread, while \texttt{pywebview.start()} controls the main thread. Communication between threads is coordinated through thread-safe dispatchers, ensuring that backend calculations do not block the user interface.
 
 \paragraph{Chromatic Stability in 4D Spatiotemporal Clustering.}
-\bluerevised{When unsupervised clustering algorithms (such as DBSCAN or MiniBatchKMeans) run independently on consecutive time windows during 4D animations, they assign cluster labels arbitrarily without memory of previous frames. Consequently, a single fault structure could receive different labels across frames. In an animation, this caused rapid color flickering, making it difficult to track fault propagation over time. This issue was solved by designing the Global Label Matching algorithm (\Cref{sec:label-matching}). By maintaining a global label registry and applying majority voting across active cluster members (\Cref{eq:majority-voting}), the engine maps local labels to consistent global identifiers, ensuring color persistence across the entire seismic sequence.}
+When unsupervised clustering algorithms (such as DBSCAN or MiniBatchKMeans) run independently on consecutive time windows during 4D animations, they assign cluster labels arbitrarily without memory of previous frames. Consequently, a single fault structure could receive different labels across frames. In an animation, this caused rapid color flickering, making it difficult to track fault propagation over time. This issue was solved by designing the Global Label Matching algorithm (\Cref{sec:label-matching}). By maintaining a global label registry and applying majority voting across active cluster members (\Cref{eq:majority-voting}), the engine maps local labels to consistent global identifiers, ensuring color persistence across the entire seismic sequence.
 
 \paragraph{Parallel Computation and Multiprocess Scaling.}
-\bluerevised{Computing RANSAC consensus inlier sets and SVD planar fits across hundreds of animation frames requires high computational effort. While Python multithreading is limited by an internal execution lock for numerical tasks, spawning standard multi-process pools introduces data copying overhead when passing coordinate arrays across processes. To reduce data duplication, the plane fitting engine uses a \texttt{ProcessPoolExecutor} with an initialization function. The coordinate array is sent once when the worker pool starts and remains stored in worker memory, preventing repeated data copies. The system then passes only index ranges to worker tasks. This approach avoids the lock and reduces communication cost, allowing linear scaling across CPU cores during animation processing.}
+Computing RANSAC consensus inlier sets and SVD planar fits across hundreds of animation frames requires high computational effort. While Python multithreading is limited by an internal execution lock for numerical tasks, spawning standard multi-process pools introduces data copying overhead when passing coordinate arrays across processes. To reduce data duplication, the plane fitting engine uses a \texttt{ProcessPoolExecutor} with an initialization function. The coordinate array is sent once when the worker pool starts and remains stored in worker memory, preventing repeated data copies. The system then passes only index ranges to worker tasks. This approach avoids the lock and reduces communication cost, allowing linear scaling across CPU cores during animation processing.
 
 \paragraph{Resilience against Remote INGV API Failures.}
-\bluerevised{The integrated INGV GOSSIP web service provides a REST API to query historical earthquake catalogs. However, querying multi-year seismic sequences can encounter timeouts and rate limits. In naive implementations, a single network drop would crash the entire import process. To ensure system resilience, the online importer module (\texttt{core/online\_importer.py}) divides historical queries into separate yearly requests protected by error handlers. If a specific year encounters a timeout or invalid response, the importer logs a warning, records the missing interval, and continues fetching subsequent years. The user receives a summary of imported records alongside any skipped intervals, preventing data loss without halting execution.}
+The integrated INGV GOSSIP web service provides a REST API to query historical earthquake catalogs. However, querying multi-year seismic sequences can encounter timeouts and rate limits. In naive implementations, a single network drop would crash the entire import process. To ensure system resilience, the online importer module (\texttt{core/online\_importer.py}) divides historical queries into separate yearly requests protected by error handlers. If a specific year encounters a timeout or invalid response, the importer logs a warning, records the missing interval, and continues fetching subsequent years. The user receives a summary of imported records alongside any skipped intervals, preventing data loss without halting execution.
 
 \paragraph{Session Memory Bounding and FIFO Store Eviction.}
-\bluerevised{During long analytical sessions, researchers frequently generate alternative 3D views, parameter variations, and sub-cluster models. Storing all generated figures and datasets in memory caused steady memory growth, which could slow down the system. To enforce a bounded memory footprint, a First-In, First-Out (FIFO) eviction policy was implemented. The engine limits \texttt{\_data\_store} to a maximum of 30 active session datasets and \texttt{\_html\_store} to 15 pre-rendered views. When capacity is reached, the oldest session objects are removed and reclaimed by memory management. The system also includes a \texttt{strip\_data()} function to remove coordinate arrays from stored HTML views, reducing memory use when needed. As a result, total application memory usage remains below 500~MB even under continuous usage.}
+During long analytical sessions, researchers frequently generate alternative 3D views, parameter variations, and sub-cluster models. Storing all generated figures and datasets in memory caused steady memory growth, which could slow down the system. To enforce a bounded memory footprint, a First-In, First-Out (FIFO) eviction policy was implemented. The engine limits \texttt{\_data\_store} to a maximum of 30 active session datasets and \texttt{\_html\_store} to 15 pre-rendered views. When capacity is reached, the oldest session objects are removed and reclaimed by memory management. The system also includes a \texttt{strip\_data()} function to remove coordinate arrays from stored HTML views, reducing memory use when needed. As a result, total application memory usage remains below 500~MB even under continuous usage.
 
 \section{Code Quality and Architecture}
 \label{sec:code-quality}
 
-\bluerevised{The software is organized into a modular structure. The backend is written in Python across 16 modules, while the frontend is built with JavaScript, HTML, and CSS. Data flows from the entry point (\texttt{app.py}), through the bridge (\texttt{core/bridge.py}) and the engine package (\texttt{core/engine/}), to the utility modules (\texttt{loader.py}, \texttt{geo\_utils.py}). The engine package contains three modules: \texttt{analysis.py} (clustering and plane fitting), \texttt{orchestrator.py} (computation across animation frames), and \texttt{visualization.py} (figure generation for the four display modes).}
+The software is organized into a modular structure. The backend is written in Python across 16 modules, while the frontend is built with JavaScript, HTML, and CSS. Data flows from the entry point (\texttt{app.py}), through the bridge (\texttt{core/\allowbreak bridge.py}) and the analytical engine package (\texttt{core/\allowbreak engine/}), to the utility modules (\texttt{loader.py}, \texttt{geo\_utils.py}). The engine package contains three primary modules: \texttt{analysis.py} (clustering and plane fitting), \texttt{orchestrator.py} (temporal frame orchestration), and \texttt{visualization.py} (rendering figure traces across all display modes).
 
-\bluerevised{A key aspect of the architectural design is the strict isolation of caching strategies. The system uses multiple caching layers operating at different levels: persistent disk caching with \texttt{pickle} for map tiles and terrain meshes, function-level caching with \texttt{lru\_cache} for frequent computations, and session-scoped stores (\texttt{\_data\_store} and \texttt{\_html\_store}) for active analytical workspaces. Keeping these caches separate prevents data conflicts.}
+A key aspect of the architectural design is the strict isolation of caching strategies. The system uses multiple caching layers operating at different levels: persistent disk caching with \texttt{pickle} for map tiles and terrain meshes, function-level caching with \texttt{lru\_cache} for frequent computations, and session-scoped stores (\texttt{\_data\_store} and \texttt{\_html\_store}) for active analytical workspaces. Keeping these caches separate prevents data conflicts.
 
 This modular organisation was not the original design. As discussed in \Cref{sec:timeline}, the codebase underwent two major refactoring cycles during the internship. The first split a single monolithic script into separate modules organised by responsibility, while the second introduced the FastAPI and WebSocket infrastructure to replace the original synchronous communication model. These refactoring efforts, though time-consuming, were essential for maintaining code quality as the application grew in complexity.
 
 \section{Validation and Quantitative Performance Assessment}
 \label{sec:validation}
 
-\bluerevised{The system was validated using INGV Campi Flegrei seismic datasets \cite{ingv} alongside synthetic benchmark catalogs. Testing confirmed that Seismic Viewer maintains fluid interaction and responsive frame rates on standard desktop hardware, even when rendering dense point clouds and multi-layer geophysical models.}
+The system was validated using INGV Campi Flegrei seismic datasets \cite{ingv} alongside synthetic benchmark catalogs. Testing confirmed that Seismic Viewer maintains fluid interaction and responsive frame rates on standard desktop hardware, even when rendering dense point clouds and multi-layer geophysical models.
 
 \subsection{Experimental Benchmarks: Serialization and Streaming}
 
-\bluerevised{To evaluate the Float32 binary protocol against JSON, benchmarks were run across multiple dataset scales. As reported in \Cref{tab:bench-serialization}, the Float32 format reduces payload size by about 80\% and significantly lowers decoding time, allowing fast data transfer even on large catalogs.}
+To evaluate the Float32 binary protocol against JSON, benchmarks were run across multiple dataset scales. As reported in \Cref{tab:bench-serialization}, the Float32 format reduces payload size by about 80\% and significantly lowers decoding time, allowing fast data transfer even on large catalogs.
 
 \begin{table}[htbp]
 \centering
@@ -114,7 +114,8 @@ This modular organisation was not the original design. As discussed in \Cref{sec
 \label{tab:bench-serialization}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
-\begin{tabularx}{\textwidth}{@{}r r r r r r@{}}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}rrrrrr@{}}
 \toprule
 \textbf{Events ($N$)} & \textbf{JSON Size} & \textbf{Float32 Size} & \textbf{Compression} & \textbf{JSON Parse} & \textbf{Float32 Parse} \\
 \midrule
@@ -123,12 +124,12 @@ This modular organisation was not the original design. As discussed in \Cref{sec
 30{,}000  & 2.80~MB  & 585.9~KB & 79.5\% & 24.1~ms & $<0.01$~ms \\
 50{,}000  & 4.66~MB  & 976.6~KB & 79.5\% & 40.9~ms & $<0.01$~ms \\
 \bottomrule
-\end{tabularx}
+\end{tabular*}
 \end{table}
 
 \subsection{Clustering Latency and Algorithmic Throughput}
 
-\bluerevised{Execution times for the three clustering methods were measured across catalog sizes. As shown in \Cref{tab:bench-clustering}, MiniBatchKMeans and Cylinder Partitioning execute rapidly across all tested scales, while DBSCAN exhibits higher computation time as dataset density increases.}
+Execution times for the three clustering methods were measured across catalog sizes. As shown in \Cref{tab:bench-clustering}, MiniBatchKMeans and Cylinder Partitioning execute rapidly across all tested scales, while DBSCAN exhibits higher computation time as dataset density increases.
 
 \begin{table}[htbp]
 \centering
@@ -152,7 +153,7 @@ This modular organisation was not the original design. As discussed in \Cref{sec
 
 Because the true position and orientation of underground faults cannot be directly observed, the plane fitting algorithms (RANSAC and SVD) were validated using synthetic datasets where the exact geometric structures were known. These datasets were generated by mathematically defining 3D planes of points at specific strike and dip angles, and subsequently introducing random Gaussian noise and scattered outliers to simulate realistic seismic measurement errors. 
 
-\bluerevised{As reported in \Cref{tab:bench-synthetic}, the two-stage RANSAC and SVD pipeline estimates plane orientations accurately, maintaining low angular errors for both dip and strike even under significant measurement noise and outlier contamination.}
+As reported in \Cref{tab:bench-synthetic}, the two-stage RANSAC and SVD pipeline estimates plane orientations accurately, maintaining low angular errors for both dip and strike even under significant measurement noise and outlier contamination.
 
 \begin{table}[htbp]
 \centering
@@ -174,5 +175,5 @@ Because the true position and orientation of underground faults cannot be direct
 
 In parallel, the global label matching algorithm (\Cref{sec:label-matching}) successfully eliminated temporal colour flickering across 4D animated cluster sequences while maintaining fast computation times, confirming its suitability for interactive exploration workflows.
 
-\bluerevised{These angular errors are small relative to the uncertainty inherent in real earthquake catalogs. Standard hypocentral location methods typically produce positional errors in the range of 50--200~m \cite{shearer2019introduction}, which correspond to angular uncertainties of several degrees when fitting planes to shallow fault zones. The errors reported in \Cref{tab:bench-synthetic} ($<0.6^\circ$ for noise up to 100~m and 30\% outliers) therefore fall within the precision that geophysical applications require, confirming that the RANSAC and SVD pipeline is suitable for fault characterisation at the scale of local seismic swarms.}
+These angular errors are small relative to the uncertainty inherent in real earthquake catalogs. Standard hypocentral location methods typically produce positional errors in the range of 50--200~m \cite{shearer2019introduction}, which correspond to angular uncertainties of several degrees when fitting planes to shallow fault zones. The errors reported in \Cref{tab:bench-synthetic} ($<0.6^\circ$ for noise up to 100~m and 30\% outliers) therefore fall within the precision that geophysical applications require, confirming that the RANSAC and SVD pipeline is suitable for fault characterisation at the scale of local seismic swarms.
 

@@ -8,16 +8,16 @@
 \section{Summary of Contributions}
 \label{sec:contributions}
 
-\bluerevised{The analysis in \Cref{sec:related-tools} highlighted a gap in seismological software: no accessible tool combined 3D rendering, time animations, clustering, and structural analysis. Seismic Viewer was developed to address this need across three key areas: software architecture, data visualization, and automated analysis.}
+The analysis in \Cref{sec:related-tools} highlighted a gap in seismological software: no accessible tool combined 3D rendering, time animations, clustering, and structural analysis. Seismic Viewer was developed to address this need across three key areas: software architecture, data visualization, and automated analysis.
 
 \vspace{0.8em}
-\bluerevised{\textbf{Software Architecture.} A key contribution is the dual-engine design that separates computation from presentation (\Cref{ch:architecture}). Coupling a \texttt{pywebview} \cite{pywebview} window with a local \texttt{FastAPI} \cite{fastapi} server provides desktop integration without high memory overhead, allowing the Python backend to calculate independently without freezing the interface. Additionally, the Float32 binary streaming protocol packs numerical arrays into continuous buffers, reducing payload size by $80\%$ compared to JSON and eliminating parsing delays during data transfer.}
+\textbf{Software Architecture.} A key contribution is the dual-engine design that separates computation from presentation (\Cref{ch:architecture}). Coupling a \texttt{pywebview} \cite{pywebview} window with a local \texttt{FastAPI} \cite{fastapi} server provides desktop integration without high memory overhead, allowing the Python backend to calculate independently without freezing the interface. Additionally, the Float32 binary streaming protocol packs numerical arrays into continuous buffers, reducing payload size by $80\%$ compared to JSON and eliminating parsing delays during data transfer.
 
 \vspace{0.8em}
-\bluerevised{\textbf{Data Visualization.} Seismic Viewer provides four display modes: 2D maps, 3D static views, 4D animated sequences, and cluster analysis workspaces. The 4D animation mode tracks how earthquake sequences evolve across time using three temporal strategies (accumulation, sliding window, and block mode), revealing migration patterns hidden in static views. Furthermore, integrating auxiliary geophysical layers (seismic tomography, ground uplift, and stations) enables direct correlation between hypocentres and subsurface structures.}
+\textbf{Data Visualization.} Seismic Viewer provides four display modes: 2D maps, 3D static views, 4D animated sequences, and cluster analysis workspaces. The 4D animation mode tracks how earthquake sequences evolve across time using three temporal strategies (accumulation, sliding window, and block mode), revealing migration patterns hidden in static views. Furthermore, integrating auxiliary geophysical layers (seismic tomography, ground uplift, and stations) enables direct correlation between hypocentres and subsurface structures.
 
 \vspace{0.8em}
-\bluerevised{\textbf{Automated Structural Analysis.} The automated analytical pipeline integrates three spatial clustering algorithms: DBSCAN \cite{ester1996dbscan}, MiniBatchKMeans \cite{lloyd1982kmeans}, and cylinder grid partitioning, which prevents color changes across animation frames. Building on clustering, the system fits fault planes using RANSAC \cite{fischler1981ransac} and SVD \cite{shakarji1998least} to calculate dip, dip direction, and strike, allowing researchers to characterize fault structures interactively.}
+\textbf{Automated Structural Analysis.} The automated analytical pipeline integrates three spatial clustering algorithms: DBSCAN \cite{ester1996dbscan}, MiniBatchKMeans \cite{lloyd1982kmeans}, and cylinder grid partitioning, which prevents color changes across animation frames. Building on clustering, the system fits fault planes using RANSAC \cite{fischler1981ransac} and SVD \cite{shakarji1998least} to calculate dip, dip direction, and strike, allowing researchers to characterize fault structures interactively.
 
 \section{Future Research and Architectural Extensions}
 \label{sec:future-work}
@@ -33,8 +33,8 @@ Finally, future iterations could expand the analytical capabilities by integrati
 \section{Concluding Remarks}
 \label{sec:concluding}
 
-\bluerevised{Seismic Viewer demonstrates combining web technologies with Python libraries for geophysical analysis. The architecture separating the Python backend from the WebGL frontend balanced computation speed with development speed. Python libraries (NumPy \cite{numpy2020}, scikit-learn \cite{pedregosa2011sklearn}) provide numerical routines, while the web frontend delivers 3D graphics.}
+Seismic Viewer demonstrates combining web technologies with Python libraries for geophysical analysis. The architecture separating the Python backend from the WebGL frontend balanced computation speed with development speed. Python libraries (NumPy \cite{numpy2020}, scikit-learn \cite{pedregosa2011sklearn}) provide numerical routines, while the web frontend delivers 3D graphics.
 
-\bluerevised{The iterative workflow aligned software features with research requirements. Feedback from researchers at INGV Osservatorio Vesuviano and Roma Tre University guided features such as sub-clustering and cylinder partitioning.}
+The iterative workflow aligned software features with research requirements. Feedback from researchers at INGV Osservatorio Vesuviano and Roma Tre University guided features such as sub-clustering and cylinder partitioning.
 
-\bluerevised{This work supports the transition from static plots toward interactive exploration in seismology. By providing 4D visualization and clustering in a desktop application, Seismic Viewer offers a foundation for studying fault structures and monitoring volcanic unrest at Campi Flegrei \cite{desiena2017bradyseism, giordano2025birth}.}
+This work supports the transition from static plots toward interactive exploration in seismology. By providing 4D visualization and clustering in a desktop application, Seismic Viewer offers a foundation for studying fault structures and monitoring volcanic unrest at Campi Flegrei \cite{desiena2017bradyseism, giordano2025birth}.

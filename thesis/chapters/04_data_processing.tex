@@ -10,13 +10,13 @@ This chapter details the processing pipeline that transforms raw seismic observa
 \section{Pipeline Architecture and Multi-Source Ingestion}
 \label{sec:pipeline-overview}
 
-\bluerevised{Seismic Viewer uses a unified data pipeline to import, validate, and convert seismological and geophysical data for 3D and 4D visualization. As illustrated in \Cref{fig:data-ingestion-pipeline}, the architecture consists of three main stages:}
+Seismic Viewer uses a unified data pipeline to import, validate, and convert seismological and geophysical data for 3D and 4D visualization. As illustrated in \Cref{fig:data-ingestion-pipeline}, the architecture consists of three main stages:
 \begin{enumerate}
-    \item \bluerevised{\textbf{Multi-source ingestion}: The application receives seismic catalogs from local CSV files, queries the INGV GOSSIP API for remote datasets, and loads auxiliary geophysical layers such as seismic tomography grids and GNSS station coordinates.}
-    \item \bluerevised{\textbf{Catalogue sanitisation}: Incoming earthquake records pass through a validation sequence that checks spatial fields, flags missing metadata, enforces coordinate and depth limits, removes future dates, and sorts events in chronological order.}
-    \item \bluerevised{\textbf{Unified memory and streaming}: Validated records are converted into contiguous numerical arrays in memory and packed into Float32 binary buffers for hardware-accelerated rendering.}
+    \item \textbf{Multi-source ingestion}: The application receives seismic catalogs from local CSV files, queries the INGV GOSSIP API for remote datasets, and loads auxiliary geophysical layers such as seismic tomography grids and GNSS station coordinates.
+    \item \textbf{Catalogue sanitisation}: Incoming earthquake records pass through a validation sequence that checks spatial fields, flags missing metadata, enforces coordinate and depth limits, removes future dates, and sorts events in chronological order.
+    \item \textbf{Unified memory and streaming}: Validated records are converted into contiguous numerical arrays in memory and packed into Float32 binary buffers for hardware-accelerated rendering.
 \end{enumerate}
-\bluerevised{The following sections describe each component of this pipeline in detail.}
+The following sections describe each component of this pipeline in detail.
 
 \begin{figure}[H]
 \centering
@@ -88,14 +88,14 @@ This chapter details the processing pipeline that transforms raw seismic observa
     \draw[arrow_green] ([xshift=3.8cm]unif_mem.south) -- (out_stream.north);
 
 \end{tikzpicture}
-\caption{\bluerevised{Data ingestion pipeline of Seismic Viewer, showing data sources (Local CSV, INGV GOSSIP API, and Tomography or GNSS data), the validation pipeline, and data conversion into memory arrays and binary buffers.}}
+\caption{Data ingestion pipeline of Seismic Viewer, showing data sources (Local CSV, INGV GOSSIP API, and Tomography or GNSS data), the validation pipeline, and data conversion into memory arrays and binary buffers.}
 \label{fig:data-ingestion-pipeline}
 \end{figure}
 
 \section{CSV Ingestion and Schema Detection}
 \label{sec:csv-ingestion}
 
-\bluerevised{The \texttt{core/loader.py} module handles different formats through an ingestion pipeline that checks the header line for comma or semicolon delimiters, supporting European standards (INGV) as well as international formats (USGS, ISC). To avoid manual formatting, \texttt{core/config.py} defines an alias dictionary:}
+The \texttt{core/loader.py} module handles different formats through an ingestion pipeline that checks the header line for comma or semicolon delimiters, supporting European standards (INGV) as well as international formats (USGS, ISC). To avoid manual formatting, \texttt{core/config.py} defines an alias dictionary:
 
 \begin{lstlisting}[language=Python, caption={Flexible column schema definition in \texttt{core/config.py}.}, label={lst:schema}]
 CSV_SCHEMA = {
@@ -112,10 +112,10 @@ The ingestion pipeline identifies data columns by reading their headers. It igno
 \section{Data Sanitisation and Validation}
 \label{sec:sanitisation}
 
-\bluerevised{After ingestion, data records pass through a validation and cleaning sequence:}
+After ingestion, data records pass through a validation and cleaning sequence:
 \begin{enumerate}
     \item \textbf{Spatial requirement check}: Rows missing latitude, longitude, or timestamps are discarded immediately.
-    \item \textbf{Missing metadata flagging}: Catalogues occasionally omit depth or magnitude. \bluerevised{In seismic analysis, estimating missing depths (such as using the mean value) is avoided because it groups points into artificial horizontal layers, distorting clustering and plane fitting results.} Rather than dropping these records (which removes spatial density) or imputing synthetic values, missing fields are flagged via boolean indicators (\texttt{depth\_is\_missing}, \texttt{mag\_is\_missing}) and assigned sentinel defaults (0.0~km depth and magnitude 0.1). \bluerevised{Events with magnitude below the minimum limit (\texttt{MIN\_MAGNITUDE}) are also removed. This threshold defaults to $-10.0$, which keeps all real seismic events. The user can raise it from the import dialog to filter out events below a chosen magnitude level.}
+    \item \textbf{Missing metadata flagging}: Catalogues occasionally omit depth or magnitude. In seismic analysis, estimating missing depths (such as using the mean value) is avoided because it groups points into artificial horizontal layers, distorting clustering and plane fitting results. Rather than dropping these records (which removes spatial density) or imputing synthetic values, missing fields are flagged via boolean indicators (\texttt{depth\_is\_missing}, \texttt{mag\_is\_missing}) and assigned sentinel defaults (0.0~km depth and magnitude 0.1). Events with magnitude below the minimum limit (\texttt{MIN\_MAGNITUDE}) are also removed. This threshold defaults to $-10.0$, which keeps all real seismic events. The user can raise it from the import dialog to filter out events below a chosen magnitude level.
     \item \textbf{Geographic and depth bounds check}: The system excludes any event with mathematically invalid geographic coordinates (i.e., latitude outside the $\pm 90^\circ$ range or longitude outside the $\pm 180^\circ$ range). Additionally, it discards events with a depth falling outside the realistic geological range of $-10$~km to $800$~km, where negative values are specifically permitted to accommodate earthquakes occurring above sea level within mountains or volcanic edifices.
     \item \textbf{Future date removal}: Events whose timestamp lies after the current date are discarded, as they indicate erroneous catalog entries.
     \item \textbf{Chronological sorting}: The remaining events are sorted in ascending time order to ensure correct slicing during animation and filtering operations.
@@ -163,8 +163,8 @@ Terrain generation operates via a five-stage sequence: (1) bounding box squaring
 \label{sec:strip-data}
 \label{sec:binary-streaming}
 
-To ensure the 3D map remains fluid and responsive even with thousands of earthquakes, the software performs several calculations in advance (during the data loading phase) rather than while the user is interacting with the map. The \texttt{precompute\_visual\_data()} function handles two main tasks. First, it pre-renders tooltip strings in a single batch operation, so that the browser does not need to construct the text for pop-ups every time the mouse hovers over an event. Second, it converts calendar dates into normalised time metrics (days since the first earthquake), accelerating chronological color mapping.
+To ensure the 3D map remains fluid and responsive even with thousands of earthquakes, the software performs several calculations in advance (during the data loading phase) rather than while the user is interacting with the map. The \texttt{precompute\_\allowbreak visual\_\allowbreak data()} function handles two main tasks. First, it pre-renders tooltip strings in a single batch operation, so that the browser does not need to construct the text for pop-ups every time the mouse hovers over an event. Second, it converts calendar dates into normalised time metrics (days since the first earthquake), accelerating chronological color mapping.
 
-\bluerevised{The data pipeline converts raw CSV lines into numerical arrays (\texttt{numpy.ndarray}). This enables fast operations on coordinates, depths, and timestamps. To stream data to the client efficiently, arrays are converted to 32-bit floating-point values (\texttt{np.float32}) and transmitted as raw bytes, avoiding JSON conversion overhead.}
+The data pipeline converts raw CSV lines into numerical arrays (\texttt{numpy.ndarray}). This enables fast operations on coordinates, depths, and timestamps. To stream data to the client efficiently, arrays are converted to 32-bit floating-point values (\texttt{np.float32}) and transmitted as raw bytes, avoiding JSON conversion overhead.
 
-\bluerevised{Embedding large amounts of earthquake data directly into an HTML file increases file size and causes the browser to slow down. To prevent this, Seismic Viewer uses an asynchronous loading strategy. When the user opens a 3D view, the backend generates an HTML page containing the 3D scene, terrain map, and menus. Once the base map is displayed, the browser requests the earthquake points in the background via \texttt{/api/data/\{id\}/bin}. These points are delivered as a Float32 binary buffer and displayed on the map without blocking user interaction.}
+Embedding large amounts of earthquake data directly into an HTML file increases file size and causes the browser to slow down. To prevent this, Seismic Viewer uses an asynchronous loading strategy. When the user opens a 3D view, the backend generates an HTML page containing the 3D scene, terrain map, and menus. Once the base map is displayed, the browser requests the earthquake points in the background via \texttt{/api/\allowbreak data/\allowbreak\{id\}/\allowbreak bin}. These points are delivered as a Float32 binary buffer and displayed on the map without blocking user interaction.

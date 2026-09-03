@@ -52,7 +52,7 @@ To explore the dataset, users can apply filters based on magnitude, depth, and d
 \label{fig:2d-multi}
 \end{figure}
 
-\bluerevised{As shown in \Cref{fig:2d-multi}, the 2D workspace offers three visualization options. The base view (\Cref{fig:2d-viz}) displays earthquake locations on an OpenStreetMap layer, while the side panel allows users to filter events by magnitude, depth, and date. In \Cref{fig:2d-viz-tomo}, a tomographic slice shows variations in the $V_p/V_s$ velocity ratio, indicating underground fluid bodies. Finally, in \Cref{fig:2d-viz-uplift}, the map combines monitoring stations with vertical ground movement, helping researchers observe if earthquakes match areas of surface uplift.}
+As shown in \Cref{fig:2d-multi}, the 2D workspace offers three visualization options. The base view (\Cref{fig:2d-viz}) displays earthquake locations on an OpenStreetMap layer, while the side panel allows users to filter events by magnitude, depth, and date. In \Cref{fig:2d-viz-tomo}, a tomographic slice shows variations in the $V_p/V_s$ velocity ratio, indicating underground fluid bodies. Finally, in \Cref{fig:2d-viz-uplift}, the map combines monitoring stations with vertical ground movement, helping researchers observe if earthquakes match areas of surface uplift.
 
 \section{3D Static View}
 \label{sec:view-3d-static}
@@ -67,7 +67,7 @@ To prevent geographic distortion caused by Earth's sphericity, the system scales
 \end{equation}
 where $\Delta\lambda$ and $\Delta\phi$ are the longitude and latitude spans, $K = 111.32$~km/° is the equatorial conversion factor, and $\bar{\phi}$ is the mean latitude. This adjustment preserves accurate spatial proportions.
 
-\bluerevised{Rendering large point clouds simultaneously relies on GPU acceleration. Plotly.js uses WebGL to draw points via the \texttt{scatter3d} trace type. To maintain smooth interactive frame rates, the application applies three measures: (1) map background images are scaled to save memory, (2) automatic bounding box recalculations are disabled during updates, and (3) markers are drawn as point sprites facing the camera rather than complex 3D shapes.}
+Rendering large point clouds simultaneously relies on GPU acceleration. Plotly.js uses WebGL to draw points via the \texttt{scatter3d} trace type. To maintain smooth interactive frame rates, the application applies three measures: (1) map background images are scaled to save memory, (2) automatic bounding box recalculations are disabled during updates, and (3) markers are drawn as point sprites facing the camera rather than complex 3D shapes.
 
 The 3D workspace (\Cref{fig:3d-multi}) enables visualization of earthquake cluster geometries. Integrating a 3D tomography model (\Cref{fig:3d-viz-tomo}) correlates seismicity with geological structures, while vertical uplift columns (\Cref{fig:3d-viz-uplift}) allow direct comparison between surface deformation and underlying seismic activity.
 
@@ -105,7 +105,7 @@ The 3D workspace (\Cref{fig:3d-multi}) enables visualization of earthquake clust
 \label{fig:3d-multi}
 \end{figure}
 
-\bluerevised{As shown in \Cref{fig:3d-multi}, the 3D static workspace presents these data layers in three dimensions. The base view (\Cref{fig:3d-viz}) shows hypocentres below the map surface, using colours to represent depth intervals. In \Cref{fig:3d-viz-tomo}, the scene adds velocity slices from the tomography model. Finally, in \Cref{fig:3d-viz-uplift}, vertical columns indicate surface movement at each station, allowing direct comparisons between depth and surface observations.}
+As shown in \Cref{fig:3d-multi}, the 3D static workspace presents these data layers in three dimensions. The base view (\Cref{fig:3d-viz}) shows hypocentres below the map surface, using colours to represent depth intervals. In \Cref{fig:3d-viz-tomo}, the scene adds velocity slices from the tomography model. Finally, in \Cref{fig:3d-viz-uplift}, vertical columns indicate surface movement at each station, allowing direct comparisons between depth and surface observations.
 
 \section{3D Animated View (4D Visualisation)}
 \label{sec:view-animated}
@@ -114,7 +114,7 @@ The animated view adds time as a fourth dimension to observe the spatio-temporal
 
 The 4D visualisation engine offers three temporal modes to analyse seismic evolution: \textbf{Accumulation} (showing all events up to the current frame), \textbf{Sliding window} (displaying events within a moving time frame), and \textbf{Block mode} (rendering discrete, non-overlapping time intervals). To ensure smooth playback and avoid memory overload, the system precomputes temporal indices and updates the 3D scene dynamically without reloading the entire figure.
 
-\bluerevised{During 4D animations, the camera angle and zoom level must remain stable across updates. By default, Plotly reinitializes the view on coordinate changes. Setting \texttt{uirevision='constant'} in the layout preserves camera position and orientation across frames, allowing continuous interaction during playback.}
+During 4D animations, the camera angle and zoom level must remain stable across updates. By default, Plotly reinitializes the view on coordinate changes. Setting \texttt{uirevision='constant'} in the layout preserves camera position and orientation across frames, allowing continuous interaction during playback.
 
 \enlargethispage{5cm}
 
@@ -164,7 +164,7 @@ The cluster analysis mode integrates spatial machine learning with structural ge
 To provide a comprehensive geometrical understanding of seismogenic structures, Seismic Viewer renders every identified cluster through four complementary representations within the 3D WebGL scene. These representations were chosen to address different analytical needs: boundary delineation, volumetric extent, structural orientation, and individual event membership. Together, they allow researchers to examine a cluster from multiple geometric perspectives simultaneously.
 \begin{enumerate}
     \item \textbf{Wireframe Convex Hulls (\texttt{Scatter3d})}: Outer boundary envelopes highlighting the spatial footprint and volumetric extent of each distinct cluster.
-    \item \textbf{Triangulated Solid Meshes} (\texttt{Mesh3d}, \texttt{alphahull=0}): Smooth, semi-transparent volumetric convex hulls enclosing the clusters.
+    \item \textbf{Triangulated Solid Meshes} (\texttt{Mesh3d}, with \texttt{alphahull=0}): Smooth, semi-transparent volumetric convex hulls enclosing the clusters.
     \item \textbf{Structural Fault Planes (\texttt{Mesh3d})}: Planar surfaces calculated via RANSAC robust estimation coupled with Singular Value Decomposition (SVD) refinement. Each plane displays orientation vectors alongside precise geological strike and dip angles upon mouse hover.
     \item \textbf{Clustered Event Spheres}: Discrete event spheres colored by cluster label using categorical palettes, with unclustered background noise explicitly assigned neutral grey.
 \end{enumerate}
@@ -225,7 +225,7 @@ To analyze hierarchical structures, researchers can perform secondary sub-cluste
 \label{sec:uplift}
 \label{sec:stations}
 
-Seismic Viewer integrates three auxiliary data types processed via \texttt{core/}\allowbreak\texttt{layer\_utils.py}:
+Seismic Viewer integrates three auxiliary data layers, processed through the \texttt{core/\allowbreak layer\_utils.py} module:
 \begin{itemize}
     \item \textbf{Seismic Tomography ($V_p/V_s$ Ratio)}: The raw tomographic data, originally provided in UTM Zone~33N coordinates, is converted to geographic coordinates and mapped onto a regular 3D grid. Because measurements only exist at specific surveyed points, the software must estimate the values for the surrounding empty space. It achieves this using \textit{Inverse Distance Weighting}, a spatial interpolation technique. The value of any unknown point is calculated as a weighted average of its $k=16$ nearest known neighbors. The closer a neighbor is, the stronger its influence on the final calculation, scaling inversely with the square of the distance ($p=2$):
     \begin{equation}

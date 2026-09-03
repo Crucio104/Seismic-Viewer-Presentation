@@ -42,7 +42,7 @@ Once parsed by the Python backend, the catalog is transformed into an internal s
 
 \begin{table}[htbp]
 \centering
-\caption[\bluerevised{Internal data representation in the processing pipeline}]{\bluerevised{Internal data representation in the processing pipeline.}}
+\caption[Internal data representation in the processing pipeline]{Internal data representation in the processing pipeline.}
 \label{tab:internal-schema}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
@@ -50,12 +50,12 @@ Once parsed by the Python backend, the catalog is transformed into an internal s
 \toprule
 \textbf{Variable} & \textbf{Type} & \textbf{Purpose} \\
 \midrule
-\bluerevised{\texttt{longitude}, \texttt{latitude}} & \bluerevised{\texttt{numpy.ndarray (float32)}} & \bluerevised{Arrays of WGS84 coordinates in decimal degrees ($N$ events)} \\
-\bluerevised{\texttt{depth}} & \bluerevised{\texttt{numpy.ndarray (float32)}} & \bluerevised{Array of hypocentral depths in kilometers ($N$ events)} \\
-\bluerevised{\texttt{magnitude}} & \texttt{numpy.ndarray} & An $N$-length array used for scaling the visual markers \\
-\bluerevised{\texttt{dates\_num}} & \bluerevised{\texttt{numpy.ndarray (float32)}} & \bluerevised{Days elapsed from the first event, used for temporal filtering and animation} \\
+\texttt{longitude}, \texttt{latitude} & \texttt{numpy.ndarray (float32)} & Arrays of WGS84 coordinates in decimal degrees ($N$ events) \\
+\texttt{depth} & \texttt{numpy.ndarray (float32)} & Array of hypocentral depths in kilometers ($N$ events) \\
+\texttt{magnitude} & \texttt{numpy.ndarray} & An $N$-length array used for scaling the visual markers \\
+\texttt{dates\_num} & \texttt{numpy.ndarray (float32)} & Days elapsed from the first event, used for temporal filtering and animation \\
 \texttt{labels} & \texttt{numpy.ndarray} & Cluster assignments ($ -1 $ for noise, $ 0 \dots K $ for structural groups) \\
-\bluerevised{\texttt{pts\_km}} & \bluerevised{\texttt{numpy.ndarray}} & \bluerevised{Array of Cartesian coordinates in kilometers ($N \times 3$), generated for clustering} \\
+\texttt{pts\_km} & \texttt{numpy.ndarray} & Array of Cartesian coordinates in kilometers ($N \times 3$), generated for clustering \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -63,11 +63,11 @@ Once parsed by the Python backend, the catalog is transformed into an internal s
 \section{Network Protocol and Message Schemas}
 \label{sec:protocol_schemas}
 
-\bluerevised{This section provides the JSON schemas used for WebSocket communication and REST API endpoints.}
+This section provides the JSON schemas used for WebSocket communication and REST API endpoints.
 
 \subsection{WebSocket Message Specification}
 
-\bluerevised{Messages sent by the client over the \texttt{/ws} WebSocket channel follow this structure:}
+Messages sent by the client over the \texttt{/ws} WebSocket channel follow this structure:
 
 \begin{lstlisting}[language=Python, caption={JSON Schema for Client-to-Server WebSocket Requests.}, label={lst:ws-req}]
 {
@@ -98,7 +98,7 @@ Once parsed by the Python backend, the catalog is transformed into an internal s
 }
 \end{lstlisting}
 
-\bluerevised{Progress updates and task notifications sent by the server follow this structure:}
+Progress updates and task notifications sent by the server follow this structure:
 
 \begin{lstlisting}[language=Python, caption={JSON Schema for Server Progress and Telemetry Broadcasts.}, label={lst:ws-progress}]
 {
@@ -112,11 +112,11 @@ Once parsed by the Python backend, the catalog is transformed into an internal s
 
 \subsection{Core Default Configuration Parameters}
 
-\bluerevised{\Cref{tab:default-config} summarizes the default settings and thresholds defined in \texttt{core/config.py}:}
+\Cref{tab:default-config} summarizes the default settings and thresholds defined in \texttt{core/config.py}:
 
 \begin{table}[htbp]
 \centering
-\caption[\bluerevised{Configuration constants and default parameters in core/config.py}]{\bluerevised{Configuration constants and default parameters (\texttt{core/config.py}).}}
+\caption[Configuration constants and default parameters in core/config.py]{Configuration constants and default parameters (\texttt{core/config.py}).}
 \label{tab:default-config}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
@@ -126,12 +126,12 @@ Once parsed by the Python backend, the catalog is transformed into an internal s
 \midrule
 \texttt{MAX\_DATA\_SESSIONS} & 30 & Maximum concurrent in-memory dataset sessions (FIFO eviction) \\
 \texttt{MAX\_HTML\_SESSIONS} & 15 & Maximum cached pre-rendered HTML visualization views \\
-\bluerevised{\texttt{DEFAULT\_DBSCAN\_EPS\_M}} & \bluerevised{500.0} & \bluerevised{Search radius $\varepsilon$ in meters} \\
-\bluerevised{\texttt{DEFAULT\_DBSCAN\_MIN\_PTS}} & \bluerevised{5} & \bluerevised{Minimum points to define a cluster core} \\
-\bluerevised{\texttt{DEFAULT\_KMEANS\_CLUSTERS}} & \bluerevised{3} & \bluerevised{Initial cluster count for MiniBatchKMeans} \\
+\texttt{DEFAULT\_DBSCAN\_EPS\_M} & 500.0 & Search radius $\varepsilon$ in meters \\
+\texttt{DEFAULT\_DBSCAN\_MIN\_PTS} & 5 & Minimum points to define a cluster core \\
+\texttt{DEFAULT\_KMEANS\_CLUSTERS} & 3 & Initial cluster count for MiniBatchKMeans \\
 \texttt{CYLINDER\_GRID\_DIMS} & $(60, 50)$ & Longitudinal and latitudinal cell resolution for 4D tracking \\
 \texttt{RANSAC\_MAX\_ITER} & 100 & Candidate triplet sampling iterations for plane fitting \\
-\bluerevised{\texttt{RANSAC\_THRESHOLD}} & \bluerevised{Adaptive} & \bluerevised{$\max(0.02, r_{\text{km}} \times 0.1)$, proportional to cylinder radius} \\
+\texttt{RANSAC\_THRESHOLD} & Adaptive & $\max(0.02, r_{\text{km}} \times 0.1)$, proportional to cylinder radius \\
 \bottomrule
 \end{tabularx}
 \end{table}

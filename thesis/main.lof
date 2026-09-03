@@ -2,13 +2,13 @@
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {3.1}{\ignorespaces Client-server architecture of Seismic Viewer with dedicated communication channels.}}{10}{figure.caption.18}%
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Client-server architecture of Seismic Viewer with dedicated communication channels.}}{11}{figure.caption.18}%
 \contentsline {figure}{\numberline {3.2}{\ignorespaces The Seismic Viewer single-page application structure, showing initial data loading (\subref {fig:start-page}) and the multi-mode analytical selection hub (\subref {fig:viz-hub}).}}{13}{figure.caption.20}%
-\contentsline {figure}{\numberline {3.3}{\ignorespaces Linear data pipeline from input parsing to WebGL drawing.}}{13}{figure.caption.21}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Linear data pipeline from input parsing to WebGL drawing.}}{14}{figure.caption.21}%
 \contentsline {figure}{\numberline {3.4}{\ignorespaces Sequence diagram of asynchronous execution and non-blocking streaming pipeline.}}{14}{figure.caption.22}%
 \contentsline {figure}{\numberline {3.5}{\ignorespaces Concurrency hierarchy linking UI, server thread, and analysis worker threads.}}{15}{figure.caption.24}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {4.1}{\ignorespaces \bluerevised {Data ingestion pipeline of Seismic Viewer, showing data sources (Local CSV, INGV GOSSIP API, and Tomography or GNSS data), the validation pipeline, and data conversion into memory arrays and binary buffers.}}}{17}{figure.caption.25}%
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Data ingestion pipeline of Seismic Viewer, showing data sources (Local CSV, INGV GOSSIP API, and Tomography or GNSS data), the validation pipeline, and data conversion into memory arrays and binary buffers.}}{17}{figure.caption.25}%
 \contentsline {figure}{\numberline {4.2}{\ignorespaces The INGV GOSSIP API import dialog for configuring network criteria, temporal bounds, and quality thresholds.}}{19}{figure.caption.26}%
 \addvspace {10\p@ }
 \contentsline {figure}{\numberline {5.1}{\ignorespaces The 2D Geospatial Map View in the Seismic Viewer. This workspace allows users to filter earthquake data (\subref {fig:2d-viz}) and combine it with advanced geophysical overlays, such as tomographic velocity maps (\subref {fig:2d-viz-tomo}) and ground uplift measurements (\subref {fig:2d-viz-uplift}).}}{24}{figure.caption.29}%

@@ -8,11 +8,11 @@
 \section{Motivation and Context}
 \label{sec:motivation}
 
-\bluerevised{Seismology is a data-intensive field within Earth sciences. Seismic networks continuously record events, producing datasets that describe subsurface processes such as tectonic stress and fluid movement. Interpreting earthquake data in real time is important for volcanic and seismic risk assessment.}
+Seismology is a data-intensive field within Earth sciences. Seismic networks continuously record events, producing datasets that describe subsurface processes such as tectonic stress and fluid movement. Interpreting earthquake data in real time is important for volcanic and seismic risk assessment.
 
-\bluerevised{Traditionally, earthquake catalogs have been analyzed through two-dimensional maps, cross-sections, and time plots. These representations do not fully capture the spatial and temporal distribution of seismic events. An earthquake sequence moving along a fault at depth may look like a diffuse group in map view, but show a clear planar structure when examined in three dimensions and animated over time. This limitation of conventional tools motivated the development of \textbf{Seismic Viewer}.}
+Traditionally, earthquake catalogs have been analyzed through two-dimensional maps, cross-sections, and time plots. These representations do not fully capture the spatial and temporal distribution of seismic events. An earthquake sequence moving along a fault at depth may look like a diffuse group in map view, but show a clear planar structure when examined in three dimensions and animated over time. This limitation of conventional tools motivated the development of \textbf{Seismic Viewer}.
 
-\bluerevised{The project was developed during an internship at the Istituto Nazionale di Geofisica e Vulcanologia (INGV). Researchers studying the Campi Flegrei area needed a tool to display spatial distributions, temporal evolution, and structural connections in an interactive desktop application.}
+The project was developed during an internship at the Istituto Nazionale di Geofisica e Vulcanologia (INGV). Researchers studying the Campi Flegrei area needed a tool to display spatial distributions, temporal evolution, and structural connections in an interactive desktop application.
 
 \section{Problem Statement}
 \label{sec:problem}
@@ -20,7 +20,7 @@
 Despite the availability of numerous Geographic Information System (GIS) platforms and seismological software packages, a significant technological gap persists. Existing tools generally fall into one of two categories:
 
 \begin{enumerate}[label=(\alph*)]
-    \item \textbf{General-purpose GIS platforms} (e.g., QGIS, ArcGIS): These offer geospatial analysis capabilities but are not designed for rendering dynamic 3D point clouds with seismic metadata in real time. Their architectures prioritize cartographic precision over interactivity, leading to delays when handling datasets with tens of thousands of hypocentres. \bluerevised{From a software architecture perspective, traditional GIS tools often use synchronous data processing and text formats like JSON. When handling large datasets with tens of thousands of points, this causes the interface to freeze due to high memory use and parsing delays.}
+    \item \textbf{General-purpose GIS platforms} (e.g., QGIS, ArcGIS): These offer geospatial analysis capabilities but are not designed for rendering dynamic 3D point clouds with seismic metadata in real time. Their architectures prioritize cartographic precision over interactivity, leading to delays when handling datasets with tens of thousands of hypocentres. From a software architecture perspective, traditional GIS tools often use synchronous data processing and text formats like JSON. When handling large datasets with tens of thousands of points, this causes the interface to freeze due to high memory use and parsing delays.
 
     \item \textbf{Specialised seismological software} (e.g., Seisan, GMT, ObsPy): These provide robust analytical functionality but typically produce static outputs, such as static figures for print rather than interactive explorations. The learning curve is steep, requiring command-line proficiency, and the visualisation paradigm remains fundamentally two-dimensional.
 \end{enumerate}
@@ -39,12 +39,12 @@ The primary objectives of this project are:
 
     \item \textbf{Multi-Source Data Integration}: Support ingestion from local CSV files, the INGV GOSSIP online API, seismic tomography datasets (Vp/Vs ratios), and GNSS ground deformation data.
 
-    \item \textbf{Performance at Scale}: Ensure sub-second interactive response times for large datasets, through \bluerevised{a custom Float32 binary transfer protocol, an asynchronous communication design (bridge, HTTP REST, and WebSockets)}, GPU-accelerated rendering, and efficient caching strategies.
+    \item \textbf{Performance at Scale}: Ensure sub-second interactive response times for large datasets, through a custom Float32 binary transfer protocol, an asynchronous communication design (bridge, HTTP REST, and WebSockets), GPU-accelerated rendering, and efficient caching strategies.
 
     \item \textbf{Accessible User Experience}: Provide a modern, intuitive interface that does not require programming expertise, enabling geophysicists to focus on interpretation rather than tool operation.
 \end{enumerate}
 
-This report covers the development process of the application, from the initial design to testing and evaluation. The system was evaluated using earthquake data from the Campi Flegrei caldera. \bluerevised{In addition to practical usability, this thesis explains the software solutions used to connect Python calculations with interactive 3D web graphics.} The following chapters present the domain background, the system architecture, the data processing pipeline, the visualisation modes, the algorithmic foundations, the development process, and the conclusions drawn from this work.
+This report covers the development process of the application, from the initial design to testing and evaluation. The system was evaluated using earthquake data from the Campi Flegrei caldera. In addition to practical usability, this thesis explains the software solutions used to connect Python calculations with interactive 3D web graphics. The following chapters present the domain background, the system architecture, the data processing pipeline, the visualisation modes, the algorithmic foundations, the development process, and the conclusions drawn from this work.
 
 \section{Internship Context}
 \label{sec:internship}
@@ -55,11 +55,11 @@ An iterative development approach was adopted, progressively expanding the softw
 
 \begin{itemize}
     \item \textbf{Phase 1}: Initial prototype, basic 3D visualisation, and local CSV ingestion.
-    \item \bluerevised{\textbf{Phase 2}: Implementation of K-Means clustering and connection with the web view bridge.}
-    \item \bluerevised{\textbf{Phase 3}: Redesign of the user interface and integration of the INGV GOSSIP API for data import.}
-    \item \bluerevised{\textbf{Phase 4}: Optimization using binary data transfer, cylinder partitioning, sub-clustering, and automatic tuning of DBSCAN parameters with K-distance analysis.}
-    \item \bluerevised{\textbf{Phase 5}: Integration of seismic tomography, ground uplift layers, and monitoring station positions.}
-    \item \bluerevised{\textbf{Phase 6}: Modular refactoring of the package, setup of FastAPI and WebSockets, and automated tests.}
+    \item \textbf{Phase 2}: Implementation of K-Means clustering and connection with the web view bridge.
+    \item \textbf{Phase 3}: Redesign of the user interface and integration of the INGV GOSSIP API for data import.
+    \item \textbf{Phase 4}: Optimization using binary data transfer, cylinder partitioning, sub-clustering, and automatic tuning of DBSCAN parameters with K-distance analysis.
+    \item \textbf{Phase 5}: Integration of seismic tomography, ground uplift layers, and monitoring station positions.
+    \item \textbf{Phase 6}: Modular refactoring of the package, setup of FastAPI and WebSockets, and automated tests.
 \end{itemize}
 
 This collaborative and iterative feedback process proved essential for aligning the software with real analytical workflows, as several key features (such as the cylinder grid partitioning and the sub-clustering interface) emerged directly from practical requirements and discussions during development.
