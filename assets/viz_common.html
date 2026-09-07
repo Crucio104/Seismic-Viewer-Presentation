@@ -2330,11 +2330,12 @@
             tick.className = 'legend-tick';
 
             if (title === 'Date' && dateInfo && dateInfo.startDate) {
-                const d = new Date(dateInfo.startDate);
-                d.setDate(d.getDate() + Math.round(val));
-                const day = String(d.getDate()).padStart(2, '0');
-                const month = String(d.getMonth() + 1).padStart(2, '0');
-                const year = d.getFullYear();
+                const parts = String(dateInfo.startDate).split('-').map(Number);
+                const utc = Date.UTC(parts[0], parts[1] - 1, parts[2]) + Math.round(val) * 86400000;
+                const d = new Date(utc);
+                const day = String(d.getUTCDate()).padStart(2, '0');
+                const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+                const year = d.getUTCFullYear();
                 tick.textContent = `${day}-${month}-${year}`;
             } else if (scaleName === 'Tomography' || title.includes('Tomo')) {
                 tick.textContent = val.toFixed(3);

@@ -223,11 +223,14 @@
             SeismicUI.bindMenu(colorMenu, (item) => {
                 currentColorMode = item.dataset.mode;
                 colorToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                window._userExplicitColorSelection = true;
+                applyFilterWithLoader();
             });
 
             SeismicUI.bindMenu(scaleMenu, (item) => {
                 currentColorScale = item.dataset.val;
                 scaleToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                applyFilterWithLoader();
             });
 
             if (viewModeMenu) {
@@ -238,6 +241,7 @@
                     SeismicUI.setGroupDisabled(scaleToggle.closest('.settings-group'), isHeatmap);
                     SeismicUI.setGroupDisabled(colorToggle.closest('.settings-group'), isHeatmap);
                     SeismicUI.setGroupDisabled(invertCheck.closest('.glass-checkbox'), isHeatmap);
+                    applyFilterWithLoader();
                 });
             }
 
@@ -261,12 +265,14 @@
             SeismicUI.bindMenu(sizeMenu, (item) => {
                 currentSizeMode = item.dataset.mode;
                 sizeToggle.textContent = item.textContent + ' ▾';
+                applyFilterWithLoader();
             });
 
             const rangeApplyCallback = null;
 
             invertCheck.onchange = () => {
                 invertScale = invertCheck.checked;
+                applyFilterWithLoader();
             };
 
             // Range input sanitization
@@ -281,10 +287,20 @@
             [startInput, endInput, magMin, magMax, depMin, depMax].forEach(input => {
                 if (input) {
                     input.addEventListener('change', () => {
+                        if ((input === startInput || input === endInput) && !window._userExplicitColorSelection) {
+                            currentColorMode = 'date';
+                            if (colorToggle) colorToggle.textContent = 'Date ▾';
+                        }
                         applyFilterWithLoader();
                     });
                     input.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter') applyFilterWithLoader();
+                        if (e.key === 'Enter') {
+                            if ((input === startInput || input === endInput) && !window._userExplicitColorSelection) {
+                                currentColorMode = 'date';
+                                if (colorToggle) colorToggle.textContent = 'Date ▾';
+                            }
+                            applyFilterWithLoader();
+                        }
                     });
                 }
             });
@@ -369,7 +385,37 @@
                     colorArr = filtered.mag;
                     barTitle = 'Magnitude';
                 } else {
-                    limits = quakeData.date_limit || quakeData.date_range;
+                    let minD = Infinity, maxD = -Infinity;
+                    for (let i = 0; i < filtered.dnum.length; i++) {
+                        const val = filtered.dnum[i];
+                        if (val < minD) minD = val;
+                        if (val > maxD) maxD = val;
+                    }
+
+                    const getOffset = (dateStr) => {
+                        if (!dateStr || !quakeData.start_date) return null;
+                        const p1 = String(dateStr).split('-').map(Number);
+                        const p2 = String(quakeData.start_date).split('-').map(Number);
+                        if (p1.length < 3 || p2.length < 3) return null;
+                        const t1 = Date.UTC(p1[0], p1[1] - 1, p1[2]);
+                        const t2 = Date.UTC(p2[0], p2[1] - 1, p2[2]);
+                        return (t1 - t2) / 86400000;
+                    };
+
+                    const sOffset = getOffset(start);
+                    const eOffset = getOffset(end);
+
+                    let minVal = (sOffset !== null && !isNaN(sOffset)) ? sOffset : minD;
+                    let maxVal = (eOffset !== null && !isNaN(eOffset)) ? eOffset : maxD;
+
+                    if (minVal === Infinity || maxVal === -Infinity) {
+                        limits = quakeData.date_limit || quakeData.date_range || [0, 1];
+                    } else if (minVal >= maxVal) {
+                        limits = [minVal, minVal + 1];
+                    } else {
+                        limits = [minVal, maxVal];
+                    }
+
                     colorArr = filtered.dnum;
                     barTitle = 'Date';
                 }
