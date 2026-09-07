@@ -65,15 +65,31 @@ def store_session_data(session_id: str, data: dict[str, Any]) -> None:
     """Store visualization data for a session, evicting old entries."""
     with _store_lock:
         # Keep at most 5 sessions to bound memory usage
+        evicted = False
         while len(_data_store) >= 5:
             oldest_key = next(iter(_data_store))
             del _data_store[oldest_key]
+            evicted = True
         _data_store[session_id] = data
+        if evicted:
+            gc.collect()
 
 def get_session_data(session_id: str) -> dict[str, Any] | None:
     """Retrieve stored visualization data for a session."""
     with _store_lock:
         return _data_store.get(session_id)
+
+def cleanup_temp_files() -> None:
+    """Clean up temporary files created during online imports."""
+    if TEMP_DIR.exists():
+        try:
+            for f in TEMP_DIR.glob("ingv_*.csv"):
+                try:
+                    f.unlink()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
 def clear_session_data() -> None:
     """Clear all stored session data and free memory."""
@@ -88,10 +104,14 @@ def store_viz_html(viz_id: str, html: str) -> None:
     """Store generated HTML for a view, evicting old entries."""
     with _store_lock:
         # Keep at most 3 views to bound memory usage (each 3D view HTML is ~12MB)
+        evicted = False
         while len(_html_store) >= 3:
             oldest_key = next(iter(_html_store))
             del _html_store[oldest_key]
+            evicted = True
         _html_store[viz_id] = html
+        if evicted:
+            gc.collect()
 
 def get_viz_html(viz_id: str) -> str | None:
     """Retrieve stored HTML for a view."""

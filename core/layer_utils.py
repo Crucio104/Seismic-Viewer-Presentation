@@ -124,8 +124,8 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
                 
                 tree = cKDTree(pts_norm)
                 
-                # Regular grid dimensions (optimized resolution for smooth 3D volumetric rendering)
-                nx, ny, nz = 45, 35, 25
+                # Regular grid dimensions (optimized resolution for smooth 3D volumetric rendering with low memory footprint)
+                nx, ny, nz = 30, 22, 16
                 
                 lon_min, lon_max = float(cal_lons.min()), float(cal_lons.max())
                 lat_min, lat_max = float(cal_lats.min()), float(cal_lats.max())
@@ -173,6 +173,9 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
                     'max_val': float(np.nanmax(flat_vals)),
                     'mean_val': float(np.nanmean(flat_vals)),
                 }
+                # Free numpy grid matrices
+                del tree, pts, pts_norm, grid_pts, grid_norm, dists, idxs, weights, idw_vals, flat_vals, X, Y, Z
+                import gc; gc.collect()
                 logger.info(f"Generated 3D volume grid with continuous IDW: {nx}x{ny}x{nz} = {nx*ny*nz} voxels, "
                             f"Vp/Vs range [{iso_grid['min_val']:.3f}, {iso_grid['max_val']:.3f}]")
         except ImportError:
@@ -297,14 +300,15 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
         min_lat, max_lat = min(lats) - 0.015, max(lats) + 0.015
         min_lon, max_lon = min(lons) - 0.015, max(lons) + 0.015
         
-        # 1. Vertex grid for 3D Surface mesh (50x50 vertices)
+        # 1. Vertex grid for 3D Surface mesh (30x30 vertices - optimized for smooth rendering & low RAM footprint)
+        grid_dim = 30
         grid_lats_mat, grid_lons_mat = np.meshgrid(
-            np.linspace(min_lat, max_lat, 50),
-            np.linspace(min_lon, max_lon, 50)
+            np.linspace(min_lat, max_lat, grid_dim),
+            np.linspace(min_lon, max_lon, grid_dim)
         )
-        gc = np.column_stack((grid_lats_mat.ravel(), grid_lons_mat.ravel()))
+        gc_pts = np.column_stack((grid_lats_mat.ravel(), grid_lons_mat.ravel()))
         st_c = np.column_stack((lats, lons))
-        dists = np.linalg.norm(gc[:, None, :] - st_c[None, :, :], axis=2)
+        dists = np.linalg.norm(gc_pts[:, None, :] - st_c[None, :, :], axis=2)
         weights = 1.0 / np.maximum(dists**2.5, 1e-10)
         st_v_np = np.array(up_m_list)
         grid_up_vals = np.sum(weights * st_v_np, axis=1) / np.sum(weights, axis=1)
@@ -315,8 +319,8 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
             grid_z_scaled = [0.3 + ((v - min_up) / (max_up - min_up)) * 2.2 for v in grid_up_vals]
             
         # 2. Continuous 2D geographic polygon surface (GeoJSON cells for choroplethmapbox / densitymapbox)
-        grid_lats_1d = np.linspace(min_lat, max_lat, 50)
-        grid_lons_1d = np.linspace(min_lon, max_lon, 50)
+        grid_lats_1d = np.linspace(min_lat, max_lat, grid_dim)
+        grid_lons_1d = np.linspace(min_lon, max_lon, grid_dim)
         N = len(grid_lats_1d) - 1
         M = len(grid_lons_1d) - 1
         clats = (grid_lats_1d[:-1] + grid_lats_1d[1:]) / 2.0
@@ -325,7 +329,7 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
         gc_cells = np.column_stack((c_lats_mat.ravel(), c_lons_mat.ravel()))
         dists_cells = np.linalg.norm(gc_cells[:, None, :] - st_c[None, :, :], axis=2)
         weights_cells = 1.0 / np.maximum(dists_cells**2.5, 1e-10)
-        cell_up_vals = (np.sum(weights_cells * st_v_np, axis=1) / np.sum(weights_cells, axis=1)).tolist()
+        cell_up_vals = np.round(np.sum(weights_cells * st_v_np, axis=1) / np.sum(weights_cells, axis=1), 5).tolist()
         
         features = [
             {
@@ -333,11 +337,11 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
                 'id': f'c_{i*M+j}',
                 'geometry': {
                     'type': 'Polygon',
-                    'coordinates': [[[float(grid_lons_1d[j]), float(grid_lats_1d[i])],
-                                     [float(grid_lons_1d[j+1]), float(grid_lats_1d[i])],
-                                     [float(grid_lons_1d[j+1]), float(grid_lats_1d[i+1])],
-                                     [float(grid_lons_1d[j]), float(grid_lats_1d[i+1])],
-                                     [float(grid_lons_1d[j]), float(grid_lats_1d[i])]]]
+                    'coordinates': [[[round(float(grid_lons_1d[j]), 5), round(float(grid_lats_1d[i]), 5)],
+                                     [round(float(grid_lons_1d[j+1]), 5), round(float(grid_lats_1d[i]), 5)],
+                                     [round(float(grid_lons_1d[j+1]), 5), round(float(grid_lats_1d[i+1]), 5)],
+                                     [round(float(grid_lons_1d[j]), 5), round(float(grid_lats_1d[i+1]), 5)],
+                                     [round(float(grid_lons_1d[j]), 5), round(float(grid_lats_1d[i]), 5)]]]
                 }
             }
             for i in range(N) for j in range(M)
@@ -349,14 +353,14 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
         ]
         
         interp_grid = {
-            'lats': gc[:, 0].tolist(),
-            'lons': gc[:, 1].tolist(),
-            'up_m': grid_up_vals.tolist(),
-            'z_scaled': grid_z_scaled,
-            'grid_lats_2d': grid_lats_mat.tolist(),
-            'grid_lons_2d': grid_lons_mat.tolist(),
-            'grid_up_2d': grid_up_vals.reshape(50, 50).tolist(),
-            'grid_z_2d': np.array(grid_z_scaled).reshape(50, 50).tolist(),
+            'lats': np.round(gc_pts[:, 0], 5).tolist(),
+            'lons': np.round(gc_pts[:, 1], 5).tolist(),
+            'up_m': np.round(grid_up_vals, 5).tolist(),
+            'z_scaled': np.round(grid_z_scaled, 3).tolist(),
+            'grid_lats_2d': np.round(grid_lats_mat, 5).tolist(),
+            'grid_lons_2d': np.round(grid_lons_mat, 5).tolist(),
+            'grid_up_2d': np.round(grid_up_vals.reshape(grid_dim, grid_dim), 5).tolist(),
+            'grid_z_2d': np.round(np.array(grid_z_scaled).reshape(grid_dim, grid_dim), 3).tolist(),
             'geojson': {
                 'type': 'FeatureCollection',
                 'features': features
@@ -366,6 +370,8 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
             'cell_hover': hover_texts
         }
         
+        del gc_pts, st_c, dists, weights, st_v_np, grid_up_vals, c_lats_mat, c_lons_mat, gc_cells, dists_cells, weights_cells
+        import gc; gc.collect()
         logger.info(f"Elaborate {len(stations)} stazioni GNSS e generata superficie geografica continua da {path.name}")
         
         return {

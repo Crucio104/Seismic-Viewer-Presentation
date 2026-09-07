@@ -21,7 +21,9 @@
         <div class="container">
             <div class="logo-container">
                 <div class="logo-blob">
-                    <svg viewBox="0 0 24 24"><path d="M2 12h3l2-6 3 12 2.5-9L15 15l2-4h5"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 12h3c1.5 0 2-5 3.5-5s2.5 12 4 12s2.5-15 4-15s2.5 10 3.5 10h4" stroke="#ffffff"></path>
+                    </svg>
                 </div>
             </div>
             
@@ -40,6 +42,10 @@
             <div id="recent-files-section" style="display:none; margin-top: 1.5rem; animation: fadeIn 0.8s ease-out;">
                 <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05rem; color: rgba(255,255,255,0.4); margin-bottom: 0.75rem; font-weight: 600;">Lastly opened</div>
                 <div id="recent-list" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                <button id="clear-history-btn" class="btn-clear-history" onclick="clearRecentHistoryJS()" title="Clear history and unsaved temporary INGV files">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    <span>Clear History</span>
+                </button>
             </div>
 
             <div class="file-card" id="file-card">
@@ -119,7 +125,10 @@
 
             <div class="vcard canim" onclick="openAnimModal()">
                 <div class="icon-box">
-                    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polygon points="10 8 16 12 10 16 10 8" fill="#fff" stroke="#fff"></polygon>
+                    </svg>
                 </div>
                 <h2>Dynamic Animation</h2>
                 <p>Full temporal evolution. Experience the seismic sequence in 4D space-time.</p>
@@ -127,7 +136,14 @@
 
             <div class="vcard ccluster" onclick="loadView(3)">
                 <div class="icon-box">
-                    <svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="3" fill="#fff"/><circle cx="16" cy="8" r="3" fill="#fff"/><circle cx="12" cy="16" r="3" fill="#fff"/><line x1="8" y1="8" x2="16" y2="8" stroke="#fff" stroke-width="1.5"/><line x1="8" y1="8" x2="12" y2="16" stroke="#fff" stroke-width="1.5"/><line x1="16" y1="8" x2="12" y2="16" stroke="#fff" stroke-width="1.5"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="6" r="3"></circle>
+                        <circle cx="6" cy="17" r="3"></circle>
+                        <circle cx="18" cy="17" r="3"></circle>
+                        <line x1="9.5" y1="8" x2="7.5" y2="14.5"></line>
+                        <line x1="14.5" y1="8" x2="16.5" y2="14.5"></line>
+                        <line x1="9" y1="17" x2="15" y2="17"></line>
+                    </svg>
                 </div>
                 <h2>Cluster Analysis</h2>
                 <p>Identify seismic zones with K-Means and DBSCAN spatial clustering.</p>
@@ -257,14 +273,14 @@
                 </div>
             </div>
 
-            <div class="setting-group" style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-                <label class="radio-label" style="display: inline-flex; align-items: center; gap: 0.5rem; margin: 0; padding: 0.5rem 1rem;">
+            <div class="setting-group" style="display: flex; flex-direction: column; gap: 0.4rem;">
+                <label class="toggle-switch">
+                    <span>Only localized events</span>
                     <input type="checkbox" id="online-solo-localizzati" checked>
-                    <span style="font-size: 0.812rem; color: #cbd5e1;">Only localized</span>
                 </label>
-                <label class="radio-label" style="display: inline-flex; align-items: center; gap: 0.5rem; margin: 0; padding: 0.5rem 1rem;">
+                <label class="toggle-switch">
+                    <span>Exclude missing data</span>
                     <input type="checkbox" id="online-exclude-missing" checked>
-                    <span style="font-size: 0.812rem; color: #cbd5e1;">Exclude missing data</span>
                 </label>
             </div>
 
@@ -276,6 +292,18 @@
     </div>
 
 <script>
+    // --- Mouse Parallax Ambient Background ---
+    window.addEventListener('mousemove', (e) => {
+        const orb1 = document.querySelector('.orb-1');
+        const orb2 = document.querySelector('.orb-2');
+        if (orb1 && orb2) {
+            const x = (e.clientX / window.innerWidth - 0.5) * 35;
+            const y = (e.clientY / window.innerHeight - 0.5) * 35;
+            orb1.style.transform = `translate(${x}px, ${y}px)`;
+            orb2.style.transform = `translate(${-x}px, ${-y}px)`;
+        }
+    });
+
     // --- Custom Dropdown Logic ---
     function toggleDropdown(event, menuId) {
         event.stopPropagation();
@@ -406,6 +434,20 @@
             }
         } catch(e) {
             section.style.display = 'none';
+        }
+    }
+
+    async function clearRecentHistoryJS() {
+        try {
+            const res = await pywebview.api.clear_recent_history();
+            if (res && res.status === 'success') {
+                showToast('History and temporary files cleared', 'success');
+                refreshRecentFiles();
+            } else {
+                showToast(res?.error || 'Failed to clear history', 'error');
+            }
+        } catch(e) {
+            showToast('System error: ' + e, 'error');
         }
     }
 

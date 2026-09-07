@@ -15,7 +15,7 @@ from typing import Any, Callable
 from core.config import (
     BASE_DIR, get_http_port, 
     clear_session_data, TEMP_DIR, store_viz_html,
-    MAP_CACHE_DIR, get_session_data
+    MAP_CACHE_DIR, get_session_data, cleanup_temp_files
 )
 from core.history import get_recent_files, save_recent_file, clear_history
 from core.online_importer import fetch_ingv_data
@@ -167,6 +167,7 @@ class Api:
 
             shutil.copy2(self._csv_path, save_path)
             logger.info(f"Dataset successfully saved to: {save_path}")
+            save_recent_file(save_path)
             return {'status': 'success', 'path': save_path}
         except Exception as e:
             logger.error("Error in save_current_csv", exc_info=True)
@@ -218,6 +219,17 @@ class Api:
         if not Path(path).exists():
             return {'error': 'File no longer exists.'}
         return self._process_csv_load(path)
+
+    def clear_recent_history(self) -> dict[str, Any]:
+        """Clear recent files history and delete unsaved temporary INGV CSV downloads."""
+        try:
+            clear_history()
+            cleanup_temp_files()
+            logger.info("Recent history and temporary INGV CSV files cleared.")
+            return {'status': 'success'}
+        except Exception as e:
+            logger.error("Error clearing recent history", exc_info=True)
+            return {'error': str(e)}
 
     # --- Visualization Navigation ---
 
@@ -408,6 +420,7 @@ class Api:
             if not is_fallback:
                 if len(self._html_cache) >= 3:
                     self._html_cache.pop(next(iter(self._html_cache)))
+                    import gc; gc.collect()
                 if curr_history is not None:
                     curr_history['viz_id'] = viz_id
 
@@ -552,22 +565,9 @@ class Api:
             if MAP_CACHE_DIR.exists():
                 shutil.rmtree(MAP_CACHE_DIR)
             MAP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
-            # Safely clean temporary files without deleting currently active dataset CSV
-            if TEMP_DIR.exists():
-                active_csv_p = Path(self._csv_path).resolve() if self._csv_path else None
-                for item in TEMP_DIR.iterdir():
-                    if item.is_file() and (active_csv_p is None or item.resolve() != active_csv_p):
-                        try:
-                            item.unlink()
-                        except Exception:
-                            pass
-            else:
-                TEMP_DIR.mkdir(parents=True, exist_ok=True)
             
             self._html_cache.clear()
             build_map_mesh.cache_clear()
-            clear_history()
             clear_session_data()
             import gc; gc.collect()
             return True
@@ -629,6 +629,7 @@ class Api:
                 stations_res = process_stations_data(stations_path)
                 res['layers']['stations'] = stations_res
                 
+            import gc; gc.collect()
             return res
         except Exception as e:
             logger.error("Error in apply_external_layers", exc_info=True)

@@ -122,15 +122,21 @@ body {
     padding: 0.6rem 1.2rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     border: none;
     background: transparent;
     font-size: 0.9rem;
 }
 
 #back-btn:hover {
-    transform: translateY(-1px);
-    background: rgba(255, 255, 255, 0.1);
+    transform: scale(1.03);
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.3);
+}
+
+#back-btn:active {
+    transform: scale(0.97);
 }
 
 
@@ -818,7 +824,7 @@ body {
     text-align: left;
     font-size: 0.750rem;
     font-weight: 500;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     align-items: center;
     gap: 0.500rem;
@@ -826,7 +832,13 @@ body {
 
 #camera-controls .btn-cam:hover {
     background: rgba(255, 255, 255, 0.18);
-    transform: translateX(-0.250rem);
+    border-color: rgba(255, 255, 255, 0.25);
+    transform: scale(1.02);
+    box-shadow: 0 0.625rem 1.250rem rgba(0, 0, 0, 0.2);
+}
+
+#camera-controls .btn-cam:active {
+    transform: scale(0.98);
 }
 
 #camera-controls .btn-cam.active {
@@ -978,35 +990,55 @@ body {
     pointer-events: auto;
 }
 
-#info-btn {
+#info-btn, #overlay-btn, #screenshot-btn {
     position: fixed;
-    bottom: 1.25rem;
-    left: 1.25rem;
     width: 2.25rem;
     height: 2.25rem;
     border-radius: 0.75rem;
-    background: rgba(15, 15, 25, 0.7);
+    background: rgba(15, 15, 25, 0.75);
     backdrop-filter: blur(1.25rem) saturate(160%);
     -webkit-backdrop-filter: blur(1.25rem) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    z-index: 110000; 
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    font-family: serif;
-    font-weight: 800;
-    font-size: 1.1rem;
-    font-style: italic;
+    z-index: 110000;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
-#info-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: scale(1.1) rotate(5deg);
+#info-btn {
+    bottom: 1.25rem;
+    left: 1.25rem;
+}
+
+#overlay-btn {
+    bottom: 4.0rem;
+    left: 1.25rem;
+}
+
+#screenshot-btn {
+    bottom: 6.75rem;
+    left: 1.25rem;
+}
+
+#info-btn:hover, #overlay-btn:hover, #screenshot-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    transform: scale(1.08);
     border-color: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.3);
+}
+
+#info-btn:active, #overlay-btn:active, #screenshot-btn:active {
+    transform: scale(0.95);
+}
+
+#overlay-btn.active, #info-btn.active, #screenshot-btn.active {
+    background: rgba(99, 102, 241, 0.35);
+    border-color: rgba(99, 102, 241, 0.6);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
 }
 
 #info-panel {
@@ -1033,70 +1065,8 @@ body {
 }
 
 @keyframes infoSlideUp {
-    from { opacity: 0; transform: translateY(0.5rem) scale(0.98); }
+    from { opacity: 0; transform: translateY(0.8rem) scale(0.92); }
     to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-#overlay-btn {
-    position: fixed;
-    bottom: 4.0rem;
-    left: 1.25rem;
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 0.75rem;
-    background: rgba(15, 15, 25, 0.7);
-    backdrop-filter: blur(1.25rem) saturate(160%);
-    -webkit-backdrop-filter: blur(1.25rem) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    z-index: 110000;
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-#overlay-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: scale(1.1);
-    border-color: rgba(255, 255, 255, 0.3);
-}
-
-
-
-#screenshot-btn {
-    position: fixed;
-    bottom: 6.75rem;
-    left: 1.25rem;
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 0.75rem;
-    background: rgba(15, 15, 25, 0.7);
-    backdrop-filter: blur(1.25rem) saturate(160%);
-    -webkit-backdrop-filter: blur(1.25rem) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    z-index: 110000;
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-#screenshot-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: scale(1.1) rotate(-5deg);
-    border-color: rgba(255, 255, 255, 0.3);
-}
-
-#overlay-btn.active {
-    background: rgba(99, 102, 241, 0.35);
-    border-color: rgba(99, 102, 241, 0.6);
-    box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
 }
 
 #layer-modal {

@@ -17,6 +17,14 @@ def parse_seismic_date(date_str: str) -> datetime | None:
     if '+' in clean_str:
         clean_str = clean_str.split('+')[0].strip()
 
+    # Fast-path for standard ISO / INGV formats (%Y-%m-%d %H:%M:%S[.f])
+    if len(clean_str) >= 19 and clean_str[10] == ' ':
+        fmt = "%Y-%m-%d %H:%M:%S.%f" if '.' in clean_str else "%Y-%m-%d %H:%M:%S"
+        try:
+            return datetime.strptime(clean_str, fmt)
+        except ValueError:
+            pass
+
     formats = [
         "%Y-%m-%d %H:%M:%S.%f",
         "%Y-%m-%d %H:%M:%S",
