@@ -374,11 +374,25 @@
                                     }
                                 }
 
+                                const eqTr = res.traces.find(t => t.name === 'Earthquakes');
+                                if (eqTr && eqTr.x) {
+                                    window.currentFilteredData = {
+                                        longitude: eqTr.x,
+                                        latitude: eqTr.y,
+                                        depth: eqTr.z
+                                    };
+                                    if (window.quakeData) window.quakeData.filtered = window.currentFilteredData;
+                                }
+
                                 // Sync legend and display mode
                                 applyDisplayMode();
                                 updateClusterLegend();
+                                if (window.SeismicUI && window.SeismicUI._activeConsecutiveArrows) {
+                                    window.SeismicUI.toggleConsecutiveArrows(true);
+                                }
                             } else if (res && res.error) {
                                 console.error("Update Error:", res.error);
+                                if (typeof showStatusToast === 'function') showStatusToast(res.error, false);
                             }
                         } catch (err) {
                             console.error("Async Error:", err);
@@ -396,15 +410,23 @@
 
             applyBtn.onclick = applyCombinedFilters;
 
+            [startInput, endInput, magMin, magMax, depMin, depMax].forEach(input => {
+                if (input) {
+                    input.addEventListener('change', applyCombinedFilters);
+                    input.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') applyCombinedFilters();
+                    });
+                }
+            });
 
-
-
-            const dates = quakeData.times.map(t => t.slice(0, 10));
+            const dates = (quakeData.times && Array.isArray(quakeData.times)) ? quakeData.times.map(t => t.slice(0, 10)) : [];
             const uniqueDates = Array.from(new Set(dates)).sort();
-            startInput.min = endInput.min = uniqueDates[0];
-            startInput.max = endInput.max = uniqueDates[uniqueDates.length - 1];
-            startInput.value = uniqueDates[0];
-            endInput.value = uniqueDates[uniqueDates.length - 1];
+            if (uniqueDates.length > 0) {
+                startInput.min = endInput.min = uniqueDates[0];
+                startInput.max = endInput.max = uniqueDates[uniqueDates.length - 1];
+                if (!startInput.value) startInput.value = uniqueDates[0];
+                if (!endInput.value) endInput.value = uniqueDates[uniqueDates.length - 1];
+            }
 
             const [depMinVal, depMaxVal] = getArrayMinMax(quakeData.depth.map(Math.abs));
             depMin.value = 0;

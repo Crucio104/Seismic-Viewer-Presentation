@@ -277,15 +277,26 @@
 
              const filterLoader = document.getElementById('filter-loader');
 
+            // Real-time updates for sliders/inputs
+            [startInput, endInput, magMin, magMax, depMin, depMax].forEach(input => {
+                if (input) {
+                    input.addEventListener('change', () => {
+                        applyFilterWithLoader();
+                    });
+                    input.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') applyFilterWithLoader();
+                    });
+                }
+            });
+
+
             function applyFilterWithLoader() {
                 if (is3D) {
                     filterLoader.classList.add('show');
-                    // Increased timeout to ensure browser paints the loader before heavy Plotly restyle
                     setTimeout(() => {
                         try { applyFilter(); } catch (e) { console.error('Filter Error:', e); }
-                        // Small delay after apply to let the user see the "work" being done
-                        setTimeout(() => filterLoader.classList.remove('show'), 100);
-                    }, 50);
+                        setTimeout(() => filterLoader.classList.remove('show'), 80);
+                    }, 40);
                 } else {
                     try { applyFilter(); } catch (e) { console.error('Filter Error:', e); }
                 }
@@ -293,6 +304,8 @@
 
             if (is3D) {
                 applyBtn.onclick = applyFilterWithLoader;
+                // Initial filter run to sync filtered state and vectors
+                applyFilter();
                 // Manually trigger initial legend update for 3D
                 setTimeout(() => {
                     updateGlassLegend(true, 'Depth (KM)', currentColorScale, invertScale, quakeData.dep_limit || quakeData.dep_range, { startDate: quakeData.start_date });
@@ -304,17 +317,20 @@
             }
 
             function applyFilter() {
-                const start = startInput.value, end = endInput.value;
+                const start = startInput.value ? startInput.value.trim() : '';
+                const end = endInput.value ? endInput.value.trim() : '';
                 const m1 = parseFloat(magMin.value) || 0, m2 = parseFloat(magMax.value) || 9.9;
                 const d1 = parseFloat(depMin.value) || 0, d2 = parseFloat(depMax.value) || 9999;
                 const indices = [];
 
                 for (let i = 0; i < dates.length; i++) {
+                    const dt = dates[i];
                     const m = quakeData.magnitude[i];
                     const d = Math.abs(quakeData.depth[i]);
-                    if (dates[i] >= start && dates[i] <= end && 
-                        m >= m1 && m <= m2 && 
-                        d >= d1 && d <= d2) indices.push(i);
+                    const dateMatch = (!start || dt >= start) && (!end || dt <= end);
+                    const magMatch = (m >= m1 && m <= m2);
+                    const depMatch = (d >= d1 && d <= d2);
+                    if (dateMatch && magMatch && depMatch) indices.push(i);
                 }
 
                 const filtered = {
@@ -326,6 +342,17 @@
                     dnum: indices.map(i => quakeData.dates_num[i]),
                     hover: indices.map(i => (quakeData.hover && quakeData.hover[i]) ? quakeData.hover[i] : `Date: ${quakeData.times ? quakeData.times[i] : ''}<br>Magnitude: ${quakeData.magnitude[i].toFixed(1)}<br>Depth: ${Math.abs(quakeData.depth[i]).toFixed(1)} km`)
                 };
+
+                window.currentFilteredData = {
+                    longitude: filtered.lon,
+                    latitude: filtered.lat,
+                    depth: filtered.dep,
+                    magnitude: filtered.mag,
+                    times: filtered.times
+                };
+                if (window.quakeData) {
+                    window.quakeData.filtered = window.currentFilteredData;
+                }
 
                 const isHeatmap = (currentViewMode === 'heatmap');
                 const isDep = (currentColorMode === 'dep');
@@ -442,6 +469,10 @@
                     limits,
                     { startDate: quakeData.start_date }
                 );
+
+                if (window.SeismicUI && window.SeismicUI._activeConsecutiveArrows) {
+                    window.SeismicUI.toggleConsecutiveArrows(true);
+                }
             }
 
             // Finally hide the loader once everything is ready

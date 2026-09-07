@@ -49,6 +49,13 @@
         </svg>
         Reset
     </button>
+    <button class="btn-cam" id="btn-consecutive-arrows" onclick="SeismicUI.toggleConsecutiveArrows()" title="Consecutive Event Vectors (V)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="19" x2="19" y2="5" />
+            <polyline points="12 5 19 5 19 12" />
+        </svg>
+        Event Vectors
+    </button>
 </div>
 
 <!-- Scene Info UI -->
@@ -155,6 +162,10 @@
         <div class="shortcut-row">
             <span>Auto-rotation (Cinema Mode)</span>
             <span class="shortcut-key">C</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Consecutive Event Vectors</span>
+            <span class="shortcut-key">V</span>
         </div>
         <div class="shortcut-row">
             <span>Quick View Switch</span>
@@ -591,6 +602,260 @@
                     modal.classList.add('active');
                 } else {
                     modal.classList.remove('active');
+                }
+            }
+        },
+
+        _activeConsecutiveArrows: false,
+        _consecutiveVectorCount: 0,
+
+        toggleConsecutiveArrows(forceState = null) {
+            const btn = document.getElementById('btn-consecutive-arrows');
+            const gd = document.querySelector('.plotly-graph-div');
+            if (!gd || !gd.data) return;
+
+            const isCurrentlyActive = btn ? btn.classList.contains('active') : false;
+            const targetState = (forceState !== null) ? forceState : !isCurrentlyActive;
+
+            this.removeConsecutiveArrowTraces(gd);
+
+            if (targetState) {
+                let xs = [], ys = [], zs = [];
+                
+                const cfd = window.currentFilteredData || (window.quakeData && window.quakeData.filtered ? window.quakeData.filtered : null);
+                if (cfd && cfd.longitude && cfd.longitude.length > 0) {
+                    xs = cfd.longitude;
+                    ys = cfd.latitude;
+                    zs = cfd.depth;
+                } else {
+                    const qd = window.quakeData || (window.fullData ? window.fullData : null);
+                    if (qd && qd.longitude && qd.longitude.length > 0) {
+                        xs = qd.longitude;
+                        ys = qd.latitude;
+                        zs = qd.depth;
+                    } else {
+                        for (let i = 0; i < gd.data.length; i++) {
+                            const tr = gd.data[i];
+                            if (tr && tr.type === 'scatter3d' && tr.x && tr.x.length > 0) {
+                                const name = tr.name || '';
+                                if (!name.includes('Terrain') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Vector') && !name.includes('Arrow') && !name.includes('Centroid') && !name.includes('Hull') && !name.includes('Mesh') && !name.includes('Plane') && !name.includes('Other')) {
+                                    for (let k = 0; k < tr.x.length; k++) {
+                                        xs.push(tr.x[k]);
+                                        ys.push(tr.y[k]);
+                                        zs.push(tr.z[k]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (xs.length < 2) {
+                    showStatusToast("Not enough 3D points for event vectors.", false);
+                    if (btn) btn.classList.remove('active');
+                    this._activeConsecutiveArrows = false;
+                    this.updateSwapLegendVisibility();
+                    return;
+                }
+
+                const lineX = [], lineY = [], lineZ = [], lineColor = [];
+
+                let validPairs = 0;
+                const totalPairs = xs.length - 1;
+
+                for (let i = 0; i < totalPairs; i++) {
+                    const x1 = parseFloat(xs[i]), y1 = parseFloat(ys[i]), z1 = parseFloat(zs[i]);
+                    const x2 = parseFloat(xs[i+1]), y2 = parseFloat(ys[i+1]), z2 = parseFloat(zs[i+1]);
+
+                    if (isNaN(x1) || isNaN(y1) || isNaN(z1) || isNaN(x2) || isNaN(y2) || isNaN(z2)) continue;
+
+                    validPairs++;
+                    const vectorNum = validPairs; // 1-indexed vector sequence number
+
+                    // 1. Arrow stem (from event i to event i+1)
+                    lineX.push(x1, x2, null);
+                    lineY.push(y1, y2, null);
+                    lineZ.push(z1, z2, null);
+                    lineColor.push(vectorNum, vectorNum, vectorNum);
+
+                    // 2. Real 3D Arrowhead geometry at destination (x2, y2, z2) for EVERY point
+                    const midLat = (y1 + y2) * 0.5;
+                    const kmPerDegLon = 111.0 * Math.cos(midLat * Math.PI / 180.0);
+                    const kmPerDegLat = 111.0;
+
+                    const dxKm = (x2 - x1) * kmPerDegLon;
+                    const dyKm = (y2 - y1) * kmPerDegLat;
+                    const dzKm = (z2 - z1);
+                    const distKm = Math.sqrt(dxKm * dxKm + dyKm * dyKm + dzKm * dzKm);
+
+                    if (distKm > 1e-4) {
+                        const ux = dxKm / distKm;
+                        const uy = dyKm / distKm;
+                        const uz = dzKm / distKm;
+
+                        // Small, subtle and sleek pyramid dimensions for each arrow
+                        const headLenKm = Math.min(Math.max(0.003, 0.12 * distKm), 0.025);
+                        const headWidthKm = headLenKm * 0.35;
+
+                        // Perpendicular vector n1
+                        let rx = 0, ry = 0, rz = 1;
+                        if (Math.abs(uz) > 0.88) { rx = 0; ry = 1; rz = 0; }
+
+                        let n1x = uy * rz - uz * ry;
+                        let n1y = uz * rx - ux * rz;
+                        let n1z = ux * ry - uy * rx;
+                        const n1Len = Math.sqrt(n1x * n1x + n1y * n1y + n1z * n1z) || 1;
+                        n1x /= n1Len; n1y /= n1Len; n1z /= n1Len;
+
+                        // Perpendicular vector n2 (u x n1)
+                        const n2x = uy * n1z - uz * n1y;
+                        const n2y = uz * n1x - ux * n1z;
+                        const n2z = ux * n1y - uy * n1x;
+
+                        // Base point in km
+                        const x2Km = x2 * kmPerDegLon;
+                        const y2Km = y2 * kmPerDegLat;
+                        const z2Km = z2;
+
+                        const baseKmX = x2Km - headLenKm * ux;
+                        const baseKmY = y2Km - headLenKm * uy;
+                        const baseKmZ = z2Km - headLenKm * uz;
+
+                        // Convert 4 wing vertices and base back to (lon, lat, depth)
+                        const w1x = (baseKmX + headWidthKm * n1x) / kmPerDegLon;
+                        const w1y = (baseKmY + headWidthKm * n1y) / kmPerDegLat;
+                        const w1z = (baseKmZ + headWidthKm * n1z);
+
+                        const w2x = (baseKmX - headWidthKm * n1x) / kmPerDegLon;
+                        const w2y = (baseKmY - headWidthKm * n1y) / kmPerDegLat;
+                        const w2z = (baseKmZ - headWidthKm * n1z);
+
+                        const w3x = (baseKmX + headWidthKm * n2x) / kmPerDegLon;
+                        const w3y = (baseKmY + headWidthKm * n2y) / kmPerDegLat;
+                        const w3z = (baseKmZ + headWidthKm * n2z);
+
+                        const w4x = (baseKmX - headWidthKm * n2x) / kmPerDegLon;
+                        const w4y = (baseKmY - headWidthKm * n2y) / kmPerDegLat;
+                        const w4z = (baseKmZ - headWidthKm * n2z);
+
+                        const bx = baseKmX / kmPerDegLon;
+                        const by = baseKmY / kmPerDegLat;
+                        const bz = baseKmZ;
+
+                        // Cross fin 1: Tip -> Wing1 -> Base -> Wing2 -> Tip
+                        lineX.push(w1x, x2, w2x, bx, w1x, null);
+                        lineY.push(w1y, y2, w2y, by, w1y, null);
+                        lineZ.push(w1z, z2, w2z, bz, w1z, null);
+                        lineColor.push(vectorNum, vectorNum, vectorNum, vectorNum, vectorNum, vectorNum);
+
+                        // Cross fin 2: Tip -> Wing3 -> Base -> Wing4 -> Tip
+                        lineX.push(w3x, x2, w4x, bx, w3x, null);
+                        lineY.push(w3y, y2, w4y, by, w3y, null);
+                        lineZ.push(w3z, z2, w4z, bz, w3z, null);
+                        lineColor.push(vectorNum, vectorNum, vectorNum, vectorNum, vectorNum, vectorNum);
+                    }
+                }
+
+                if (validPairs === 0) {
+                    showStatusToast("No valid pairs for event vectors.", false);
+                    if (btn) btn.classList.remove('active');
+                    this._activeConsecutiveArrows = false;
+                    this.updateSwapLegendVisibility();
+                    return;
+                }
+
+                this._activeConsecutiveArrows = true;
+                this._consecutiveVectorCount = validPairs;
+
+                const lineTrace = {
+                    type: 'scatter3d',
+                    name: 'Consecutive Event Vectors',
+                    x: lineX,
+                    y: lineY,
+                    z: lineZ,
+                    mode: 'lines',
+                    line: {
+                        color: lineColor,
+                        colorscale: getPlotlyScale('Vectors'),
+                        cmin: 1,
+                        cmax: validPairs,
+                        width: 4
+                    },
+                    hoverinfo: 'skip',
+                    showlegend: false
+                };
+
+                Plotly.addTraces(gd, [lineTrace]);
+                if (btn) btn.classList.add('active');
+
+                if (window._currentLegendMode === 'vectors') {
+                    updateGlassLegendInternal(true, 'VECTOR N°', 'Vectors', false, [1, validPairs], null);
+                }
+
+                this.updateSwapLegendVisibility();
+                showStatusToast(`Temporal vectors applied successfully (${validPairs} vectors).`, true);
+            } else {
+                if (btn) btn.classList.remove('active');
+                this._activeConsecutiveArrows = false;
+                if (window._currentLegendMode === 'vectors') {
+                    window._currentLegendMode = 'earthquakes';
+                    if (window._earthquakeLegendState) {
+                        const s = window._earthquakeLegendState;
+                        updateGlassLegendInternal(s.show, s.title, s.scaleName, s.invert, s.limits, s.dateInfo);
+                    }
+                }
+                this.updateSwapLegendVisibility();
+                showStatusToast('Temporal vectors removed.', true);
+            }
+        },
+
+        removeConsecutiveArrowTraces(gd) {
+            if (!gd || !gd.data) return;
+            const indicesToRemove = [];
+            for (let i = gd.data.length - 1; i >= 0; i--) {
+                const tr = gd.data[i];
+                if (tr && (tr.name === 'Consecutive Event Vectors' || tr.name === 'Event Arrowheads')) {
+                    indicesToRemove.push(i);
+                }
+            }
+            if (indicesToRemove.length > 0) {
+                Plotly.deleteTraces(gd, indicesToRemove);
+            }
+        },
+
+        updateSwapLegendVisibility() {
+            const btn = document.getElementById('btn-swap-legend');
+            if (!btn) return;
+
+            let isClustering = false;
+            if (typeof window.animClusteringEnabled !== 'undefined' && window.animClusteringEnabled) {
+                isClustering = true;
+            } else if (typeof window.lockedClusters !== 'undefined') {
+                isClustering = true;
+            }
+
+            const available = [];
+            if (isClustering) {
+                available.push('clusters');
+            } else {
+                available.push('earthquakes');
+            }
+            if (this._activeConsecutiveArrows) {
+                available.push('vectors');
+            }
+            if (this._activeTomographyData) {
+                available.push('tomo');
+            }
+            if (this._activeUpliftData) {
+                available.push('uplift');
+            }
+
+            if (available.length > 1) {
+                btn.style.display = 'flex';
+            } else {
+                btn.style.display = 'none';
+                if (window._currentLegendMode === 'vectors') {
+                    window._currentLegendMode = available[0];
                 }
             }
         },
@@ -1576,6 +1841,9 @@
             } else {
                 available.push('earthquakes');
             }
+            if (this._activeConsecutiveArrows) {
+                available.push('vectors');
+            }
             if (this._activeTomographyData) {
                 available.push('tomo');
             }
@@ -1583,8 +1851,8 @@
                 available.push('uplift');
             }
 
-            if (available.length === 1) {
-                showStatusToast('Apply layers to swap scale', false);
+            if (available.length <= 1) {
+                showStatusToast('Apply layers or vectors to swap scale', false);
                 return;
             }
 
@@ -1607,6 +1875,13 @@
                     updateGlassLegendInternal(s.show, s.title, s.scaleName, s.invert, s.limits, s.dateInfo);
                 }
                 showStatusToast('Swapped legend to Earthquakes scale', true);
+            } else if (nextMode === 'vectors') {
+                if (btn) btn.innerHTML = '⇄ Scale: Vectors';
+                if (container) container.style.display = 'flex';
+                if (clusterList) clusterList.style.display = 'none';
+                const maxV = this._consecutiveVectorCount || 100;
+                updateGlassLegendInternal(true, 'VECTOR N°', 'Vectors', false, [1, maxV], null);
+                showStatusToast(`Swapped legend to VECTOR N° scale (1 → ${maxV})`, true);
             } else if (nextMode === 'clusters') {
                 if (btn) btn.innerHTML = '⇄ Scale: Clusters';
                 if (container) container.style.display = 'none';
@@ -2007,7 +2282,8 @@
         'Electric': ['#000000', '#1e008a', '#7d00ba', '#c400b8', '#fe00a2', '#ff5e61', '#ffc100', '#ffff00'],
         'Hot': ['#000000', '#e60000', '#ffcc00', '#ffffff'],
         'Tomography': ['rgb(0, 100, 255)', 'rgb(80, 180, 255)', 'rgb(255, 255, 255)', 'rgb(255, 160, 80)', 'rgb(255, 60, 0)'],
-        'Uplift': ['rgb(255, 255, 0)', 'rgb(255, 140, 0)', 'rgb(180, 0, 0)']
+        'Uplift': ['rgb(255, 255, 0)', 'rgb(255, 140, 0)', 'rgb(180, 0, 0)'],
+        'Vectors': ['#440154', '#482878', '#3e4989', '#31688e', '#26828e', '#1f9e89', '#6ece58', '#b5de2b', '#fde725']
     };
 
 
@@ -2062,6 +2338,8 @@
                 tick.textContent = `${day}-${month}-${year}`;
             } else if (scaleName === 'Tomography' || title.includes('Tomo')) {
                 tick.textContent = val.toFixed(3);
+            } else if (scaleName === 'Vectors' || (typeof title === 'string' && (title.includes('Sequence') || title.includes('Vector')))) {
+                tick.textContent = Math.round(val);
             } else {
                 tick.textContent = val.toFixed(1);
             }
@@ -2466,6 +2744,15 @@
                 e.preventDefault();
                 if (typeof toggleCinemaMode === 'function') {
                     toggleCinemaMode();
+                }
+            }
+        }
+        // V / v or A / a: Toggle Consecutive Event Vectors
+        else if (e.key === 'v' || e.key === 'V' || e.key === 'a' || e.key === 'A') {
+            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                if (typeof SeismicUI !== 'undefined' && SeismicUI.toggleConsecutiveArrows) {
+                    SeismicUI.toggleConsecutiveArrows();
                 }
             }
         }

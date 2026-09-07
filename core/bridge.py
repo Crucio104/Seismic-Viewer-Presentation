@@ -453,7 +453,8 @@ class Api:
             return {'error': 'No data'}
         try:
             d = self._data
-            t1, t2 = params.get('start_date', ""), params.get('end_date', "")
+            t1 = params.get('start_date', "").strip() if params.get('start_date') else ""
+            t2 = params.get('end_date', "").strip() if params.get('end_date') else ""
             
             # Fast index slicing
             start_idx, end_idx = 0, len(d['longitude'])
@@ -473,9 +474,11 @@ class Api:
                         if dt > t2:
                             end_idx = cum[dates[i-1]] if i > 0 else 0
                             break
+                    else:
+                        end_idx = len(d['longitude'])
 
             if start_idx >= end_idx:
-                return {'error': 'Empty date range'}
+                return {'error': 'No events found in selected date range'}
 
             mags, deps = np.array(d['magnitude'][start_idx:end_idx]), np.abs(d['depth'][start_idx:end_idx])
             viz_mask = (mags >= float(params.get('mag_min', 0))) & (mags <= float(params.get('mag_max', 10))) & \
