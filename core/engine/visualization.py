@@ -72,9 +72,22 @@ def apply_3d_style(fig: go.Figure, x_range: list[float], y_range: list[float], z
 
 # --- View Generation ---
 
-def view_2d(longitude: list[float], latitude: list[float], magnitude: list[float], times: list[str], dates_num: list[float] | None = None, depth: list[float] | None = None, visual_pack: dict[str, Any] | None = None) -> go.Figure:
+def view_2d(
+    longitude: list[float], 
+    latitude: list[float], 
+    magnitude: list[float], 
+    times: list[str], 
+    dates_num: list[float] | None = None, 
+    depth: list[float] | None = None, 
+    visual_pack: dict[str, Any] | None = None,
+    origin_lat: float | None = None,
+    origin_lon: float | None = None
+) -> go.Figure:
     """Generate a 2D map view with scatter and density traces."""
     all_hover = visual_pack.get('hover', []) if visual_pack else []
+
+    center_lat = origin_lat if origin_lat is not None else (float(np.mean(latitude)) if len(latitude) > 0 else 0.0)
+    center_lon = origin_lon if origin_lon is not None else (float(np.mean(longitude)) if len(longitude) > 0 else 0.0)
 
     fig = px.scatter_mapbox(
         lat=latitude, lon=longitude,
@@ -83,8 +96,8 @@ def view_2d(longitude: list[float], latitude: list[float], magnitude: list[float
         hover_name=all_hover,
         zoom=12,
         center=dict(
-            lat=(min(latitude) + max(latitude)) / 2,
-            lon=(min(longitude) + max(longitude)) / 2
+            lat=center_lat,
+            lon=center_lon
         ),
         labels={"lat": "Latitude", "lon": "Longitude", "size": "Magnitude", "color": "Depth" if depth is not None else "Magnitude"},
     )

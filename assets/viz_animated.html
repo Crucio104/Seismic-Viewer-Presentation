@@ -18,6 +18,22 @@
     height: 0 !important;
 }
 
+#left-panel-wrapper {
+    width: 15.2rem !important;
+}
+#settings-bar {
+    padding-right: 0.35rem;
+    overflow-x: hidden;
+}
+.settings-row {
+    width: 100%;
+}
+.settings-row .glass-input {
+    min-width: 0;
+    flex: 1 1 0;
+    padding: 0 0.5rem;
+}
+
 /* Locking all controls and buttons during animation playback except Play and Pause */
 .anim-locked {
     opacity: 0.45 !important;
@@ -98,20 +114,20 @@
             <div class="settings-group">
                 <label class="label" for="anim-mag-min">Magnitude Filter</label>
                 <div class="settings-row" style="gap:0.5rem;">
-                    <input type="number" id="anim-mag-min" class="glass-input" step="0.1" value="-10.0" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                    <input type="number" id="anim-mag-min" class="glass-input" step="0.1" value="-10.0" style="height:1.8rem; font-size:0.75rem;">
                     <span style="color:rgba(255,255,255,0.5); font-size:0.7rem;">to</span>
                     <label class="sr-only" for="anim-mag-max" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Max Magnitude</label>
-                    <input type="number" id="anim-mag-max" class="glass-input" step="0.1" value="10.0" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                    <input type="number" id="anim-mag-max" class="glass-input" step="0.1" value="10.0" style="height:1.8rem; font-size:0.75rem;">
                 </div>
             </div>
 
             <div class="settings-group">
                 <label class="label" for="anim-dep-min">Depth Filter (km)</label>
                 <div class="settings-row" style="gap:0.5rem;">
-                    <input type="number" id="anim-dep-min" class="glass-input" step="1" value="-100" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                    <input type="number" id="anim-dep-min" class="glass-input" step="1" value="-100" style="height:1.8rem; font-size:0.75rem;">
                     <span style="color:rgba(255,255,255,0.5); font-size:0.7rem;">to</span>
                     <label class="sr-only" for="anim-dep-max" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Max Depth</label>
-                    <input type="number" id="anim-dep-max" class="glass-input" step="1" value="1000" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                    <input type="number" id="anim-dep-max" class="glass-input" step="1" value="1000" style="height:1.8rem; font-size:0.75rem;">
                 </div>
             </div>
 
@@ -223,7 +239,7 @@
 
         <div id="jump-bar" class="glass-panel">
             <label for="jump-date" class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Jump to Date</label>
-            <input type="text" id="jump-date" class="glass-input" placeholder="MM/DD/YYYY" maxlength="10" style="width: 7.5rem; text-align: center; font-variant-numeric: tabular-nums;" title="Format: MM/DD/YYYY (Month/Day/Year)">
+            <input type="text" id="jump-date" class="glass-input" placeholder="MM/DD/YYYY" maxlength="10" style="width: 8.0rem; text-align: center; font-variant-numeric: tabular-nums;" title="Format: MM/DD/YYYY (Month/Day/Year)">
             <button class="settings-btn" id="jump-btn">Go</button>
         </div>
 
@@ -542,7 +558,10 @@
                     clusterData = animClustersMap[dates[idx]];
                 }
 
-                const startD = new Date(quakeData.start_date);
+                const startD = new Date(quakeData.start_date || '2000-01-01');
+                const startTimestamp = startD.getTime();
+                if (!window._animDateCache) window._animDateCache = new Map();
+                const animDateCache = window._animDateCache;
 
                 for (let i = start; i < end; i++) {
                     const m = quakeData.mag[i];
@@ -551,16 +570,20 @@
                     if (m >= magMin && m <= magMax && absD >= depMin && absD <= depMax) {
                         sliceLon.push(quakeData.lon[i]);
                         sliceLat.push(quakeData.lat[i]);
-                        sliceDep.push(quakeData.dep[i]);
+                        sliceDep.push(d);
                         sliceMag.push(m);
                         sliceDnum.push(quakeData.dnum[i]);
 
-                        let hText = quakeData.hover[i];
+                        let hText = quakeData.hover ? quakeData.hover[i] : "";
                         if (!hText) {
-                            const dateObj = new Date(startD);
-                            dateObj.setDate(dateObj.getDate() + Math.round(quakeData.dnum[i]));
-                            const dStr = `${String(dateObj.getMonth() + 1).padStart(2, '0')}/${String(dateObj.getDate()).padStart(2, '0')}/${dateObj.getFullYear()}`;
-                            hText = `Date: ${dStr}<br>Mag: ${m.toFixed(1)}<br>Dep: ${Math.abs(d).toFixed(1)} km`;
+                            const dayInt = Math.round(quakeData.dnum[i]);
+                            let dStr = animDateCache.get(dayInt);
+                            if (!dStr) {
+                                const dt = new Date(startTimestamp + dayInt * 86400000);
+                                dStr = `${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getDate()).padStart(2, '0')}/${dt.getFullYear()}`;
+                                animDateCache.set(dayInt, dStr);
+                            }
+                            hText = `Date: ${dStr}<br>Mag: ${m.toFixed(1)}<br>Dep: ${absD.toFixed(1)} km`;
                         }
 
                         let lbl = -1;
@@ -812,7 +835,10 @@
                     histogramMap.style.gap = '0.1rem';
                 }
 
-                const maxCount = Math.max(...counts);
+                let maxCount = 1;
+                for (let c = 0; c < counts.length; c++) {
+                    if (counts[c] > maxCount) maxCount = counts[c];
+                }
                 histogramMap.innerHTML = '';
                 
                 counts.forEach((count, i) => {
@@ -846,8 +872,15 @@
                     return;
                 }
                 
-                const maxMag = Math.max(...sliceMagWindow);
-                const avgDep = sliceDepWindow.reduce((a, b) => a + b, 0) / count;
+                let maxMag = -Infinity;
+                let sumDep = 0;
+                for (let j = 0; j < count; j++) {
+                    const mVal = sliceMagWindow[j];
+                    if (mVal > maxMag) maxMag = mVal;
+                    sumDep += Math.abs(sliceDepWindow[j]);
+                }
+                const avgDep = count > 0 ? (sumDep / count) : 0;
+                if (maxMag === -Infinity) maxMag = 0;
                 
                 // Energy Release (kJ) using Gutenberg-Richter relation: log10(E) = 4.8 + 1.5 * M
                 // We divide by 1000 for kJ, so the constant becomes 4.8 - 3 = 1.8

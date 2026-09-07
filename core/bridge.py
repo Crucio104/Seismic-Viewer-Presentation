@@ -348,12 +348,13 @@ class Api:
                     orphan_mask[target_indices] = False
                     global_labels[orphan_mask] = -1
 
-            for i in target_indices:
-                sub_l = new_sub_labels[i]
-                if sub_l >= 0:
-                    global_labels[i] = max_global + 1 + sub_l
-                else:
-                    global_labels[i] = -1
+            for local_idx, global_idx in enumerate(target_indices):
+                if local_idx < len(new_sub_labels):
+                    sub_l = new_sub_labels[local_idx]
+                    if sub_l >= 0:
+                        global_labels[global_idx] = max_global + 1 + sub_l
+                    else:
+                        global_labels[global_idx] = -1
                     
             unique_lbls, counts = np.unique(global_labels, return_counts=True)
             logger.info(f"apply_subclusters: unique global_labels now = {unique_lbls} with counts = {counts}")
@@ -405,13 +406,8 @@ class Api:
             store_viz_html(viz_id, html)
 
             if not is_fallback:
-                if len(self._html_cache) >= 10:
+                if len(self._html_cache) >= 3:
                     self._html_cache.pop(next(iter(self._html_cache)))
-                # The old cache_key logic is gone, we don't strictly need to store it in _html_cache unless we want 
-                # cross-history caching (not needed here). But I'll keep it as a safety dict so the html is kept alive 
-                # (although store_viz_html handles survival).
-                
-                # Store it in the current history state!
                 if curr_history is not None:
                     curr_history['viz_id'] = viz_id
 
@@ -548,20 +544,32 @@ class Api:
         self._stored_layer_paths = {'stations': None, 'uplift': None, 'tomography': None}
         self._html_cache.clear()
         clear_session_data()
+        import gc; gc.collect()
         return True
 
     def clear_map_cache(self) -> bool | str:
         try:
             if MAP_CACHE_DIR.exists():
                 shutil.rmtree(MAP_CACHE_DIR)
-            if TEMP_DIR.exists():
-                shutil.rmtree(TEMP_DIR)
             MAP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+            # Safely clean temporary files without deleting currently active dataset CSV
+            if TEMP_DIR.exists():
+                active_csv_p = Path(self._csv_path).resolve() if self._csv_path else None
+                for item in TEMP_DIR.iterdir():
+                    if item.is_file() and (active_csv_p is None or item.resolve() != active_csv_p):
+                        try:
+                            item.unlink()
+                        except Exception:
+                            pass
+            else:
+                TEMP_DIR.mkdir(parents=True, exist_ok=True)
             
             self._html_cache.clear()
             build_map_mesh.cache_clear()
             clear_history()
             clear_session_data()
+            import gc; gc.collect()
             return True
         except Exception as e:
             return str(e)
@@ -612,17 +620,14 @@ class Api:
             if params.get('uplift_path'):
                 uplift_res = process_uplift_data(params['uplift_path'], target_date_str=target_date, stations_path=stations_path)
                 res['layers']['uplift'] = uplift_res
-                res['uplift'] = uplift_res
                 
             if params.get('tomography_path'):
                 tomo_res = process_tomography_data(params['tomography_path'])
                 res['layers']['tomography'] = tomo_res
-                res['tomography'] = tomo_res
                 
             if stations_path:
                 stations_res = process_stations_data(stations_path)
                 res['layers']['stations'] = stations_res
-                res['stations'] = stations_res
                 
             return res
         except Exception as e:

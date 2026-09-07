@@ -8,12 +8,10 @@ logger = logging.getLogger(__name__)
 # ─── Template Caching ────────────────────────────────────────────────
 # Assets are loaded once at startup to improve visualization generation speed.
 TEMPLATE_CACHE: dict[str, str] = {}
+_TEMPLATE_MTIMES: dict[str, float] = {}
 
 def _ensure_templates_loaded() -> None:
-    """Load HTML assets from the assets directory if not already cached."""
-    if TEMPLATE_CACHE:
-        return
-
+    """Load HTML assets from the assets directory if not already cached or if modified."""
     assets_dir = BASE_DIR / 'assets'
     
     # Files to cache
@@ -27,11 +25,15 @@ def _ensure_templates_loaded() -> None:
     for key, filename in files.items():
         path = assets_dir / filename
         try:
-            with open(path, 'r', encoding='utf-8') as f:
-                TEMPLATE_CACHE[key] = f.read()
+            mtime = path.stat().st_mtime
+            if key not in TEMPLATE_CACHE or _TEMPLATE_MTIMES.get(key) != mtime:
+                with open(path, 'r', encoding='utf-8') as f:
+                    TEMPLATE_CACHE[key] = f.read()
+                _TEMPLATE_MTIMES[key] = mtime
         except Exception as e:
             logger.warning(f"Failed to load template {filename}: {e}")
-            TEMPLATE_CACHE[key] = ""
+            if key not in TEMPLATE_CACHE:
+                TEMPLATE_CACHE[key] = ""
 
 
 def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = False, is_3d: bool = False, earthquake_data: dict[str, Any] | None = None, is_fallback: bool = False, data_url: str = "", is_subcluster: bool = False) -> str:

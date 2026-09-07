@@ -245,7 +245,8 @@
         transition: transform 0.4s ease;
     }
     .vcard:hover .icon-box { transform: scale(1.1); }
-    .icon-box svg { width: 2.000rem; height: 2.000rem; fill: #fff; }
+    .icon-box svg { width: 2.000rem; height: 2.000rem; display: block; }
+    .canim .icon-box svg path { fill: #fff; }
 
     .c2d .icon-box { background: linear-gradient(135deg, #4ade80 0%, #2dd4bf 100%); box-shadow: 0 0.625rem 1.250rem rgba(74, 222, 128, 0.2); }
     .c3d .icon-box { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); box-shadow: 0 0.625rem 1.250rem rgba(99, 102, 241, 0.2); }

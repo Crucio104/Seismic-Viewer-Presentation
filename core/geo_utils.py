@@ -13,20 +13,7 @@ from core.config import PALETTE_COLORS, MAP_CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
-# --- Network & SSL Configuration for Maps ---
-try:
-    context = ssl._create_unverified_context()
-except AttributeError:
-    context = None
-
-if context:
-    opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=context))
-else:
-    opener = urllib.request.build_opener()
-
-opener.addheaders = [('User-Agent', 'SeismicViewer/1.0')]
-urllib.request.install_opener(opener)
-
+# --- Helper for Map Tiles Fetching ---
 def _get_cache_path(bbox: tuple[float, float, float, float], resolution: int) -> Path:
     """Generate a deterministic cache path from the bounding box and resolution."""
     # Round bbox to 5 decimal places to avoid tiny float differences breaking cache
@@ -40,7 +27,20 @@ def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] 
     """Low-level fetch from Smopy with error handling for offline usage."""
     try:
         logger.info(f"Downloading map tiles for area {bbox}...")
-        map_obj = smopy.Map(bbox)
+        try:
+            map_obj = smopy.Map(bbox)
+        except (ssl.SSLError, urllib.error.URLError) as ssl_err:
+            logger.warning(f"SSL certificate issue downloading tiles ({ssl_err}), retrying with local SSL fallback...")
+            ctx = ssl._create_unverified_context() if hasattr(ssl, '_create_unverified_context') else None
+            unverified_opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
+            unverified_opener.addheaders = [('User-Agent', 'SeismicViewer/1.0')]
+            orig_opener = urllib.request._opener
+            urllib.request.install_opener(unverified_opener)
+            try:
+                map_obj = smopy.Map(bbox)
+            finally:
+                urllib.request.install_opener(orig_opener)
+
         return {
             'img': map_obj.to_pil(),
             'xmin': map_obj.xmin, 'ymin': map_obj.ymin,
@@ -63,19 +63,24 @@ def _compute_grid(w: int, h: int, scale: float, ts: int, xmin: float, ymin: floa
 
 
 def expand_to_square_bbox(bbox: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
-    """Expand a bounding box into a square based on its largest dimension."""
+    """Expand a bounding box into an isotropic square area on the ground."""
     min_lat, min_lon, max_lat, max_lon = bbox
-    lat_range = max_lat - min_lat
-    lon_range = max_lon - min_lon
-    max_range = max(lat_range, lon_range)
     center_lat = (min_lat + max_lat) / 2.0
     center_lon = (min_lon + max_lon) / 2.0
-    half_range = max_range / 2.0
+    
+    # Scale longitude degrees by cos(latitude) so equal degrees map to equal kilometers
+    cos_lat = float(max(np.cos(np.radians(center_lat)), 0.01))
+    lat_range = max_lat - min_lat
+    lon_range_effective = (max_lon - min_lon) * cos_lat
+    max_range = max(lat_range, lon_range_effective)
+    
+    half_lat = max_range / 2.0
+    half_lon = (max_range / cos_lat) / 2.0
     return (
-        center_lat - half_range,
-        center_lon - half_range,
-        center_lat + half_range,
-        center_lon + half_range,
+        center_lat - half_lat,
+        center_lon - half_lon,
+        center_lat + half_lat,
+        center_lon + half_lon,
     )
 
 

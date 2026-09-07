@@ -13,11 +13,17 @@ logger = logging.getLogger(__name__)
 
 # --- Worker Data Management ---
 _worker_data = {}
+_worker_clustering_data = {}
 
 def _init_worker(pts_km: np.ndarray) -> None:
     """Initialize worker process with shared data once to avoid per-task serialization."""
     global _worker_data
     _worker_data['pts_km'] = pts_km
+
+def _init_clustering_worker(data: dict[str, Any]) -> None:
+    """Initialize worker process with shared clustering data once."""
+    global _worker_clustering_data
+    _worker_clustering_data = data
 
 # --- Geological Math ---
 
@@ -57,6 +63,7 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
     
     best_inliers = []
     best_loss = float('inf')
+    best_inlier_count = 0
     
     # RANSAC Loop
     for _ in range(max_iterations):
@@ -78,13 +85,16 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
         # Calculate orthogonal distances to plane
         dists = np.abs(np.dot(points, normal) - np.dot(sample[0], normal))
         
-        # Loss function: distanza media dal piano dei punti
-        loss = float(np.mean(dists))
-        
         inliers = np.where(dists < threshold)[0]
-        if len(inliers) >= min_inliers and loss < best_loss:
-            best_loss = loss
-            best_inliers = inliers
+        n_inliers = len(inliers)
+        
+        # Standard RANSAC: maximize inlier support, tie-break by inlier mean residual
+        if n_inliers >= min_inliers:
+            inlier_loss = float(np.mean(dists[inliers]))
+            if n_inliers > best_inlier_count or (n_inliers == best_inlier_count and inlier_loss < best_loss):
+                best_inlier_count = n_inliers
+                best_loss = inlier_loss
+                best_inliers = inliers
             
     if len(best_inliers) < min_inliers:
         return None, None, 0.0
@@ -447,12 +457,15 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     # Use max_workers to avoid saturating everything and allowing some room for the server
     n_workers = min(os.cpu_count(), 8)
     
-    # 5. Execute Parallel Clustering
+    # 5. Execute Parallel Clustering with shared worker initialization
     frame_results = [None] * len(date_indices)
     from concurrent.futures import ProcessPoolExecutor
-    with ProcessPoolExecutor(max_workers=n_workers) as executor:
-        # Submit in chunks if frames are many
-        futures = [executor.submit(_process_frame_worker, i, worker_data) for i in range(len(date_indices))]
+    with ProcessPoolExecutor(
+        max_workers=n_workers,
+        initializer=_init_clustering_worker,
+        initargs=(worker_data,)
+    ) as executor:
+        futures = [executor.submit(_process_frame_worker, i) for i in range(len(date_indices))]
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
             frame_results[res[0]] = res
@@ -657,8 +670,10 @@ def _perform_cylinder_clustering(curr_pt_cylinder_map):
     valid_labels = labels[labels != -1]
     return labels, len(np.unique(valid_labels)) if len(valid_labels) > 0 else 0
 
-def _process_frame_worker(idx, data):
+def _process_frame_worker(idx, data=None):
     """Worker function for ProcessPoolExecutor."""
+    if data is None:
+        data = _worker_clustering_data
     start_idx, end_idx = data['date_indices'][idx]
     pts_km = data['pts_km']
     mags = data['mags']

@@ -82,8 +82,12 @@ async def get_data_handler(session_id: str) -> Response:
     data = get_session_data(session_id)
     if data is None:
         return JSONResponse({"error": "Session not found"}, status_code=404)
-    # Exclude non-JSON serializable binary buffers
-    json_data = {k: v for k, v in data.items() if k != 'binary_buffer' and not isinstance(v, bytes)}
+    # Exclude non-JSON serializable binary buffers and heavy arrays transferred via /bin or unused in JS
+    omit_keys = {
+        'binary_buffer', 'longitude', 'latitude', 'magnitude', 'depth', 'dates_num',
+        'lon', 'lat', 'mag', 'dep', 'dnum', 'visual_pack', 'hover'
+    }
+    json_data = {k: v for k, v in data.items() if k not in omit_keys and not isinstance(v, bytes)}
     content = await asyncio.to_thread(json.dumps, json_data, separators=(',', ':'))
     return Response(
         content=content,

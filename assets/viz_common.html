@@ -160,10 +160,6 @@
 
             this.socket.onopen = () => {
                 console.info("SeismicSocket: Connected to backend.");
-            };
-
-            this.socket.onopen = () => {
-                console.log("WebSocket connected.");
                 const ind = document.getElementById('ws-status');
                 if (ind) { ind.classList.add('connected'); ind.title = 'Server Connected'; }
             };
@@ -2042,6 +2038,8 @@
     let cinemaReqId = null;
     let plotlyId = null;
 
+    let plotlyPollInterval = null;
+
     function findPlotlyGraph() {
         if (!plotlyId) {
             const gd = document.querySelector('.plotly-graph-div');
@@ -2052,6 +2050,11 @@
                 gd.id = 'plotly-graph-gen-' + Math.random().toString(36).substr(2, 9);
                 plotlyId = gd.id;
             }
+        }
+
+        if (plotlyId && plotlyPollInterval) {
+            clearInterval(plotlyPollInterval);
+            plotlyPollInterval = null;
         }
 
         // Show camera controls if we know it's a 3D view or if we found a scene
@@ -2244,11 +2247,11 @@
 
 
     // Auto-detect plot and show UI controls immediately
-    setInterval(findPlotlyGraph, 500); // More aggressive periodic check
+    plotlyPollInterval = setInterval(findPlotlyGraph, 500);
     findPlotlyGraph();
     window.addEventListener('load', findPlotlyGraph);
     setTimeout(findPlotlyGraph, 100); 
-    window.IS_3D_VIEW = true; // Force flag since this is viz_common
+    if (window.IS_3D_VIEW === undefined) window.IS_3D_VIEW = true;
 
     window.addEventListener('pywebviewready', () => {
         if (window.SeismicUI) {

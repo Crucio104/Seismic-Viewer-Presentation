@@ -172,7 +172,11 @@ def build_view_html(
         except Exception:
             is_fallback = True
 
-        fig = view_2d(lon, lat, mag, times, dates_num=d_num, depth=dep, visual_pack=vpack)
+        fig = view_2d(
+            lon, lat, mag, times, 
+            dates_num=d_num, depth=dep, visual_pack=vpack,
+            origin_lat=data.get('origin_lat'), origin_lon=data.get('origin_lon')
+        )
         earthquake_data = data.copy()
         earthquake_data.update({
             'hover': vpack.get('hover', []),

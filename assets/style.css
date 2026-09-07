@@ -203,7 +203,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 2vh;
-    width: 13.5rem;
+    width: 15.2rem;
     max-height: calc(100vh - 14rem); /* Increased gap for playback bar */
     pointer-events: auto;
     overflow: visible; /* Crucial for fixed-position menus to pop out */
@@ -218,7 +218,8 @@ body {
     gap: 0.625rem;
     max-height: 100%;
     overflow-y: auto;
-    overflow-x: visible;
+    overflow-x: hidden;
+    padding-right: 0.35rem;
 }
 
 #stats-hud {
@@ -302,11 +303,14 @@ body {
     align-items: center;
     gap: 0.500rem;
     margin-top: 0.375rem;
+    width: 100%;
 }
 
 .settings-row .glass-input {
     margin-top: 0;
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 0.5rem;
 }
 
 .settings-row .settings-btn {

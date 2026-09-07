@@ -107,6 +107,8 @@ def load_csv(source_file: str) -> dict[str, Any]:
         df['time_dt'] = pd.to_datetime(pd.to_numeric(df['time']), origin='1899-12-30', unit='D')
     else:
         df['time_dt'] = pd.to_datetime(df['time'], errors='coerce')
+    if hasattr(df['time_dt'].dt, 'tz') and df['time_dt'].dt.tz is not None:
+        df['time_dt'] = df['time_dt'].dt.tz_localize(None)
     df = df.dropna(subset=['time_dt'])
     df = df.reset_index(drop=True)
 
@@ -132,8 +134,8 @@ def load_csv(source_file: str) -> dict[str, Any]:
     # 1. Geographic Bounds Check
     df = df[(df['lat'].between(-90, 90)) & (df['lon'].between(-180, 180))]
     
-    # 2. Temporal Bounds Check (No future dates)
-    df = df[df['time_dt'] <= datetime.now()]
+    # 2. Temporal Bounds Check (No future dates beyond timezone discrepancy)
+    df = df[df['time_dt'] <= datetime.now() + pd.Timedelta(days=1)]
     
     # 3. Depth check (Reasonable range: -10km to 800km)
     df = df[df['depth'].between(-10, 800)]

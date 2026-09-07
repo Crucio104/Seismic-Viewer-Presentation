@@ -86,11 +86,11 @@
         <div id="filter-bar" class="glass-panel" style="position: fixed; top: 2.5vh; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 0.75rem; padding: 0 0.8rem; height: 2.5rem;">
             <div style="display: flex; align-items: center; gap: 0.4rem; height: 100%;">
                 <label for="filter-start" style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05rem; opacity: 0.6; font-weight: 600; line-height: 1; margin-top: 0.1rem; cursor: pointer;">From</label>
-                <input type="date" id="filter-start" class="glass-input" style="height: 1.8rem; font-size: 0.7rem; margin: 0; width: 7.2rem; text-align: center;">
+                <input type="date" id="filter-start" class="glass-input" style="height: 1.8rem; font-size: 0.7rem; margin: 0; width: 8.2rem; text-align: center;">
             </div>
             <div style="display: flex; align-items: center; gap: 0.4rem; height: 100%;">
                 <label for="filter-end" style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05rem; opacity: 0.6; font-weight: 600; line-height: 1; margin-top: 0.1rem; cursor: pointer;">To</label>
-                <input type="date" id="filter-end" class="glass-input" style="height: 1.8rem; font-size: 0.7rem; margin: 0; width: 7.2rem; text-align: center;">
+                <input type="date" id="filter-end" class="glass-input" style="height: 1.8rem; font-size: 0.7rem; margin: 0; width: 8.2rem; text-align: center;">
             </div>
         </div>
 
@@ -148,12 +148,32 @@
             startInput.value = uniqueDates[0];
             endInput.value = uniqueDates[uniqueDates.length - 1];
 
-            magMin.value = Math.min(...quakeData.magnitude).toFixed(1);
-            magMax.value = Math.max(...quakeData.magnitude).toFixed(1);
+            if (quakeData.mag_range && quakeData.mag_range.length >= 2) {
+                magMin.value = quakeData.mag_range[0].toFixed(1);
+                magMax.value = quakeData.mag_range[1].toFixed(1);
+            } else {
+                let minM = Infinity, maxM = -Infinity;
+                for (let i = 0; i < quakeData.magnitude.length; i++) {
+                    const v = quakeData.magnitude[i];
+                    if (v < minM) minM = v;
+                    if (v > maxM) maxM = v;
+                }
+                magMin.value = (minM !== Infinity ? minM : 0).toFixed(1);
+                magMax.value = (maxM !== -Infinity ? maxM : 10).toFixed(1);
+            }
 
-            const allDeps = quakeData.depth.map(Math.abs);
-            depMin.value = 0;
-            depMax.value = Math.ceil(Math.max(...allDeps));
+            if (quakeData.dep_range && quakeData.dep_range.length >= 2) {
+                depMin.value = 0;
+                depMax.value = Math.ceil(Math.max(Math.abs(quakeData.dep_range[0]), Math.abs(quakeData.dep_range[1])));
+            } else {
+                let maxD = 0;
+                for (let i = 0; i < quakeData.depth.length; i++) {
+                    const d = Math.abs(quakeData.depth[i]);
+                    if (d > maxD) maxD = d;
+                }
+                depMin.value = 0;
+                depMax.value = Math.ceil(maxD);
+            }
 
             let currentColorMode = 'dep';
             let currentColorScale = 'Viridis';
@@ -304,7 +324,7 @@
                     dep: indices.map(i => quakeData.depth[i]),
                     times: indices.map(i => quakeData.times[i]),
                     dnum: indices.map(i => quakeData.dates_num[i]),
-                    hover: indices.map(i => quakeData.hover[i])
+                    hover: indices.map(i => (quakeData.hover && quakeData.hover[i]) ? quakeData.hover[i] : `Date: ${quakeData.times ? quakeData.times[i] : ''}<br>Magnitude: ${quakeData.magnitude[i].toFixed(1)}<br>Depth: ${Math.abs(quakeData.depth[i]).toFixed(1)} km`)
                 };
 
                 const isHeatmap = (currentViewMode === 'heatmap');

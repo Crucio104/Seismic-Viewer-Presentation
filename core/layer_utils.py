@@ -82,34 +82,32 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
         # Drop NaN or invalid rows
         df = df.dropna(subset=[utmx_col, utmy_col, utmz_col, vpvs_col]).reset_index(drop=True)
         
-        # Richiesta utente: considerare tutti i punti del CSV senza escludere VP == 0 né Vp/Vs == 1.750
-        # vp_col = next((c for c in df.columns if c == 'VP' or 'V_P' in c or 'P_VEL' in c), None)
-        # if vp_col:
-        #     df = df[df[vp_col] != 0].reset_index(drop=True)
-        # df = df[~np.isclose(df[vpvs_col].astype(float), 1.75, atol=1e-5)].reset_index(drop=True)
-        
         # Convert UTM Zone 33N km to Lat/Lon
         lats, lons = utm33_to_latlon_numpy(df[utmx_col].values, df[utmy_col].values)
         
         # In our 3D plot, Z is depth in km (positive downwards is represented as negative Z coordinates in 3D space)
-        depths = -np.abs(df[utmz_col].values.astype(float))
-        vp_vs = df[vpvs_col].values.astype(float)
+        depths = -np.abs(df[utmz_col].values.astype(np.float32))
+        vp_vs = df[vpvs_col].values.astype(np.float32)
+        count_rows = len(df)
         
-        logger.info(f"Processed {len(df)} tomography points from {path.name}")
-        
-        hover_texts = [f"Vp/Vs: {val:.3f}<br>Depth: {abs(dep):.2f} km" for val, dep in zip(vp_vs, depths)]
+        # Only interpolate calibrated points (VP != 0) for clean volumes
+        vp_col = next((c for c in df.columns if c == 'VP' or 'V_P' in c or 'P_VEL' in c), None)
+        if vp_col is not None:
+            mask = (df[vp_col].values != 0) & np.isfinite(vp_vs)
+        else:
+            mask = np.isfinite(vp_vs)
+            
+        # Free heavy pandas DataFrame immediately
+        del df
+        import gc
+        gc.collect()
+
+        logger.info(f"Processed {count_rows} tomography points from {path.name}")
         
         # Build a regular 3D grid for volumetric rendering (server-side continuous IDW interpolation)
         iso_grid = None
         try:
             from scipy.spatial import cKDTree
-            
-            # Only interpolate calibrated points (VP != 0) for clean volumes
-            vp_col = next((c for c in df.columns if c == 'VP' or 'V_P' in c or 'P_VEL' in c), None)
-            if vp_col is not None:
-                mask = (df[vp_col].values != 0) & np.isfinite(vp_vs)
-            else:
-                mask = np.isfinite(vp_vs)
             
             cal_lons = lons[mask]
             cal_lats = lats[mask]
@@ -126,8 +124,8 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
                 
                 tree = cKDTree(pts_norm)
                 
-                # Regular grid dimensions (high-resolution for smooth 3D volumetric rendering)
-                nx, ny, nz = 60, 50, 40
+                # Regular grid dimensions (optimized resolution for smooth 3D volumetric rendering)
+                nx, ny, nz = 45, 35, 25
                 
                 lon_min, lon_max = float(cal_lons.min()), float(cal_lons.max())
                 lat_min, lat_max = float(cal_lats.min()), float(cal_lats.max())
@@ -167,10 +165,10 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
                 flat_vals = alpha * idw_vals + (1.0 - alpha) * bg_val
                 
                 iso_grid = {
-                    'x': X.flatten().tolist(),
-                    'y': Y.flatten().tolist(),
-                    'z': Z.flatten().tolist(),
-                    'value': flat_vals.tolist(),
+                    'x': np.round(X.flatten(), 4).tolist(),
+                    'y': np.round(Y.flatten(), 4).tolist(),
+                    'z': np.round(Z.flatten(), 2).tolist(),
+                    'value': np.round(flat_vals, 3).tolist(),
                     'min_val': float(np.nanmin(flat_vals)),
                     'max_val': float(np.nanmax(flat_vals)),
                     'mean_val': float(np.nanmean(flat_vals)),
@@ -186,15 +184,11 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
             'status': 'success',
             'type': 'tomography',
             'filename': path.name,
-            'count': len(df),
-            'x': lons.tolist(),
-            'y': lats.tolist(),
-            'z': depths.tolist(),
-            'lons': lons.tolist(),
-            'lats': lats.tolist(),
-            'depths': depths.tolist(),
-            'vp_vs': vp_vs.tolist(),
-            'hover': hover_texts,
+            'count': count_rows,
+            'x': np.round(lons, 5).tolist(),
+            'y': np.round(lats, 5).tolist(),
+            'z': np.round(depths, 3).tolist(),
+            'vp_vs': np.round(vp_vs, 3).tolist(),
             'min_vp_vs': float(np.min(vp_vs)),
             'max_vp_vs': float(np.max(vp_vs))
         }

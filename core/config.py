@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+import threading
 
 # ─── Paths ───────────────────────────────────────────────────────────
 CORE_DIR = Path(__file__).parent.absolute()
@@ -51,39 +52,48 @@ def set_http_port(port: int) -> None:
     global _http_port
     _http_port = port
 
+import gc
+
 # ─── Session Data Store ─────────────────────────────────────────────
 # In-memory store for visualization data served via the REST API.
 # Keys are session IDs (short hex strings), values are JSON-serializable dicts.
 _data_store: dict[str, Any] = {}
+_html_store: dict[str, str] = {}
+_store_lock = threading.Lock()
 
 def store_session_data(session_id: str, data: dict[str, Any]) -> None:
     """Store visualization data for a session, evicting old entries."""
-    # Keep at most 30 sessions to bound memory usage but prevent premature eviction
-    while len(_data_store) >= 30:
-        oldest_key = next(iter(_data_store))
-        del _data_store[oldest_key]
-    _data_store[session_id] = data
+    with _store_lock:
+        # Keep at most 5 sessions to bound memory usage
+        while len(_data_store) >= 5:
+            oldest_key = next(iter(_data_store))
+            del _data_store[oldest_key]
+        _data_store[session_id] = data
 
 def get_session_data(session_id: str) -> dict[str, Any] | None:
     """Retrieve stored visualization data for a session."""
-    return _data_store.get(session_id)
+    with _store_lock:
+        return _data_store.get(session_id)
 
 def clear_session_data() -> None:
-    """Clear all stored session data."""
-    _data_store.clear()
-    _html_store.clear()
+    """Clear all stored session data and free memory."""
+    with _store_lock:
+        _data_store.clear()
+        _html_store.clear()
+    gc.collect()
 
 # ─── HTML View Store ───────────────────────────────────────────────
-_html_store: dict[str, str] = {}
 
 def store_viz_html(viz_id: str, html: str) -> None:
     """Store generated HTML for a view, evicting old entries."""
-    # Keep at most 15 views to bound memory usage but prevent premature eviction
-    while len(_html_store) >= 15:
-        oldest_key = next(iter(_html_store))
-        del _html_store[oldest_key]
-    _html_store[viz_id] = html
+    with _store_lock:
+        # Keep at most 3 views to bound memory usage (each 3D view HTML is ~12MB)
+        while len(_html_store) >= 3:
+            oldest_key = next(iter(_html_store))
+            del _html_store[oldest_key]
+        _html_store[viz_id] = html
 
 def get_viz_html(viz_id: str) -> str | None:
     """Retrieve stored HTML for a view."""
-    return _html_store.get(viz_id)
+    with _store_lock:
+        return _html_store.get(viz_id)
