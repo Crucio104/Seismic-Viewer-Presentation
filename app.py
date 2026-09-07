@@ -141,7 +141,7 @@ def pack_seismic_binary(data: dict[str, Any]) -> bytes:
             return np.zeros(length, dtype=np.float32).tobytes()
         return np.array(arr, dtype=np.float32).tobytes()
 
-    cluster_bytes = np.array(cluster, dtype=np.float32).tobytes() if cluster else b""
+    cluster_bytes = np.array(cluster, dtype=np.float32).tobytes() if has_clusters else b""
 
     buffer = b"".join([
         np.array([count, len(cluster)], dtype=np.float32).tobytes(),
@@ -152,7 +152,7 @@ def pack_seismic_binary(data: dict[str, Any]) -> bytes:
         _to_f32_bytes(dnum_key, count),
         cluster_bytes
     ])
-    if not cluster:
+    if not has_clusters:
         data['binary_buffer'] = buffer
     return buffer
 

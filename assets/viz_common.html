@@ -72,20 +72,6 @@
             <circle cx="12" cy="13" r="4"/>
         </svg>
     </button>
-    <button id="shortcuts-btn" class="hidden-initially" onclick="SeismicUI.toggleShortcutsModal(event)" title="Keyboard Shortcuts (H / F1 / ?)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:0.95rem;height:0.95rem;">
-            <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
-            <line x1="6" y1="8" x2="6.01" y2="8"/>
-            <line x1="10" y1="8" x2="10.01" y2="8"/>
-            <line x1="14" y1="8" x2="14.01" y2="8"/>
-            <line x1="18" y1="8" x2="18.01" y2="8"/>
-            <line x1="6" y1="12" x2="6.01" y2="12"/>
-            <line x1="10" y1="12" x2="10.01" y2="12"/>
-            <line x1="14" y1="12" x2="14.01" y2="12"/>
-            <line x1="18" y1="12" x2="18.01" y2="12"/>
-            <line x1="7" y1="16" x2="17" y2="16"/>
-        </svg>
-    </button>
     <label for="overlay-input" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Upload Image Overlay</label>
     <input type="file" id="overlay-input" accept="image/*" style="display:none" onchange="SeismicUI.handleOverlayUpload(this)">
     <div id="layer-modal" onclick="event.stopPropagation()">
@@ -365,8 +351,6 @@
                 }
                 const screenshotBtn = document.getElementById('screenshot-btn');
                 if (screenshotBtn) screenshotBtn.classList.add('visible');
-                const shortcutsBtn = document.getElementById('shortcuts-btn');
-                if (shortcutsBtn) shortcutsBtn.classList.add('visible');
             }, 300);
         }
     }
@@ -2414,8 +2398,6 @@
         if (window.pywebview && window.pywebview.api && window.SeismicUI && typeof window.SeismicUI.restoreStoredLayers === 'function') {
             window.SeismicUI.restoreStoredLayers();
         }
-        const scBtn = document.getElementById('shortcuts-btn');
-        if (scBtn) scBtn.classList.add('visible');
     }, 300);
 
     /* ─── Global Keyboard Shortcuts ─── */
