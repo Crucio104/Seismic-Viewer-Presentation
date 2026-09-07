@@ -958,8 +958,8 @@
                 }
 
                 if (targetIndices.length === 0) {
-                    console.warn("Tutti i cluster sono bloccati o nessun punto disponibile nel frame corrente.");
-                    if (typeof showStatusToast === 'function') showStatusToast('Nessun cluster sbloccato da suddividere.');
+                    console.warn("All clusters are locked or no points available in current frame.");
+                    if (typeof showStatusToast === 'function') showStatusToast('No unlocked clusters available to subdivide.');
                     overlay.classList.remove('show');
                     return;
                 }
@@ -1346,7 +1346,7 @@
                     'jump-bar', 'jump-date', 'jump-btn',
                     'camera-controls',
                     'glass-legend', 'legend-container', 'cluster-list', 'btn-swap-legend',
-                    'back-btn', 'info-btn', 'overlay-btn', 'screenshot-btn',
+                    'back-btn', 'info-btn', 'overlay-btn', 'screenshot-btn', 'shortcuts-btn',
                     'btn-export-clusters'
                 ];
                 elementsToLock.forEach(id => {
@@ -1405,6 +1405,14 @@
 
             playBtn.onclick = play;
             pauseBtn.onclick = pause;
+            window.togglePlayAnimation = () => {
+                if (isPlaying) {
+                    pause();
+                } else {
+                    play();
+                }
+            };
+            window.isAnimationPlaying = () => isPlaying;
 
             slider.oninput = () => {
                 pause();

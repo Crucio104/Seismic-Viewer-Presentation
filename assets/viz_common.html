@@ -23,26 +23,26 @@
 
 <div id="camera-controls" class="glass-panel">
     <div class="label" style="text-align: center; margin-bottom: 0.500rem;">Camera</div>
-    <button class="btn-cam" id="btn-cinema" onclick="toggleCinemaMode()">
+    <button class="btn-cam" id="btn-cinema" onclick="toggleCinemaMode()" title="Auto-rotation (C)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M23 7l-7 5 7 5V7z" />
             <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
         </svg>
         Auto-rotation
     </button>
-    <button class="btn-cam" onclick="snapToView('top')">
+    <button class="btn-cam" onclick="snapToView('top')" title="Top View (T)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 12l-9-9-9 9M12 3v18" />
         </svg>
         Top View
     </button>
-    <button class="btn-cam" onclick="snapToView('side')">
+    <button class="btn-cam" onclick="snapToView('side')" title="Side View (S)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 1v22M17 5l-5-5-5 5" />
         </svg>
         Side View
     </button>
-    <button class="btn-cam" onclick="snapToView('reset')">
+    <button class="btn-cam" onclick="snapToView('reset')" title="Reset Camera (R)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
             <path d="M3 3v5h5" />
@@ -66,72 +66,123 @@
         <polyline points="21 15 16 10 5 21"/>
     </svg>
 </button>
-<button id="screenshot-btn" class="hidden-initially" onclick="SeismicUI.toggleExportModal(event)" title="Export Options">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:0.9rem;height:0.9rem;">
-        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-        <circle cx="12" cy="13" r="4"/>
-    </svg>
-</button>
-<label for="overlay-input" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Upload Image Overlay</label>
-<input type="file" id="overlay-input" accept="image/*" style="display:none" onchange="SeismicUI.handleOverlayUpload(this)">
-<div id="layer-modal" onclick="event.stopPropagation()">
-    <div class="label" style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.7rem; font-weight: 700; color: #fff;">
-        External Layers Management
-    </div>
-    <div class="layer-buttons-row">
-        <button class="layer-btn" id="btn-layer-map" onclick="SeismicUI.selectLayer('map')" title="Select Map Image">
-            Map
-        </button>
-        <button class="layer-btn" id="btn-layer-stations" onclick="SeismicUI.selectLayer('stations')" title="Select Stations CSV">
-            Stations CSV
-        </button>
-        <button class="layer-btn" id="btn-layer-uplift" onclick="SeismicUI.selectLayer('uplift')" title="Select GNSS Uplift CSV">
-            Uplift CSV
-        </button>
-        <button class="layer-btn" id="btn-layer-tomo" onclick="SeismicUI.selectLayer('tomography')" title="Select Tomography CSV">
-            Tomography CSV
-        </button>
-    </div>
-    <div class="layer-status-row" id="layer-status-container">
-        <div class="layer-status-item"><span>Map:</span><strong id="status-layer-map" style="color: #94a3b8;">Not selected</strong></div>
-        <div class="layer-status-item"><span>Stations:</span><strong id="status-layer-stations" style="color: #94a3b8;">Not selected</strong></div>
-        <div class="layer-status-item"><span>GNSS Uplift:</span><strong id="status-layer-uplift" style="color: #94a3b8;">Not selected</strong></div>
-        <div class="layer-status-item"><span>Tomography:</span><strong id="status-layer-tomo" style="color: #94a3b8;">Not selected</strong></div>
-    </div>
-    <button class="layer-apply-btn" onclick="SeismicUI.applyAllLayers()">
-        Apply Layers
+    <button id="screenshot-btn" class="hidden-initially" onclick="SeismicUI.toggleExportModal(event)" title="Export Options">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:0.9rem;height:0.9rem;">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+        </svg>
     </button>
-    <div style="display: flex; flex-direction: column; gap: 0.2rem; margin-top: -0.5rem;">
-        <button class="layer-toggle-btn" id="btn-toggle-uplift-surface" onclick="SeismicUI.toggleUpliftSurface()">
-            Toggle Uplift
-        </button>
-        <button class="layer-toggle-btn" id="btn-toggle-tomo-points" onclick="SeismicUI.toggleTomography()">
-            Toggle Tomography
-        </button>
-        <div style="display: flex; gap: 0.2rem;">
-            <button class="layer-toggle-btn" id="btn-toggle-tomo-high" onclick="SeismicUI.toggleTomographyHigh()" title="Isolate High Vp/Vs (> 1.75)" style="flex: 1; font-size: 0.65rem;">
-                High Vp/Vs
+    <button id="shortcuts-btn" class="hidden-initially" onclick="SeismicUI.toggleShortcutsModal(event)" title="Keyboard Shortcuts (H / F1 / ?)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:0.95rem;height:0.95rem;">
+            <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
+            <line x1="6" y1="8" x2="6.01" y2="8"/>
+            <line x1="10" y1="8" x2="10.01" y2="8"/>
+            <line x1="14" y1="8" x2="14.01" y2="8"/>
+            <line x1="18" y1="8" x2="18.01" y2="8"/>
+            <line x1="6" y1="12" x2="6.01" y2="12"/>
+            <line x1="10" y1="12" x2="10.01" y2="12"/>
+            <line x1="14" y1="12" x2="14.01" y2="12"/>
+            <line x1="18" y1="12" x2="18.01" y2="12"/>
+            <line x1="7" y1="16" x2="17" y2="16"/>
+        </svg>
+    </button>
+    <label for="overlay-input" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Upload Image Overlay</label>
+    <input type="file" id="overlay-input" accept="image/*" style="display:none" onchange="SeismicUI.handleOverlayUpload(this)">
+    <div id="layer-modal" onclick="event.stopPropagation()">
+        <div class="label" style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.7rem; font-weight: 700; color: #fff;">
+            External Layers Management
+        </div>
+        <div class="layer-buttons-row">
+            <button class="layer-btn" id="btn-layer-map" onclick="SeismicUI.selectLayer('map')" title="Select Map Image">
+                Map
             </button>
-            <button class="layer-toggle-btn" id="btn-toggle-tomo-low" onclick="SeismicUI.toggleTomographyLow()" title="Isolate Low Vp/Vs (< 1.75)" style="flex: 1; font-size: 0.65rem;">
-                Low Vp/Vs
+            <button class="layer-btn" id="btn-layer-stations" onclick="SeismicUI.selectLayer('stations')" title="Select Stations CSV">
+                Stations CSV
+            </button>
+            <button class="layer-btn" id="btn-layer-uplift" onclick="SeismicUI.selectLayer('uplift')" title="Select GNSS Uplift CSV">
+                Uplift CSV
+            </button>
+            <button class="layer-btn" id="btn-layer-tomo" onclick="SeismicUI.selectLayer('tomography')" title="Select Tomography CSV">
+                Tomography CSV
             </button>
         </div>
-        <button class="layer-toggle-btn" id="btn-toggle-stations" onclick="SeismicUI.toggleStations()">
-            Toggle Stations
+        <div class="layer-status-row" id="layer-status-container">
+            <div class="layer-status-item"><span>Map:</span><strong id="status-layer-map" style="color: #94a3b8;">Not selected</strong></div>
+            <div class="layer-status-item"><span>Stations:</span><strong id="status-layer-stations" style="color: #94a3b8;">Not selected</strong></div>
+            <div class="layer-status-item"><span>GNSS Uplift:</span><strong id="status-layer-uplift" style="color: #94a3b8;">Not selected</strong></div>
+            <div class="layer-status-item"><span>Tomography:</span><strong id="status-layer-tomo" style="color: #94a3b8;">Not selected</strong></div>
+        </div>
+        <button class="layer-apply-btn" onclick="SeismicUI.applyAllLayers()">
+            Apply Layers
+        </button>
+        <div style="display: flex; flex-direction: column; gap: 0.2rem; margin-top: -0.5rem;">
+            <button class="layer-toggle-btn" id="btn-toggle-uplift-surface" onclick="SeismicUI.toggleUpliftSurface()">
+                Toggle Uplift
+            </button>
+            <button class="layer-toggle-btn" id="btn-toggle-tomo-points" onclick="SeismicUI.toggleTomography()">
+                Toggle Tomography
+            </button>
+            <div style="display: flex; gap: 0.2rem;">
+                <button class="layer-toggle-btn" id="btn-toggle-tomo-high" onclick="SeismicUI.toggleTomographyHigh()" title="Isolate High Vp/Vs (> 1.75)" style="flex: 1; font-size: 0.65rem;">
+                    High Vp/Vs
+                </button>
+                <button class="layer-toggle-btn" id="btn-toggle-tomo-low" onclick="SeismicUI.toggleTomographyLow()" title="Isolate Low Vp/Vs (< 1.75)" style="flex: 1; font-size: 0.65rem;">
+                    Low Vp/Vs
+                </button>
+            </div>
+            <button class="layer-toggle-btn" id="btn-toggle-stations" onclick="SeismicUI.toggleStations()">
+                Toggle Stations
+            </button>
+        </div>
+    </div>
+    <div id="export-modal" onclick="event.stopPropagation()">
+        <div class="label" style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.7rem; font-weight: 700; color: #fff;">
+            Export Options
+        </div>
+        <button class="layer-apply-btn" onclick="SeismicUI.captureScreenshot()" style="margin-top: 0.25rem;">
+            Take Screenshot (.PNG)
+        </button>
+        <button class="layer-apply-btn" id="btn-export-clusters" onclick="SeismicUI.exportClustersCSV()" style="margin-top: 0.25rem; background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.4);">
+            Export Clusters (.CSV)
         </button>
     </div>
-</div>
-<div id="export-modal" onclick="event.stopPropagation()">
-    <div class="label" style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.7rem; font-weight: 700; color: #fff;">
-        Export Options
+    <div id="shortcuts-modal" onclick="event.stopPropagation()">
+        <div class="label" style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.7rem; font-weight: 700; color: #fff;">
+            Keyboard Shortcuts
+        </div>
+        <div class="shortcut-row">
+            <span>Play / Pause Animation</span>
+            <span class="shortcut-key">Space</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Reset 3D Camera</span>
+            <span class="shortcut-key">R</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Top-Down View</span>
+            <span class="shortcut-key">T</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Side View</span>
+            <span class="shortcut-key">S</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Auto-rotation (Cinema Mode)</span>
+            <span class="shortcut-key">C</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Quick View Switch</span>
+            <span class="shortcut-key">1 - 4</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Close Popup / Return to Hub</span>
+            <span class="shortcut-key">Esc</span>
+        </div>
+        <div class="shortcut-row">
+            <span>Keyboard Shortcuts Help</span>
+            <span class="shortcut-key">H / F1 / ?</span>
+        </div>
     </div>
-    <button class="layer-apply-btn" onclick="SeismicUI.captureScreenshot()" style="margin-top: 0.25rem;">
-        Take Screenshot (.PNG)
-    </button>
-    <button class="layer-apply-btn" id="btn-export-clusters" onclick="SeismicUI.exportClustersCSV()" style="margin-top: 0.25rem; background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.4);">
-        Export Clusters (.CSV)
-    </button>
-</div>
 <div id="info-panel" onclick="event.stopPropagation()">
     <div class="label" style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.7rem; font-weight: 700; color: #fff;">
         Scene Bounds
@@ -314,6 +365,8 @@
                 }
                 const screenshotBtn = document.getElementById('screenshot-btn');
                 if (screenshotBtn) screenshotBtn.classList.add('visible');
+                const shortcutsBtn = document.getElementById('shortcuts-btn');
+                if (shortcutsBtn) shortcutsBtn.classList.add('visible');
             }, 300);
         }
     }
@@ -427,6 +480,10 @@
                 const exportModal = document.getElementById('export-modal');
                 if (exportModal) exportModal.classList.remove('active');
             }
+            if (exceptId !== 'shortcuts-modal') {
+                const shortcutsModal = document.getElementById('shortcuts-modal');
+                if (shortcutsModal) shortcutsModal.classList.remove('active');
+            }
         },
         toggleInfoPanel(e) {
             if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
@@ -536,6 +593,24 @@
             }
         },
 
+        toggleShortcutsModal(e, forceClose = null) {
+            if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+            const modal = document.getElementById('shortcuts-modal');
+            if (!modal) return;
+            if (forceClose === true) {
+                modal.classList.remove('active');
+            } else {
+                const isShowing = modal.classList.contains('active');
+                document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+                this.closeBottomLeftPopups('shortcuts-modal');
+                if (!isShowing) {
+                    modal.classList.add('active');
+                } else {
+                    modal.classList.remove('active');
+                }
+            }
+        },
+
         async exportClustersCSV() {
             if (!this.isClusteringActive()) {
                 showStatusToast("Clustering is not active in the current view.", false);
@@ -606,7 +681,7 @@
                 document.getElementById('overlay-input').click();
             } else if (layerType === 'stations' || layerType === 'uplift' || layerType === 'tomography') {
                 if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.select_layer_file) {
-                    showStatusToast('API pywebview non disponibile', false);
+                    showStatusToast('pywebview API not available', false);
                     return;
                 }
                 const self = this;
@@ -1835,8 +1910,10 @@
                 '#info-btn',
                 '#overlay-btn',
                 '#screenshot-btn',
+                '#shortcuts-btn',
                 '#layer-modal',
                 '#export-modal',
+                '#shortcuts-modal',
                 '#glass-legend',
                 '#info-panel',
                 '#left-panel-wrapper',
@@ -1927,6 +2004,8 @@
             if (layerModal) layerModal.classList.remove('active');
             const exportModal = document.getElementById('export-modal');
             if (exportModal) exportModal.classList.remove('active');
+            const shortcutsModal = document.getElementById('shortcuts-modal');
+            if (shortcutsModal) shortcutsModal.classList.remove('active');
         }
     };
 
@@ -2046,6 +2125,62 @@
 
     let plotlyPollInterval = null;
 
+    /* ─── Pass-Through Mouse Raycasting for Map Terrain ─── */
+    function setupPassThroughTerrainHover(gd) {
+        if (!gd) return;
+
+        function applyTerrainPassThrough() {
+            if (!gd._fullLayout) return;
+            const subplots = gd._fullLayout._subplots;
+            const gl3dList = (subplots && subplots.gl3d) ? subplots.gl3d : ['scene'];
+
+            for (const sName of gl3dList) {
+                const scene = gd._fullLayout[sName] ? gd._fullLayout[sName]._scene : null;
+                if (!scene || !scene.glplot) continue;
+
+                if (!scene.glplot._pickPatched) {
+                    scene.glplot._pickPatched = true;
+                    const origDrawPick = scene.glplot.drawPick;
+                    scene.glplot.drawPick = function() {
+                        if (this.objects) {
+                            for (let n = 0; n < this.objects.length; ++n) {
+                                const obj = this.objects[n];
+                                const traceData = (obj._trace && obj._trace.data) ? obj._trace.data : null;
+                                const isTerrain = (traceData && (traceData.name === 'Map Terrain' || traceData.hoverinfo === 'skip')) ||
+                                                  (obj._field !== undefined && (!traceData || traceData.name === 'Map Terrain'));
+                                if (isTerrain) {
+                                    obj.drawPick = function(id) { return id; };
+                                    obj.pick = function() { return null; };
+                                }
+                            }
+                        }
+                        return origDrawPick.apply(this, arguments);
+                    };
+                }
+
+                if (scene.glplot.objects) {
+                    for (let n = 0; n < scene.glplot.objects.length; ++n) {
+                        const obj = scene.glplot.objects[n];
+                        const traceData = (obj._trace && obj._trace.data) ? obj._trace.data : null;
+                        const isTerrain = (traceData && (traceData.name === 'Map Terrain' || traceData.hoverinfo === 'skip')) ||
+                                          (obj._field !== undefined && (!traceData || traceData.name === 'Map Terrain'));
+                        if (isTerrain) {
+                            obj.drawPick = function(id) { return id; };
+                            obj.pick = function() { return null; };
+                        }
+                    }
+                }
+            }
+        }
+
+        applyTerrainPassThrough();
+        if (typeof gd.on === 'function' && !gd._terrainPassThroughHooked) {
+            gd._terrainPassThroughHooked = true;
+            gd.on('plotly_afterplot', applyTerrainPassThrough);
+            gd.on('plotly_relayout', applyTerrainPassThrough);
+        }
+    }
+
     function findPlotlyGraph() {
         if (!plotlyId) {
             const gd = document.querySelector('.plotly-graph-div');
@@ -2055,6 +2190,13 @@
                 // If ID is missing, assign a temporary one
                 gd.id = 'plotly-graph-gen-' + Math.random().toString(36).substr(2, 9);
                 plotlyId = gd.id;
+            }
+        }
+
+        if (plotlyId) {
+            const gd = document.getElementById(plotlyId);
+            if (gd) {
+                setupPassThroughTerrainHover(gd);
             }
         }
 
@@ -2272,5 +2414,121 @@
         if (window.pywebview && window.pywebview.api && window.SeismicUI && typeof window.SeismicUI.restoreStoredLayers === 'function') {
             window.SeismicUI.restoreStoredLayers();
         }
+        const scBtn = document.getElementById('shortcuts-btn');
+        if (scBtn) scBtn.classList.add('visible');
     }, 300);
+
+    /* ─── Global Keyboard Shortcuts ─── */
+    window.addEventListener('keydown', (e) => {
+        // Ignore keystrokes when typing inside inputs, textareas, selects
+        const target = e.target;
+        const tag = (target && target.tagName) ? target.tagName.toLowerCase() : '';
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || (target && target.isContentEditable)) {
+            return;
+        }
+
+        // Space: Toggle play/pause for animation
+        if (e.code === 'Space') {
+            e.preventDefault();
+            if (typeof window.togglePlayAnimation === 'function') {
+                window.togglePlayAnimation();
+            } else {
+                const playBtn = document.getElementById('play-btn');
+                const pauseBtn = document.getElementById('pause-btn');
+                if (playBtn && pauseBtn) {
+                    if (playBtn.classList.contains('active') || !pauseBtn.classList.contains('active')) {
+                        pauseBtn.click();
+                    } else {
+                        playBtn.click();
+                    }
+                } else {
+                    const toggleBtn = document.getElementById('btn-play-pause') || 
+                                     document.querySelector('.play-btn') || playBtn;
+                    if (toggleBtn) toggleBtn.click();
+                }
+            }
+        }
+        // R / r: Reset Camera (default 3D orientation)
+        else if (e.key === 'r' || e.key === 'R') {
+            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                if (typeof snapToView === 'function') {
+                    snapToView('reset');
+                    showStatusToast('Camera reset to default 3D', true);
+                }
+            }
+        }
+        // T / t: Top-Down view
+        else if (e.key === 't' || e.key === 'T') {
+            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                if (typeof snapToView === 'function') {
+                    snapToView('top');
+                    showStatusToast('Top-Down View', true);
+                }
+            }
+        }
+        // S / s: Side view
+        else if (e.key === 's' || e.key === 'S') {
+            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                if (typeof snapToView === 'function') {
+                    snapToView('side');
+                    showStatusToast('Side View', true);
+                }
+            }
+        }
+        // C / c: Auto-rotation / Cinema mode
+        else if (e.key === 'c' || e.key === 'C') {
+            if (!e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                if (typeof toggleCinemaMode === 'function') {
+                    toggleCinemaMode();
+                }
+            }
+        }
+        // Numbers 1 - 4: Fast switch between views
+        else if (['1', '2', '3', '4'].includes(e.key)) {
+            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                const viewMap = {
+                    '1': { style: 0, name: '2D Map' },
+                    '2': { style: 1, name: '3D Static' },
+                    '3': { style: 2, name: '3D Animated' },
+                    '4': { style: 3, name: '3D Clustering' }
+                };
+                const sel = viewMap[e.key];
+                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.load_view === 'function') {
+                    e.preventDefault();
+                    showStatusToast(`Loading ${sel.name}...`, true);
+                    window.pywebview.api.load_view(sel.style);
+                }
+            }
+        }
+        // Esc: Close any active popup/modal or return to Hub
+        else if (e.key === 'Escape') {
+            e.preventDefault();
+            const activeModal = document.querySelector(
+                '#shortcuts-modal.active, #export-modal.active, #layer-modal.active, #info-panel.show, .glass-menu.show'
+            );
+            if (activeModal) {
+                if (typeof SeismicUI !== 'undefined' && SeismicUI.closeBottomLeftPopups) {
+                    SeismicUI.closeBottomLeftPopups();
+                }
+                document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+            } else if (typeof transitionToHub === 'function') {
+                transitionToHub();
+            } else if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.go_back === 'function') {
+                window.pywebview.api.go_back();
+            }
+        }
+        // H / ? / F1: Toggle Keyboard Shortcuts Modal
+        else if (e.key === 'h' || e.key === 'H' || e.code === 'KeyH' || e.key === '?' || e.key === 'F1') {
+            if (!e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                if (typeof SeismicUI !== 'undefined' && SeismicUI.toggleShortcutsModal) {
+                    SeismicUI.toggleShortcutsModal();
+                }
+            }
+        }
+    });
 </script>

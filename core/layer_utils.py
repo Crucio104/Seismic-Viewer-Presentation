@@ -63,7 +63,7 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
     try:
         path = Path(csv_path)
         if not path.exists():
-            return {'error': f"File non trovato: {csv_path}"}
+            return {'error': f"File not found: {csv_path}"}
         
         df = _read_csv_flexible(path)
             
@@ -77,7 +77,7 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
         vpvs_col = next((c for c in df.columns if 'VP/VS' in c or 'VPXVS' in c or 'VPVS' in c or 'VP_VS' in c), None)
         
         if not all([utmx_col, utmy_col, utmz_col, vpvs_col]):
-            return {'error': f"Colonne mancanti nel CSV di tomografia. Trovate: {list(df.columns)}"}
+            return {'error': f"Missing columns in tomography CSV. Found: {list(df.columns)}"}
             
         # Drop NaN or invalid rows
         df = df.dropna(subset=[utmx_col, utmy_col, utmz_col, vpvs_col]).reset_index(drop=True)
@@ -208,7 +208,7 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
     try:
         path = Path(csv_path)
         if not path.exists():
-            return {'error': f"File non trovato: {csv_path}"}
+            return {'error': f"File not found: {csv_path}"}
             
         df = _read_csv_flexible(path)
             
@@ -219,7 +219,7 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
         date_col = next((c for c in df.columns if 'date' in c or 'data' in c or 'time' in c), None)
         
         if not station_col or not up_col:
-            return {'error': f"Colonne 'station' o 'up_m' mancanti nel CSV uplift. Trovate: {list(df.columns)}"}
+            return {'error': f"Missing columns 'station' or 'up_m' in uplift CSV. Found: {list(df.columns)}"}
             
         # Parse dates if date column exists
         if date_col:
@@ -230,12 +230,12 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
         # Load station coordinates mapping
         coord_map = _load_station_coordinates(path.parent, stations_path=stations_path)
         if not coord_map:
-            return {'error': "Impossibile trovare le coordinate delle stazioni (flegrei_station_coordinates.csv)"}
+            return {'error': "Unable to locate station coordinates file (flegrei_station_coordinates.csv)"}
             
         # Filter stations present in coordinate map
         df = df[df[station_col].str.upper().isin(coord_map.keys())].copy()
         if len(df) == 0:
-            return {'error': "Nessuna stazione nel file corrisponde a quelle nel file di coordinate."}
+            return {'error': "No matching stations found in the coordinates file."}
             
         stations = []
         lons = []
@@ -399,8 +399,8 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
             'interp_grid': interp_grid
         }
     except Exception as e:
-        logger.error(f"Errore durante l'elaborazione dell'uplift: {e}", exc_info=True)
-        return {'error': f"Errore elaborazione uplift: {str(e)}"}
+        logger.error(f"Error during uplift processing: {e}", exc_info=True)
+        return {'error': f"Uplift processing error: {str(e)}"}
 
 
 def _load_station_coordinates(search_dir: Path, stations_path: str | Path | None = None) -> dict[str, tuple[float, float]]:

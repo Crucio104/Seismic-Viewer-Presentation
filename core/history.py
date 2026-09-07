@@ -22,8 +22,10 @@ def save_recent_file(path: str) -> None:
     # Keep only last 4
     recent = recent[:4]
     try:
-        with open(HISTORY_FILE, "w") as f:
-            json.dump(recent, f)
+        temp_file = HISTORY_FILE.with_suffix('.tmp')
+        with open(temp_file, "w", encoding='utf-8') as f:
+            json.dump(recent, f, indent=2)
+        temp_file.replace(HISTORY_FILE)
     except Exception:
         pass
 

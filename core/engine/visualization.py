@@ -143,7 +143,8 @@ def get_3d_static_figure(
     fig.add_trace(go.Surface(
         x=x_grid, y=y_grid, z=z_grid,
         surfacecolor=surfacecolor, colorscale=colorscale,
-        showscale=False, opacity=0.9, hoverinfo='skip',
+        showscale=False, opacity=0.9, hoverinfo='skip', name='Map Terrain',
+        contours=dict(x=dict(highlight=False, show=False), y=dict(highlight=False, show=False), z=dict(highlight=False, show=False)),
         lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0)
     ))
 
@@ -201,7 +202,8 @@ def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitu
     fig.add_trace(go.Surface(
         x=x_grid, y=y_grid, z=z_grid,
         surfacecolor=surfacecolor, colorscale=colorscale,
-        showscale=False, opacity=0.9, hoverinfo='skip',
+        showscale=False, opacity=0.9, hoverinfo='skip', name='Map Terrain',
+        contours=dict(x=dict(highlight=False, show=False), y=dict(highlight=False, show=False), z=dict(highlight=False, show=False)),
         lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0)
     ))
 
@@ -291,6 +293,7 @@ def get_3d_subcluster_figure(
         surfacecolor=surfacecolor, colorscale=colorscale,
         opacity=0.9, showscale=False,
         hoverinfo='skip', name='Map Terrain',
+        contours=dict(x=dict(highlight=False, show=False), y=dict(highlight=False, show=False), z=dict(highlight=False, show=False)),
         lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0)
     ))
 
@@ -717,7 +720,8 @@ def get_3d_animated_figure(
     fig = go.Figure()
     fig.add_trace(go.Surface(
         x=x_high, y=y_high, z=z_high, surfacecolor=mat_high, colorscale=scale_high,
-        showscale=False, opacity=0.85, hoverinfo='skip', visible=True,
+        showscale=False, opacity=0.85, hoverinfo='skip', visible=True, name='Map Terrain',
+        contours=dict(x=dict(highlight=False, show=False), y=dict(highlight=False, show=False), z=dict(highlight=False, show=False)),
         lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0),
     ))
 

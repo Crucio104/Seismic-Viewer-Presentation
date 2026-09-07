@@ -126,8 +126,6 @@ def load_csv(source_file: str) -> dict[str, Any]:
     if df.empty:
         raise ValueError(f"No seismic events found with M ≥ {MIN_MAGNITUDE}.")
 
-    # Fast datetime parsing (removed redundant second parsing)
-    
     # --- SANITY CHECKS ---
     initial_count = len(df)
     

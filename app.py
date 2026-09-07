@@ -122,7 +122,8 @@ async def get_data_binary_handler(session_id: str) -> Response:
 def pack_seismic_binary(data: dict[str, Any]) -> bytes:
     """Pack seismic dictionary data into a compact binary Float32 buffer."""
     cluster = data.get('cluster', [])
-    if 'binary_buffer' in data and not cluster:
+    has_clusters = cluster is not None and len(cluster) > 0
+    if 'binary_buffer' in data and not has_clusters:
         return data['binary_buffer']
 
     # Canonical key mapping

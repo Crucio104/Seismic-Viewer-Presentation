@@ -516,8 +516,8 @@
                 }
 
                 if (targetIndices.length === 0) {
-                    console.warn("Tutti i cluster sono bloccati o nessun punto disponibile.");
-                    if (typeof showStatusToast === 'function') showStatusToast('Nessun cluster sbloccato da suddividere.');
+                    console.warn("All clusters are locked or no points available.");
+                    if (typeof showStatusToast === 'function') showStatusToast('No unlocked clusters available to subdivide.');
                     if(typeof hideInitLoader === 'function') hideInitLoader();
                     return;
                 }
