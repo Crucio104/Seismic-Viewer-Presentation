@@ -585,19 +585,32 @@ body {
     right: 1.25rem;
     top: 5rem;
     z-index: 99999;
-    padding: 0.8rem 0.8rem;
+    padding: 0.85rem 0.95rem;
     width: auto;
-    min-width: 8rem;
-    max-width: 15rem;
+    min-width: 9.2rem;
+    max-width: 16rem;
     display: none;
     flex-direction: column;
     align-items: center;
     gap: 0.5rem;
-    height: 35vh;
-    max-height: 25rem;
+    height: 31vh;
+    min-height: 13.5rem;
+    max-height: 20rem;
     text-shadow: none !important;
     white-space: nowrap;
     overflow: hidden;
+}
+
+#legend-body-wrapper {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    flex-grow: 1;
+    min-height: 0;
+    height: 100%;
+    width: 100%;
 }
 
 .legend-list {
@@ -649,36 +662,41 @@ body {
 
 #legend-container {
     display: flex;
-    flex-direction: row-reverse;
+    flex-direction: row;
     align-items: stretch;
-    gap: 0.625rem;
-    flex-grow: 1;
+    align-self: stretch;
+    gap: 0.45rem;
+    flex-grow: 0;
     min-height: 0;
-    width: 100%;
+    height: 100%;
     justify-content: center;
 }
 
 #legend-bar {
-    width: 1.000rem;
+    width: 1.1rem;
     border-radius: 0.250rem;
     border: 1px solid rgba(255, 255, 255, 0.2);
     box-shadow: inset 0 0 0.500rem rgba(0, 0, 0, 0.4);
+    height: 100%;
+    flex-shrink: 0;
 }
 
 #legend-ticks {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 0.125rem 0;
+    padding: 0.1rem 0;
+    height: 100%;
+    flex-grow: 0;
 }
 
 .legend-tick {
     font-family: 'Segoe UI', system-ui, sans-serif;
-    font-size: 0.750rem;
+    font-size: 0.75rem;
     font-weight: 600;
     color: #fff;
     opacity: 0.85;
-    text-align: right;
+    text-align: left;
     line-height: 1;
 }
 
@@ -706,6 +724,163 @@ body {
 .btn-legend-swap:hover {
     background: rgba(255, 255, 255, 0.25);
     border-color: rgba(255, 255, 255, 0.5);
+}
+
+.btn-legend-scale-swatch {
+    width: 1.6rem;
+    height: 1.6rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    border-radius: 0.35rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+    padding: 2px;
+    margin: 0;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-legend-scale-swatch:hover {
+    transform: scale(1.1);
+    border-color: #fff;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+}
+
+.scale-swatch {
+    width: 100%;
+    height: 100%;
+    border-radius: 0.2rem;
+    background: linear-gradient(to top, #440154, #482878, #3e4989, #31688e, #26828e, #1f9e89, #6ece58, #b5de2b, #fde725);
+    box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+}
+
+.legend-scale-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+
+.legend-invert-checkbox {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    cursor: pointer;
+    margin: 0;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.legend-invert-checkbox input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.invert-checkbox-box {
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    border-radius: 0.35rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.7);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.legend-invert-checkbox:hover .invert-checkbox-box {
+    transform: scale(1.08);
+    border-color: rgba(255, 255, 255, 0.8);
+    color: #fff;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+}
+
+.legend-invert-checkbox input[type="checkbox"]:checked + .invert-checkbox-box {
+    background: rgba(99, 102, 241, 0.35);
+    border-color: #818cf8;
+    color: #fff;
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.6), inset 0 0 4px rgba(99, 102, 241, 0.4);
+}
+
+.invert-checkbox-box svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    transition: transform 0.25s ease;
+}
+
+.legend-invert-checkbox input[type="checkbox"]:checked + .invert-checkbox-box svg {
+    transform: rotate(180deg);
+}
+
+.legend-scale-menu {
+    display: none;
+    position: fixed;
+    margin: 0;
+    z-index: 999999;
+    width: max-content;
+    min-width: 6.5rem;
+    max-height: 18rem;
+    overflow-y: auto;
+    padding: 0.35rem;
+    gap: 0.25rem;
+}
+
+.legend-scale-menu.show {
+    display: flex;
+    flex-direction: column;
+}
+
+.legend-scale-menu .menu-item {
+    padding: 0.2rem 0.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.35rem;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.legend-scale-menu .menu-item:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.legend-scale-menu .menu-item.active {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.scale-stripe {
+    width: 5.5rem;
+    height: 0.85rem;
+    border-radius: 0.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.4);
+    transition: transform 0.15s ease, filter 0.15s ease, border-color 0.15s ease;
+}
+
+.legend-scale-menu .menu-item:hover .scale-stripe {
+    transform: scaleX(1.04);
+    filter: brightness(1.15);
+    border-color: rgba(255, 255, 255, 0.7);
+}
+
+.legend-scale-menu .menu-item.active .scale-stripe {
+    border-color: #fff;
+    box-shadow: 0 0 0 1.5px #fff, inset 0 0 3px rgba(0, 0, 0, 0.4);
 }
 
 /* Cluster Legend Action Buttons */
@@ -773,7 +948,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.500rem;
-    z-index: 10000;
+    z-index: 150000;
     pointer-events: none;
 }
 

@@ -19,24 +19,10 @@
                 </div>
             </div>
 
-            <div class="settings-group">
-                <label class="label" for="scale-toggle">Color Scale</label>
-                <button class="settings-btn" id="scale-toggle">Viridis ▾</button>
-                <div class="glass-panel glass-menu" id="scale-menu">
-                    <div class="menu-item active" data-val="Viridis">Viridis</div>
-                    <div class="menu-item" data-val="Plasma">Plasma</div>
-                    <div class="menu-item" data-val="Inferno">Inferno</div>
-                    <div class="menu-item" data-val="Turbo">Turbo</div>
-                    <div class="menu-item" data-val="Jet">Jet</div>
-                    <div class="menu-item" data-val="Cividis">Cividis</div>
-                    <div class="menu-item" data-val="Electric">Electric</div>
-                    <div class="menu-item" data-val="Hot">Hot</div>
-                </div>
-            </div>
 
-            <label class="glass-checkbox">
-                <input type="checkbox" id="invert-scale">
-                Invert Scale
+            <label class="glass-checkbox" id="event-vectors-group">
+                <input type="checkbox" id="event-vectors-check">
+                Event Vectors
             </label>
 
 
@@ -129,11 +115,11 @@
             const depMin = document.getElementById('dep-min');
             const depMax = document.getElementById('dep-max');
             const invertCheck = document.getElementById('invert-scale');
+            const eventVectorsCheck = document.getElementById('event-vectors-check');
+            const eventVectorsGroup = document.getElementById('event-vectors-group');
             
             const colorToggle = document.getElementById('color-toggle');
             const colorMenu = document.getElementById('color-menu');
-            const scaleToggle = document.getElementById('scale-toggle');
-            const scaleMenu = document.getElementById('scale-menu');
             const viewModeToggle = document.getElementById('view-mode-toggle');
             const viewModeMenu = document.getElementById('view-mode-menu');
             const viewModeGroup = document.getElementById('view-mode-group');
@@ -183,6 +169,7 @@
 
             const is3D = (gd.layout.scene !== undefined);
             if (!is3D && gd.data.length > 1) viewModeGroup.style.display = 'block';
+            if (!is3D && eventVectorsGroup) eventVectorsGroup.style.display = 'none';
 
              const resetBtn = document.getElementById('reset-camera');
              let initialMapboxView = null;
@@ -217,7 +204,6 @@
 
             // Menus
             SeismicUI.initMenu(colorToggle, colorMenu);
-            SeismicUI.initMenu(scaleToggle, scaleMenu);
             if (viewModeToggle) SeismicUI.initMenu(viewModeToggle, viewModeMenu);
 
             SeismicUI.bindMenu(colorMenu, (item) => {
@@ -227,20 +213,22 @@
                 applyFilterWithLoader();
             });
 
-            SeismicUI.bindMenu(scaleMenu, (item) => {
-                currentColorScale = item.dataset.val;
-                scaleToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+            window.setEarthquakeScale = function(scale) {
+                currentColorScale = scale;
+                if (window.SeismicUI && window.SeismicUI._layerScales) {
+                    window.SeismicUI._layerScales.earthquakes = scale;
+                }
                 applyFilterWithLoader();
-            });
+            };
 
             if (viewModeMenu) {
                 SeismicUI.bindMenu(viewModeMenu, (item) => {
                     currentViewMode = item.dataset.mode;
                     viewModeToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
                     const isHeatmap = (currentViewMode === 'heatmap');
-                    SeismicUI.setGroupDisabled(scaleToggle.closest('.settings-group'), isHeatmap);
                     SeismicUI.setGroupDisabled(colorToggle.closest('.settings-group'), isHeatmap);
-                    SeismicUI.setGroupDisabled(invertCheck.closest('.glass-checkbox'), isHeatmap);
+                    const invGroup = invertCheck ? (invertCheck.closest('.legend-invert-checkbox') || invertCheck.closest('.glass-checkbox')) : null;
+                    if (invGroup) SeismicUI.setGroupDisabled(invGroup, isHeatmap);
                     applyFilterWithLoader();
                 });
             }
@@ -270,10 +258,12 @@
 
             const rangeApplyCallback = null;
 
-            invertCheck.onchange = () => {
-                invertScale = invertCheck.checked;
-                applyFilterWithLoader();
-            };
+            if (invertCheck) {
+                invertCheck.addEventListener('change', () => {
+                    invertScale = invertCheck.checked;
+                    applyFilterWithLoader();
+                });
+            }
 
             // Range input sanitization
             SeismicUI.setupBoundsValidation(magMin, magMin.value, rangeApplyCallback);
@@ -317,6 +307,7 @@
                     try { applyFilter(); } catch (e) { console.error('Filter Error:', e); }
                 }
             }
+            window.applyFilterWithLoader = applyFilterWithLoader;
 
             if (is3D) {
                 applyBtn.onclick = applyFilterWithLoader;
@@ -333,6 +324,7 @@
             }
 
             function applyFilter() {
+                if (invertCheck) invertScale = invertCheck.checked;
                 const start = startInput.value ? startInput.value.trim() : '';
                 const end = endInput.value ? endInput.value.trim() : '';
                 const m1 = parseFloat(magMin.value) || 0, m2 = parseFloat(magMax.value) || 9.9;
@@ -516,8 +508,18 @@
                     { startDate: quakeData.start_date }
                 );
 
-                if (window.SeismicUI && window.SeismicUI._activeConsecutiveArrows) {
-                    window.SeismicUI.toggleConsecutiveArrows(true);
+                if (is3D && eventVectorsCheck) {
+                    if (eventVectorsCheck.checked) {
+                        if (window.SeismicUI && typeof window.SeismicUI.toggleConsecutiveArrows === 'function') {
+                            window.SeismicUI.toggleConsecutiveArrows(true);
+                        }
+                    } else {
+                        if (window.SeismicUI && typeof window.SeismicUI.toggleConsecutiveArrows === 'function') {
+                            if (window.SeismicUI._activeConsecutiveArrows) {
+                                window.SeismicUI.toggleConsecutiveArrows(false);
+                            }
+                        }
+                    }
                 }
             }
 

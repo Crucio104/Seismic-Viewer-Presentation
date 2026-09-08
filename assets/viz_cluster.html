@@ -103,6 +103,13 @@
                 </label>
             </div>
 
+            <div class="settings-group" id="event-vectors-group" style="padding-top: 0.5rem;">
+                <label class="glass-checkbox">
+                    <input type="checkbox" id="event-vectors-check">
+                    Event Vectors
+                </label>
+            </div>
+
             <button id="apply-filters-btn" class="priority-btn" style="margin-top:1.25rem; font-size:0.75rem; height:2.2rem; width:100%; display:flex; justify-content:center; align-items:center; background:rgba(99, 102, 241, 0.2); border:1px solid rgba(99, 102, 241, 0.4); border-radius:0.5rem; color:#fff; cursor:pointer; font-family:inherit; font-weight:600; transition:all 0.2s; flex-shrink: 0;">
                 Apply Changes
             </button>
@@ -387,8 +394,13 @@
                                 // Sync legend and display mode
                                 applyDisplayMode();
                                 updateClusterLegend();
-                                if (window.SeismicUI && window.SeismicUI._activeConsecutiveArrows) {
-                                    window.SeismicUI.toggleConsecutiveArrows(true);
+                                const evCheck = document.getElementById('event-vectors-check');
+                                if (window.SeismicUI) {
+                                    if (evCheck && evCheck.checked) {
+                                        window.SeismicUI.toggleConsecutiveArrows(true);
+                                    } else if (window.SeismicUI._activeConsecutiveArrows) {
+                                        window.SeismicUI.toggleConsecutiveArrows(false);
+                                    }
                                 }
                             } else if (res && res.error) {
                                 console.error("Update Error:", res.error);

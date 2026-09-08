@@ -13,9 +13,57 @@
 
 <div id="glass-legend" class="glass-panel">
     <div id="legend-title">Variable</div>
-    <div id="legend-container">
-        <div id="legend-bar"></div>
-        <div id="legend-ticks"></div>
+    <div id="legend-body-wrapper">
+        <div class="legend-scale-wrapper" id="legend-scale-wrapper">
+            <button id="legend-scale-toggle" class="btn-legend-scale-swatch" title="Change Color Scale">
+                <div id="legend-scale-swatch" class="scale-swatch"></div>
+            </button>
+            <label id="legend-invert-group" class="legend-invert-checkbox" title="Invert Color Scale">
+                <input type="checkbox" id="invert-scale" onchange="SeismicUI.toggleInvertScale()">
+                <span class="invert-checkbox-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 7H4M4 7l4-4M4 7l4 4"/>
+                        <path d="M4 17h16M20 17l-4-4M20 17l-4 4"/>
+                    </svg>
+                </span>
+            </label>
+            <div class="glass-panel glass-menu legend-scale-menu" id="legend-scale-menu">
+                <div class="menu-item active" data-val="Viridis" title="Viridis">
+                    <div class="scale-stripe" style="background: linear-gradient(to right, #440154, #482878, #3e4989, #31688e, #26828e, #1f9e89, #6ece58, #b5de2b, #fde725);"></div>
+                </div>
+                <div class="menu-item" data-val="Plasma" title="Plasma">
+                    <div class="scale-stripe" style="background: linear-gradient(to right, #0d0887, #4b03a1, #7d03a8, #a41e9a, #c33580, #de4c60, #f16d41, #fa9913, #f6c710, #eff921);"></div>
+                </div>
+                <div class="menu-item" data-val="Inferno" title="Inferno">
+                    <div class="scale-stripe" style="background: linear-gradient(to right, #000004, #160b39, #420a68, #6a176e, #932667, #bc3754, #dd513a, #f37819, #fca50a, #f9d22a, #fcffa4);"></div>
+                </div>
+                <div class="menu-item" data-val="Turbo" title="Turbo">
+                    <div class="scale-stripe" style="background: linear-gradient(to right, #30123b, #41459b, #4675ed, #419df9, #2eaede, #1dbeab, #24ca70, #56d445, #88db32, #bad928, #e2c933, #f8aa31, #ff842a, #f75b14, #e03b07, #bd2205, #9a1003, #7a0403);"></div>
+                </div>
+                <div class="menu-item" data-val="Jet" title="Jet">
+                    <div class="scale-stripe" style="background: linear-gradient(to right, #00008f, #0000ff, #007fff, #00ffff, #7fff7f, #ffff00, #ff7f00, #ff0000, #7f0000);"></div>
+                </div>
+                <div class="menu-item" data-val="Cividis" title="Cividis">
+                    <div class="scale-stripe" style="background: linear-gradient(to right, #00224e, #123570, #3c4b66, #6b6d76, #8e8c82, #b1ac86, #d4cd91, #f8f1ae);"></div>
+                </div>
+                <div class="menu-item" data-val="Electric" title="Electric">
+                    <div class="scale-stripe" style="background: linear-gradient(to right, #000000, #1e008a, #7d00ba, #c400b8, #fe00a2, #ff5e61, #ffc100, #ffff00);"></div>
+                </div>
+                <div class="menu-item" data-val="Hot" title="Hot">
+                    <div class="scale-stripe" style="background: linear-gradient(to right, #000000, #e60000, #ffcc00, #ffffff);"></div>
+                </div>
+                <div class="menu-item" data-val="Tomography" title="Tomography">
+                    <div class="scale-stripe" style="background: linear-gradient(to right, rgb(255, 60, 0), rgb(255, 160, 80), rgb(255, 255, 255), rgb(80, 180, 255), rgb(0, 100, 255));"></div>
+                </div>
+                <div class="menu-item" data-val="Uplift" title="Uplift">
+                    <div class="scale-stripe" style="background: linear-gradient(to right, rgb(255, 255, 0), rgb(255, 140, 0), rgb(180, 0, 0));"></div>
+                </div>
+            </div>
+        </div>
+        <div id="legend-container">
+            <div id="legend-bar"></div>
+            <div id="legend-ticks"></div>
+        </div>
     </div>
     <div id="cluster-list" class="legend-list" style="display:none; width:100%;"></div>
     <button id="btn-swap-legend" class="btn-legend-swap" style="display:none;" onclick="SeismicUI.swapLegend()" title="Swap Color Scale Legend">⇄ Scale: Quakes</button>
@@ -48,13 +96,6 @@
             <path d="M3 3v5h5" />
         </svg>
         Reset
-    </button>
-    <button class="btn-cam" id="btn-consecutive-arrows" onclick="SeismicUI.toggleConsecutiveArrows()" title="Consecutive Event Vectors (V)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="5" y1="19" x2="19" y2="5" />
-            <polyline points="12 5 19 5 19 12" />
-        </svg>
-        Event Vectors
     </button>
 </div>
 
@@ -383,6 +424,12 @@
     const SeismicUI = {
         _activeTomographyData: null,
         _activeUpliftData: null,
+        _layerScales: {
+            earthquakes: 'Viridis',
+            vectors: 'Vectors',
+            tomo: 'Tomography',
+            uplift: 'Uplift'
+        },
 
         updateLegendSwapButtonVisibility() {
             const btn = document.getElementById('btn-swap-legend');
@@ -398,6 +445,7 @@
             const available = [];
             if (isClustering) available.push('clusters');
             else available.push('earthquakes');
+            if (this._activeConsecutiveArrows) available.push('vectors');
             if (this._activeTomographyData) available.push('tomo');
             if (this._activeUpliftData) available.push('uplift');
 
@@ -411,12 +459,324 @@
                     btn.innerHTML = '⇄ Scale: Clusters';
                 } else if (current === 'earthquakes' && btn.innerHTML.indexOf('Quakes') === -1) {
                     btn.innerHTML = '⇄ Scale: Quakes';
+                } else if (current === 'vectors' && btn.innerHTML.indexOf('Vectors') === -1) {
+                    btn.innerHTML = '⇄ Scale: Vectors';
                 } else if (current === 'tomo' && btn.innerHTML.indexOf('Tomo') === -1) {
                     btn.innerHTML = '⇄ Scale: Tomo';
                 } else if (current === 'uplift' && btn.innerHTML.indexOf('Uplift') === -1) {
                     btn.innerHTML = '⇄ Scale: Uplift';
                 }
             }
+        },
+
+        initLegendScaleMenu() {
+            const btn = document.getElementById('legend-scale-toggle');
+            const menu = document.getElementById('legend-scale-menu');
+            if (!btn || !menu) return;
+
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const wasShowing = menu.classList.contains('show');
+                document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+                if (this.closeBottomLeftPopups) this.closeBottomLeftPopups();
+
+                if (!wasShowing) {
+                    const rect = btn.getBoundingClientRect();
+                    const legend = document.getElementById('glass-legend');
+                    const legendRect = legend ? legend.getBoundingClientRect() : rect;
+                    menu.style.position = 'fixed';
+                    const menuHeight = 280;
+                    const topPos = Math.max(10, Math.min(window.innerHeight - menuHeight - 10, rect.top - 40));
+                    menu.style.top = topPos + 'px';
+                    let rightDist = (window.innerWidth - legendRect.left) + 6;
+                    if (rightDist + 120 > window.innerWidth - 8) {
+                        rightDist = Math.max(10, window.innerWidth - 120 - 8);
+                    }
+                    menu.style.right = rightDist + 'px';
+                    menu.style.left = 'auto';
+                    menu.classList.add('show');
+                }
+            };
+
+            menu.querySelectorAll('.menu-item').forEach(item => {
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    menu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    const scaleName = item.dataset.val;
+                    btn.title = 'Color scale: ' + scaleName;
+                    const swatch = document.getElementById('legend-scale-swatch');
+                    if (swatch) {
+                        const sColors = (typeof COLORS_MAP !== 'undefined' && COLORS_MAP[scaleName]) ? COLORS_MAP[scaleName] : ['#440154', '#fde725'];
+                        swatch.style.background = `linear-gradient(to top, ${sColors.join(',')})`;
+                    }
+                    menu.classList.remove('show');
+                    this.changeActiveLegendScale(scaleName);
+                };
+            });
+        },
+
+        changeActiveLegendScale(scaleName) {
+            let isClustering = false;
+            if (typeof window.animClusteringEnabled !== 'undefined' && window.animClusteringEnabled) {
+                isClustering = true;
+            } else if (typeof window.lockedClusters !== 'undefined') {
+                isClustering = true;
+            }
+            const currentMode = window._currentLegendMode || (isClustering ? 'clusters' : 'earthquakes');
+            if (currentMode === 'clusters') return;
+
+            if (!this._layerScales) {
+                this._layerScales = {
+                    earthquakes: 'Viridis',
+                    vectors: 'Vectors',
+                    tomo: 'Tomography',
+                    uplift: 'Uplift'
+                };
+            }
+            this._layerScales[currentMode] = scaleName;
+
+            const btn = document.getElementById('legend-scale-toggle');
+            if (btn) {
+                btn.title = 'Color scale: ' + scaleName;
+                const swatch = document.getElementById('legend-scale-swatch');
+                if (swatch) {
+                    const sColors = (typeof COLORS_MAP !== 'undefined' && COLORS_MAP[scaleName]) ? COLORS_MAP[scaleName] : ['#440154', '#fde725'];
+                    swatch.style.background = `linear-gradient(to top, ${sColors.join(',')})`;
+                }
+            }
+
+            let loader = document.getElementById('filter-loader');
+            if (!loader) {
+                loader = document.createElement('div');
+                loader.id = 'filter-loader';
+                loader.innerHTML = '<div class="loader-ring" style="width:2rem; height:2rem"></div>';
+                document.body.appendChild(loader);
+            }
+            loader.classList.add('show');
+
+            setTimeout(() => {
+                try {
+                    const gd = document.querySelector('.plotly-graph-div') || (window.plotlyId ? document.getElementById(window.plotlyId) : null) || document.getElementById('plotly-div') || document.getElementById('plot');
+                    const pScale = getPlotlyScale(scaleName);
+
+                    if (currentMode === 'earthquakes') {
+                        if (typeof window.setEarthquakeScale === 'function') {
+                            window.setEarthquakeScale(scaleName);
+                        } else {
+                            if (window._earthquakeLegendState) {
+                                window._earthquakeLegendState.scaleName = scaleName;
+                                const s = window._earthquakeLegendState;
+                                updateGlassLegendInternal(s.show, s.title, scaleName, s.invert, s.limits, s.dateInfo);
+                            }
+                            if (gd && gd.data) {
+                                for (let i = 0; i < gd.data.length; i++) {
+                                    const tr = gd.data[i];
+                                    if (!tr) continue;
+                                    const name = tr.name || '';
+                                    if (tr.type === 'scatter3d' && (name === 'Depth' || name === 'Date' || name === 'Magnitude' || name === 'Earthquakes' || (!name.includes('Vectors') && !name.includes('Arrow') && !name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
+                                        if (tr.marker) tr.marker.colorscale = pScale;
+                                    } else if (tr.type === 'scattermapbox' && (name.includes('Earthquakes') || (!name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
+                                        if (tr.marker) tr.marker.colorscale = pScale;
+                                    }
+                                }
+                                try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
+                            }
+                        }
+                    } else if (currentMode === 'vectors') {
+                        if (gd && gd.data) {
+                            for (let i = 0; i < gd.data.length; i++) {
+                                const tr = gd.data[i];
+                                if (!tr) continue;
+                                if (tr.name === 'Consecutive Event Vectors') {
+                                    if (!tr.line) tr.line = {};
+                                    tr.line.colorscale = pScale;
+                                } else if (tr.name === 'Event Arrowheads') {
+                                    tr.colorscale = pScale;
+                                }
+                            }
+                            try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
+                        }
+                        const inv = (this._layerInverts && this._layerInverts[currentMode]) || false;
+                        const maxV = this._consecutiveVectorCount || 100;
+                        updateGlassLegendInternal(true, 'VECTOR N°', scaleName, inv, [1, maxV], null);
+                    } else if (currentMode === 'tomo') {
+                        if (gd && gd.data) {
+                            for (let i = 0; i < gd.data.length; i++) {
+                                const tr = gd.data[i];
+                                if (!tr) continue;
+                                const name = tr.name || '';
+                                if (tr.type === 'surface' || name.includes('Terrain') || name.includes('Map')) continue;
+                                const isTomo = name.toLowerCase().includes('tomography') || name.includes('Vp/Vs') || name.includes('Tomografia') || tr.type === 'volume';
+                                if (isTomo) {
+                                    tr.colorscale = pScale;
+                                }
+                            }
+                            try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
+                        }
+                        const inv = (this._layerInverts && this._layerInverts[currentMode]) || false;
+                        updateGlassLegendInternal(true, 'Tomo Vp/Vs', scaleName, inv, [1.15, 2.35], null);
+                    } else if (currentMode === 'uplift') {
+                        let minVal = 0, maxVal = 80;
+                        if (this._activeUpliftData) {
+                            const u = this._activeUpliftData;
+                            const vals = u.up_m || (u.interp_grid ? u.interp_grid.up_m : []) || [];
+                            let minU = 9999, maxU = -9999;
+                            for (let i = 0; i < vals.length; i++) {
+                                if (vals[i] < minU) minU = vals[i];
+                                if (vals[i] > maxU) maxU = vals[i];
+                            }
+                            if (minU !== 9999) { minVal = minU * 1000; maxVal = maxU * 1000; }
+                        }
+                        if (gd && gd.data) {
+                            for (let i = 0; i < gd.data.length; i++) {
+                                const tr = gd.data[i];
+                                if (!tr) continue;
+                                const name = tr.name || '';
+                                if (name.includes('Uplift') && (tr.type === 'surface' || tr.type === 'densitymapbox' || tr.type === 'choroplethmapbox')) {
+                                    tr.colorscale = pScale;
+                                }
+                            }
+                            try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
+                        }
+                        const inv = (this._layerInverts && this._layerInverts[currentMode]) || false;
+                        updateGlassLegendInternal(true, 'Uplift (mm)', scaleName, inv, [minVal, maxVal], null);
+                    }
+                } catch (err) {
+                    console.error('Error applying scale change:', err);
+                } finally {
+                    setTimeout(() => {
+                        if (loader) loader.classList.remove('show');
+                    }, 120);
+                }
+            }, 30);
+        },
+
+        toggleInvertScale() {
+            const invertCheck = document.getElementById('invert-scale');
+            if (!invertCheck) return;
+            const inv = invertCheck.checked;
+
+            let isClustering = false;
+            if (typeof window.animClusteringEnabled !== 'undefined' && window.animClusteringEnabled) {
+                isClustering = true;
+            } else if (typeof window.lockedClusters !== 'undefined') {
+                isClustering = true;
+            }
+            const currentMode = window._currentLegendMode || (isClustering ? 'clusters' : 'earthquakes');
+            if (currentMode === 'clusters') return;
+
+            if (!this._layerInverts) {
+                this._layerInverts = {
+                    earthquakes: false,
+                    vectors: false,
+                    tomo: false,
+                    uplift: false
+                };
+            }
+            this._layerInverts[currentMode] = inv;
+
+            let loader = document.getElementById('filter-loader');
+            if (!loader) {
+                loader = document.createElement('div');
+                loader.id = 'filter-loader';
+                loader.innerHTML = '<div class="loader-ring" style="width:2rem; height:2rem"></div>';
+                document.body.appendChild(loader);
+            }
+            loader.classList.add('show');
+
+            setTimeout(() => {
+                try {
+                    const gd = document.querySelector('.plotly-graph-div') || (window.plotlyId ? document.getElementById(window.plotlyId) : null) || document.getElementById('plotly-div') || document.getElementById('plot');
+                    if (currentMode === 'earthquakes') {
+                        if (typeof window.applyFilterWithLoader === 'function') {
+                            window.applyFilterWithLoader();
+                        } else if (typeof window.updateView === 'function') {
+                            window.updateView();
+                        } else if (window._earthquakeLegendState) {
+                            const s = window._earthquakeLegendState;
+                            s.invert = inv;
+                            updateGlassLegendInternal(s.show, s.title, s.scaleName, inv, s.limits, s.dateInfo);
+                            if (gd && gd.data) {
+                                for (let i = 0; i < gd.data.length; i++) {
+                                    const tr = gd.data[i];
+                                    if (!tr) continue;
+                                    const name = tr.name || '';
+                                    if (tr.type === 'scatter3d' && (name === 'Depth' || name === 'Date' || name === 'Magnitude' || name === 'Earthquakes' || (!name.includes('Vectors') && !name.includes('Arrow') && !name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
+                                        if (tr.marker) tr.marker.reversescale = inv;
+                                    } else if (tr.type === 'scattermapbox' && (name.includes('Earthquakes') || (!name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
+                                        if (tr.marker) tr.marker.reversescale = inv;
+                                    }
+                                }
+                                try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
+                            }
+                        }
+                    } else if (currentMode === 'vectors') {
+                        if (gd && gd.data) {
+                            for (let i = 0; i < gd.data.length; i++) {
+                                const tr = gd.data[i];
+                                if (!tr) continue;
+                                if (tr.name === 'Consecutive Event Vectors') {
+                                    if (tr.line) tr.line.reversescale = inv;
+                                } else if (tr.name === 'Event Arrowheads') {
+                                    tr.reversescale = inv;
+                                }
+                            }
+                            try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
+                        }
+                        const maxV = this._consecutiveVectorCount || 100;
+                        const sc = (this._layerScales && this._layerScales.vectors) ? this._layerScales.vectors : 'Vectors';
+                        updateGlassLegendInternal(true, 'VECTOR N°', sc, inv, [1, maxV], null);
+                    } else if (currentMode === 'tomo') {
+                        if (gd && gd.data) {
+                            for (let i = 0; i < gd.data.length; i++) {
+                                const tr = gd.data[i];
+                                if (!tr) continue;
+                                const name = tr.name || '';
+                                if (tr.type === 'surface' || name.includes('Terrain') || name.includes('Map')) continue;
+                                const isTomo = name.toLowerCase().includes('tomography') || name.includes('Vp/Vs') || name.includes('Tomografia') || tr.type === 'volume';
+                                if (isTomo) {
+                                    tr.reversescale = inv;
+                                }
+                            }
+                            try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
+                        }
+                        const sc = (this._layerScales && this._layerScales.tomo) ? this._layerScales.tomo : 'Tomography';
+                        updateGlassLegendInternal(true, 'Tomo Vp/Vs', sc, inv, [1.15, 2.35], null);
+                    } else if (currentMode === 'uplift') {
+                        if (gd && gd.data) {
+                            for (let i = 0; i < gd.data.length; i++) {
+                                const tr = gd.data[i];
+                                if (!tr) continue;
+                                const name = tr.name || '';
+                                if (name.includes('Uplift') && (tr.type === 'surface' || tr.type === 'densitymapbox' || tr.type === 'choroplethmapbox')) {
+                                    tr.reversescale = inv;
+                                }
+                            }
+                            try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
+                        }
+                        let minVal = 0, maxVal = 80;
+                        if (this._activeUpliftData) {
+                            const u = this._activeUpliftData;
+                            const vals = u.up_m || (u.interp_grid ? u.interp_grid.up_m : []) || [];
+                            let minU = 9999, maxU = -9999;
+                            for (let i = 0; i < vals.length; i++) {
+                                if (vals[i] < minU) minU = vals[i];
+                                if (vals[i] > maxU) maxU = vals[i];
+                            }
+                            if (minU !== 9999) { minVal = minU * 1000; maxVal = maxU * 1000; }
+                        }
+                        const sc = (this._layerScales && this._layerScales.uplift) ? this._layerScales.uplift : 'Uplift';
+                        updateGlassLegendInternal(true, 'Uplift (mm)', sc, inv, [minVal, maxVal], null);
+                    }
+                } catch (err) {
+                    console.error('Error toggling invert scale:', err);
+                } finally {
+                    setTimeout(() => {
+                        if (loader) loader.classList.remove('show');
+                    }, 100);
+                }
+            }, 30);
         },
 
         initMenu(btn, menu) {
@@ -610,11 +970,12 @@
         _consecutiveVectorCount: 0,
 
         toggleConsecutiveArrows(forceState = null) {
+            const chk = document.getElementById('event-vectors-check');
             const btn = document.getElementById('btn-consecutive-arrows');
             const gd = document.querySelector('.plotly-graph-div');
             if (!gd || !gd.data) return;
 
-            const isCurrentlyActive = btn ? btn.classList.contains('active') : false;
+            const isCurrentlyActive = this._activeConsecutiveArrows;
             const targetState = (forceState !== null) ? forceState : !isCurrentlyActive;
 
             this.removeConsecutiveArrowTraces(gd);
@@ -652,6 +1013,7 @@
 
                 if (xs.length < 2) {
                     showStatusToast("Not enough 3D points for event vectors.", false);
+                    if (chk) chk.checked = false;
                     if (btn) btn.classList.remove('active');
                     this._activeConsecutiveArrows = false;
                     this.updateSwapLegendVisibility();
@@ -659,6 +1021,9 @@
                 }
 
                 const lineX = [], lineY = [], lineZ = [], lineColor = [];
+                const meshX = [], meshY = [], meshZ = [];
+                const meshI = [], meshJ = [], meshK = [];
+                const meshIntensity = [];
 
                 let validPairs = 0;
                 const totalPairs = xs.length - 1;
@@ -672,13 +1037,7 @@
                     validPairs++;
                     const vectorNum = validPairs; // 1-indexed vector sequence number
 
-                    // 1. Arrow stem (from event i to event i+1)
-                    lineX.push(x1, x2, null);
-                    lineY.push(y1, y2, null);
-                    lineZ.push(z1, z2, null);
-                    lineColor.push(vectorNum, vectorNum, vectorNum);
-
-                    // 2. Real 3D Arrowhead geometry at destination (x2, y2, z2) for EVERY point
+                    // 1. Metric coordinate calculations for direction & solid arrowhead
                     const midLat = (y1 + y2) * 0.5;
                     const kmPerDegLon = 111.0 * Math.cos(midLat * Math.PI / 180.0);
                     const kmPerDegLat = 111.0;
@@ -688,14 +1047,16 @@
                     const dzKm = (z2 - z1);
                     const distKm = Math.sqrt(dxKm * dxKm + dyKm * dyKm + dzKm * dzKm);
 
+                    let stemEndX = x2, stemEndY = y2, stemEndZ = z2;
+
                     if (distKm > 1e-4) {
                         const ux = dxKm / distKm;
                         const uy = dyKm / distKm;
                         const uz = dzKm / distKm;
 
-                        // Small, subtle and sleek pyramid dimensions for each arrow
-                        const headLenKm = Math.min(Math.max(0.003, 0.12 * distKm), 0.025);
-                        const headWidthKm = headLenKm * 0.35;
+                        // Solid cone dimensions for each arrow (slightly larger, sleek and distinct)
+                        const headLenKm = Math.min(Math.max(0.010, 0.18 * distKm), 0.060, 0.5 * distKm);
+                        const headWidthKm = headLenKm * 0.45;
 
                         // Perpendicular vector n1
                         let rx = 0, ry = 0, rz = 1;
@@ -712,7 +1073,7 @@
                         const n2y = uz * n1x - ux * n1z;
                         const n2z = ux * n1y - uy * n1x;
 
-                        // Base point in km
+                        // Base center point in km
                         const x2Km = x2 * kmPerDegLon;
                         const y2Km = y2 * kmPerDegLat;
                         const z2Km = z2;
@@ -721,43 +1082,69 @@
                         const baseKmY = y2Km - headLenKm * uy;
                         const baseKmZ = z2Km - headLenKm * uz;
 
-                        // Convert 4 wing vertices and base back to (lon, lat, depth)
-                        const w1x = (baseKmX + headWidthKm * n1x) / kmPerDegLon;
-                        const w1y = (baseKmY + headWidthKm * n1y) / kmPerDegLat;
-                        const w1z = (baseKmZ + headWidthKm * n1z);
-
-                        const w2x = (baseKmX - headWidthKm * n1x) / kmPerDegLon;
-                        const w2y = (baseKmY - headWidthKm * n1y) / kmPerDegLat;
-                        const w2z = (baseKmZ - headWidthKm * n1z);
-
-                        const w3x = (baseKmX + headWidthKm * n2x) / kmPerDegLon;
-                        const w3y = (baseKmY + headWidthKm * n2y) / kmPerDegLat;
-                        const w3z = (baseKmZ + headWidthKm * n2z);
-
-                        const w4x = (baseKmX - headWidthKm * n2x) / kmPerDegLon;
-                        const w4y = (baseKmY - headWidthKm * n2y) / kmPerDegLat;
-                        const w4z = (baseKmZ - headWidthKm * n2z);
-
                         const bx = baseKmX / kmPerDegLon;
                         const by = baseKmY / kmPerDegLat;
                         const bz = baseKmZ;
 
-                        // Cross fin 1: Tip -> Wing1 -> Base -> Wing2 -> Tip
-                        lineX.push(w1x, x2, w2x, bx, w1x, null);
-                        lineY.push(w1y, y2, w2y, by, w1y, null);
-                        lineZ.push(w1z, z2, w2z, bz, w1z, null);
-                        lineColor.push(vectorNum, vectorNum, vectorNum, vectorNum, vectorNum, vectorNum);
+                        stemEndX = (distKm > headLenKm) ? bx : x2;
+                        stemEndY = (distKm > headLenKm) ? by : y2;
+                        stemEndZ = (distKm > headLenKm) ? bz : z2;
 
-                        // Cross fin 2: Tip -> Wing3 -> Base -> Wing4 -> Tip
-                        lineX.push(w3x, x2, w4x, bx, w3x, null);
-                        lineY.push(w3y, y2, w4y, by, w3y, null);
-                        lineZ.push(w3z, z2, w4z, bz, w3z, null);
-                        lineColor.push(vectorNum, vectorNum, vectorNum, vectorNum, vectorNum, vectorNum);
+                        // 2. Build Solid 3D Cone Arrowhead Mesh (Figura piena)
+                        const K = meshX.length;
+                        const N_SIDES = 6;
+
+                        // Vertex 0: Arrow tip
+                        meshX.push(x2);
+                        meshY.push(y2);
+                        meshZ.push(z2);
+                        meshIntensity.push(vectorNum);
+
+                        // Vertices 1..N_SIDES: Perimeter around base
+                        for (let s = 0; s < N_SIDES; s++) {
+                            const angle = (2 * Math.PI * s) / N_SIDES;
+                            const cosA = Math.cos(angle);
+                            const sinA = Math.sin(angle);
+                            const pxKm = baseKmX + headWidthKm * (cosA * n1x + sinA * n2x);
+                            const pyKm = baseKmY + headWidthKm * (cosA * n1y + sinA * n2y);
+                            const pzKm = baseKmZ + headWidthKm * (cosA * n1z + sinA * n2z);
+                            meshX.push(pxKm / kmPerDegLon);
+                            meshY.push(pyKm / kmPerDegLat);
+                            meshZ.push(pzKm);
+                            meshIntensity.push(vectorNum);
+                        }
+
+                        // Vertex N_SIDES + 1: Base center (for solid rear cap)
+                        meshX.push(bx);
+                        meshY.push(by);
+                        meshZ.push(bz);
+                        meshIntensity.push(vectorNum);
+
+                        // Triangular faces
+                        for (let s = 0; s < N_SIDES; s++) {
+                            const nextS = (s + 1) % N_SIDES;
+                            // Side face (Tip -> s -> nextS)
+                            meshI.push(K + 0);
+                            meshJ.push(K + 1 + s);
+                            meshK.push(K + 1 + nextS);
+
+                            // Base cap face (Base Center -> nextS -> s)
+                            meshI.push(K + 1 + N_SIDES);
+                            meshJ.push(K + 1 + nextS);
+                            meshK.push(K + 1 + s);
+                        }
                     }
+
+                    // Arrow stem (from event i to base of arrowhead)
+                    lineX.push(x1, stemEndX, null);
+                    lineY.push(y1, stemEndY, null);
+                    lineZ.push(z1, stemEndZ, null);
+                    lineColor.push(vectorNum, vectorNum, vectorNum);
                 }
 
                 if (validPairs === 0) {
                     showStatusToast("No valid pairs for event vectors.", false);
+                    if (chk) chk.checked = false;
                     if (btn) btn.classList.remove('active');
                     this._activeConsecutiveArrows = false;
                     this.updateSwapLegendVisibility();
@@ -766,7 +1153,9 @@
 
                 this._activeConsecutiveArrows = true;
                 this._consecutiveVectorCount = validPairs;
+                if (chk) chk.checked = true;
 
+                const vectorScale = (this._layerScales && this._layerScales.vectors) ? this._layerScales.vectors : 'Vectors';
                 const lineTrace = {
                     type: 'scatter3d',
                     name: 'Consecutive Event Vectors',
@@ -776,7 +1165,7 @@
                     mode: 'lines',
                     line: {
                         color: lineColor,
-                        colorscale: getPlotlyScale('Vectors'),
+                        colorscale: getPlotlyScale(vectorScale),
                         cmin: 1,
                         cmax: validPairs,
                         width: 4
@@ -785,7 +1174,36 @@
                     showlegend: false
                 };
 
-                Plotly.addTraces(gd, [lineTrace]);
+                const tracesToAdd = [lineTrace];
+
+                if (meshX.length > 0) {
+                    const arrowMeshTrace = {
+                        type: 'mesh3d',
+                        name: 'Event Arrowheads',
+                        x: meshX,
+                        y: meshY,
+                        z: meshZ,
+                        i: meshI,
+                        j: meshJ,
+                        k: meshK,
+                        intensity: meshIntensity,
+                        colorscale: getPlotlyScale(vectorScale),
+                        cmin: 1,
+                        cmax: validPairs,
+                        flatshading: true,
+                        lighting: {
+                            ambient: 0.85,
+                            diffuse: 0.8,
+                            specular: 0.15,
+                            roughness: 0.5
+                        },
+                        showscale: false,
+                        hoverinfo: 'skip'
+                    };
+                    tracesToAdd.push(arrowMeshTrace);
+                }
+
+                Plotly.addTraces(gd, tracesToAdd);
                 if (btn) btn.classList.add('active');
 
                 if (window._currentLegendMode === 'vectors') {
@@ -795,6 +1213,7 @@
                 this.updateSwapLegendVisibility();
                 showStatusToast(`Temporal vectors applied successfully (${validPairs} vectors).`, true);
             } else {
+                if (chk) chk.checked = false;
                 if (btn) btn.classList.remove('active');
                 this._activeConsecutiveArrows = false;
                 if (window._currentLegendMode === 'vectors') {
@@ -1069,11 +1488,11 @@
                                     }
 
                                     const globalTomoColorScale = [
-                                        [0.0, 'rgb(0, 80, 255)'],      // Min Vp/Vs -> Deep Blue
-                                        [0.35, 'rgb(80, 180, 255)'],   // Low Vp/Vs -> Light Blue / Cyan
+                                        [0.0, 'rgb(255, 20, 0)'],       // Min Vp/Vs -> Bright Red
+                                        [0.35, 'rgb(255, 140, 40)'],   // Low Vp/Vs -> Warm Orange
                                         [0.5, 'rgb(245, 245, 245)'],   // Background -> Neutral White
-                                        [0.65, 'rgb(255, 140, 40)'],   // High Vp/Vs -> Warm Orange
-                                        [1.0, 'rgb(255, 20, 0)']       // Max Vp/Vs -> Bright Red
+                                        [0.65, 'rgb(80, 180, 255)'],   // High Vp/Vs -> Light Blue / Cyan
+                                        [1.0, 'rgb(0, 80, 255)']       // Max Vp/Vs -> Deep Blue
                                     ];
 
                                     // 1. High Vp/Vs Anomaly Volume (Vp/Vs > neutralRef up to max dataset value)
@@ -1614,11 +2033,11 @@
                 if (isMapboxView) {
                     const sliceTraces = [];
                     const globalColorScale = [
-                        [0.0, 'rgb(0, 100, 255)'],
-                        [0.35, 'rgb(80, 180, 255)'],
+                        [0.0, 'rgb(255, 60, 0)'],
+                        [0.35, 'rgb(255, 160, 80)'],
                         [0.5, 'rgb(255, 255, 255)'],
-                        [0.65, 'rgb(255, 160, 80)'],
-                        [1.0, 'rgb(255, 60, 0)']
+                        [0.65, 'rgb(80, 180, 255)'],
+                        [1.0, 'rgb(0, 100, 255)']
                     ];
                     if (locsHigh.length > 0) {
                         sliceTraces.push({
@@ -1865,33 +2284,74 @@
             const btn = document.getElementById('btn-swap-legend');
             const container = document.getElementById('legend-container');
             const clusterList = document.getElementById('cluster-list');
+            const scaleWrapper = document.getElementById('legend-scale-wrapper');
+            const scaleToggle = document.getElementById('legend-scale-toggle');
+            const scaleMenu = document.getElementById('legend-scale-menu');
+
+            if (!this._layerScales) {
+                this._layerScales = {
+                    earthquakes: 'Viridis',
+                    vectors: 'Vectors',
+                    tomo: 'Tomography',
+                    uplift: 'Uplift'
+                };
+            }
+
+            const bodyWrapper = document.getElementById('legend-body-wrapper');
+            if (nextMode === 'clusters') {
+                if (bodyWrapper) bodyWrapper.style.display = 'none';
+            } else {
+                if (bodyWrapper) bodyWrapper.style.display = 'flex';
+                const activeScale = this._layerScales[nextMode] || (nextMode === 'vectors' ? 'Vectors' : (nextMode === 'tomo' ? 'Tomography' : (nextMode === 'uplift' ? 'Uplift' : 'Viridis')));
+                if (scaleToggle) scaleToggle.title = 'Color scale: ' + activeScale;
+                const swatch = document.getElementById('legend-scale-swatch');
+                if (swatch) {
+                    let sColors = COLORS_MAP[activeScale] || COLORS_MAP['Viridis'];
+                    swatch.style.background = `linear-gradient(to top, ${sColors.join(',')})`;
+                }
+                if (scaleMenu) {
+                    scaleMenu.querySelectorAll('.menu-item').forEach(mi => {
+                        if (mi.dataset.val === activeScale) mi.classList.add('active');
+                        else mi.classList.remove('active');
+                    });
+                }
+            }
+
+            if (!this._layerInverts) {
+                this._layerInverts = { earthquakes: false, vectors: false, tomo: false, uplift: false };
+            }
+            const currentLayerInvert = !!this._layerInverts[nextMode];
+            const invertCheck = document.getElementById('invert-scale');
+            if (invertCheck) {
+                invertCheck.checked = currentLayerInvert;
+            }
 
             if (nextMode === 'earthquakes') {
                 if (btn) btn.innerHTML = '⇄ Scale: Quakes';
                 if (container) container.style.display = 'flex';
                 if (clusterList) clusterList.style.display = 'none';
+                const sc = this._layerScales.earthquakes || (window._earthquakeLegendState ? window._earthquakeLegendState.scaleName : 'Viridis');
                 if (window._earthquakeLegendState) {
                     const s = window._earthquakeLegendState;
-                    updateGlassLegendInternal(s.show, s.title, s.scaleName, s.invert, s.limits, s.dateInfo);
+                    updateGlassLegendInternal(s.show, s.title, sc, currentLayerInvert, s.limits, s.dateInfo);
                 }
-                showStatusToast('Swapped legend to Earthquakes scale', true);
             } else if (nextMode === 'vectors') {
                 if (btn) btn.innerHTML = '⇄ Scale: Vectors';
                 if (container) container.style.display = 'flex';
                 if (clusterList) clusterList.style.display = 'none';
+                const sc = this._layerScales.vectors || 'Vectors';
                 const maxV = this._consecutiveVectorCount || 100;
-                updateGlassLegendInternal(true, 'VECTOR N°', 'Vectors', false, [1, maxV], null);
-                showStatusToast(`Swapped legend to VECTOR N° scale (1 → ${maxV})`, true);
+                updateGlassLegendInternal(true, 'VECTOR N°', sc, currentLayerInvert, [1, maxV], null);
             } else if (nextMode === 'clusters') {
                 if (btn) btn.innerHTML = '⇄ Scale: Clusters';
                 if (container) container.style.display = 'none';
                 if (clusterList) clusterList.style.display = 'flex';
                 document.getElementById('legend-title').textContent = 'Clusters';
-                showStatusToast('Swapped legend to Clusters', true);
             } else if (nextMode === 'tomo') {
                 if (btn) btn.innerHTML = '⇄ Scale: Tomo';
                 if (container) container.style.display = 'flex';
                 if (clusterList) clusterList.style.display = 'none';
+                const sc = this._layerScales.tomo || 'Tomography';
                 const t = this._activeTomographyData;
                 let minV = t.min_vp_vs, maxV = t.max_vp_vs;
                 if (minV === undefined || maxV === undefined) {
@@ -1903,12 +2363,12 @@
                     }
                 }
                 if (minV === 9999) { minV = 1.0; maxV = 2.5; }
-                updateGlassLegendInternal(true, 'Tomo Vp/Vs', 'Tomography', false, [1.15, 2.35], null);
-                showStatusToast('Swapped legend to Tomography Vp/Vs scale', true);
+                updateGlassLegendInternal(true, 'Tomo Vp/Vs', sc, currentLayerInvert, [1.15, 2.35], null);
             } else if (nextMode === 'uplift') {
                 if (btn) btn.innerHTML = '⇄ Scale: Uplift';
                 if (container) container.style.display = 'flex';
                 if (clusterList) clusterList.style.display = 'none';
+                const sc = this._layerScales.uplift || 'Uplift';
                 const u = this._activeUpliftData;
                 const vals = u.up_m || (u.interp_grid ? u.interp_grid.up_m : []) || [];
                 let minU = 9999, maxU = -9999;
@@ -1917,8 +2377,7 @@
                     if (vals[i] > maxU) maxU = vals[i];
                 }
                 if (minU === 9999) { minU = 0; maxU = 0.08; }
-                updateGlassLegendInternal(true, 'Uplift (mm)', 'Uplift', false, [minU * 1000, maxU * 1000], null);
-                showStatusToast('Swapped legend to Uplift scale (mm)', true);
+                updateGlassLegendInternal(true, 'Uplift (mm)', sc, currentLayerInvert, [minU * 1000, maxU * 1000], null);
             }
         },
 
@@ -2281,7 +2740,7 @@
         'Cividis': ['#00224e', '#123570', '#3c4b66', '#6b6d76', '#8e8c82', '#b1ac86', '#d4cd91', '#f8f1ae'],
         'Electric': ['#000000', '#1e008a', '#7d00ba', '#c400b8', '#fe00a2', '#ff5e61', '#ffc100', '#ffff00'],
         'Hot': ['#000000', '#e60000', '#ffcc00', '#ffffff'],
-        'Tomography': ['rgb(0, 100, 255)', 'rgb(80, 180, 255)', 'rgb(255, 255, 255)', 'rgb(255, 160, 80)', 'rgb(255, 60, 0)'],
+        'Tomography': ['rgb(255, 60, 0)', 'rgb(255, 160, 80)', 'rgb(255, 255, 255)', 'rgb(80, 180, 255)', 'rgb(0, 100, 255)'],
         'Uplift': ['rgb(255, 255, 0)', 'rgb(255, 140, 0)', 'rgb(180, 0, 0)'],
         'Vectors': ['#440154', '#482878', '#3e4989', '#31688e', '#26828e', '#1f9e89', '#6ece58', '#b5de2b', '#fde725']
     };
@@ -2295,6 +2754,13 @@
 
     function updateGlassLegend(show, title, scaleName, invert, limits, dateInfo) {
         if (title === 'Depth' || (typeof title === 'string' && title.toLowerCase() === 'depth')) title = 'Depth (KM)';
+        if (window.SeismicUI && window.SeismicUI._layerScales) {
+            if (!window.SeismicUI._layerScales.earthquakes) {
+                window.SeismicUI._layerScales.earthquakes = scaleName;
+            } else {
+                scaleName = window.SeismicUI._layerScales.earthquakes;
+            }
+        }
         window._earthquakeLegendState = { show, title, scaleName, invert, limits, dateInfo };
         if (!window._currentLegendMode || window._currentLegendMode === 'earthquakes') {
             updateGlassLegendInternal(show, title, scaleName, invert, limits, dateInfo);
@@ -2312,6 +2778,23 @@
         legend.style.maxWidth = '';
         legend.style.padding = '';
         document.getElementById('legend-title').textContent = title;
+
+        const scaleToggle = document.getElementById('legend-scale-toggle');
+        const scaleSwatch = document.getElementById('legend-scale-swatch');
+        const scaleMenu = document.getElementById('legend-scale-menu');
+        if (scaleToggle && scaleName) {
+            scaleToggle.title = 'Color scale: ' + scaleName;
+            if (scaleSwatch) {
+                let sColors = COLORS_MAP[scaleName] || COLORS_MAP['Viridis'];
+                scaleSwatch.style.background = `linear-gradient(to top, ${sColors.join(',')})`;
+            }
+            if (scaleMenu) {
+                scaleMenu.querySelectorAll('.menu-item').forEach(mi => {
+                    if (mi.dataset.val === scaleName) mi.classList.add('active');
+                    else mi.classList.remove('active');
+                });
+            }
+        }
 
         const bar = document.getElementById('legend-bar');
         let colors = COLORS_MAP[scaleName] || COLORS_MAP['Viridis'];
@@ -2352,7 +2835,6 @@
         const container = document.getElementById('toast-container');
         if (!container) return;
         container.innerHTML = ''; // Clear previous notifications
-        container.style.zIndex = '9999999';
         const toast = document.createElement('div');
         toast.className = 'toast';
         
@@ -2660,13 +3142,29 @@
     // Auto-detect plot and show UI controls immediately
     plotlyPollInterval = setInterval(findPlotlyGraph, 500);
     findPlotlyGraph();
-    window.addEventListener('load', findPlotlyGraph);
-    setTimeout(findPlotlyGraph, 100); 
+    if (window.SeismicUI && typeof window.SeismicUI.initLegendScaleMenu === 'function') {
+        window.SeismicUI.initLegendScaleMenu();
+    }
+    window.addEventListener('load', () => {
+        findPlotlyGraph();
+        if (window.SeismicUI && typeof window.SeismicUI.initLegendScaleMenu === 'function') {
+            window.SeismicUI.initLegendScaleMenu();
+        }
+    });
+    setTimeout(() => {
+        findPlotlyGraph();
+        if (window.SeismicUI && typeof window.SeismicUI.initLegendScaleMenu === 'function') {
+            window.SeismicUI.initLegendScaleMenu();
+        }
+    }, 100); 
     if (window.IS_3D_VIEW === undefined) window.IS_3D_VIEW = true;
 
     window.addEventListener('pywebviewready', () => {
         if (window.SeismicUI) {
             window.SeismicUI.updateLegendSwapButtonVisibility();
+            if (typeof window.SeismicUI.initLegendScaleMenu === 'function') {
+                window.SeismicUI.initLegendScaleMenu();
+            }
             if (typeof window.SeismicUI.restoreStoredLayers === 'function') {
                 window.SeismicUI.restoreStoredLayers();
             }
@@ -2752,7 +3250,16 @@
         else if (e.key === 'v' || e.key === 'V' || e.key === 'a' || e.key === 'A') {
             if (!e.ctrlKey && !e.metaKey && !e.altKey) {
                 e.preventDefault();
-                if (typeof SeismicUI !== 'undefined' && SeismicUI.toggleConsecutiveArrows) {
+                const evCheck = document.getElementById('event-vectors-check');
+                if (evCheck) {
+                    evCheck.checked = !evCheck.checked;
+                    const applyBtn = document.getElementById('apply-filters-btn') || document.getElementById('apply-all-btn');
+                    if (applyBtn) {
+                        applyBtn.click();
+                    } else if (typeof SeismicUI !== 'undefined' && SeismicUI.toggleConsecutiveArrows) {
+                        SeismicUI.toggleConsecutiveArrows(evCheck.checked);
+                    }
+                } else if (typeof SeismicUI !== 'undefined' && SeismicUI.toggleConsecutiveArrows) {
                     SeismicUI.toggleConsecutiveArrows();
                 }
             }
