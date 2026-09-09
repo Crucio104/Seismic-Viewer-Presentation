@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any
 import threading
+import gc
 
 # ─── Paths ───────────────────────────────────────────────────────────
 CORE_DIR = Path(__file__).parent.absolute()
@@ -52,7 +53,6 @@ def set_http_port(port: int) -> None:
     global _http_port
     _http_port = port
 
-import gc
 
 # ─── Session Data Store ─────────────────────────────────────────────
 # In-memory store for visualization data served via the REST API.

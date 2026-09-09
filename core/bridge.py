@@ -6,7 +6,6 @@ import logging
 import numpy as np
 import asyncio
 import time
-import pandas as pd
 import base64
 import shutil
 import csv
@@ -17,7 +16,7 @@ from typing import Any, Callable
 
 from core.config import (
     BASE_DIR, get_http_port, 
-    clear_session_data, TEMP_DIR, store_viz_html,
+    clear_session_data, store_viz_html,
     MAP_CACHE_DIR, get_session_data, cleanup_temp_files
 )
 from core.history import get_recent_files, save_recent_file, clear_history
@@ -37,7 +36,6 @@ class Api:
         self._data: dict[str, Any] | None = None
         self._csv_info: dict[str, Any] | None = None
         self._stored_layer_paths: dict[str, dict[str, str] | None] = {'stations': None, 'uplift': None, 'tomography': None}
-        self._html_cache: dict[tuple, str] = {} 
         self._history_stack: list[dict[str, Any]] = []
         self._history_idx: int = -1
         self._socket_manager: object | None = None
@@ -63,7 +61,6 @@ class Api:
         """Clear all history sessions and caches."""
         self._history_stack.clear()
         self._history_idx = -1
-        self._html_cache.clear()
         logger.info("History and clustering sessions cleared.")
         return {'status': 'success'}
 
@@ -207,7 +204,6 @@ class Api:
                 'total_days': data['summary'].get('total_days', 365),
                 'swarms_count': data['summary'].get('swarms_count', 0),
             }
-            self._html_cache.clear()
             save_recent_file(path)
             return self._csv_info
         except Exception as e:
@@ -395,8 +391,6 @@ class Api:
                 prev_view['kwargs']['clustering_params'] = {}
             prev_view['kwargs']['clustering_params']['custom_labels'] = global_labels.tolist()
             
-            self._html_cache.clear()
-            
             threading.Thread(target=self._generate_and_navigate, args=(prev_view['view_style'],), kwargs=prev_view['kwargs'], daemon=True).start()
             return {'status': 'success'}
         except Exception as e:
@@ -442,8 +436,6 @@ class Api:
             store_viz_html(viz_id, html)
 
             if not is_fallback:
-                if len(self._html_cache) >= 3:
-                    self._html_cache.pop(next(iter(self._html_cache)))
                 if curr_history is not None:
                     curr_history['viz_id'] = viz_id
 
@@ -582,7 +574,6 @@ class Api:
     def change_file(self) -> bool:
         self._csv_path = self._data = self._csv_info = None
         self._stored_layer_paths = {'stations': None, 'uplift': None, 'tomography': None}
-        self._html_cache.clear()
         clear_session_data()
         import gc; gc.collect()
         return True
@@ -593,7 +584,6 @@ class Api:
                 shutil.rmtree(MAP_CACHE_DIR)
             MAP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
             
-            self._html_cache.clear()
             build_map_mesh.cache_clear()
             clear_session_data()
             import gc; gc.collect()

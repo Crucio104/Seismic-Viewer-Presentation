@@ -2364,9 +2364,11 @@
                         } else if (u && u.lats && u.lons && u.lats.length > 0) {
                             self._activeUpliftData = u;
                             if (isMapbox) {
+                                const choroType = (gd.layout && gd.layout.map) || (gd.data && gd.data.some(tr => tr.type === 'scattermap' || tr.type === 'choroplethmap')) ? 'choroplethmap' : 'choroplethmapbox';
+                                const densityType = (gd.layout && gd.layout.map) || (gd.data && gd.data.some(tr => tr.type === 'scattermap' || tr.type === 'densitymap')) ? 'densitymap' : 'densitymapbox';
                                 if (u.interp_grid && u.interp_grid.geojson && u.interp_grid.cell_locs) {
                                     newTraces.push({
-                                        type: 'choroplethmapbox',
+                                        type: choroType,
                                         name: 'Uplift Interpolated Surface',
                                         geojson: u.interp_grid.geojson,
                                         locations: u.interp_grid.cell_locs,
@@ -2388,7 +2390,7 @@
                                     });
                                 } else if (u.interp_grid && u.interp_grid.lats) {
                                     newTraces.push({
-                                        type: 'densitymapbox',
+                                        type: densityType,
                                         name: 'Uplift Interpolated Surface',
                                         lat: u.interp_grid.lats,
                                         lon: u.interp_grid.lons,
@@ -2449,8 +2451,9 @@
                             showStatusToast('Stations Error: ' + s.error, false);
                         } else if (s && s.lats && s.lons && s.lats.length > 0) {
                             if (isMapbox) {
+                                const mapScatterType = (gd.layout && gd.layout.map) || (gd.data && gd.data.some(tr => tr.type === 'scattermap')) ? 'scattermap' : 'scattermapbox';
                                 newTraces.push({
-                                    type: 'scattermapbox',
+                                    type: mapScatterType,
                                     name: 'Stations Outline',
                                     lat: s.lats,
                                     lon: s.lons,
@@ -2465,7 +2468,7 @@
                                     }
                                 });
                                 newTraces.push({
-                                    type: 'scattermapbox',
+                                    type: mapScatterType,
                                     name: 'Stations',
                                     lat: s.lats,
                                     lon: s.lons,
@@ -2762,7 +2765,7 @@
             }
 
             if (sliceLons.length > 0) {
-                const isMapboxView = gd.layout && gd.layout.mapbox;
+                const isMapboxView = gd.layout && (gd.layout.mapbox || gd.layout.map);
                 let neutralRef = 1.75;
                 const neutralInputEl = document.getElementById('tomo-neutral-input');
                 if (neutralInputEl && neutralInputEl.value) {
@@ -2834,6 +2837,7 @@
 
                 if (isMapboxView) {
                     const sliceTraces = [];
+                    const choroType = (gd.layout && gd.layout.map) || (gd.data && gd.data.some(tr => tr.type === 'scattermap' || tr.type === 'choroplethmap')) ? 'choroplethmap' : 'choroplethmapbox';
                     const globalColorScale = [
                         [0.0, 'rgb(255, 60, 0)'],
                         [0.35, 'rgb(255, 160, 80)'],
@@ -2843,7 +2847,7 @@
                     ];
                     if (locsHigh.length > 0) {
                         sliceTraces.push({
-                            type: 'choroplethmapbox',
+                            type: choroType,
                             name: `Tomography High Vp/Vs Slice (> ${neutralRef.toFixed(2)})`,
                             geojson: { type: 'FeatureCollection', features: featuresHigh },
                             locations: locsHigh,
@@ -2861,7 +2865,7 @@
                     }
                     if (locsLow.length > 0) {
                         sliceTraces.push({
-                            type: 'choroplethmapbox',
+                            type: choroType,
                             name: `Tomography Low Vp/Vs Slice (< ${neutralRef.toFixed(2)})`,
                             geojson: { type: 'FeatureCollection', features: featuresLow },
                             locations: locsLow,
@@ -2889,7 +2893,7 @@
             const parsed = parseFloat(val);
             if (isNaN(parsed) || parsed < 1.2 || parsed > 2.5) return;
             
-            const isMapboxView = (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox' || tr.type === 'choroplethmapbox')) || (gd.layout && gd.layout.mapbox);
+            const isMapboxView = (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox' || tr.type === 'choroplethmapbox' || tr.type === 'scattermap' || tr.type === 'densitymap' || tr.type === 'choroplethmap')) || (gd.layout && (gd.layout.mapbox || gd.layout.map));
             if (isMapboxView) {
                 this.updateTomographySlice(null);
                 showStatusToast(`Tomography neutral reference updated to ${parsed.toFixed(2)}`, true);
@@ -3227,11 +3231,6 @@
                 // Access via _fullData for guaranteed property availability
                 const traceData = gd._fullData ? gd._fullData[0] : gd.data[0];
                 const traceInput = gd.data[0]; // For restyle targeting
-                
-                console.log('[Overlay] Trace type:', traceData.type);
-                console.log('[Overlay] Has surfacecolor:', !!traceData.surfacecolor);
-                console.log('[Overlay] x type:', typeof traceData.x, 'length:', traceData.x ? traceData.x.length : 'N/A');
-                console.log('[Overlay] y type:', typeof traceData.y, 'length:', traceData.y ? traceData.y.length : 'N/A');
 
                 // Get grid dimensions from the 1D x/y arrays (always reliable)
                 const gridCols = traceData.x ? traceData.x.length : 0;
@@ -3244,8 +3243,6 @@
                     return;
                 }
 
-                console.log('[Overlay] Grid:', gridCols, 'x', gridRows);
-
                 // Save original map data on first use
                 if (!this._originalMapData && traceData.surfacecolor) {
                     try {
@@ -3255,7 +3252,6 @@
                             cmin: traceData.cmin,
                             cmax: traceData.cmax
                         };
-                        console.log('[Overlay] Original map data saved');
                     } catch (e) {
                         console.error('[Overlay] Failed to save original:', e);
                     }
@@ -3274,8 +3270,6 @@
                     img.onload = function() {
                         setTimeout(function() {
                             try {
-                                console.log('[Overlay] Processing image:', img.width, 'x', img.height, '→', gridCols, 'x', gridRows);
-                                
                                 const canvas = document.createElement('canvas');
                                 canvas.width = gridCols;
                                 canvas.height = gridRows;
@@ -3345,15 +3339,12 @@
                                     matrix.push(matRow);
                                 }
 
-                                console.log('[Overlay] Dynamic palette applied with', palette.length, 'colors.');
-
                                 Plotly.restyle(gd, {
                                     surfacecolor: [matrix],
                                     colorscale: [colorscale],
                                     cmin: [0],
                                     cmax: [maxIdx]
                                 }, [0]).then(function() {
-                                    console.log('[Overlay] Restyle complete');
                                     btn.classList.add('active');
                                     self._overlayActive = true;
                                     if (loader) loader.classList.remove('show');
@@ -3469,12 +3460,14 @@
             try {
                 // Sync current interactive camera / mapbox view right before capture
                 if (gd._fullLayout) {
-                    if (gd._fullLayout.mapbox) {
-                        gd.layout.mapbox = gd.layout.mapbox || {};
-                        if (gd._fullLayout.mapbox.center) gd.layout.mapbox.center = Object.assign({}, gd._fullLayout.mapbox.center);
-                        if (gd._fullLayout.mapbox.zoom !== undefined) gd.layout.mapbox.zoom = gd._fullLayout.mapbox.zoom;
-                        if (gd._fullLayout.mapbox.bearing !== undefined) gd.layout.mapbox.bearing = gd._fullLayout.mapbox.bearing;
-                        if (gd._fullLayout.mapbox.pitch !== undefined) gd.layout.mapbox.pitch = gd._fullLayout.mapbox.pitch;
+                    const mapFull = gd._fullLayout.mapbox || gd._fullLayout.map;
+                    if (mapFull) {
+                        const mapKey = gd._fullLayout.map ? 'map' : 'mapbox';
+                        gd.layout[mapKey] = gd.layout[mapKey] || {};
+                        if (mapFull.center) gd.layout[mapKey].center = Object.assign({}, mapFull.center);
+                        if (mapFull.zoom !== undefined) gd.layout[mapKey].zoom = mapFull.zoom;
+                        if (mapFull.bearing !== undefined) gd.layout[mapKey].bearing = mapFull.bearing;
+                        if (mapFull.pitch !== undefined) gd.layout[mapKey].pitch = mapFull.pitch;
                     }
                     if (gd._fullLayout.scene && gd._fullLayout.scene.camera) {
                         gd.layout.scene = gd.layout.scene || {};

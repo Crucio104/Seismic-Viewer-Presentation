@@ -1,6 +1,7 @@
 from pathlib import Path
 import hashlib
 import pickle
+import threading
 import numpy as np
 import smopy
 import urllib.request
@@ -22,8 +23,6 @@ def _get_cache_path(bbox: tuple[float, float, float, float], resolution: int) ->
     key = hashlib.md5(key_str.encode()).hexdigest()
     return MAP_CACHE_DIR / f'mesh_{key}.pkl'
 
-
-import threading
 
 _ssl_opener_lock = threading.Lock()
 

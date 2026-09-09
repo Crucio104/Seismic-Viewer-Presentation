@@ -5,6 +5,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from scipy.spatial import KDTree, ConvexHull
 from scipy.linalg import svd
+from sklearn.cluster import MiniBatchKMeans, DBSCAN
 import concurrent.futures
 from concurrent.futures import ProcessPoolExecutor
 import os
@@ -270,8 +271,6 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[
     Perform clustering (KMeans or DBSCAN) on 3D points.
     Returns: (labels, n_clusters, centroids)
     """
-    from sklearn.cluster import MiniBatchKMeans, DBSCAN
-    
     params = params or {}
     if len(pts_km) == 0:
         return np.array([]), 0, None

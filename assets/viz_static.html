@@ -553,12 +553,19 @@
             hideInitLoader();
         }
 
-        window.addEventListener('load', function() {
+        function startInit() {
             initVisualization().catch(err => {
                 console.error('Failed to load visualization data:', err);
                 if (typeof showStatusToast === 'function') showStatusToast('Failed to load data.');
+                hideInitLoader();
             });
-        });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', startInit);
+        } else {
+            startInit();
+        }
 
         </script>
 

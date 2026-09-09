@@ -26,8 +26,6 @@ def parse_seismic_date(date_str: str) -> datetime | None:
             pass
 
     formats = [
-        "%Y-%m-%d %H:%M:%S.%f",
-        "%Y-%m-%d %H:%M:%S",
         "%d-%m-%Y %H:%M:%S",
         "%d/%m/%Y %H:%M:%S",
         "%Y/%m/%d %H:%M:%S",

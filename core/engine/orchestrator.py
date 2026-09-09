@@ -1,5 +1,6 @@
 import logging
 import socket
+import time
 import numpy as np
 import plotly.graph_objects as go
 from typing import Any, Callable
@@ -119,6 +120,29 @@ def auto_tune_kmeans_params(target_lon, target_lat, target_dep, data: dict[str, 
     except Exception as e:
         logger.warning(f"Failed to calculate optimal kmeans clusters: {e}")
 
+_osm_online_cache: dict[str, Any] = {'time': 0.0, 'status': False}
+
+def _is_osm_online() -> bool:
+    """Quick cached check if OSM tile servers are reachable without blocking page generation."""
+    now = time.time()
+    if now - _osm_online_cache['time'] < 60.0:
+        return bool(_osm_online_cache['status'])
+    
+    online = False
+    try:
+        with socket.create_connection(("a.tile.openstreetmap.org", 443), timeout=0.6):
+            online = True
+    except Exception:
+        try:
+            with socket.create_connection(("1.1.1.1", 53), timeout=0.5):
+                online = True
+        except Exception:
+            online = False
+    
+    _osm_online_cache['time'] = now
+    _osm_online_cache['status'] = online
+    return online
+
 def build_view_html(
     data: dict[str, Any], 
     view_style: int, 
@@ -143,7 +167,9 @@ def build_view_html(
     vpack = data.get('visual_pack', {})
 
     is_fallback = False
-    bbox = data.get('bbox') or (min(lat), min(lon), max(lat), max(lon))
+    bbox = data.get('bbox')
+    if bbox is None:
+        bbox = (float(np.min(lat)), float(np.min(lon)), float(np.max(lat)), float(np.max(lon)))
     data['bbox'] = bbox
 
     # 1. Prepare Map Mesh
@@ -164,11 +190,7 @@ def build_view_html(
     # 2. View Routing
     if view_style == 0:
         _report("Generating 2D map…")
-        try:
-            socket.create_connection(("a.tile.openstreetmap.org", 80), timeout=1.0)
-            is_fallback = False
-        except Exception:
-            is_fallback = True
+        is_fallback = not _is_osm_online()
 
         fig = view_2d(
             lon, lat, mag, times, 

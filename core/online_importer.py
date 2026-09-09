@@ -1,6 +1,7 @@
 import requests
 import logging
 import csv
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Any
 from core.config import (
@@ -53,22 +54,28 @@ def fetch_ingv_data(params: dict[str, Any]) -> str:
     # Base URL from config
     base_url = f"{GOSSIP_BASE_URL}/{network}"
     
-    years = range(start_dt.year, end_dt.year + 1)
+    years = list(range(start_dt.year, end_dt.year + 1))
     all_events = []
 
-    with requests.Session() as session:
-        for year in years:
-            url = f"{base_url}/{year}/events.json"
-            logger.info(f"Fetching data from: {url}")
-            try:
-                response = session.get(url, timeout=10)
-                if response.status_code == 200:
-                    year_events = response.json()
-                    all_events.extend(year_events)
-                else:
-                    logger.warning(f"Failed to fetch data for year {year}: HTTP {response.status_code}")
-            except Exception as e:
-                logger.error(f"Error fetching data for year {year}: {e}")
+    def _fetch_year(year: int) -> list[dict[str, Any]]:
+        url = f"{base_url}/{year}/events.json"
+        logger.info(f"Fetching data from: {url}")
+        try:
+            with requests.Session() as s:
+                resp = s.get(url, timeout=10)
+                if resp.status_code == 200:
+                    return resp.json()
+                logger.warning(f"Failed to fetch data for year {year}: HTTP {resp.status_code}")
+        except Exception as e:
+            logger.error(f"Error fetching data for year {year}: {e}")
+        return []
+
+    if len(years) == 1:
+        all_events = _fetch_year(years[0])
+    else:
+        with ThreadPoolExecutor(max_workers=min(len(years), 5)) as executor:
+            for year_events in executor.map(_fetch_year, years):
+                all_events.extend(year_events)
 
     # Filter events
     filtered_events = []
@@ -108,14 +115,12 @@ def fetch_ingv_data(params: dict[str, Any]) -> str:
                 continue
                 
             e_level_lower = e_level.lower()
-            if level == 2: # Bollettino
-                if e_level_lower == "automatico" or e_level_lower == "rivisto":
-                    reject_reasons["level"] += 1
-                    continue
-            elif level == 1: # Riviste
-                if e_level_lower == "automatico":
-                    reject_reasons["level"] += 1
-                    continue
+            if level == 2 and e_level_lower in ("automatico", "rivisto"):
+                reject_reasons["level"] += 1
+                continue
+            elif level == 1 and e_level_lower == "automatico":
+                reject_reasons["level"] += 1
+                continue
 
         # 4. Location & Missing Data check
         loc = e.get('location', {})

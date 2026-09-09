@@ -6,6 +6,7 @@ import plotly.express as px
 from plotly.colors import qualitative as _pq
 from scipy.spatial import ConvexHull
 from typing import Any, Callable
+from bisect import bisect_left
 from datetime import datetime, timedelta
 
 from core.geo_utils import build_map_mesh
@@ -92,9 +93,17 @@ def view_2d(
     center_lat = origin_lat if origin_lat is not None else (float(np.mean(latitude)) if len(latitude) > 0 else 0.0)
     center_lon = origin_lon if origin_lon is not None else (float(np.mean(longitude)) if len(longitude) > 0 else 0.0)
 
+    # CRITICAL: DO NOT REVERT OR CHANGE THIS FUNCTION TO HARDCODED `px.scatter_mapbox`!
+    # In Plotly 6.0+ and 7.0+, `scatter_mapbox`, `go.Densitymapbox`, and `mapbox_style` have been
+    # removed/deprecated in favor of `scatter_map`, `go.Densitymap`, and `map_style` (MapLibre).
+    # Hardcoding `scatter_mapbox` will immediately cause AttributeError crashes on Plotly >= 6.0.
+    # The dynamic resolution below ensures compatibility across Plotly 5.x, 6.x, and 7.x+.
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', category=DeprecationWarning)
-        fig = px.scatter_mapbox(
+        scatter_func = getattr(px, 'scatter_map', None) or getattr(px, 'scatter_mapbox')
+        density_cls = getattr(go, 'Densitymap', None) or getattr(go, 'Densitymapbox')
+
+        fig = scatter_func(
             lat=latitude, lon=longitude,
             size=np.maximum(np.array(magnitude), 0.1),
             color=depth if depth is not None else magnitude,
@@ -114,14 +123,17 @@ def view_2d(
             name='Earthquakes (Scatter)'
         )
         
-        fig.add_trace(go.Densitymapbox(
+        fig.add_trace(density_cls(
             lat=latitude, lon=longitude, z=magnitude,
             radius=15, colorscale='Viridis',
             showscale=False, visible=False,
             name='Earthquakes (Heatmap)'
         ))
         
-        fig.update_layout(**COMMON_LAYOUT, mapbox_style="open-street-map")
+        if hasattr(px, 'scatter_map'):
+            fig.update_layout(**COMMON_LAYOUT, map_style="open-street-map")
+        else:
+            fig.update_layout(**COMMON_LAYOUT, mapbox_style="open-street-map")
         return fig
 
 def get_3d_static_figure(
@@ -747,14 +759,21 @@ def get_3d_animated_figure(
         num_blocks = (total_days // step_days) + 1
         frame_dates = [(d0 + timedelta(days=i*step_days)).strftime('%Y-%m-%d') for i in range(num_blocks)]
         
-        new_counts = []
         old_counts = vpack.get('date_counts', [])
-        date_map = {datetime.strptime(d_str, '%Y-%m-%d').date(): count for d_str, count in zip(unique_dates, old_counts)}
+        unique_dt = [datetime.strptime(d_str, '%Y-%m-%d').date() for d_str in unique_dates]
+        cum_counts = [0]
+        curr = 0
+        for count in old_counts:
+            curr += count
+            cum_counts.append(curr)
+
+        new_counts = []
         for i in range(num_blocks):
             b_start = (d0 + timedelta(days=i*step_days)).date()
             b_end = b_start + timedelta(days=window_days)
-            c = sum(count for d_obj, count in date_map.items() if b_start <= d_obj < b_end)
-            new_counts.append(c)
+            idx_start = bisect_left(unique_dt, b_start)
+            idx_end = bisect_left(unique_dt, b_end)
+            new_counts.append(cum_counts[idx_end] - cum_counts[idx_start])
         frame_counts = new_counts
     else:
         frame_dates = unique_dates

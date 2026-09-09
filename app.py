@@ -30,7 +30,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("SeismicViewer")
 
-if sys.platform == 'win32':
+if sys.platform == 'win32' and sys.version_info < (3, 14):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # --- Server Controller ---
