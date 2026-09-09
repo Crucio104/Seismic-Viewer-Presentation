@@ -150,6 +150,7 @@
             
             if (!respJson.ok || !respBin.ok) throw new Error("Data fetch failed");
             
+            window.IS_CLUSTER_VIEW = true;
             window.quakeData = await respJson.json();
             const buffer = await respBin.arrayBuffer();
 
@@ -607,7 +608,7 @@
 
                 for (let i = 0; i < quakeData.n_clusters; i++) {
                     const internalLbl = i;
-                    const displayNum = i;
+                    const displayNum = i + 1;
                     const color = clusterColors[i % clusterColors.length];
                     const isLocked = window.lockedClusters.has(internalLbl);
                     const lockBtnStyle = isLocked
@@ -629,9 +630,14 @@
                 clusterList.innerHTML = html;
 
                 if (!window._currentLegendMode || window._currentLegendMode === 'clusters' || window._currentLegendMode === 'earthquakes') {
+                    window._currentLegendMode = 'clusters';
                     clusterList.style.display = 'flex';
                     const container = document.getElementById('legend-container');
                     if (container) container.style.display = 'none';
+                    const scaleWrapper = document.getElementById('legend-scale-wrapper');
+                    if (scaleWrapper) scaleWrapper.style.display = 'none';
+                    const bodyWrapper = document.getElementById('legend-body-wrapper');
+                    if (bodyWrapper) bodyWrapper.style.display = 'none';
                     document.getElementById('legend-title').textContent = 'Clusters';
                 }
 
@@ -701,6 +707,59 @@
                 }
             };
             
+            window.getCurrentFrameClusterExportData = function() {
+                if (!quakeData) return null;
+                const clustersList = [];
+                const nC = quakeData.n_clusters || 0;
+                
+                for (let i = 0; i < nC; i++) {
+                    let indices = [];
+                    if (quakeData.cluster_indices && (quakeData.cluster_indices[i] !== undefined || quakeData.cluster_indices[String(i)] !== undefined)) {
+                        indices = quakeData.cluster_indices[i] || quakeData.cluster_indices[String(i)] || [];
+                    } else if (quakeData.cluster) {
+                        for (let p = 0; p < quakeData.cluster.length; p++) {
+                            if (quakeData.cluster[p] === i) indices.push(p);
+                        }
+                    }
+                    if (indices && indices.length > 0) {
+                        const cNum = i + 1;
+                        clustersList.push({
+                            name: `Cluster ${cNum}`,
+                            filename: `cluster_${cNum}.csv`,
+                            clusterNum: cNum,
+                            internalLbl: i,
+                            indices: indices
+                        });
+                    }
+                }
+
+                let outlierIndices = [];
+                if (quakeData.cluster_indices && (quakeData.cluster_indices[-1] !== undefined || quakeData.cluster_indices['-1'] !== undefined)) {
+                    outlierIndices = quakeData.cluster_indices[-1] || quakeData.cluster_indices['-1'] || [];
+                } else if (quakeData.cluster) {
+                    for (let p = 0; p < quakeData.cluster.length; p++) {
+                        if (quakeData.cluster[p] === -1) outlierIndices.push(p);
+                    }
+                }
+                if (outlierIndices && outlierIndices.length > 0) {
+                    clustersList.push({
+                        name: "Outliers",
+                        filename: "outliers.csv",
+                        clusterNum: -1,
+                        internalLbl: -1,
+                        indices: outlierIndices
+                    });
+                }
+
+                if (clustersList.length === 0) return null;
+
+                return {
+                    method: quakeData.clustering_method || 'dbscan',
+                    params: quakeData.clustering_params || {},
+                    clusters: clustersList
+                };
+            };
+
             applyDisplayMode();
             updateClusterLegend();
 

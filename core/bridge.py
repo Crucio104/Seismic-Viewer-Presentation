@@ -111,14 +111,14 @@ class Api:
             logger.error("Error in select_csv", exc_info=True)
             return {'error': str(e)}
 
-    def save_screenshot(self, base64_data: str) -> dict[str, Any]:
+    def save_screenshot(self, base64_data: str, filename: str = 'seismic_viewer_export.png') -> dict[str, Any]:
         """Open native save dialog and write the base64 image data to a file."""
         try:
             # Open save file dialog
             result = self._window().create_file_dialog(
                 webview.FileDialog.SAVE,
                 directory=str(Path.home()),
-                save_filename='seismic_viewer_export.png',
+                save_filename=filename,
                 file_types=('PNG Image (*.png)',),
             )
             
@@ -648,28 +648,45 @@ class Api:
                 return {'status': 'error', 'message': 'No dataset loaded'}
 
             payload = payload or {}
+            method = payload.get('method', 'dbscan')
+            params = payload.get('params', {})
 
-            # Prioritize last stored cluster result for consistency of parameters and indices
-            if self._last_cluster_result:
+            # Collect export items: list of tuples (filename, index_list)
+            export_items = []
+            if payload.get('clusters'):
+                for item in payload['clusters']:
+                    fname = item.get('filename')
+                    idxs = item.get('indices', [])
+                    if fname and idxs:
+                        export_items.append((fname, idxs))
+            elif payload.get('cluster_indices'):
+                for lbl_str, idx_list in payload['cluster_indices'].items():
+                    lbl_int = int(lbl_str)
+                    fname = "outliers.csv" if lbl_int == -1 else f"cluster_{lbl_int}.csv"
+                    if idx_list:
+                        export_items.append((fname, idx_list))
+            elif self._last_cluster_result:
                 res = self._last_cluster_result
-                method = res.get('method', 'dbscan')
-                params = res.get('params', {})
-                cluster_indices = res.get('cluster_indices') or payload.get('cluster_indices')
-                labels = res.get('labels') if res.get('labels') is not None else payload.get('labels')
-            else:
-                method = payload.get('method', 'dbscan')
-                params = payload.get('params', {})
-                cluster_indices = payload.get('cluster_indices')
-                labels = payload.get('labels')
+                method = res.get('method', method)
+                params = res.get('params', params)
+                c_indices = res.get('cluster_indices')
+                if c_indices:
+                    for lbl_str, idx_list in c_indices.items():
+                        lbl_int = int(lbl_str)
+                        fname = "outliers.csv" if lbl_int == -1 else f"cluster_{lbl_int}.csv"
+                        if idx_list:
+                            export_items.append((fname, idx_list))
+                elif res.get('labels') is not None:
+                    c_map = defaultdict(list)
+                    for idx, lbl in enumerate(res['labels']):
+                        c_map[int(lbl)].append(idx)
+                    for lbl_int, idx_list in c_map.items():
+                        fname = "outliers.csv" if lbl_int == -1 else f"cluster_{lbl_int}.csv"
+                        if idx_list:
+                            export_items.append((fname, idx_list))
 
-            # If we only have labels, build cluster_indices mapping
-            if not cluster_indices and labels is not None:
-                cluster_indices = defaultdict(list)
-                for idx, lbl in enumerate(labels):
-                    cluster_indices[int(lbl)].append(idx)
-
-            if not cluster_indices:
-                return {'status': 'error', 'message': 'No cluster data available to export. Please run clustering first.'}
+            if not export_items:
+                return {'status': 'error', 'message': 'No cluster data available to export in the current frame.'}
 
             # Open folder selection dialog
             result = self._window().create_file_dialog(
@@ -712,16 +729,7 @@ class Api:
             header_comment = f"# Clustering Method: {str(method).upper()} | Parameters: {param_str}\n"
 
             exported_count = 0
-            for lbl_str, idx_list in cluster_indices.items():
-                if not idx_list:
-                    continue
-                
-                lbl_int = int(lbl_str)
-                if lbl_int == -1:
-                    file_name = "outliers.csv"
-                else:
-                    file_name = f"cluster_{lbl_int}.csv"
-                
+            for file_name, idx_list in export_items:
                 file_path = save_dir / file_name
 
                 # Filter valid indices within bounds

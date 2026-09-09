@@ -585,7 +585,7 @@ body {
     right: 1.25rem;
     top: 5rem;
     z-index: 99999;
-    padding: 0.85rem 0.95rem;
+    padding: 0.85rem 0.95rem 2.35rem 0.95rem;
     width: auto;
     min-width: 9.2rem;
     max-width: 16rem;
@@ -701,6 +701,10 @@ body {
 }
 
 .btn-legend-swap {
+    position: absolute;
+    bottom: 0.5rem;
+    left: 50%;
+    transform: translateX(-50%);
     background: rgba(255, 255, 255, 0.15);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 0.35rem;
@@ -709,15 +713,13 @@ body {
     padding: 0.25rem 0.6rem;
     cursor: pointer;
     width: fit-content;
-    max-width: 100%;
-    align-self: center;
-    margin-left: auto;
-    margin-right: auto;
+    max-width: 90%;
     white-space: nowrap;
     text-align: center;
     font-weight: 600;
     transition: all 0.2s ease;
-    margin-top: 0.4rem;
+    margin: 0;
+    z-index: 10;
     flex-shrink: 0;
 }
 
@@ -1418,6 +1420,55 @@ body {
     background: linear-gradient(135deg, #6e70f4, #5850ec);
 }
 
+/* Export action buttons (Screenshots, Cluster CSV, Swarm Plots) */
+#export-modal .layer-apply-btn,
+#swarm-chart-dialog .layer-apply-btn,
+#screenshot-preview-dialog .layer-apply-btn,
+#cluster-csv-dialog .layer-apply-btn {
+    background: rgba(15, 23, 42, 0.88);
+    border: 1.5px solid #6366f1;
+    border-radius: 0.5rem;
+    padding: 0.6rem;
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: center;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+#export-modal .layer-apply-btn:hover:not(:disabled),
+#swarm-chart-dialog .layer-apply-btn:hover:not(:disabled),
+#screenshot-preview-dialog .layer-apply-btn:hover:not(:disabled),
+#cluster-csv-dialog .layer-apply-btn:hover:not(:disabled) {
+    background: rgba(99, 102, 241, 0.22);
+    border-color: #818cf8;
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 0 16px rgba(99, 102, 241, 0.45);
+}
+
+#export-modal .layer-apply-btn:active:not(:disabled),
+#swarm-chart-dialog .layer-apply-btn:active:not(:disabled),
+#screenshot-preview-dialog .layer-apply-btn:active:not(:disabled),
+#cluster-csv-dialog .layer-apply-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+#export-modal .layer-apply-btn:disabled,
+#export-modal .layer-apply-btn.disabled,
+#swarm-chart-dialog .layer-apply-btn:disabled,
+#screenshot-preview-dialog .layer-apply-btn:disabled,
+#cluster-csv-dialog .layer-apply-btn:disabled {
+    background: rgba(15, 23, 42, 0.55) !important;
+    border-color: #64748b !important;
+    color: rgba(255, 255, 255, 0.4) !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
 .layer-toggle-btn {
     background: rgba(16, 185, 129, 0.25);
     border: 1px solid rgba(16, 185, 129, 0.5);
@@ -1447,4 +1498,199 @@ body {
 .maplibregl-canvas {
     background: #050510 !important;
     background-color: #050510 !important;
+}
+
+/* Export Dialogs (Swarm Chart, Screenshot Preview, Cluster CSV) */
+#swarm-chart-dialog,
+#screenshot-preview-dialog,
+#cluster-csv-dialog {
+    position: fixed;
+    inset: 0;
+    z-index: 300000;
+    background: rgba(10, 10, 20, 0.78);
+    backdrop-filter: blur(1.2rem);
+    -webkit-backdrop-filter: blur(1.2rem);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    padding: 1.5rem;
+}
+
+#swarm-chart-dialog.active,
+#screenshot-preview-dialog.active,
+#cluster-csv-dialog.active {
+    display: flex;
+    opacity: 1;
+}
+
+.swarm-chart-modal,
+.export-preview-modal {
+    background: rgba(18, 22, 36, 0.96);
+    backdrop-filter: blur(2rem) saturate(180%);
+    -webkit-backdrop-filter: blur(2rem) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 1.25rem;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75);
+    display: flex;
+    flex-direction: column;
+    max-width: 1080px;
+    width: 95vw;
+    max-height: 94vh;
+    overflow: hidden;
+    animation: infoSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.swarm-chart-header,
+.export-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.swarm-chart-body,
+.export-preview-body {
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+    background: rgba(6, 9, 16, 0.6);
+}
+
+.swarm-chart-img,
+.export-preview-img {
+    max-width: 100%;
+    max-height: 64vh;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
+    background: #ffffff;
+    object-fit: contain;
+    display: block;
+}
+
+.swarm-chart-footer,
+.export-preview-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 0.85rem 1.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(14, 17, 27, 0.85);
+}
+
+/* Cluster CSV Specifics */
+.cluster-csv-modal {
+    max-width: 960px;
+}
+
+.cluster-csv-tabs-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.65rem 1.5rem 0.4rem 1.5rem;
+    background: rgba(14, 18, 30, 0.95);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    overflow-x: auto;
+    flex-shrink: 0;
+}
+
+.cluster-csv-tab {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 0.4rem;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.76rem;
+    font-weight: 600;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.cluster-csv-tab:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
+.cluster-csv-tab.active {
+    background: #0ea5e9;
+    border-color: #38bdf8;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(14, 165, 233, 0.4);
+}
+
+.cluster-csv-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 1.5rem;
+    font-size: 0.74rem;
+    color: rgba(255, 255, 255, 0.65);
+    background: rgba(10, 13, 22, 0.6);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+}
+
+.csv-badge {
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.3rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.cluster-csv-table-wrapper {
+    overflow: auto;
+    max-height: 52vh;
+    width: 100%;
+    background: rgba(6, 9, 16, 0.85);
+    position: relative;
+}
+
+.cluster-csv-table {
+    width: 100%;
+    min-width: 680px;
+    border-collapse: collapse;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.78rem;
+    color: #e2e8f0;
+    text-align: left;
+}
+
+.cluster-csv-table th {
+    position: sticky;
+    top: 0;
+    background: #151a2d;
+    color: #94a3b8;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    z-index: 2;
+    white-space: nowrap;
+}
+
+.cluster-csv-table td {
+    padding: 0.45rem 0.85rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    white-space: nowrap;
+}
+
+.cluster-csv-table tr:nth-child(even) td {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.cluster-csv-table tr:hover td {
+    background: rgba(56, 189, 248, 0.08);
 }

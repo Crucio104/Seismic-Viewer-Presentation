@@ -153,56 +153,54 @@
         </div>
 
         <div class="change-link" style="margin-top: 0.2rem; margin-bottom: 0.2rem; opacity: 0.6;" onclick="clearCacheJS()">Clear Cache</div>
-    </div>
 
+        <button id="hub-shortcuts-btn" onclick="toggleHubShortcuts(event)" title="Keyboard Shortcuts (H / F1 / ?)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1.05rem;height:1.05rem;">
+                <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
+                <line x1="6" y1="8" x2="6.01" y2="8"/>
+                <line x1="10" y1="8" x2="10.01" y2="8"/>
+                <line x1="14" y1="8" x2="14.01" y2="8"/>
+                <line x1="18" y1="8" x2="18.01" y2="8"/>
+                <line x1="6" y1="12" x2="6.01" y2="12"/>
+                <line x1="10" y1="12" x2="10.01" y2="12"/>
+                <line x1="14" y1="12" x2="14.01" y2="12"/>
+                <line x1="18" y1="12" x2="18.01" y2="12"/>
+                <line x1="7" y1="16" x2="17" y2="16"/>
+            </svg>
+        </button>
 
-
-    <button id="hub-shortcuts-btn" onclick="toggleHubShortcuts(event)" title="Keyboard Shortcuts (H / F1 / ?)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1.05rem;height:1.05rem;">
-            <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
-            <line x1="6" y1="8" x2="6.01" y2="8"/>
-            <line x1="10" y1="8" x2="10.01" y2="8"/>
-            <line x1="14" y1="8" x2="14.01" y2="8"/>
-            <line x1="18" y1="8" x2="18.01" y2="8"/>
-            <line x1="6" y1="12" x2="6.01" y2="12"/>
-            <line x1="10" y1="12" x2="10.01" y2="12"/>
-            <line x1="14" y1="12" x2="14.01" y2="12"/>
-            <line x1="18" y1="12" x2="18.01" y2="12"/>
-            <line x1="7" y1="16" x2="17" y2="16"/>
-        </svg>
-    </button>
-
-    <div id="hub-shortcuts-modal" onclick="event.stopPropagation()">
-        <div style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.75rem; font-weight: 700; color: #fff;">
-            Keyboard Shortcuts
-        </div>
-        <div class="shortcut-row">
-            <span>2D Map View</span>
-            <span class="shortcut-key">1</span>
-        </div>
-        <div class="shortcut-row">
-            <span>3D Static View</span>
-            <span class="shortcut-key">2</span>
-        </div>
-        <div class="shortcut-row">
-            <span>Dynamic Animation</span>
-            <span class="shortcut-key">3</span>
-        </div>
-        <div class="shortcut-row">
-            <span>Cluster Analysis</span>
-            <span class="shortcut-key">4</span>
-        </div>
-        <div class="shortcut-row">
-            <span>Consecutive Event Vectors</span>
-            <span class="shortcut-key">V</span>
-        </div>
-        <div class="shortcut-row">
-            <span>Close Popup / Modal</span>
-            <span class="shortcut-key">Esc</span>
-        </div>
-        <div class="shortcut-row">
-            <span>Keyboard Shortcuts Help</span>
-            <span class="shortcut-key">H / F1 / ?</span>
+        <div id="hub-shortcuts-modal" onclick="event.stopPropagation()">
+            <div style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.75rem; font-weight: 700; color: #fff;">
+                Keyboard Shortcuts
+            </div>
+            <div class="shortcut-row">
+                <span>2D Map View</span>
+                <span class="shortcut-key">1</span>
+            </div>
+            <div class="shortcut-row">
+                <span>3D Static View</span>
+                <span class="shortcut-key">2</span>
+            </div>
+            <div class="shortcut-row">
+                <span>Dynamic Animation</span>
+                <span class="shortcut-key">3</span>
+            </div>
+            <div class="shortcut-row">
+                <span>Cluster Analysis</span>
+                <span class="shortcut-key">4</span>
+            </div>
+            <div class="shortcut-row">
+                <span>Consecutive Event Vectors</span>
+                <span class="shortcut-key">V</span>
+            </div>
+            <div class="shortcut-row">
+                <span>Close Popup / Modal</span>
+                <span class="shortcut-key">Esc</span>
+            </div>
+            <div class="shortcut-row">
+                <span>Keyboard Shortcuts Help</span>
+                <span class="shortcut-key">H / F1 / ?</span>
+            </div>
         </div>
     </div>
 
@@ -413,6 +411,8 @@
     function showFilePicker() {
         document.getElementById('view-hub').classList.remove('active');
         document.getElementById('view-picker').classList.add('active');
+        const scModal = document.getElementById('hub-shortcuts-modal');
+        if (scModal) scModal.classList.remove('active');
         
         // Reset picker states
          const btn = document.getElementById('pick-btn');
