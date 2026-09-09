@@ -1,4 +1,5 @@
 import logging
+import bisect
 import numpy as np
 from datetime import datetime, timedelta
 from scipy.spatial import KDTree
@@ -59,7 +60,7 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
     
     # Use a fixed seed for stability across recalculations
     seed = int(np.abs(np.sum(points)) * 1000) % 4294967295
-    rng = np.random.RandomState(seed)
+    rng = np.random.default_rng(seed)
     
     best_inliers = []
     best_loss = float('inf')
@@ -555,23 +556,13 @@ def _get_frame_dates_and_indices(dates, date_to_cum, mode, window_days, step_day
             end_cutoff = start_cutoff + timedelta(days=window_days)
             start_cutoff_str = start_cutoff.strftime('%Y-%m-%d')
             end_cutoff_str = end_cutoff.strftime('%Y-%m-%d')
-            s_idx = 0
-            last_start_d = None
-            for d in dates:
-                if d < start_cutoff_str:
-                    last_start_d = d
-                else:
-                    break
-            s_idx = date_to_cum[last_start_d] if last_start_d else 0
             
-            e_idx = 0
-            last_end_d = None
-            for d in dates:
-                if d < end_cutoff_str:
-                    last_end_d = d
-                else:
-                    break
-            e_idx = date_to_cum[last_end_d] if last_end_d else 0
+            # Binary search: find the position of start and end cutoffs in O(log N)
+            pos_s = bisect.bisect_left(dates, start_cutoff_str)
+            s_idx = date_to_cum[dates[pos_s - 1]] if pos_s > 0 else 0
+            
+            pos_e = bisect.bisect_left(dates, end_cutoff_str)
+            e_idx = date_to_cum[dates[pos_e - 1]] if pos_e > 0 else 0
             
             block_dates.append(start_cutoff_str)
             indices.append((s_idx, e_idx))
@@ -579,12 +570,10 @@ def _get_frame_dates_and_indices(dates, date_to_cum, mode, window_days, step_day
     
     indices = []
     for i, d_str in enumerate(dates):
-        cutoff = dt_objs[i] - timedelta(days=window_days-1)
-        s_idx = 0
-        for j, d in enumerate(dates):
-            if d >= cutoff.strftime('%Y-%m-%d'):
-                s_idx = date_to_cum[dates[j-1]] if j > 0 else 0
-                break
+        cutoff_str = (dt_objs[i] - timedelta(days=window_days - 1)).strftime('%Y-%m-%d')
+        # Binary search: find first date >= cutoff in O(log N)
+        j = bisect.bisect_left(dates, cutoff_str)
+        s_idx = date_to_cum[dates[j - 1]] if j > 0 else 0
         indices.append((s_idx, date_to_cum[d_str]))
     return dates, indices
 

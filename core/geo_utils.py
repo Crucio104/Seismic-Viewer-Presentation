@@ -23,6 +23,10 @@ def _get_cache_path(bbox: tuple[float, float, float, float], resolution: int) ->
     return MAP_CACHE_DIR / f'mesh_{key}.pkl'
 
 
+import threading
+
+_ssl_opener_lock = threading.Lock()
+
 def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] | None:
     """Low-level fetch from Smopy with error handling for offline usage."""
     try:
@@ -31,15 +35,16 @@ def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] 
             map_obj = smopy.Map(bbox)
         except (ssl.SSLError, urllib.error.URLError) as ssl_err:
             logger.warning(f"SSL certificate issue downloading tiles ({ssl_err}), retrying with local SSL fallback...")
-            ctx = ssl._create_unverified_context() if hasattr(ssl, '_create_unverified_context') else None
-            unverified_opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
-            unverified_opener.addheaders = [('User-Agent', 'SeismicViewer/1.0')]
-            orig_opener = urllib.request._opener
-            urllib.request.install_opener(unverified_opener)
-            try:
-                map_obj = smopy.Map(bbox)
-            finally:
-                urllib.request.install_opener(orig_opener)
+            with _ssl_opener_lock:
+                ctx = ssl._create_unverified_context() if hasattr(ssl, '_create_unverified_context') else None
+                unverified_opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
+                unverified_opener.addheaders = [('User-Agent', 'SeismicViewer/1.0')]
+                orig_opener = urllib.request._opener
+                urllib.request.install_opener(unverified_opener)
+                try:
+                    map_obj = smopy.Map(bbox)
+                finally:
+                    urllib.request.install_opener(orig_opener)
 
         return {
             'img': map_obj.to_pil(),

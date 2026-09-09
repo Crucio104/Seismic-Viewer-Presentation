@@ -99,8 +99,6 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
             
         # Free heavy pandas DataFrame immediately
         del df
-        import gc
-        gc.collect()
 
         logger.info(f"Processed {count_rows} tomography points from {path.name}")
         
@@ -175,7 +173,6 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
                 }
                 # Free numpy grid matrices
                 del tree, pts, pts_norm, grid_pts, grid_norm, dists, idxs, weights, idw_vals, flat_vals, X, Y, Z
-                import gc; gc.collect()
                 logger.info(f"Generated 3D volume grid with continuous IDW: {nx}x{ny}x{nz} = {nx*ny*nz} voxels, "
                             f"Vp/Vs range [{iso_grid['min_val']:.3f}, {iso_grid['max_val']:.3f}]")
         except ImportError:
@@ -371,7 +368,6 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
         }
         
         del gc_pts, st_c, dists, weights, st_v_np, grid_up_vals, c_lats_mat, c_lons_mat, gc_cells, dists_cells, weights_cells
-        import gc; gc.collect()
         logger.info(f"Elaborate {len(stations)} stazioni GNSS e generata superficie geografica continua da {path.name}")
         
         return {

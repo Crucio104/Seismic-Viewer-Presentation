@@ -121,9 +121,6 @@ def view_2d(
             name='Earthquakes (Heatmap)'
         ))
         
-        if dates_num is not None:
-            fig.data[0].customdata = np.array(dates_num).reshape(-1, 1)
-
         fig.update_layout(**COMMON_LAYOUT, mapbox_style="open-street-map")
         return fig
 
@@ -766,6 +763,8 @@ def get_3d_animated_figure(
     swarms = data.get('swarms', []) if data else []
 
     anim_data = {
+        'longitude': longitude, 'latitude': latitude, 'depth': depth, 'magnitude': magnitude,
+        'dates_num': data.get('dates_num', []) if data else [],
         'lon': longitude, 'lat': latitude, 'dep': depth, 'mag': magnitude,
         'dnum': data.get('dates_num', []) if data else [], 'hover': vpack.get('hover', []),
         'unique_dates': unique_dates, 'date_to_cum': vpack.get('date_to_cum', {}),

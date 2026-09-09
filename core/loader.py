@@ -4,7 +4,7 @@ import numpy as np
 from typing import Any
 from datetime import datetime
 from core.config import (
-    MIN_MAGNITUDE, MISSING_MAG_VALUE, MISSING_DEPTH_VALUE, CSV_SCHEMA
+    MIN_MAGNITUDE, MISSING_MAG_VALUE, MISSING_DEPTH_VALUE, CSV_SCHEMA, SECONDS_PER_DAY
 )
 from core.swarm_detector import detect_ingv_swarms
 
@@ -149,9 +149,9 @@ def load_csv(source_file: str) -> dict[str, Any]:
 
     # Pre-calculate dates_num (days since first event)
     min_t = df['time_dt'].min()
-    df['dates_num'] = (df['time_dt'] - min_t).dt.total_seconds() / 86400.0
+    df['dates_num'] = (df['time_dt'] - min_t).dt.total_seconds() / SECONDS_PER_DAY
     
-    # Precompute fast Float32 arrays for binary buffer
+    # Precompute fast Float32 arrays for binary buffer and core processing
     lon_f32 = df['lon'].to_numpy(dtype=np.float32)
     lat_f32 = df['lat'].to_numpy(dtype=np.float32)
     dep_f32 = (-df['depth']).to_numpy(dtype=np.float32)
@@ -174,13 +174,13 @@ def load_csv(source_file: str) -> dict[str, Any]:
     # Detect INGV seismic swarms
     swarms = detect_ingv_swarms(df)
 
-    # Extract as lists for JSON serialization (Webview)
-    latitude = lat_f32.tolist()
-    longitude = lon_f32.tolist()
-    depth = dep_f32.tolist() # Store as negative for depth
-    magnitude = mag_f32.tolist()
+    # Keep dense NumPy float32 arrays to save RAM (avoiding ~8x Python float wrapper overhead)
+    latitude = lat_f32
+    longitude = lon_f32
+    depth = dep_f32 # Store as negative for depth
+    magnitude = mag_f32
     times = df['time_dt'].dt.strftime('%Y-%m-%d %H:%M:%S').tolist()
-    dates_num = dnum_f32.tolist()
+    dates_num = dnum_f32
 
     date_range = f"{df['time_dt'].iloc[0].strftime('%d-%m-%Y')} → {df['time_dt'].iloc[-1].strftime('%d-%m-%Y')}"
     bbox = (float(df['lat'].min()), float(df['lon'].min()), float(df['lat'].max()), float(df['lon'].max()))

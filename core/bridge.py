@@ -40,6 +40,8 @@ class Api:
         self._socket_manager: object | None = None
         self._event_loop: asyncio.AbstractEventLoop | None = None
         self._last_cluster_result: dict[str, Any] | None = None
+        self._nav_lock = threading.Lock()
+        self._nav_generation: int = 0
 
     def set_socket_manager(self, manager: object, loop: asyncio.AbstractEventLoop | None = None) -> None:
         """Set the FastAPI WebSocket manager and the event loop."""
@@ -128,7 +130,7 @@ class Api:
             save_path = result[0] if isinstance(result, (list, tuple)) else result
             
             # Decode base64 data
-            header, encoded = base64_data.split(",", 1)
+            _, encoded = base64_data.split(",", 1) if "," in base64_data else ("", base64_data)
             data = base64.b64decode(encoded)
             
             # Write to file
@@ -249,10 +251,13 @@ class Api:
             'clustering_method': clustering_method,
             'clustering_params': clustering_params
         }
-        self._history_stack.clear()
-        self._history_stack.append({'view_style': view_style, 'kwargs': kwargs})
-        self._history_idx = 0
-        threading.Thread(target=self._generate_and_navigate, args=(view_style,), kwargs=kwargs, daemon=True).start()
+        with self._nav_lock:
+            self._history_stack.clear()
+            self._history_stack.append({'view_style': view_style, 'kwargs': kwargs})
+            self._history_idx = 0
+            self._nav_generation += 1
+            gen = self._nav_generation
+        threading.Thread(target=self._generate_and_navigate, args=(view_style,), kwargs=dict(nav_gen=gen, **kwargs), daemon=True).start()
 
     def load_subcluster_view(self, indices: list[int], context_indices: list[int] | None = None, clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None, locked_clusters: dict[str, list[int]] | None = None) -> None:
         """Background thread for sub-cluster view generation."""
@@ -273,30 +278,39 @@ class Api:
             'context_indices': context_indices,
             'locked_clusters': locked_map
         }
-        # Truncate future history if we diverge
-        if self._history_idx >= 0:
-            self._history_stack = self._history_stack[:self._history_idx + 1]
-        
-        self._history_stack.append({'view_style': 4, 'kwargs': kwargs})
-        self._history_idx = len(self._history_stack) - 1
-        threading.Thread(target=self._generate_and_navigate, args=(4,), kwargs=kwargs, daemon=True).start()
+        with self._nav_lock:
+            # Truncate future history if we diverge
+            if self._history_idx >= 0:
+                self._history_stack = self._history_stack[:self._history_idx + 1]
+            
+            self._history_stack.append({'view_style': 4, 'kwargs': kwargs})
+            self._history_idx = len(self._history_stack) - 1
+            self._nav_generation += 1
+            gen = self._nav_generation
+        threading.Thread(target=self._generate_and_navigate, args=(4,), kwargs=dict(nav_gen=gen, **kwargs), daemon=True).start()
 
     def go_back(self) -> None:
-        if self._history_idx > 0:
-            self._history_idx -= 1
-            prev = self._history_stack[self._history_idx]
-            threading.Thread(target=self._generate_and_navigate, args=(prev['view_style'],), kwargs=prev['kwargs'], daemon=True).start()
-        else:
-            try:
-                self._window().evaluate_js("transitionToHub()")
-            except Exception:
-                pass
+        with self._nav_lock:
+            if self._history_idx > 0:
+                self._history_idx -= 1
+                prev = self._history_stack[self._history_idx]
+                self._nav_generation += 1
+                gen = self._nav_generation
+                threading.Thread(target=self._generate_and_navigate, args=(prev['view_style'],), kwargs=dict(nav_gen=gen, **prev['kwargs']), daemon=True).start()
+            else:
+                try:
+                    self._window().evaluate_js("transitionToHub()")
+                except Exception:
+                    pass
 
     def go_forward(self) -> None:
-        if self._history_idx < len(self._history_stack) - 1:
-            self._history_idx += 1
-            nxt = self._history_stack[self._history_idx]
-            threading.Thread(target=self._generate_and_navigate, args=(nxt['view_style'],), kwargs=nxt['kwargs'], daemon=True).start()
+        with self._nav_lock:
+            if self._history_idx < len(self._history_stack) - 1:
+                self._history_idx += 1
+                nxt = self._history_stack[self._history_idx]
+                self._nav_generation += 1
+                gen = self._nav_generation
+                threading.Thread(target=self._generate_and_navigate, args=(nxt['view_style'],), kwargs=dict(nav_gen=gen, **nxt['kwargs']), daemon=True).start()
 
     def get_history_status(self) -> dict[str, bool]:
         return {
@@ -386,9 +400,12 @@ class Api:
             logger.error("Apply subclusters failed", exc_info=True)
             return {'error': str(e)}
 
-    def _generate_and_navigate(self, view_style: int, **kwargs) -> None:
+    def _generate_and_navigate(self, view_style: int, nav_gen: int = 0, **kwargs) -> None:
         """Generate HTML and navigate the window."""
         try:
+            if nav_gen != 0 and nav_gen != self._nav_generation:
+                return
+
             # 1. Check History Cache
             curr_history = None
             if hasattr(self, '_history_idx') and 0 <= self._history_idx < len(self._history_stack):
@@ -402,6 +419,8 @@ class Api:
                 url = self._make_url(curr_history['viz_id']) + f"?t={int(time.time()*1000)}"
                 if view_style == 4:
                     url += "&subcluster=true"
+                if nav_gen != 0 and nav_gen != self._nav_generation:
+                    return
                 self._inject_dark_overlay()
                 self._window().load_url(url)
                 return
@@ -422,7 +441,6 @@ class Api:
             if not is_fallback:
                 if len(self._html_cache) >= 3:
                     self._html_cache.pop(next(iter(self._html_cache)))
-                    import gc; gc.collect()
                 if curr_history is not None:
                     curr_history['viz_id'] = viz_id
 
@@ -635,7 +653,6 @@ class Api:
                 stations_res = process_stations_data(stations_path)
                 res['layers']['stations'] = stations_res
                 
-            import gc; gc.collect()
             return res
         except Exception as e:
             logger.error("Error in apply_external_layers", exc_info=True)
