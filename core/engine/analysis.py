@@ -1,10 +1,12 @@
 import logging
+import time
 import bisect
 import numpy as np
 from datetime import datetime, timedelta
-from scipy.spatial import KDTree
+from scipy.spatial import KDTree, ConvexHull
 from scipy.linalg import svd
 import concurrent.futures
+from concurrent.futures import ProcessPoolExecutor
 import os
 from typing import Any
 
@@ -319,7 +321,6 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[
 
 def project_to_km(lon: np.ndarray, lat: np.ndarray, dep: np.ndarray, origin_lat: float, origin_lon: float) -> np.ndarray:
     """Standardized projection from Lon/Lat/Dep to KM space."""
-    from core.config import KM_PER_DEGREE
     lon_to_km = KM_PER_DEGREE * np.cos(np.radians(origin_lat))
     lat_to_km = KM_PER_DEGREE
     return np.column_stack((
@@ -434,7 +435,6 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     f_min_mag, f_max_mag = float(params.get('mag_min', -10)), float(params.get('mag_max', 10))
     f_min_dep, f_max_dep = float(params.get('dep_min', -100)), float(params.get('dep_max', 1000))
 
-    import time
     t0 = time.time()
     logger.info(f"Starting multi-process animated clustering ({len(dates_unique)} frames, method={method})...")
 
@@ -460,7 +460,6 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     
     # 5. Execute Parallel Clustering with shared worker initialization
     frame_results = [None] * len(date_indices)
-    from concurrent.futures import ProcessPoolExecutor
     with ProcessPoolExecutor(
         max_workers=n_workers,
         initializer=_init_clustering_worker,
@@ -578,7 +577,6 @@ def _get_frame_dates_and_indices(dates, date_to_cum, mode, window_days, step_day
     return dates, indices
 
 def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat):
-    from core.config import KM_PER_DEGREE
     lon_to_km = KM_PER_DEGREE * np.cos(np.radians(origin_lat))
     planes = []
     unique_ids = [lid for lid in np.unique(labels) if lid != -1]
@@ -609,7 +607,6 @@ def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat):
             p_data['grid_id'] = f"cluster_{lid}_{date_str}"
             
             try:
-                from scipy.spatial import ConvexHull
                 hull = ConvexHull(fit_pts)
                 
                 # Convert from km back to degrees for plotly

@@ -43,24 +43,24 @@ def detect_ingv_swarms(df: pd.DataFrame) -> list[dict[str, Any]]:
     delta_30m = np.timedelta64(30, 'm')
     delta_60m = np.timedelta64(60, 'm')
 
-    for i in range(n):
-        t0 = times[i]
-        
-        # Rule 1: 30 minutes window (>= 4 events, at least one >= 1.5)
-        t_end_30 = t0 + delta_30m
-        idx_30 = int(np.searchsorted(times, t_end_30, side='right'))
-        count_30 = idx_30 - i
-        if count_30 >= 4:
-            if np.max(mags[i:idx_30]) >= 1.5:
-                windows.append((times[i], times[idx_30 - 1], i, idx_30 - 1))
+    # Vectorized window boundary calculations in C
+    ends_30 = np.searchsorted(times, times + delta_30m, side='right')
+    ends_60 = np.searchsorted(times, times + delta_60m, side='right')
+    counts_30 = ends_30 - np.arange(n)
+    counts_60 = ends_60 - np.arange(n)
 
-        # Rule 2: 60 minutes window (>= 10 events, at least one >= 1.0)
-        t_end_60 = t0 + delta_60m
-        idx_60 = int(np.searchsorted(times, t_end_60, side='right'))
-        count_60 = idx_60 - i
-        if count_60 >= 10:
-            if np.max(mags[i:idx_60]) >= 1.0:
-                windows.append((times[i], times[idx_60 - 1], i, idx_60 - 1))
+    # Filter only indices that satisfy candidate count thresholds
+    cand_30 = np.where(counts_30 >= 4)[0]
+    for i in cand_30:
+        idx_30 = ends_30[i]
+        if np.max(mags[i:idx_30]) >= 1.5:
+            windows.append((times[i], times[idx_30 - 1], i, idx_30 - 1))
+
+    cand_60 = np.where(counts_60 >= 10)[0]
+    for i in cand_60:
+        idx_60 = ends_60[i]
+        if np.max(mags[i:idx_60]) >= 1.0:
+            windows.append((times[i], times[idx_60 - 1], i, idx_60 - 1))
 
     if not windows:
         return []

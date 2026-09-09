@@ -16,6 +16,8 @@ from core.engine.visualization import (
     get_3d_animated_figure, get_3d_subcluster_figure
 )
 from core.engine.analysis import project_to_km
+from sklearn.neighbors import NearestNeighbors
+from sklearn.cluster import MiniBatchKMeans
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +65,6 @@ def auto_tune_dbscan_params(target_lon, target_lat, target_dep, data: dict[str, 
     if len(target_lon) < 5:
         return
     try:
-        from sklearn.neighbors import NearestNeighbors
-        
         o_lat = data.get('origin_lat', np.mean(target_lat))
         o_lon = data.get('origin_lon', np.mean(target_lon))
         
@@ -97,8 +97,6 @@ def auto_tune_kmeans_params(target_lon, target_lat, target_dep, data: dict[str, 
     if len(target_lon) < 3:
         return
     try:
-        from sklearn.cluster import MiniBatchKMeans
-
         o_lat = data.get('origin_lat', np.mean(target_lat))
         o_lon = data.get('origin_lon', np.mean(target_lon))
 

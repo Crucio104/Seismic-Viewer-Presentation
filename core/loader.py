@@ -107,7 +107,11 @@ def load_csv(source_file: str) -> dict[str, Any]:
     if df['time'].astype(str).str.match(r'^\d+(\.\d+)?$').all():
         df['time_dt'] = pd.to_datetime(pd.to_numeric(df['time']), origin='1899-12-30', unit='D')
     else:
-        df['time_dt'] = pd.to_datetime(df['time'], errors='coerce', format='mixed')
+        # Fast path: try standard ISO8601/INGV format first via C engine, fallback to flexible mixed
+        try:
+            df['time_dt'] = pd.to_datetime(df['time'], format='ISO8601')
+        except Exception:
+            df['time_dt'] = pd.to_datetime(df['time'], errors='coerce', format='mixed')
     if hasattr(df['time_dt'].dt, 'tz') and df['time_dt'].dt.tz is not None:
         df['time_dt'] = df['time_dt'].dt.tz_localize(None)
     df = df.dropna(subset=['time_dt'])

@@ -56,18 +56,19 @@ def fetch_ingv_data(params: dict[str, Any]) -> str:
     years = range(start_dt.year, end_dt.year + 1)
     all_events = []
 
-    for year in years:
-        url = f"{base_url}/{year}/events.json"
-        logger.info(f"Fetching data from: {url}")
-        try:
-            response = requests.get(url, timeout=10)
-            if response.status_code == 200:
-                year_events = response.json()
-                all_events.extend(year_events)
-            else:
-                logger.warning(f"Failed to fetch data for year {year}: HTTP {response.status_code}")
-        except Exception as e:
-            logger.error(f"Error fetching data for year {year}: {e}")
+    with requests.Session() as session:
+        for year in years:
+            url = f"{base_url}/{year}/events.json"
+            logger.info(f"Fetching data from: {url}")
+            try:
+                response = session.get(url, timeout=10)
+                if response.status_code == 200:
+                    year_events = response.json()
+                    all_events.extend(year_events)
+                else:
+                    logger.warning(f"Failed to fetch data for year {year}: HTTP {response.status_code}")
+            except Exception as e:
+                logger.error(f"Error fetching data for year {year}: {e}")
 
     # Filter events
     filtered_events = []

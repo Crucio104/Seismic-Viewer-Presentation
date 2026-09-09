@@ -59,9 +59,6 @@
                 Apply Filters
             </button>
 
-            <button id="reset-camera" class="priority-btn" style="margin-top:0.5rem; font-size:0.75rem; height:2.2rem; width:100%; display:none; justify-content:center; align-items:center; background:rgba(165, 180, 252, 0.2); border:1px solid rgba(165, 180, 252, 0.4); border-radius:0.5rem; color:#fff; cursor:pointer; font-family:inherit; font-weight:600; transition:all 0.2s; flex-shrink: 0;">
-                Reset Camera
-            </button>
 
             </div>
         </div>
@@ -177,36 +174,20 @@
                 }
             }
 
-             const resetBtn = document.getElementById('reset-camera');
-             let initialMapboxView = null;
- 
-             if (!is3D) {
-                 resetBtn.style.display = 'flex';
-                 document.getElementById('point-size-group').style.display = 'none';
-                 // Store initial view after a small delay to ensure Plotly has initialized map / mapbox
-                 setTimeout(() => {
-                     const mapLayout = gd.layout.mapbox || gd.layout.map;
-                     if (mapLayout) {
-                         initialMapboxView = {
-                             center: { ...mapLayout.center },
-                             zoom: mapLayout.zoom,
-                             pitch: mapLayout.pitch || 0,
-                             bearing: mapLayout.bearing || 0
-                         };
-                     }
-                 }, 500);
- 
-                 resetBtn.onclick = () => {
-                     if (initialMapboxView) {
-                         Plotly.relayout(gd, {
-                             'mapbox.center': initialMapboxView.center,
-                             'mapbox.zoom': initialMapboxView.zoom,
-                             'mapbox.pitch': 0,
-                             'mapbox.bearing': 0
-                         });
-                     }
-                 };
-             }
+            if (!is3D) {
+                // Store initial view after a small delay to ensure Plotly has initialized map / mapbox
+                setTimeout(() => {
+                    const mapLayout = gd.layout.mapbox || gd.layout.map;
+                    if (mapLayout) {
+                        window._initial2DMapboxView = {
+                            center: { ...mapLayout.center },
+                            zoom: mapLayout.zoom,
+                            pitch: mapLayout.pitch || 0,
+                            bearing: mapLayout.bearing || 0
+                        };
+                    }
+                }, 500);
+            }
 
 
             // Menus
@@ -236,6 +217,8 @@
                     SeismicUI.setGroupDisabled(colorToggle.closest('.settings-group'), isHeatmap);
                     const invGroup = invertCheck ? (invertCheck.closest('.legend-invert-checkbox') || invertCheck.closest('.glass-checkbox')) : null;
                     if (invGroup) SeismicUI.setGroupDisabled(invGroup, isHeatmap);
+                    const sizeGroup = document.getElementById('point-size-group');
+                    if (sizeGroup) SeismicUI.setGroupDisabled(sizeGroup, isHeatmap);
                     applyFilter();
                 });
             }
@@ -298,6 +281,20 @@
                                     if (colorToggle) colorToggle.textContent = 'Date ▾';
                                 }
                                 applyFilterWithLoader();
+                            }
+                        });
+                    }
+                });
+            } else {
+                [startInput, endInput, magMin, magMax, depMin, depMax].forEach(input => {
+                    if (input) {
+                        input.addEventListener('keydown', (e) => {
+                            if (e.key === 'Enter') {
+                                if ((input === startInput || input === endInput) && !window._userExplicitColorSelection) {
+                                    currentColorMode = 'date';
+                                    if (colorToggle) colorToggle.textContent = 'Date ▾';
+                                }
+                                applyFilter();
                             }
                         });
                     }

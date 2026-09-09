@@ -9,6 +9,9 @@ import time
 import pandas as pd
 import base64
 import shutil
+import csv
+import zipfile
+import io
 from collections import Counter, defaultdict
 from typing import Any, Callable
 
@@ -658,50 +661,179 @@ class Api:
             logger.error("Error in apply_external_layers", exc_info=True)
             return {'error': str(e)}
 
+    def _get_cluster_header_comment(self, method: str, params: Any) -> str:
+        """Format clustering metadata comment line."""
+        if isinstance(params, dict):
+            if str(method).lower() == 'dbscan':
+                eps = params.get('dbscan_eps') or params.get('eps') or params.get('eps_km', 'N/A')
+                min_samp = params.get('dbscan_min_samples') or params.get('min_samples', 'N/A')
+                param_str = f"eps={eps}, min_samples={min_samp}"
+            elif str(method).lower() == 'kmeans':
+                n_clust = params.get('kmeans_clusters') or params.get('n_clusters') or params.get('kmeans_n_clusters', 'N/A')
+                max_d = params.get('kmeans_max_dist')
+                if max_d and float(max_d) > 0:
+                    param_str = f"n_clusters={n_clust}, max_dist_m={max_d}"
+                else:
+                    param_str = f"n_clusters={n_clust}"
+            else:
+                param_str = ", ".join(f"{k}={v}" for k, v in params.items())
+        else:
+            param_str = str(params)
+        return f"# Clustering Method: {str(method).upper()} | Parameters: {param_str}\n"
+
+    def _build_cluster_csv_text(self, idx_list: list[int], header_comment: str) -> str:
+        """Helper to generate formatted CSV text for a list of event indices."""
+        times = self._data.get('times', []) if self._data else []
+        lats = self._data.get('latitude', []) if self._data else []
+        lons = self._data.get('longitude', []) if self._data else []
+        deps = self._data.get('depth', []) if self._data else []
+        mags = self._data.get('magnitude', []) if self._data else []
+        n_events = len(lons)
+
+        valid_indices = [int(i) for i in idx_list if 0 <= int(i) < n_events]
+        output = io.StringIO()
+        output.write(header_comment)
+        writer = csv.writer(output)
+        writer.writerow(['time', 'latitude', 'longitude', 'depth', 'magnitude'])
+        for i in valid_indices:
+            writer.writerow([
+                times[i] if i < len(times) else '',
+                f"{float(lats[i]):.6f}",
+                f"{float(lons[i]):.6f}",
+                f"{abs(float(deps[i])):.4f}" if i < len(deps) else "0.0",
+                f"{float(mags[i]):.2f}" if i < len(mags) else "0.0"
+            ])
+        return output.getvalue()
+
+    def _collect_cluster_export_items(self, payload: dict[str, Any] | None) -> tuple[str, Any, list[tuple[str, list[int]]]]:
+        """Extract method, params, and (filename, indices) tuples from export payload."""
+        payload = payload or {}
+        method = payload.get('method', 'dbscan')
+        params = payload.get('params', {})
+        export_items = []
+        if payload.get('clusters'):
+            for item in payload['clusters']:
+                fname = item.get('filename')
+                idxs = item.get('indices', [])
+                if fname and idxs:
+                    export_items.append((fname, idxs))
+        elif payload.get('cluster_indices'):
+            for lbl_str, idx_list in payload['cluster_indices'].items():
+                lbl_int = int(lbl_str)
+                fname = "outliers.csv" if lbl_int == -1 else f"cluster_{lbl_int}.csv"
+                if idx_list:
+                    export_items.append((fname, idx_list))
+        elif self._last_cluster_result:
+            res = self._last_cluster_result
+            method = res.get('method', method)
+            params = res.get('params', params)
+            c_indices = res.get('cluster_indices')
+            if c_indices:
+                for lbl_str, idx_list in c_indices.items():
+                    lbl_int = int(lbl_str)
+                    fname = "outliers.csv" if lbl_int == -1 else f"cluster_{lbl_int}.csv"
+                    if idx_list:
+                        export_items.append((fname, idx_list))
+            elif res.get('labels') is not None:
+                c_map = defaultdict(list)
+                for idx, lbl in enumerate(res['labels']):
+                    c_map[int(lbl)].append(idx)
+                for lbl_int, idx_list in c_map.items():
+                    fname = "outliers.csv" if lbl_int == -1 else f"cluster_{lbl_int}.csv"
+                    if idx_list:
+                        export_items.append((fname, idx_list))
+        return method, params, export_items
+
+    def export_single_cluster_csv(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Export a single selected cluster as a CSV file via native Save dialog."""
+        try:
+            if not self._data:
+                return {'status': 'error', 'message': 'No dataset loaded'}
+
+            payload = payload or {}
+            filename = payload.get('filename', 'cluster.csv')
+            if not filename.lower().endswith('.csv'):
+                filename += '.csv'
+
+            idx_list = payload.get('indices', [])
+            if not idx_list and payload.get('clusters'):
+                idx_list = payload['clusters'][0].get('indices', [])
+
+            if not idx_list:
+                return {'status': 'error', 'message': 'No events in selected cluster.'}
+
+            method = payload.get('method', 'dbscan')
+            params = payload.get('params', {})
+            header_comment = self._get_cluster_header_comment(method, params)
+
+            result = self._window().create_file_dialog(
+                webview.FileDialog.SAVE,
+                directory=str(Path.home()),
+                save_filename=filename,
+                file_types=('CSV Files (*.csv)',),
+            )
+
+            if not result:
+                return {'status': 'cancelled'}
+
+            save_path = Path(result[0] if isinstance(result, (list, tuple)) else result)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+
+            csv_text = self._build_cluster_csv_text(idx_list, header_comment)
+            with open(save_path, 'w', encoding='utf-8', newline='') as f:
+                f.write(csv_text)
+
+            return {'status': 'success', 'filename': save_path.name, 'path': str(save_path)}
+        except Exception as e:
+            logger.error("Error exporting single cluster CSV", exc_info=True)
+            return {'status': 'error', 'message': str(e)}
+
+    def export_clusters_zip(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Export all cluster CSV files packaged into a single ZIP file via native Save dialog."""
+        try:
+            if not self._data:
+                return {'status': 'error', 'message': 'No dataset loaded'}
+
+            method, params, export_items = self._collect_cluster_export_items(payload)
+            if not export_items:
+                return {'status': 'error', 'message': 'No cluster data available to export.'}
+
+            result = self._window().create_file_dialog(
+                webview.FileDialog.SAVE,
+                directory=str(Path.home()),
+                save_filename="seismic_clusters.zip",
+                file_types=('ZIP Archives (*.zip)',),
+            )
+
+            if not result:
+                return {'status': 'cancelled'}
+
+            save_path = Path(result[0] if isinstance(result, (list, tuple)) else result)
+            if not str(save_path).lower().endswith('.zip'):
+                save_path = save_path.with_suffix('.zip')
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+
+            header_comment = self._get_cluster_header_comment(method, params)
+
+            exported_count = 0
+            with zipfile.ZipFile(save_path, 'w', compression=zipfile.ZIP_DEFLATED) as zip_file:
+                for file_name, idx_list in export_items:
+                    csv_text = self._build_cluster_csv_text(idx_list, header_comment)
+                    zip_file.writestr(file_name, csv_text)
+                    exported_count += 1
+
+            return {'status': 'success', 'count': exported_count, 'path': str(save_path)}
+        except Exception as e:
+            logger.error("Error exporting clusters ZIP", exc_info=True)
+            return {'status': 'error', 'message': str(e)}
+
     def export_clusters_csv(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         """Export clustering results (each cluster + outliers) as CSV files to a chosen directory."""
         try:
             if not self._data:
                 return {'status': 'error', 'message': 'No dataset loaded'}
 
-            payload = payload or {}
-            method = payload.get('method', 'dbscan')
-            params = payload.get('params', {})
-
-            # Collect export items: list of tuples (filename, index_list)
-            export_items = []
-            if payload.get('clusters'):
-                for item in payload['clusters']:
-                    fname = item.get('filename')
-                    idxs = item.get('indices', [])
-                    if fname and idxs:
-                        export_items.append((fname, idxs))
-            elif payload.get('cluster_indices'):
-                for lbl_str, idx_list in payload['cluster_indices'].items():
-                    lbl_int = int(lbl_str)
-                    fname = "outliers.csv" if lbl_int == -1 else f"cluster_{lbl_int}.csv"
-                    if idx_list:
-                        export_items.append((fname, idx_list))
-            elif self._last_cluster_result:
-                res = self._last_cluster_result
-                method = res.get('method', method)
-                params = res.get('params', params)
-                c_indices = res.get('cluster_indices')
-                if c_indices:
-                    for lbl_str, idx_list in c_indices.items():
-                        lbl_int = int(lbl_str)
-                        fname = "outliers.csv" if lbl_int == -1 else f"cluster_{lbl_int}.csv"
-                        if idx_list:
-                            export_items.append((fname, idx_list))
-                elif res.get('labels') is not None:
-                    c_map = defaultdict(list)
-                    for idx, lbl in enumerate(res['labels']):
-                        c_map[int(lbl)].append(idx)
-                    for lbl_int, idx_list in c_map.items():
-                        fname = "outliers.csv" if lbl_int == -1 else f"cluster_{lbl_int}.csv"
-                        if idx_list:
-                            export_items.append((fname, idx_list))
-
+            method, params, export_items = self._collect_cluster_export_items(payload)
             if not export_items:
                 return {'status': 'error', 'message': 'No cluster data available to export in the current frame.'}
 
@@ -717,56 +849,14 @@ class Api:
             save_dir = Path(result[0] if isinstance(result, (list, tuple)) else result)
             save_dir.mkdir(parents=True, exist_ok=True)
 
-            # Extract full dataset arrays
-            times = self._data.get('times', [])
-            lats = self._data.get('latitude', [])
-            lons = self._data.get('longitude', [])
-            deps = self._data.get('depth', [])
-            mags = self._data.get('magnitude', [])
-            n_events = len(lons)
-
-            # Format parameters string cleanly for header row
-            if isinstance(params, dict):
-                if str(method).lower() == 'dbscan':
-                    eps = params.get('dbscan_eps') or params.get('eps') or params.get('eps_km', 'N/A')
-                    min_samp = params.get('dbscan_min_samples') or params.get('min_samples', 'N/A')
-                    param_str = f"eps={eps}, min_samples={min_samp}"
-                elif str(method).lower() == 'kmeans':
-                    n_clust = params.get('kmeans_clusters') or params.get('n_clusters') or params.get('kmeans_n_clusters', 'N/A')
-                    max_d = params.get('kmeans_max_dist')
-                    if max_d and float(max_d) > 0:
-                        param_str = f"n_clusters={n_clust}, max_dist_m={max_d}"
-                    else:
-                        param_str = f"n_clusters={n_clust}"
-                else:
-                    param_str = ", ".join(f"{k}={v}" for k, v in params.items())
-            else:
-                param_str = str(params)
-
-            header_comment = f"# Clustering Method: {str(method).upper()} | Parameters: {param_str}\n"
+            header_comment = self._get_cluster_header_comment(method, params)
 
             exported_count = 0
             for file_name, idx_list in export_items:
+                csv_text = self._build_cluster_csv_text(idx_list, header_comment)
                 file_path = save_dir / file_name
-
-                # Filter valid indices within bounds
-                valid_indices = [int(i) for i in idx_list if 0 <= int(i) < n_events]
-                if not valid_indices:
-                    continue
-
-                row_data = {
-                    'time': [times[i] if i < len(times) else '' for i in valid_indices],
-                    'latitude': [lats[i] for i in valid_indices],
-                    'longitude': [lons[i] for i in valid_indices],
-                    'depth': [abs(deps[i]) if i < len(deps) else 0.0 for i in valid_indices],
-                    'magnitude': [mags[i] if i < len(mags) else 0.0 for i in valid_indices]
-                }
-                df = pd.DataFrame(row_data)
-
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(header_comment)
-                    df.to_csv(f, index=False)
-                
+                with open(file_path, 'w', encoding='utf-8', newline='') as f:
+                    f.write(csv_text)
                 exported_count += 1
 
             return {'status': 'success', 'count': exported_count, 'folder': str(save_dir)}

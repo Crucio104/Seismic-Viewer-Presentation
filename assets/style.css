@@ -189,16 +189,32 @@ body {
 }
 
 #filter-bar input {
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
     color: #fff;
-    border-radius: 0.375rem;
-    padding: 0.250rem 0.500rem;
+    border-radius: 0.5rem;
+    padding: 0.250rem 0.600rem;
     cursor: pointer;
+    font-family: inherit;
+    font-size: 0.75rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#filter-bar input:hover {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.32);
+}
+
+#filter-bar input:focus {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(99, 102, 241, 0.6);
+    box-shadow: 0 0 0.6rem rgba(99, 102, 241, 0.25);
+    outline: none;
 }
 
 #filter-bar input::-webkit-calendar-picker-indicator {
     filter: invert(1);
+    cursor: pointer;
 }
 
 #left-panel-wrapper {
@@ -342,19 +358,24 @@ body {
 }
 
 .menu-item {
-    padding: 0.500rem 0.750rem;
+    padding: 0.45rem 0.75rem;
     border-radius: 0.375rem;
     cursor: pointer;
     font-size: 0.812rem;
-    transition: background 0.2s;
+    font-family: inherit;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
 }
 
 .menu-item:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
 }
 
 .menu-item.active {
-    background: rgba(255, 255, 255, 0.22);
+    background: rgba(99, 102, 241, 0.28);
+    border-color: rgba(99, 102, 241, 0.5);
+    color: #fff;
     font-weight: 600;
 }
 
@@ -380,9 +401,9 @@ body {
 
 .glass-input {
     background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.18);
     color: #fff;
-    border-radius: 0.375rem;
+    border-radius: 0.5rem;
     padding: 0 0.75rem;
     height: 1.8rem;
     width: 100%;
@@ -390,12 +411,18 @@ body {
     outline: none;
     margin-top: 0.375rem;
     font-family: inherit;
-    transition: border-color 0.2s;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-input:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.3);
 }
 
 .glass-input:focus {
-    border-color: #fff;
-    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(99, 102, 241, 0.65);
+    background: rgba(255, 255, 255, 0.14);
+    box-shadow: 0 0 0.6rem rgba(99, 102, 241, 0.25);
 }
 
 /* Hide arrows in Chrome, Safari, Edge, Opera */
@@ -432,20 +459,36 @@ body {
 }
 
 .play-controls button {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
     color: #fff;
     border-radius: 0.500rem;
     width: 2.750rem;
     height: 2.750rem;
     cursor: pointer;
     font-size: 1.125rem;
-    transition: all 0.2s;
+    font-family: inherit;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.play-controls button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
+}
+
+.play-controls button:active:not(:disabled) {
+    transform: scale(0.96);
 }
 
 .play-controls button.active {
-    border-color: #fff;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(99, 102, 241, 0.35);
+    border-color: rgba(99, 102, 241, 0.6);
+    box-shadow: 0 0 14px rgba(99, 102, 241, 0.4);
 }
 
 .disabled {
@@ -457,6 +500,21 @@ body {
 /* High-priority action buttons (Reset, Apply, etc.) */
 .priority-btn {
     position: relative;
+    background: rgba(99, 102, 241, 0.22);
+    border: 1px solid rgba(99, 102, 241, 0.45);
+    border-radius: 0.5rem;
+    color: #fff;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.priority-btn:hover {
+    background: rgba(99, 102, 241, 0.38);
+    border-color: rgba(99, 102, 241, 0.7);
+    box-shadow: 0 0 0.875rem rgba(99, 102, 241, 0.35);
+    transform: translateY(-1px);
 }
 
 .priority-btn:active {
@@ -649,7 +707,7 @@ body {
 }
 
 #legend-title {
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-family: inherit;
     font-size: 0.812rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -691,7 +749,7 @@ body {
 }
 
 .legend-tick {
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-family: inherit;
     font-size: 0.75rem;
     font-weight: 600;
     color: #fff;
@@ -1225,25 +1283,33 @@ body {
 
 #shortcuts-modal {
     position: fixed;
-    bottom: 4.25rem;
-    left: 4.25rem;
-    background: rgba(15, 15, 25, 0.9);
-    backdrop-filter: blur(1.5rem) saturate(180%);
-    -webkit-backdrop-filter: blur(1.5rem) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 1rem;
-    padding: 1rem 1.1rem;
+    top: 50%;
+    left: 50%;
+    bottom: auto;
+    transform: translate(-50%, -50%);
+    background: rgba(15, 15, 28, 0.94);
+    backdrop-filter: blur(2rem) saturate(180%);
+    -webkit-backdrop-filter: blur(2rem) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 1.1rem;
+    padding: 1.25rem 1.4rem;
     z-index: 110005;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06);
     display: none;
     flex-direction: column;
-    gap: 0.5rem;
-    min-width: 260px;
-    animation: infoSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    gap: 0.55rem;
+    min-width: 320px;
+    max-width: 90vw;
+    animation: modalCenterFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 #shortcuts-modal.active {
     display: flex;
+}
+
+@keyframes modalCenterFadeIn {
+    from { opacity: 0; transform: translate(-50%, calc(-50% + 14px)) scale(0.96); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
 .shortcut-row {
@@ -1401,23 +1467,25 @@ body {
 }
 
 .layer-apply-btn {
-    background: linear-gradient(135deg, #6366f1, #4f46e5);
-    border: none;
+    background: rgba(99, 102, 241, 0.28);
+    border: 1px solid rgba(99, 102, 241, 0.5);
     border-radius: 0.5rem;
     padding: 0.6rem;
     color: #fff;
     font-size: 0.75rem;
-    font-weight: 700;
+    font-weight: 600;
+    font-family: inherit;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     text-align: center;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.25);
 }
 
 .layer-apply-btn:hover {
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.5);
-    background: linear-gradient(135deg, #6e70f4, #5850ec);
+    box-shadow: 0 0 16px rgba(99, 102, 241, 0.45);
+    background: rgba(99, 102, 241, 0.42);
+    border-color: rgba(99, 102, 241, 0.75);
 }
 
 /* Export action buttons (Screenshots, Cluster CSV, Swarm Plots) */
@@ -1425,25 +1493,26 @@ body {
 #swarm-chart-dialog .layer-apply-btn,
 #screenshot-preview-dialog .layer-apply-btn,
 #cluster-csv-dialog .layer-apply-btn {
-    background: rgba(15, 23, 42, 0.88);
-    border: 1.5px solid #6366f1;
+    background: rgba(99, 102, 241, 0.22);
+    border: 1px solid rgba(99, 102, 241, 0.48);
     border-radius: 0.5rem;
-    padding: 0.6rem;
+    padding: 0.55rem 1.1rem;
     color: #ffffff;
     font-size: 0.75rem;
-    font-weight: 700;
+    font-weight: 600;
+    font-family: inherit;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     text-align: center;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
 
 #export-modal .layer-apply-btn:hover:not(:disabled),
 #swarm-chart-dialog .layer-apply-btn:hover:not(:disabled),
 #screenshot-preview-dialog .layer-apply-btn:hover:not(:disabled),
 #cluster-csv-dialog .layer-apply-btn:hover:not(:disabled) {
-    background: rgba(99, 102, 241, 0.22);
-    border-color: #818cf8;
+    background: rgba(99, 102, 241, 0.38);
+    border-color: rgba(99, 102, 241, 0.75);
     color: #ffffff;
     transform: translateY(-1px);
     box-shadow: 0 0 16px rgba(99, 102, 241, 0.45);
@@ -1453,7 +1522,7 @@ body {
 #swarm-chart-dialog .layer-apply-btn:active:not(:disabled),
 #screenshot-preview-dialog .layer-apply-btn:active:not(:disabled),
 #cluster-csv-dialog .layer-apply-btn:active:not(:disabled) {
-    transform: translateY(0);
+    transform: scale(0.98);
 }
 
 #export-modal .layer-apply-btn:disabled,
@@ -1461,12 +1530,107 @@ body {
 #swarm-chart-dialog .layer-apply-btn:disabled,
 #screenshot-preview-dialog .layer-apply-btn:disabled,
 #cluster-csv-dialog .layer-apply-btn:disabled {
-    background: rgba(15, 23, 42, 0.55) !important;
-    border-color: #64748b !important;
-    color: rgba(255, 255, 255, 0.4) !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: rgba(255, 255, 255, 0.35) !important;
     cursor: not-allowed !important;
     transform: none !important;
     box-shadow: none !important;
+}
+
+/* Unified Dialog Button Classes (Filter Menu Design System) */
+.btn-dialog-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.85);
+    border-radius: 0.5rem;
+    padding: 0.55rem 1.2rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.btn-dialog-secondary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.32);
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+.btn-dialog-secondary:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.btn-dialog-primary {
+    background: rgba(99, 102, 241, 0.28);
+    border: 1px solid rgba(99, 102, 241, 0.55);
+    color: #ffffff;
+    border-radius: 0.5rem;
+    padding: 0.55rem 1.3rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.btn-dialog-primary:hover:not(:disabled) {
+    background: rgba(99, 102, 241, 0.45);
+    border-color: rgba(99, 102, 241, 0.8);
+    box-shadow: 0 0 16px rgba(99, 102, 241, 0.5);
+    transform: translateY(-1px);
+}
+
+.btn-dialog-primary:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.btn-dialog-zip {
+    background: rgba(16, 185, 129, 0.22);
+    border: 1px solid rgba(16, 185, 129, 0.55);
+    color: #6ee7b7;
+    border-radius: 0.5rem;
+    padding: 0.55rem 1.3rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.btn-dialog-zip:hover:not(:disabled) {
+    background: rgba(16, 185, 129, 0.38);
+    border-color: rgba(52, 211, 153, 0.8);
+    color: #ffffff;
+    box-shadow: 0 0 16px rgba(16, 185, 129, 0.45);
+    transform: translateY(-1px);
+}
+
+.btn-dialog-zip:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.btn-cluster-item-lock {
+    border-radius: 0.35rem;
+    font-size: 0.62rem;
+    padding: 0.2rem 0.45rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 600;
+    font-family: inherit;
 }
 
 .layer-toggle-btn {

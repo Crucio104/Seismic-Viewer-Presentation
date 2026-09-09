@@ -13,7 +13,7 @@
         </div>
         <button id="swarm-next-btn" class="btn-circle-nav" title="Next Swarm (→)" style="width:1.8rem; height:1.8rem; font-size:0.85rem;">❯</button>
     </div>
-    <div id="history-controls" style="display:none; padding: 0.35rem; flex-direction:row; gap:0.35rem;">
+    <div id="history-controls" class="glass-panel" style="display:none; align-items:center; padding: 0.3rem 0.45rem; border-radius:0.75rem; flex-direction:row; gap:0.35rem;">
         <button id="history-back-btn" class="btn-circle-nav" onclick="historyGoBack()" title="Go Back">↺</button>
         <button id="history-forward-btn" class="btn-circle-nav" onclick="historyGoForward()" title="Go Forward">↻</button>
     </div>
@@ -79,26 +79,26 @@
 
 <div id="camera-controls" class="glass-panel">
     <div class="label" style="text-align: center; margin-bottom: 0.500rem;">Camera</div>
-    <button class="btn-cam" id="btn-cinema" onclick="toggleCinemaMode()" title="Auto-rotation (C)">
+    <button class="btn-cam cam-3d-only" id="btn-cinema" onclick="toggleCinemaMode()" title="Auto-rotation (C)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M23 7l-7 5 7 5V7z" />
             <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
         </svg>
         Auto-rotation
     </button>
-    <button class="btn-cam" onclick="snapToView('top')" title="Top View (T)">
+    <button class="btn-cam" id="btn-cam-top" onclick="snapToView('top')" title="Top View (T)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 12l-9-9-9 9M12 3v18" />
         </svg>
         Top View
     </button>
-    <button class="btn-cam" onclick="snapToView('side')" title="Side View (S)">
+    <button class="btn-cam cam-3d-only" id="btn-cam-side" onclick="snapToView('side')" title="Side View (S)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 1v22M17 5l-5-5-5 5" />
         </svg>
         Side View
     </button>
-    <button class="btn-cam" onclick="snapToView('reset')" title="Reset Camera (R)">
+    <button class="btn-cam" id="btn-cam-reset" onclick="snapToView('reset')" title="Reset Camera (R)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
             <path d="M3 3v5h5" />
@@ -185,7 +185,7 @@
             Take Screenshot (.PNG)
         </button>
         <button class="layer-apply-btn" id="btn-export-clusters" onclick="SeismicUI.exportClustersCSV()" style="margin-top: 0.25rem;">
-            Export Clusters (.CSV)
+            Export Clusters (.CSV / .ZIP)
         </button>
         <button class="layer-apply-btn" id="btn-export-swarm-chart" onclick="SeismicUI.openSwarmChartDialog()" style="display: none; margin-top: 0.25rem;">
             Export Swarm Chart (.PNG)
@@ -205,10 +205,10 @@
                 <img id="swarm-chart-preview-img" class="swarm-chart-img" alt="Swarm Magnitude vs Time Chart Preview">
             </div>
             <div class="swarm-chart-footer">
-                <button type="button" class="layer-toggle-btn visible" onclick="SeismicUI.closeSwarmChartDialog()" style="background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.85); padding: 0.55rem 1.1rem;">
+                <button type="button" class="btn-dialog-secondary" onclick="SeismicUI.closeSwarmChartDialog()">
                     Cancel
                 </button>
-                <button type="button" class="layer-apply-btn" onclick="SeismicUI.downloadSwarmChart()" style="padding: 0.55rem 1.3rem; display: flex; align-items: center; gap: 0.4rem;">
+                <button type="button" class="btn-dialog-primary" onclick="SeismicUI.downloadSwarmChart()">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                     Download
                 </button>
@@ -229,10 +229,10 @@
                 <img id="screenshot-preview-img" class="export-preview-img" alt="Screenshot Preview">
             </div>
             <div class="export-preview-footer">
-                <button type="button" class="layer-toggle-btn visible" onclick="SeismicUI.closeScreenshotPreview()" style="background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.85); padding: 0.55rem 1.1rem;">
+                <button type="button" class="btn-dialog-secondary" onclick="SeismicUI.closeScreenshotPreview()">
                     Cancel
                 </button>
-                <button type="button" class="layer-apply-btn" onclick="SeismicUI.downloadScreenshot()" style="padding: 0.55rem 1.3rem; display: flex; align-items: center; gap: 0.4rem;">
+                <button type="button" class="btn-dialog-primary" onclick="SeismicUI.downloadScreenshot()">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                     Download
                 </button>
@@ -271,37 +271,42 @@
                 </table>
             </div>
             <div class="export-preview-footer">
-                <button type="button" class="layer-toggle-btn visible" onclick="SeismicUI.closeClusterCsvDialog()" style="background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.85); padding: 0.55rem 1.1rem;">
+                <button type="button" class="btn-dialog-secondary" onclick="SeismicUI.closeClusterCsvDialog()">
                     Cancel
                 </button>
-                <button type="button" class="layer-apply-btn" onclick="SeismicUI.downloadClustersCSV()" style="padding: 0.55rem 1.3rem; display: flex; align-items: center; gap: 0.4rem;">
+                <button type="button" class="btn-dialog-primary" id="btn-download-selected-cluster" onclick="SeismicUI.downloadSelectedClusterCSV()">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                    Download
+                    <span id="btn-download-selected-label">Download Selected (.csv)</span>
+                </button>
+                <button type="button" class="btn-dialog-zip" id="btn-download-all-zip" onclick="SeismicUI.downloadAllClustersZIP()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    <span id="btn-download-zip-label">Download All (.zip)</span>
                 </button>
             </div>
         </div>
     </div>
     <div id="shortcuts-modal" onclick="event.stopPropagation()">
-        <div class="label" style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.7rem; font-weight: 700; color: #fff;">
-            Keyboard Shortcuts
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.45rem; margin-bottom: 0.3rem;">
+            <span style="font-size: 0.8rem; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: 0.04rem;">Keyboard Shortcuts</span>
+            <button type="button" onclick="SeismicUI?.toggleShortcutsModal(event, true)" style="background: transparent; border: none; color: rgba(255,255,255,0.6); font-size: 1.15rem; cursor: pointer; padding: 0 0.3rem; border-radius: 0.35rem; line-height: 1; transition: color 0.15s ease;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.6)'" title="Close (Esc)">✕</button>
         </div>
         <div class="shortcut-row">
             <span>Play / Pause Animation</span>
             <span class="shortcut-key">Space</span>
         </div>
         <div class="shortcut-row">
-            <span>Reset 3D Camera</span>
+            <span>Reset Camera / View</span>
             <span class="shortcut-key">R</span>
         </div>
         <div class="shortcut-row">
             <span>Top-Down View</span>
             <span class="shortcut-key">T</span>
         </div>
-        <div class="shortcut-row">
+        <div class="shortcut-row" id="shortcut-row-side">
             <span>Side View</span>
             <span class="shortcut-key">S</span>
         </div>
-        <div class="shortcut-row">
+        <div class="shortcut-row" id="shortcut-row-cinema">
             <span>Auto-rotation (Cinema Mode)</span>
             <span class="shortcut-key">C</span>
         </div>
@@ -1510,6 +1515,7 @@
             }
 
             this.renderClusterPreviewTable();
+            this.updateClusterExportButtons();
 
             const dialog = document.getElementById('cluster-csv-dialog');
             if (dialog) dialog.classList.add('active');
@@ -1529,6 +1535,22 @@
                 });
             }
             this.renderClusterPreviewTable();
+            this.updateClusterExportButtons();
+        },
+
+        updateClusterExportButtons() {
+            if (!this._pendingClusterPayload || !this._pendingClusterPayload.clusters) return;
+            const clusters = this._pendingClusterPayload.clusters;
+            const currentCluster = clusters[this._activeClusterTabIdx];
+            const selLabel = document.getElementById('btn-download-selected-label');
+            if (selLabel && currentCluster) {
+                const fname = currentCluster.filename || `cluster_${this._activeClusterTabIdx}.csv`;
+                selLabel.textContent = `Download ${fname}`;
+            }
+            const zipLabel = document.getElementById('btn-download-zip-label');
+            if (zipLabel) {
+                zipLabel.textContent = `Download All (${clusters.length} .zip)`;
+            }
         },
 
         renderClusterPreviewTable() {
@@ -1602,20 +1624,30 @@
             if (dialog) dialog.classList.remove('active');
         },
 
-        async downloadClustersCSV() {
+        async downloadSelectedClusterCSV() {
             if (!this._pendingClusterPayload || !this._pendingClusterPayload.clusters) {
                 showStatusToast("No cluster data to export.", false);
                 return;
             }
-            if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.export_clusters_csv) {
+            const currentCluster = this._pendingClusterPayload.clusters[this._activeClusterTabIdx];
+            if (!currentCluster) {
+                showStatusToast("Selected cluster not found.", false);
+                return;
+            }
+            if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.export_single_cluster_csv) {
                 showStatusToast("Export API not available.", false);
                 return;
             }
             try {
-                // Direct call without full-screen loading screen
-                const res = await window.pywebview.api.export_clusters_csv(this._pendingClusterPayload);
+                const payload = {
+                    filename: currentCluster.filename,
+                    indices: currentCluster.indices,
+                    method: this._pendingClusterPayload.method,
+                    params: this._pendingClusterPayload.params
+                };
+                const res = await window.pywebview.api.export_single_cluster_csv(payload);
                 if (res && res.status === 'success') {
-                    showStatusToast(`Exported ${res.count} cluster CSV files successfully!`, true, 4000);
+                    showStatusToast(`Saved ${res.filename} successfully!`, true, 4000);
                     this.closeClusterCsvDialog();
                 } else if (res && res.status === 'cancelled') {
                     showStatusToast("Export cancelled.", true);
@@ -1623,9 +1655,39 @@
                     showStatusToast("Error: " + (res ? res.message : "Unknown error"), false);
                 }
             } catch (err) {
-                console.error("Export failed:", err);
+                console.error("Single CSV export failed:", err);
                 showStatusToast("Export failed: " + err, false);
             }
+        },
+
+        async downloadAllClustersZIP() {
+            if (!this._pendingClusterPayload || !this._pendingClusterPayload.clusters) {
+                showStatusToast("No cluster data to export.", false);
+                return;
+            }
+            if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.export_clusters_zip) {
+                showStatusToast("ZIP Export API not available.", false);
+                return;
+            }
+            try {
+                const res = await window.pywebview.api.export_clusters_zip(this._pendingClusterPayload);
+                if (res && res.status === 'success') {
+                    showStatusToast(`Exported all ${res.count} clusters to ZIP archive successfully!`, true, 4000);
+                    this.closeClusterCsvDialog();
+                } else if (res && res.status === 'cancelled') {
+                    showStatusToast("Export cancelled.", true);
+                } else {
+                    showStatusToast("Error: " + (res ? res.message : "Unknown error"), false);
+                }
+            } catch (err) {
+                console.error("ZIP export failed:", err);
+                showStatusToast("ZIP export failed: " + err, false);
+            }
+        },
+
+        downloadClustersCSV() {
+            // Backward compatibility alias for single cluster download
+            this.downloadSelectedClusterCSV();
         },
 
         _activeSwarmChartDataUrl: null,
@@ -3517,22 +3579,7 @@
         }
     };
 
-    window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            const swarmChartDialog = document.getElementById('swarm-chart-dialog');
-            if (swarmChartDialog && swarmChartDialog.classList.contains('active')) {
-                swarmChartDialog.classList.remove('active');
-            }
-            const screenshotDialog = document.getElementById('screenshot-preview-dialog');
-            if (screenshotDialog && screenshotDialog.classList.contains('active')) {
-                screenshotDialog.classList.remove('active');
-            }
-            const clusterCsvDialog = document.getElementById('cluster-csv-dialog');
-            if (clusterCsvDialog && clusterCsvDialog.classList.contains('active')) {
-                clusterCsvDialog.classList.remove('active');
-            }
-        }
-    });
+
 
     // Manual loader control only. Templates must call hideInitLoader() explicitly.
 
@@ -3766,22 +3813,24 @@
             plotlyPollInterval = null;
         }
 
-        // Show camera controls if we know it's a 3D view or if we found a scene
-        if (window.IS_3D_VIEW) {
-            const controls = document.getElementById('camera-controls');
-            if (controls) controls.style.display = 'flex';
-        } else if (plotlyId) {
-            const gd = document.getElementById(plotlyId);
-            if (gd && gd.layout && gd.layout.scene) {
-                const controls = document.getElementById('camera-controls');
-                if (controls) controls.style.display = 'flex';
-            } else {
-                const sRow = document.getElementById('shortcut-row-vectors');
-                if (sRow) sRow.style.display = 'none';
+        // Camera controls: show glass camera panel in both 2D and 3D views
+        const controls = document.getElementById('camera-controls');
+        if (controls) {
+            controls.style.display = 'flex';
+            const gd = plotlyId ? document.getElementById(plotlyId) : null;
+            const is3D = Boolean(window.IS_3D_VIEW || (gd && gd.layout && gd.layout.scene));
+            const cam3dOnlyEls = controls.querySelectorAll('.cam-3d-only');
+            cam3dOnlyEls.forEach(el => {
+                el.style.display = is3D ? 'flex' : 'none';
+            });
+            if (!is3D) {
+                const sRowV = document.getElementById('shortcut-row-vectors');
+                if (sRowV) sRowV.style.display = 'none';
+                const sRowC = document.getElementById('shortcut-row-cinema');
+                if (sRowC) sRowC.style.display = 'none';
+                const sRowS = document.getElementById('shortcut-row-side');
+                if (sRowS) sRowS.style.display = 'none';
             }
-        } else {
-            const sRow = document.getElementById('shortcut-row-vectors');
-            if (sRow) sRow.style.display = 'none';
         }
     }
 
@@ -3870,7 +3919,41 @@
         if (cinemaModeActive && view !== 'reset' && view !== 'cinema_reset') toggleCinemaMode(); // Stop cinema mode on manual snap
         if (!plotlyId) findPlotlyGraph();
         const gd = document.getElementById(plotlyId);
-        if (!gd || !gd.layout || !gd.layout.scene) return Promise.resolve();
+        if (!gd || !gd.layout) return Promise.resolve();
+
+        // 2D Mapbox / Map layout support
+        const mapLayout = gd.layout.mapbox || gd.layout.map;
+        if (mapLayout) {
+            if (view === 'reset') {
+                const initView = window._initial2DMapboxView;
+                if (initView) {
+                    const update = gd.layout.mapbox ? {
+                        'mapbox.center': initView.center,
+                        'mapbox.zoom': initView.zoom,
+                        'mapbox.pitch': 0,
+                        'mapbox.bearing': 0
+                    } : {
+                        'map.center': initView.center,
+                        'map.zoom': initView.zoom,
+                        'map.pitch': 0,
+                        'map.bearing': 0
+                    };
+                    return Plotly.relayout(gd, update);
+                }
+            } else if (view === 'top') {
+                const update = gd.layout.mapbox ? {
+                    'mapbox.pitch': 0,
+                    'mapbox.bearing': 0
+                } : {
+                    'map.pitch': 0,
+                    'map.bearing': 0
+                };
+                return Plotly.relayout(gd, update);
+            }
+            return Promise.resolve();
+        }
+
+        if (!gd.layout.scene) return Promise.resolve();
 
         return new Promise((resolve) => {
 
@@ -4029,13 +4112,13 @@
                 }
             }
         }
-        // R / r: Reset Camera (default 3D orientation)
+        // R / r: Reset Camera / View
         else if (e.key === 'r' || e.key === 'R') {
             if (!e.ctrlKey && !e.metaKey && !e.altKey) {
                 e.preventDefault();
                 if (typeof snapToView === 'function') {
                     snapToView('reset');
-                    showStatusToast('Camera reset to default 3D', true);
+                    showStatusToast(window.IS_3D_VIEW ? 'Camera reset to default 3D' : 'View reset to default', true);
                 }
             }
         }
@@ -4110,15 +4193,36 @@
         // Esc: Close any active popup/modal or return to Hub
         else if (e.key === 'Escape') {
             e.preventDefault();
-            const activeModal = document.querySelector(
-                '#shortcuts-modal.active, #export-modal.active, #layer-modal.active, #info-panel.show, .glass-menu.show'
-            );
-            if (activeModal) {
-                if (typeof SeismicUI !== 'undefined' && SeismicUI.closeBottomLeftPopups) {
-                    SeismicUI.closeBottomLeftPopups();
+            const dialogModals = [
+                document.getElementById('swarm-chart-dialog'),
+                document.getElementById('screenshot-preview-dialog'),
+                document.getElementById('cluster-csv-dialog'),
+                document.getElementById('shortcuts-modal'),
+                document.getElementById('export-modal'),
+                document.getElementById('layer-modal')
+            ];
+            let closedAny = false;
+            for (const d of dialogModals) {
+                if (d && (d.classList.contains('active') || d.classList.contains('show'))) {
+                    d.classList.remove('active');
+                    d.classList.remove('show');
+                    closedAny = true;
                 }
-                document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
-            } else if (typeof transitionToHub === 'function') {
+            }
+            const activePopup = document.querySelector('#info-panel.show, .glass-menu.show');
+            if (activePopup) {
+                closedAny = true;
+            }
+            if (typeof SeismicUI !== 'undefined' && SeismicUI.closeBottomLeftPopups) {
+                SeismicUI.closeBottomLeftPopups();
+            }
+            document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
+
+            if (closedAny) {
+                return;
+            }
+
+            if (typeof transitionToHub === 'function') {
                 transitionToHub();
             } else if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.go_back === 'function') {
                 window.pywebview.api.go_back();
