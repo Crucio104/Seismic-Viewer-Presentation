@@ -8,9 +8,9 @@
 \contentsline {table}{\numberline {3.2}{\ignorespaces Binary buffer layout (Float32).}}{15}{table.caption.23}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
+\contentsline {table}{\numberline {5.1}{\ignorespaces Comparison of spatial clustering approaches in Seismic Viewer.}}{22}{table.caption.27}%
+\contentsline {table}{\numberline {5.2}{\ignorespaces Asymptotic time and space complexity of the analytical methods.}}{25}{table.caption.30}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {6.1}{\ignorespaces Comparison of spatial clustering approaches in Seismic Viewer.}}{34}{table.caption.38}%
-\contentsline {table}{\numberline {6.2}{\ignorespaces Asymptotic time and space complexity of the analytical methods.}}{37}{table.caption.41}%
 \addvspace {10\p@ }
 \contentsline {table}{\numberline {7.1}{\ignorespaces Serialization benchmark: JSON vs. Float32 Binary buffer.}}{42}{table.caption.51}%
 \contentsline {table}{\numberline {7.2}{\ignorespaces Clustering execution latency benchmark across dataset scales.}}{42}{table.caption.52}%
