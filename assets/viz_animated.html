@@ -355,8 +355,70 @@
             let startIdx = 0;
             let animId = null;
 
-            const dates = quakeData.frame_dates || quakeData.unique_dates;
-            slider.max = dates.length - 1;
+            const isSwarmMode = (quakeData.anim_mode === 'swarm');
+            const swarmsList = quakeData.swarms || [];
+            let currentSwarmIdx = 0;
+            let currentSwarm = swarmsList.length > 0 ? swarmsList[0] : null;
+
+            const dates = quakeData.frame_dates || quakeData.unique_dates || [];
+
+            function updateSwarmNavUI() {
+                if (!isSwarmMode || !currentSwarm) return;
+                const prevBtn = document.getElementById('swarm-prev-btn');
+                const nextBtn = document.getElementById('swarm-next-btn');
+                const titleEl = document.getElementById('swarm-title');
+                const subEl = document.getElementById('swarm-subtitle');
+                if (prevBtn) prevBtn.disabled = (currentSwarmIdx <= 0);
+                if (nextBtn) nextBtn.disabled = (currentSwarmIdx >= swarmsList.length - 1);
+                if (titleEl) titleEl.textContent = `Swarm ${currentSwarmIdx + 1} / ${swarmsList.length}`;
+                if (subEl) subEl.textContent = `${currentSwarm.event_count} events • Max Md ${currentSwarm.max_mag.toFixed(1)}`;
+            }
+
+            async function switchSwarm(newIdx) {
+                if (!isSwarmMode || newIdx < 0 || newIdx >= swarmsList.length) return;
+                if (isPlaying) pause();
+                currentSwarmIdx = newIdx;
+                currentSwarm = swarmsList[currentSwarmIdx];
+                currentStepIdx = 0;
+                slider.min = 0;
+                slider.max = Math.max(0, currentSwarm.event_count - 1);
+                slider.value = 0;
+                updateSwarmNavUI();
+                renderHistogram();
+                await updateView(0);
+                const initialTitle = currentMode === 'dep' ? 'Depth (KM)' : (currentMode === 'mag' ? 'Magnitude' : 'Date');
+                const initialLimits = currentMode === 'dep' ? (quakeData.dep_range || [0, 100]) : (currentMode === 'mag' ? (quakeData.mag_range || [0, 10]) : (quakeData.date_range || [0, 1]));
+                updateGlassLegend(true, initialTitle, currentColorScale, invertScale, initialLimits, { startDate: quakeData.start_date });
+            }
+
+            if (isSwarmMode) {
+                slider.min = 0;
+                slider.max = currentSwarm ? Math.max(0, currentSwarm.event_count - 1) : 0;
+                const jumpBar = document.getElementById('jump-bar');
+                if (jumpBar) jumpBar.style.display = 'none';
+                const swarmNav = document.getElementById('swarm-nav');
+                if (swarmNav) swarmNav.style.display = 'flex';
+                updateSwarmNavUI();
+
+                const swarmPrevBtn = document.getElementById('swarm-prev-btn');
+                const swarmNextBtn = document.getElementById('swarm-next-btn');
+                if (swarmPrevBtn) swarmPrevBtn.onclick = () => switchSwarm(currentSwarmIdx - 1);
+                if (swarmNextBtn) swarmNextBtn.onclick = () => switchSwarm(currentSwarmIdx + 1);
+
+                window.addEventListener('keydown', (e) => {
+                    if (isSwarmMode) {
+                        if (e.key === 'ArrowLeft' && (e.altKey || e.ctrlKey)) {
+                            e.preventDefault();
+                            switchSwarm(currentSwarmIdx - 1);
+                        } else if (e.key === 'ArrowRight' && (e.altKey || e.ctrlKey)) {
+                            e.preventDefault();
+                            switchSwarm(currentSwarmIdx + 1);
+                        }
+                    }
+                });
+            } else {
+                slider.max = dates.length - 1;
+            }
             if (jumpDate) {
                 jumpDate.value = formatDate(dates[0]);
                 jumpDate.addEventListener('input', (e) => {
@@ -488,8 +550,9 @@
             let pendingUpdateIdx = null;
 
             async function updateView(idx) {
+                const totalFrames = (isSwarmMode && currentSwarm) ? currentSwarm.event_count : dates.length;
                 if (idx < 0) idx = 0;
-                if (idx >= dates.length) idx = dates.length - 1;
+                if (totalFrames > 0 && idx >= totalFrames) idx = totalFrames - 1;
 
                 if (isRendering) {
                     pendingUpdateIdx = idx;
@@ -509,10 +572,26 @@
             }
 
             async function _doUpdateView(idx) {
+                const totalFrames = (isSwarmMode && currentSwarm) ? currentSwarm.event_count : dates.length;
                 if (idx < 0) idx = 0;
-                if (idx >= dates.length) idx = dates.length - 1;
+                if (totalFrames > 0 && idx >= totalFrames) idx = totalFrames - 1;
                 
-                const [start, end] = getActiveRange(idx);
+                let start = 0, end = 0;
+                let activeIndices = [];
+                if (isSwarmMode && currentSwarm) {
+                    for (let s = 0; s <= idx; s++) {
+                        const gIdx = currentSwarm.indices[s];
+                        if (gIdx !== undefined && gIdx >= 0 && gIdx < quakeData.lon.length) {
+                            activeIndices.push(gIdx);
+                        }
+                    }
+                } else {
+                    const range = getActiveRange(idx);
+                    start = range[0];
+                    end = range[1];
+                    for (let i = start; i < end; i++) activeIndices.push(i);
+                }
+
                 const magMin = appliedMagMin;
                 const magMax = appliedMagMax;
                 const depMin = appliedDepMin;
@@ -542,7 +621,8 @@
                 if (!window._animDateCache) window._animDateCache = new Map();
                 const animDateCache = window._animDateCache;
 
-                for (let i = start; i < end; i++) {
+                for (let k = 0; k < activeIndices.length; k++) {
+                    const i = activeIndices[k];
                     const m = quakeData.mag[i];
                     const d = quakeData.dep[i];
                     const absD = Math.abs(d);
@@ -567,7 +647,7 @@
 
                         let lbl = -1;
                         if (clusterData && clusterData.labels) {
-                            lbl = clusterData.labels[i - start];
+                            lbl = clusterData.labels[k];
                         }
                         filteredLabels.push(lbl);
                         sliceHover.push(hText);
@@ -759,9 +839,14 @@
                         Plotly.addTraces(gd, planeTraces);
                     }
 
-                    dateDisplay.textContent = formatDate(dates[idx]);
-                    if (jumpDate && document.activeElement !== jumpDate) {
-                        jumpDate.value = formatDate(dates[idx]);
+                    if (isSwarmMode && currentSwarm) {
+                        const evTime = currentSwarm.times[idx] || '';
+                        dateDisplay.textContent = evTime;
+                    } else {
+                        dateDisplay.textContent = formatDate(dates[idx]);
+                        if (jumpDate && document.activeElement !== jumpDate) {
+                            jumpDate.value = formatDate(dates[idx]);
+                        }
                     }
                     slider.value = idx;
 
@@ -788,13 +873,55 @@
                         );
                     }
 
-                    const dayEnd = quakeData.date_to_cum[dates[idx]];
-                    const dayStart = (idx > 0) ? quakeData.date_to_cum[dates[idx-1]] : 0;
-                    updateHUD(start, end, dayStart, dayEnd);
+                    if (isSwarmMode && currentSwarm) {
+                        const sIndices = currentSwarm.indices.slice(0, idx + 1);
+                        const curMag = sIndices.map(i => quakeData.mag[i]);
+                        const curDep = sIndices.map(i => quakeData.dep[i]);
+                        const lastMag = (idx >= 0 && idx < currentSwarm.mags.length) ? [currentSwarm.mags[idx]] : [];
+                        updateHUDArrays(curMag, curDep, lastMag);
+                    } else {
+                        const dayEnd = quakeData.date_to_cum[dates[idx]];
+                        const dayStart = (idx > 0) ? quakeData.date_to_cum[dates[idx-1]] : 0;
+                        updateHUD(start, end, dayStart, dayEnd);
+                    }
+                }).catch(err => {
+                    console.warn("Plotly restyle warning in animation frame:", err);
+                    // Ensure legend is still rendered even if restyle caught an error
+                    updateGlassLegend(
+                        true,
+                        barTitle,
+                        currentColorScale,
+                        invertScale,
+                        limits,
+                        { startDate: quakeData.start_date }
+                    );
                 });
             }
 
             function renderHistogram() {
+                if (isSwarmMode && currentSwarm) {
+                    histogramMap.style.display = 'flex';
+                    histogramMap.style.gap = currentSwarm.event_count > 50 ? '0' : '0.12rem';
+                    histogramMap.innerHTML = '';
+                    const maxM = Math.max(0.1, currentSwarm.max_mag);
+                    for (let i = 0; i < currentSwarm.event_count; i++) {
+                        const m = currentSwarm.mags[i];
+                        const t = currentSwarm.times[i];
+                        const bar = document.createElement('div');
+                        bar.className = 'hist-bar';
+                        const h = Math.max(8, Math.min(100, (Math.max(0, m) / maxM) * 100));
+                        bar.style.height = `${h}%`;
+                        bar.title = `Event ${i + 1}/${currentSwarm.event_count}: ${t} (Md ${m.toFixed(1)})`;
+                        bar.onclick = (e) => {
+                            e.stopPropagation();
+                            pause();
+                            updateView(i);
+                        };
+                        histogramMap.appendChild(bar);
+                    }
+                    return;
+                }
+
                 const counts = quakeData.date_counts;
                 if (!counts || counts.length === 0) return;
                 
@@ -839,6 +966,10 @@
                 const sliceMagWindow = quakeData.mag.slice(windowStart, windowEnd);
                 const sliceDepWindow = quakeData.dep.slice(windowStart, windowEnd);
                 const sliceMagFrame = quakeData.mag.slice(frameStart, frameEnd);
+                updateHUDArrays(sliceMagWindow, sliceDepWindow, sliceMagFrame);
+            }
+
+            function updateHUDArrays(sliceMagWindow, sliceDepWindow, sliceMagFrame) {
                 
                 const count = sliceMagWindow.length;
                 if (count === 0) {
@@ -1283,16 +1414,20 @@
                 let durationMs = 1000;
                 let step = Math.max(1, Math.round(speedMult));
 
-                if (quakeData.anim_mode === 'block') {
+                if (isSwarmMode) {
+                    durationMs = Math.max(80, Math.round(500 / speedMult));
+                    step = 1;
+                } else if (quakeData.anim_mode === 'block') {
                     const secPerFrameInput = document.getElementById('sec-per-frame');
                     durationMs = (secPerFrameInput && parseFloat(secPerFrameInput.value)) ? parseFloat(secPerFrameInput.value) * 1000 : 1000;
                     step = 1;
                 }
 
+                const totalFrames = (isSwarmMode && currentSwarm) ? currentSwarm.event_count : dates.length;
                 if (performance.now() - lastFrameTime >= durationMs) {
                     let targetIdx = currentStepIdx + step;
                     
-                    if (targetIdx < dates.length) {
+                    if (targetIdx < totalFrames) {
                         try {
                             await updateView(targetIdx);
                         } catch (e) {
@@ -1302,9 +1437,9 @@
                         }
                         slider.value = currentStepIdx;
                     } else {
-                        if (currentStepIdx !== dates.length - 1) {
+                        if (currentStepIdx !== totalFrames - 1) {
                             try {
-                                await updateView(dates.length - 1);
+                                await updateView(totalFrames - 1);
                             } catch (e) {
                                 console.error("Animation loop error:", e);
                             }
@@ -1324,7 +1459,8 @@
                     'camera-controls',
                     'glass-legend', 'legend-container', 'cluster-list', 'btn-swap-legend',
                     'back-btn', 'info-btn', 'overlay-btn', 'screenshot-btn',
-                    'btn-export-clusters'
+                    'btn-export-clusters',
+                    'swarm-prev-btn', 'swarm-next-btn'
                 ];
                 elementsToLock.forEach(id => {
                     const el = document.getElementById(id);
@@ -1346,7 +1482,8 @@
                 playBtn.classList.add('active');
                 pauseBtn.classList.remove('active');
                 
-                if (currentStepIdx >= dates.length - 1) {
+                const totalFrames = (isSwarmMode && currentSwarm) ? currentSwarm.event_count : dates.length;
+                if (currentStepIdx >= totalFrames - 1) {
                     currentStepIdx = 0;
                     try {
                         await updateView(0);
@@ -1653,24 +1790,40 @@
 
             document.getElementById('apply-all-btn').onclick = applyAllChanges;
 
-            // Add the Plane Trace (Trace 4)
-            Plotly.addTraces(gd, {
-                type: 'mesh3d',
-                x: [], y: [], z: [],
-                i: [], j: [], k: [],
-                opacity: 0.8,
-                color: '#00f3ff',
-                name: 'Structural Planes',
-                text: [],
-                hoverinfo: 'text',
-                hoverlabel: { bgcolor: 'rgba(30,30,50,0.9)', font: { color: 'white', size: 12 } },
-                visible: false,
-                lighting: { ambient: 0.9, diffuse: 0.5, specular: 0.1, roughness: 0.9, fresnel: 0.1 },
-                flatshading: true
-            });
+            // Ensure Plane Trace (Trace 4) is present if not already added by Python
+            if (gd.data.length < 5) {
+                Plotly.addTraces(gd, {
+                    type: 'mesh3d',
+                    x: [], y: [], z: [],
+                    i: [], j: [], k: [],
+                    opacity: 0.8,
+                    color: '#00f3ff',
+                    name: 'Structural Planes',
+                    text: [],
+                    hoverinfo: 'text',
+                    hoverlabel: { bgcolor: 'rgba(30,30,50,0.9)', font: { color: 'white', size: 12 } },
+                    visible: false,
+                    lighting: { ambient: 0.9, diffuse: 0.5, specular: 0.1, roughness: 0.9, fresnel: 0.1 },
+                    flatshading: true
+                });
+            }
 
             renderHistogram();
             updateView(0);
+
+            // Explicit initial Glass Legend sync for animated view
+            setTimeout(() => {
+                const initialTitle = currentMode === 'dep' ? 'Depth (KM)' : (currentMode === 'mag' ? 'Magnitude' : 'Date');
+                const initialLimits = currentMode === 'dep' ? (quakeData.dep_range || [0, 100]) : (currentMode === 'mag' ? (quakeData.mag_range || [0, 10]) : (quakeData.date_range || [0, 1]));
+                updateGlassLegend(
+                    true,
+                    initialTitle,
+                    currentColorScale,
+                    invertScale,
+                    initialLimits,
+                    { startDate: quakeData.start_date }
+                );
+            }, 60);
 
             // Show both structural panel and clustering panel in all modes
             document.getElementById('structural-settings-group').style.display = 'block';

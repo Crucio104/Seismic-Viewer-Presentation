@@ -200,6 +200,7 @@ class Api:
                 'event_count': data['summary']['event_count'],
                 'date_range': data['summary']['date_range'],
                 'total_days': data['summary'].get('total_days', 365),
+                'swarms_count': data['summary'].get('swarms_count', 0),
             }
             self._html_cache.clear()
             save_recent_file(path)
@@ -401,6 +402,7 @@ class Api:
                 url = self._make_url(curr_history['viz_id']) + f"?t={int(time.time()*1000)}"
                 if view_style == 4:
                     url += "&subcluster=true"
+                self._inject_dark_overlay()
                 self._window().load_url(url)
                 return
 
@@ -439,6 +441,7 @@ class Api:
             url = self._make_url(viz_id)
             if view_style == 4:
                 url += "?subcluster=true"
+            self._inject_dark_overlay()
             self._window().load_url(url)
             
         except Exception as e:

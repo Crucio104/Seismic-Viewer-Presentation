@@ -42,6 +42,7 @@ class ServerController:
         self.uvicorn_server: uvicorn.Server | None = None
         self.uvicorn_loop: asyncio.AbstractEventLoop | None = None
         self.api_ref: Api | None = None
+        self.port: int = 0
 
     def start(self, api_instance: Api) -> None:
         if self.server_thread is not None:
@@ -52,6 +53,7 @@ class ServerController:
             temp_socket.bind(('127.0.0.1', 0))
             port = temp_socket.getsockname()[1]
 
+        self.port = port
         set_http_port(port)
         app = _create_fastapi_app(self)
 
@@ -207,12 +209,63 @@ def _cleanup() -> None:
 
 atexit.register(_cleanup)
 
+def _patch_edgechromium_background() -> None:
+    """Ensure Edge WebView2 never flashes white during navigation or before rendering."""
+    try:
+        import clr
+        import webview.platforms.edgechromium as edgechromium
+        import System
+        import System.Reflection
+        from System.Drawing import Color
+        from Microsoft.Web.WebView2.WinForms import WebView2
+
+        dark_bg = Color.FromArgb(255, 5, 5, 16)
+        flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public
+        controller_field = clr.GetClrType(WebView2).GetField('_coreWebView2Controller', flags)
+
+        orig_on_webview_ready = edgechromium.EdgeChrome.on_webview_ready
+
+        def patched_on_webview_ready(self, sender, args):
+            orig_on_webview_ready(self, sender, args)
+            if getattr(args, 'IsSuccess', False):
+                try:
+                    sender.DefaultBackgroundColor = dark_bg
+                    sender.BackColor = dark_bg
+                    if hasattr(self, 'form') and self.form:
+                        self.form.BackColor = dark_bg
+                    if controller_field:
+                        ctrl = controller_field.GetValue(sender)
+                        if ctrl:
+                            ctrl.DefaultBackgroundColor = dark_bg
+                except Exception:
+                    pass
+
+                def _on_nav_start(s, e):
+                    try:
+                        sender.DefaultBackgroundColor = dark_bg
+                        if controller_field:
+                            ctrl = controller_field.GetValue(sender)
+                            if ctrl:
+                                ctrl.DefaultBackgroundColor = dark_bg
+                    except Exception:
+                        pass
+
+                sender.NavigationStarting += _on_nav_start
+
+        edgechromium.EdgeChrome.on_webview_ready = patched_on_webview_ready
+    except Exception as e:
+        logger.debug(f"EdgeChromium background color patch skipped: {e}")
+
 def main() -> None:
+    _patch_edgechromium_background()
+
     _win_holder: list[webview.Window] = []
     def win_ref() -> webview.Window: return _win_holder[0]
 
     api = Api(win_ref)
-    start_url = (BASE_DIR / INDEX_REL).absolute().as_uri()
+    server_controller.start(api)
+    port = server_controller.port
+    start_url = f"http://127.0.0.1:{port}/assets/index.html" if port > 0 else (BASE_DIR / INDEX_REL).absolute().as_uri()
     
     window = webview.create_window(
         'Seismic Viewer', url=start_url, js_api=api,
@@ -225,7 +278,7 @@ def main() -> None:
 
     logger.info("Starting Seismic Viewer…")
     try:
-        webview.start(lambda: server_controller.start(api), debug=False)
+        webview.start(debug=False)
     except KeyboardInterrupt:
         pass
 

@@ -5,6 +5,14 @@
 
 <div id="top-left-controls" style="position:fixed; top:1.25rem; left:1.25rem; z-index:99999; display:flex; gap:0.5rem; align-items:center;">
     <button id="back-btn" class="glass-panel" onclick="transitionToHub()">← Hub</button>
+    <div id="swarm-nav" class="glass-panel" style="display:none; align-items:center; gap:0.35rem; padding:0.3rem 0.55rem; border-radius:0.75rem;">
+        <button id="swarm-prev-btn" class="btn-circle-nav" title="Previous Swarm (←)" style="width:1.8rem; height:1.8rem; font-size:0.85rem;">❮</button>
+        <div id="swarm-indicator" style="display:flex; flex-direction:column; align-items:center; padding:0 0.4rem; min-width:6.8rem; user-select:none;">
+            <span id="swarm-title" style="font-size:0.75rem; font-weight:700; color:#fff; white-space:nowrap; letter-spacing:0.02em;">Swarm 1 / 1</span>
+            <span id="swarm-subtitle" style="font-size:0.65rem; color:#94a3b8; white-space:nowrap;">0 events</span>
+        </div>
+        <button id="swarm-next-btn" class="btn-circle-nav" title="Next Swarm (→)" style="width:1.8rem; height:1.8rem; font-size:0.85rem;">❯</button>
+    </div>
     <div id="history-controls" style="display:none; padding: 0.35rem; flex-direction:row; gap:0.35rem;">
         <button id="history-back-btn" class="btn-circle-nav" onclick="historyGoBack()" title="Go Back">↺</button>
         <button id="history-forward-btn" class="btn-circle-nav" onclick="historyGoForward()" title="Go Forward">↻</button>
@@ -204,7 +212,7 @@
             <span>Auto-rotation (Cinema Mode)</span>
             <span class="shortcut-key">C</span>
         </div>
-        <div class="shortcut-row">
+        <div class="shortcut-row" id="shortcut-row-vectors">
             <span>Consecutive Event Vectors</span>
             <span class="shortcut-key">V</span>
         </div>
@@ -445,7 +453,7 @@
             const available = [];
             if (isClustering) available.push('clusters');
             else available.push('earthquakes');
-            if (this._activeConsecutiveArrows) available.push('vectors');
+            if (this._activeConsecutiveArrows && window.IS_3D_VIEW) available.push('vectors');
             if (this._activeTomographyData) available.push('tomo');
             if (this._activeUpliftData) available.push('uplift');
 
@@ -576,7 +584,7 @@
                                     const name = tr.name || '';
                                     if (tr.type === 'scatter3d' && (name === 'Depth' || name === 'Date' || name === 'Magnitude' || name === 'Earthquakes' || (!name.includes('Vectors') && !name.includes('Arrow') && !name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
                                         if (tr.marker) tr.marker.colorscale = pScale;
-                                    } else if (tr.type === 'scattermapbox' && (name.includes('Earthquakes') || (!name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
+                                    } else if ((tr.type === 'scattermapbox' || tr.type === 'scattermap') && (name.includes('Earthquakes') || (!name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
                                         if (tr.marker) tr.marker.colorscale = pScale;
                                     }
                                 }
@@ -633,7 +641,7 @@
                                 const tr = gd.data[i];
                                 if (!tr) continue;
                                 const name = tr.name || '';
-                                if (name.includes('Uplift') && (tr.type === 'surface' || tr.type === 'densitymapbox' || tr.type === 'choroplethmapbox')) {
+                                if (name.includes('Uplift') && (tr.type === 'surface' || tr.type === 'densitymapbox' || tr.type === 'densitymap' || tr.type === 'choroplethmapbox' || tr.type === 'choroplethmap')) {
                                     tr.colorscale = pScale;
                                 }
                             }
@@ -704,7 +712,7 @@
                                     const name = tr.name || '';
                                     if (tr.type === 'scatter3d' && (name === 'Depth' || name === 'Date' || name === 'Magnitude' || name === 'Earthquakes' || (!name.includes('Vectors') && !name.includes('Arrow') && !name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
                                         if (tr.marker) tr.marker.reversescale = inv;
-                                    } else if (tr.type === 'scattermapbox' && (name.includes('Earthquakes') || (!name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
+                                    } else if ((tr.type === 'scattermapbox' || tr.type === 'scattermap') && (name.includes('Earthquakes') || (!name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
                                         if (tr.marker) tr.marker.reversescale = inv;
                                     }
                                 }
@@ -749,7 +757,7 @@
                                 const tr = gd.data[i];
                                 if (!tr) continue;
                                 const name = tr.name || '';
-                                if (name.includes('Uplift') && (tr.type === 'surface' || tr.type === 'densitymapbox' || tr.type === 'choroplethmapbox')) {
+                                if (name.includes('Uplift') && (tr.type === 'surface' || tr.type === 'densitymapbox' || tr.type === 'densitymap' || tr.type === 'choroplethmapbox' || tr.type === 'choroplethmap')) {
                                     tr.reversescale = inv;
                                 }
                             }
@@ -970,6 +978,10 @@
         _consecutiveVectorCount: 0,
 
         toggleConsecutiveArrows(forceState = null) {
+            if (!window.IS_3D_VIEW || (typeof is3D !== 'undefined' && !is3D)) {
+                showStatusToast("Event vectors are only available in 3D views.", false);
+                return;
+            }
             const chk = document.getElementById('event-vectors-check');
             const btn = document.getElementById('btn-consecutive-arrows');
             const gd = document.querySelector('.plotly-graph-div');
@@ -1449,7 +1461,7 @@
             // 2. Applica Uplift e Tomografia se presenti
             if (this._pendingUpliftPath || this._pendingTomoPath || this._pendingStationsPath) {
                 if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.apply_external_layers) return;
-                const isMapbox = gd && (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox') || (gd.layout && gd.layout.mapbox));
+                const isMapbox = gd && (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox' || tr.type === 'scattermap' || tr.type === 'densitymap') || (gd.layout && (gd.layout.mapbox || gd.layout.map)));
                 const loader = document.getElementById('loader');
                 const loaderText = loader ? loader.querySelector('.loader-text') : null;
                 if (loaderText) loaderText.textContent = isMapbox ? 'Applying 2D layers...' : 'Applying 3D layers...';
@@ -1782,7 +1794,7 @@
 
         _setupTomography2DControls(t) {
             const gd = document.querySelector('.plotly-graph-div');
-            const isMapboxView = gd && ((gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox')) || (gd.layout && gd.layout.mapbox));
+            const isMapboxView = gd && ((gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox' || tr.type === 'scattermap' || tr.type === 'densitymap')) || (gd.layout && (gd.layout.mapbox || gd.layout.map)));
             let tomoGroup = document.getElementById('tomo-depth-filter-group');
             let neutralGroup = document.getElementById('tomo-neutral-filter-group');
             const settingsBar = document.getElementById('settings-bar');
@@ -1867,7 +1879,7 @@
             if (!this._activeTomographyData) return;
             const gd = document.querySelector('.plotly-graph-div');
             if (!gd || !gd.data) return;
-            const isMapboxView = (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox')) || (gd.layout && gd.layout.mapbox);
+            const isMapboxView = (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox' || tr.type === 'scattermap' || tr.type === 'densitymap')) || (gd.layout && (gd.layout.mapbox || gd.layout.map));
             if (!isMapboxView) return; // In 3D views, render 3D volumes instead of 2D plane slices
             const t = this._activeTomographyData;
             const lons = t.x || t.lons;
@@ -2959,7 +2971,13 @@
             if (gd && gd.layout && gd.layout.scene) {
                 const controls = document.getElementById('camera-controls');
                 if (controls) controls.style.display = 'flex';
+            } else {
+                const sRow = document.getElementById('shortcut-row-vectors');
+                if (sRow) sRow.style.display = 'none';
             }
+        } else {
+            const sRow = document.getElementById('shortcut-row-vectors');
+            if (sRow) sRow.style.display = 'none';
         }
     }
 
@@ -3250,6 +3268,10 @@
         else if (e.key === 'v' || e.key === 'V' || e.key === 'a' || e.key === 'A') {
             if (!e.ctrlKey && !e.metaKey && !e.altKey) {
                 e.preventDefault();
+                if (!window.IS_3D_VIEW || (typeof is3D !== 'undefined' && !is3D)) {
+                    showStatusToast("Event vectors are only available in 3D views.", false);
+                    return;
+                }
                 const evCheck = document.getElementById('event-vectors-check');
                 if (evCheck) {
                     evCheck.checked = !evCheck.checked;

@@ -84,12 +84,17 @@ def view_2d(
     origin_lon: float | None = None
 ) -> go.Figure:
     """Generate a 2D map view with scatter and density traces."""
-    all_hover = visual_pack.get('hover', []) if visual_pack else []
+    all_hover = visual_pack.get('hover') if visual_pack else None
+    if not all_hover or len(all_hover) != len(latitude):
+        all_hover = None
 
     center_lat = origin_lat if origin_lat is not None else (float(np.mean(latitude)) if len(latitude) > 0 else 0.0)
     center_lon = origin_lon if origin_lon is not None else (float(np.mean(longitude)) if len(longitude) > 0 else 0.0)
 
-    fig = px.scatter_mapbox(
+    scatter_func = getattr(px, 'scatter_map', None) or getattr(px, 'scatter_mapbox')
+    density_cls = getattr(go, 'Densitymap', None) or getattr(go, 'Densitymapbox')
+
+    fig = scatter_func(
         lat=latitude, lon=longitude,
         size=np.maximum(np.array(magnitude), 0.1),
         color=depth if depth is not None else magnitude,
@@ -109,7 +114,7 @@ def view_2d(
         name='Earthquakes (Scatter)'
     )
     
-    fig.add_trace(go.Densitymapbox(
+    fig.add_trace(density_cls(
         lat=latitude, lon=longitude, z=magnitude,
         radius=15, colorscale='Viridis',
         showscale=False, visible=False,
@@ -119,7 +124,10 @@ def view_2d(
     if dates_num is not None:
         fig.data[0].customdata = np.array(dates_num).reshape(-1, 1)
 
-    fig.update_layout(**COMMON_LAYOUT, mapbox_style="open-street-map")
+    if hasattr(px, 'scatter_map'):
+        fig.update_layout(**COMMON_LAYOUT, map_style="open-street-map")
+    else:
+        fig.update_layout(**COMMON_LAYOUT, mapbox_style="open-street-map")
     return fig
 
 def get_3d_static_figure(
@@ -732,6 +740,12 @@ def get_3d_animated_figure(
             name=f'Color: {name}', visible=vis
         ))
 
+    fig.add_trace(go.Mesh3d(
+        x=[], y=[], z=[], i=[], j=[], k=[],
+        opacity=0.8, color='#00f3ff', name='Structural Planes',
+        hoverinfo='text', visible=False, flatshading=True
+    ))
+
     if anim_mode == 'block' and len(unique_dates) > 0:
         d0 = datetime.strptime(unique_dates[0], '%Y-%m-%d')
         d_end = datetime.strptime(unique_dates[-1], '%Y-%m-%d')
@@ -752,6 +766,8 @@ def get_3d_animated_figure(
         frame_dates = unique_dates
         frame_counts = vpack.get('date_counts', [])
 
+    swarms = data.get('swarms', []) if data else []
+
     anim_data = {
         'lon': longitude, 'lat': latitude, 'dep': depth, 'mag': magnitude,
         'dnum': data.get('dates_num', []) if data else [], 'hover': vpack.get('hover', []),
@@ -759,6 +775,8 @@ def get_3d_animated_figure(
         'anim_mode': anim_mode, 'window_days': window_days, 'step_days': step_days, 'mag_range': mag_range,
         'date_range': date_range, 'dep_range': dep_range, 'start_date': times[0][:10] if times else "",
         'date_counts': frame_counts, 'frame_dates': frame_dates, 'bbox': bbox, 'graph_bounds': data.get('graph_bounds') if data else None,
+        'swarms': swarms,
+        'swarms_count': len(swarms),
     }
 
     apply_3d_style(fig, [x_high[0], x_high[-1]], [y_high[-1], y_high[0]], [min_depth, 0])

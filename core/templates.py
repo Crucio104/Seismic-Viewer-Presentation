@@ -51,6 +51,16 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
         default_height='100%'
     )
 
+    if not is_3d:
+        # Compatibility between Plotly Python 7 (generates scattermap/densitymap/map)
+        # and plotly.js v2.32.0 in assets/ (expects scattermapbox/densitymapbox/mapbox)
+        html_content = html_content.replace('"type": "scattermap"', '"type": "scattermapbox"')
+        html_content = html_content.replace('"type":"scattermap"', '"type":"scattermapbox"')
+        html_content = html_content.replace('"type": "densitymap"', '"type": "densitymapbox"')
+        html_content = html_content.replace('"type":"densitymap"', '"type":"densitymapbox"')
+        html_content = html_content.replace('"map": {', '"mapbox": {')
+        html_content = html_content.replace('"map":{', '"mapbox":{')
+
     html_content = _inject_head_assets(html_content, is_subcluster=is_subcluster)
     
     # 1. Prepare Content
@@ -74,8 +84,11 @@ def _inject_head_assets(html: str, is_subcluster: bool = False) -> str:
     """Inject CSS and fonts into the <head>."""
     loader_bg = 'rgba(15, 12, 41, 0.6) !important; backdrop-filter: blur(0.8rem); -webkit-backdrop-filter: blur(0.8rem);' if is_subcluster else '#050510 !important;'
     head_css = (
+        '<meta name="color-scheme" content="dark">'
+        '<meta name="theme-color" content="#050510">'
         '<style>'
-        'html,body,.js-plotly-plot,.plotly-graph-div{background:#050510 !important;margin:0;padding:0;overflow:hidden;height:100%;width:100%}'
+        'html,body,.js-plotly-plot,.plotly-graph-div{background:#050510 !important;background-color:#050510 !important;margin:0;padding:0;overflow:hidden;height:100%;width:100%}'
+        '.plot-container,.svg-container,.mapboxgl-map,.mapboxgl-canvas-container,.mapboxgl-canvas,.maplibregl-map,.maplibregl-canvas,.gl-container,canvas{background:#050510 !important;background-color:#050510 !important;}'
         f'#init-loader{{background:{loader_bg}}}'
         '</style>'
         '<script src="/assets/plotly.min.js"></script>'

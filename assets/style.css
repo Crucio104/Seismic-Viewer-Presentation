@@ -1436,3 +1436,15 @@ body {
 .layer-toggle-btn.visible {
     display: block;
 }
+
+/* Ensure canvas and mapbox containers stay dark during loading */
+.plot-container,
+.svg-container,
+.mapboxgl-map,
+.mapboxgl-canvas-container,
+.mapboxgl-canvas,
+.maplibregl-map,
+.maplibregl-canvas {
+    background: #050510 !important;
+    background-color: #050510 !important;
+}

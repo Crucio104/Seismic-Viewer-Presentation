@@ -169,7 +169,13 @@
 
             const is3D = (gd.layout.scene !== undefined);
             if (!is3D && gd.data.length > 1) viewModeGroup.style.display = 'block';
-            if (!is3D && eventVectorsGroup) eventVectorsGroup.style.display = 'none';
+            if (!is3D && eventVectorsGroup) {
+                eventVectorsGroup.style.display = 'none';
+                if (eventVectorsCheck) {
+                    eventVectorsCheck.checked = false;
+                    eventVectorsCheck.disabled = true;
+                }
+            }
 
              const resetBtn = document.getElementById('reset-camera');
              let initialMapboxView = null;
@@ -177,14 +183,15 @@
              if (!is3D) {
                  resetBtn.style.display = 'flex';
                  document.getElementById('point-size-group').style.display = 'none';
-                 // Store initial view after a small delay to ensure Plotly has initialized mapbox
+                 // Store initial view after a small delay to ensure Plotly has initialized map / mapbox
                  setTimeout(() => {
-                     if (gd.layout.mapbox) {
+                     const mapLayout = gd.layout.mapbox || gd.layout.map;
+                     if (mapLayout) {
                          initialMapboxView = {
-                             center: { ...gd.layout.mapbox.center },
-                             zoom: gd.layout.mapbox.zoom,
-                             pitch: gd.layout.mapbox.pitch || 0,
-                             bearing: gd.layout.mapbox.bearing || 0
+                             center: { ...mapLayout.center },
+                             zoom: mapLayout.zoom,
+                             pitch: mapLayout.pitch || 0,
+                             bearing: mapLayout.bearing || 0
                          };
                      }
                  }, 500);
@@ -229,7 +236,7 @@
                     SeismicUI.setGroupDisabled(colorToggle.closest('.settings-group'), isHeatmap);
                     const invGroup = invertCheck ? (invertCheck.closest('.legend-invert-checkbox') || invertCheck.closest('.glass-checkbox')) : null;
                     if (invGroup) SeismicUI.setGroupDisabled(invGroup, isHeatmap);
-                    applyFilterWithLoader();
+                    applyFilter();
                 });
             }
 
@@ -273,28 +280,29 @@
 
              const filterLoader = document.getElementById('filter-loader');
 
-            // Real-time updates for sliders/inputs
-            [startInput, endInput, magMin, magMax, depMin, depMax].forEach(input => {
-                if (input) {
-                    input.addEventListener('change', () => {
-                        if ((input === startInput || input === endInput) && !window._userExplicitColorSelection) {
-                            currentColorMode = 'date';
-                            if (colorToggle) colorToggle.textContent = 'Date ▾';
-                        }
-                        applyFilterWithLoader();
-                    });
-                    input.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter') {
+            // Real-time updates for sliders/inputs (only for 3D view; 2D view uses the Apply button as in previous repo commits)
+            if (is3D) {
+                [startInput, endInput, magMin, magMax, depMin, depMax].forEach(input => {
+                    if (input) {
+                        input.addEventListener('change', () => {
                             if ((input === startInput || input === endInput) && !window._userExplicitColorSelection) {
                                 currentColorMode = 'date';
                                 if (colorToggle) colorToggle.textContent = 'Date ▾';
                             }
                             applyFilterWithLoader();
-                        }
-                    });
-                }
-            });
-
+                        });
+                        input.addEventListener('keydown', (e) => {
+                            if (e.key === 'Enter') {
+                                if ((input === startInput || input === endInput) && !window._userExplicitColorSelection) {
+                                    currentColorMode = 'date';
+                                    if (colorToggle) colorToggle.textContent = 'Date ▾';
+                                }
+                                applyFilterWithLoader();
+                            }
+                        });
+                    }
+                });
+            }
 
             function applyFilterWithLoader() {
                 if (is3D) {
@@ -319,8 +327,18 @@
                 }, 10);
             } else {
                 applyBtn.style.display = 'flex';
-                applyBtn.onclick = applyFilterWithLoader;
-                applyFilterWithLoader();
+                applyBtn.onclick = applyFilter;
+                // Initial legend update for 2D view
+                setTimeout(() => {
+                    updateGlassLegend(
+                        currentViewMode !== 'heatmap',
+                        currentColorMode === 'dep' ? 'Depth (KM)' : (currentColorMode === 'mag' ? 'Magnitude' : 'Date'),
+                        currentColorScale,
+                        invertScale,
+                        quakeData.dep_limit || quakeData.dep_range,
+                        { startDate: quakeData.start_date }
+                    );
+                }, 50);
             }
 
             function applyFilter() {
@@ -455,45 +473,56 @@
                         const tr = gd.data[i];
                         if (!tr) continue;
                         const name = tr.name || '';
-                        if (tr.type === 'densitymapbox' && (name === 'Heatmap' || name === 'Earthquakes (Heatmap)')) {
+                        const isDensity = (tr.type === 'densitymapbox' || tr.type === 'densitymap');
+                        const isScatter = (tr.type === 'scattermapbox' || tr.type === 'scattermap');
+                        if (isDensity && (name === 'Heatmap' || name === 'Earthquakes (Heatmap)')) {
                             heatmapIdx = i;
-                        } else if (tr.type === 'scattermapbox' && (name === 'Earthquakes (Scatter)' || name === 'Earthquakes' || (!name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia') && name !== 'Heatmap' && name !== 'Earthquakes (Heatmap)'))) {
+                        } else if (isScatter && (name === 'Earthquakes (Scatter)' || name === 'Earthquakes' || (!name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia') && name !== 'Heatmap' && name !== 'Earthquakes (Heatmap)'))) {
                             scatterIdx = i;
                         }
                     }
 
                     if (isHeatmap) {
-                        if (scatterIdx !== -1) Plotly.restyle(gd, { visible: [false] }, [scatterIdx]);
+                        if (scatterIdx !== -1) gd.data[scatterIdx].visible = false;
                         if (heatmapIdx !== -1) {
-                            Plotly.restyle(gd, { lat: [filtered.lat], lon: [filtered.lon], z: [filtered.mag], visible: [true], hovertext: [filtered.hover] }, [heatmapIdx]);
+                            gd.data[heatmapIdx].visible = true;
+                            gd.data[heatmapIdx].lat = filtered.lat;
+                            gd.data[heatmapIdx].lon = filtered.lon;
+                            gd.data[heatmapIdx].z = filtered.mag;
+                            gd.data[heatmapIdx].hovertext = filtered.hover;
                         }
                     } else {
-                        if (heatmapIdx !== -1) Plotly.restyle(gd, { visible: [false] }, [heatmapIdx]);
+                        if (heatmapIdx !== -1) gd.data[heatmapIdx].visible = false;
                         if (scatterIdx !== -1) {
-                            const update = {
-                                lat: [filtered.lat], lon: [filtered.lon],
-                                'marker.size': [markerSizes],
-                                'marker.color': [colorArr],
-                                'marker.cmin': [limits[0]],
-                                'marker.cmax': [limits[1]],
-                                'marker.colorscale': [getPlotlyScale(currentColorScale)],
-                                'marker.coloraxis': [null],
-                                'marker.reversescale': [invertScale],
-                                'marker.showscale': [false],
-                                hovertext: [filtered.hover], visible: [true]
-                            };
+                            gd.data[scatterIdx].visible = true;
+                            gd.data[scatterIdx].lat = filtered.lat;
+                            gd.data[scatterIdx].lon = filtered.lon;
+                            gd.data[scatterIdx].hovertext = filtered.hover;
+                            if (!gd.data[scatterIdx].marker) gd.data[scatterIdx].marker = {};
+                            gd.data[scatterIdx].marker.size = markerSizes;
+                            gd.data[scatterIdx].marker.color = colorArr;
+                            gd.data[scatterIdx].marker.cmin = limits[0];
+                            gd.data[scatterIdx].marker.cmax = limits[1];
+                            gd.data[scatterIdx].marker.colorscale = getPlotlyScale(currentColorScale);
+                            gd.data[scatterIdx].marker.reversescale = invertScale;
+                            gd.data[scatterIdx].marker.showscale = false;
+                            delete gd.data[scatterIdx].marker.coloraxis;
                             if (currentSizeMode === 'magnitude') {
-                                update['marker.sizemode'] = ['area'];
-                                update['marker.sizeref'] = [maxMag / 400];
+                                gd.data[scatterIdx].marker.sizemode = 'area';
+                                gd.data[scatterIdx].marker.sizeref = maxMag / 400;
                             } else {
-                                update['marker.sizemode'] = ['diameter'];
-                                update['marker.sizeref'] = [1];
+                                gd.data[scatterIdx].marker.sizemode = 'diameter';
+                                gd.data[scatterIdx].marker.sizeref = 1;
                             }
-                            Plotly.restyle(gd, update, [scatterIdx]);
                         }
                     }
+                    try {
+                        Plotly.react(gd, gd.data, gd.layout);
+                    } catch (e) {
+                        try { Plotly.redraw(gd); } catch (e2) {}
+                    }
                 }
-                if (window.SeismicUI && typeof window.SeismicUI.bringMarkersToFront === 'function') {
+                if (is3D && window.SeismicUI && typeof window.SeismicUI.bringMarkersToFront === 'function') {
                     window.SeismicUI.bringMarkersToFront();
                 }
 

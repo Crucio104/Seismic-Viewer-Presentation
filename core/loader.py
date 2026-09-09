@@ -6,6 +6,7 @@ from datetime import datetime
 from core.config import (
     MIN_MAGNITUDE, MISSING_MAG_VALUE, MISSING_DEPTH_VALUE, CSV_SCHEMA
 )
+from core.swarm_detector import detect_ingv_swarms
 
 
 logger = logging.getLogger(__name__)
@@ -106,7 +107,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
     if df['time'].astype(str).str.match(r'^\d+(\.\d+)?$').all():
         df['time_dt'] = pd.to_datetime(pd.to_numeric(df['time']), origin='1899-12-30', unit='D')
     else:
-        df['time_dt'] = pd.to_datetime(df['time'], errors='coerce')
+        df['time_dt'] = pd.to_datetime(df['time'], errors='coerce', format='mixed')
     if hasattr(df['time_dt'].dt, 'tz') and df['time_dt'].dt.tz is not None:
         df['time_dt'] = df['time_dt'].dt.tz_localize(None)
     df = df.dropna(subset=['time_dt'])
@@ -170,6 +171,9 @@ def load_csv(source_file: str) -> dict[str, Any]:
     # Pre-calculate visual pack
     visual_pack = precompute_visual_data(df)
 
+    # Detect INGV seismic swarms
+    swarms = detect_ingv_swarms(df)
+
     # Extract as lists for JSON serialization (Webview)
     latitude = lat_f32.tolist()
     longitude = lon_f32.tolist()
@@ -180,7 +184,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
 
     date_range = f"{df['time_dt'].iloc[0].strftime('%d-%m-%Y')} → {df['time_dt'].iloc[-1].strftime('%d-%m-%Y')}"
     bbox = (float(df['lat'].min()), float(df['lon'].min()), float(df['lat'].max()), float(df['lon'].max()))
-    logger.info(f"Loaded {len(df)} seismic events (M >= {MIN_MAGNITUDE}).")
+    logger.info(f"Loaded {len(df)} seismic events (M >= {MIN_MAGNITUDE}) and {len(swarms)} INGV swarms.")
 
     return {
         'latitude': latitude,
@@ -194,10 +198,13 @@ def load_csv(source_file: str) -> dict[str, Any]:
         'origin_lat': float(df['lat'].mean()),
         'origin_lon': float(df['lon'].mean()),
         'binary_buffer': binary_buffer,
+        'swarms': swarms,
+        'swarms_count': len(swarms),
         'summary': {
             'event_count': len(df),
             'date_range': date_range,
             'total_days': visual_pack['total_days'],
+            'swarms_count': len(swarms),
         },
     }
 

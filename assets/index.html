@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#050510">
 <title>Seismic Viewer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -231,6 +233,11 @@
                     <input type="radio" name="anim_mode" value="block" onchange="toggleWindowInput()">
                     <span>Blocks</span>
                 </label>
+                <label class="radio-label" id="swarm-radio-label">
+                    <input type="radio" name="anim_mode" value="swarm" id="anim-mode-swarm" onchange="toggleWindowInput()">
+                    <span>INGV Seismic Swarms</span>
+                    <span id="swarm-badge" style="font-size:0.7rem; font-weight:600; padding:0.15rem 0.5rem; border-radius:1rem; margin-left:auto; background:rgba(99,102,241,0.25); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4);">Checking...</span>
+                </label>
             </div>
             
             <div class="setting-group" id="window_input_group" style="opacity: 0.4; pointer-events: none;">
@@ -418,7 +425,7 @@
          loader.style.display = 'none';
     }
 
-    function showHub(badgeText, totalDays) {
+    function showHub(badgeText, totalDays, swarmsCount) {
         if(badgeText) {
             document.getElementById('badge-text').textContent = badgeText;
             localStorage.setItem('hub_badge', badgeText);
@@ -427,17 +434,63 @@
             window.currentDatasetTotalDays = totalDays;
             localStorage.setItem('hub_total_days', totalDays);
         }
+        if(swarmsCount !== undefined && swarmsCount !== null) {
+            window.currentDatasetSwarmsCount = swarmsCount;
+            localStorage.setItem('hub_swarms_count', swarmsCount);
+            updateSwarmOptionState(swarmsCount);
+        }
         document.getElementById('view-picker').classList.remove('active');
         document.getElementById('view-hub').classList.add('active');
+    }
+
+    function updateSwarmOptionState(count) {
+        const swarmRadio = document.getElementById('anim-mode-swarm');
+        const swarmLabel = document.getElementById('swarm-radio-label');
+        const swarmBadge = document.getElementById('swarm-badge');
+        if (!swarmRadio || !swarmLabel || !swarmBadge) return;
+
+        const num = typeof count === 'number' ? count : (window.currentDatasetSwarmsCount ?? 0);
+        window.currentDatasetSwarmsCount = num;
+
+        if (num > 0) {
+            swarmRadio.disabled = false;
+            swarmLabel.style.opacity = '1';
+            swarmLabel.style.pointerEvents = 'auto';
+            swarmLabel.style.cursor = 'pointer';
+            swarmBadge.textContent = `${num} swarms`;
+            swarmBadge.style.background = 'rgba(99,102,241,0.25)';
+            swarmBadge.style.color = '#a5b4fc';
+            swarmBadge.style.borderColor = 'rgba(99,102,241,0.4)';
+            swarmLabel.title = `${num} INGV seismic swarms detected in dataset`;
+        } else {
+            swarmRadio.disabled = true;
+            if (swarmRadio.checked) {
+                const accRadio = document.querySelector('input[name="anim_mode"][value="accumulation"]');
+                if (accRadio) {
+                    accRadio.checked = true;
+                    toggleWindowInput();
+                }
+            }
+            swarmLabel.style.opacity = '0.45';
+            swarmLabel.style.pointerEvents = 'none';
+            swarmLabel.style.cursor = 'not-allowed';
+            swarmBadge.textContent = 'None detected';
+            swarmBadge.style.background = 'rgba(239,68,68,0.15)';
+            swarmBadge.style.color = '#fca5a5';
+            swarmBadge.style.borderColor = 'rgba(239,68,68,0.3)';
+            swarmLabel.title = 'No seismic swarms meeting INGV criteria found in this dataset';
+        }
     }
 
     // Instant Restoration from localStorage
     (function() {
         const cachedBadge = localStorage.getItem('hub_badge');
         const cachedDays = localStorage.getItem('hub_total_days');
+        const cachedSwarms = localStorage.getItem('hub_swarms_count');
         if (cachedDays) window.currentDatasetTotalDays = parseInt(cachedDays);
+        if (cachedSwarms) window.currentDatasetSwarmsCount = parseInt(cachedSwarms);
         if (cachedBadge) {
-            showHub(cachedBadge);
+            showHub(cachedBadge, window.currentDatasetTotalDays, window.currentDatasetSwarmsCount);
         } else {
             document.getElementById('view-picker').classList.add('active');
         }
@@ -448,7 +501,7 @@
         try {
             const info = await pywebview.api.get_csv_info();
             if (info && info.filename) {
-                showHub(info.filename + ' | ' + info.event_count.toLocaleString() + ' events', info.total_days);
+                showHub(info.filename + ' | ' + info.event_count.toLocaleString() + ' events', info.total_days, info.swarms_count);
             } else {
                 localStorage.removeItem('hub_badge');
                 showFilePicker();
@@ -521,7 +574,7 @@
                 
                 progressBar.style.width = '100%';
                 setTimeout(() => {
-                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events', result.total_days);
+                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events', result.total_days, result.swarms_count);
                 }, 400);
             } else {
                 showToast(result?.error || 'Failed to load recent file', 'error');
@@ -583,7 +636,7 @@
                 if (p === 100) {
                     clearInterval(interval);
                     // Fade into Hub instead of full navigate
-                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events', result.total_days);
+                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events', result.total_days, result.swarms_count);
                 }
             }, 100);
 
@@ -677,7 +730,10 @@
     // --- Hub Functions ---
     let loading = false;
 
-    function openAnimModal() { document.getElementById('anim-modal').classList.add('show'); }
+    function openAnimModal() { 
+        updateSwarmOptionState(window.currentDatasetSwarmsCount);
+        document.getElementById('anim-modal').classList.add('show'); 
+    }
     function closeAnimModal() { document.getElementById('anim-modal').classList.remove('show'); }
     
     function openOnlineImportModal() { 
@@ -740,7 +796,7 @@
                 
                 progressBar.style.width = '100%';
                 setTimeout(() => {
-                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events', result.total_days);
+                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events', result.total_days, result.swarms_count);
                     btn.disabled = false;
                 }, 400);
             } else {
@@ -762,7 +818,7 @@
         const winGroup = document.getElementById('window_input_group');
         const stepGroup = document.getElementById('step_input_group');
         const label = document.getElementById('duration_label');
-        if (mode === 'accumulation') {
+        if (mode === 'accumulation' || mode === 'swarm') {
             winGroup.style.opacity = '0.4';
             winGroup.style.pointerEvents = 'none';
             stepGroup.style.display = 'none';
@@ -823,7 +879,11 @@
         loading = true;
 
         const overlay = document.getElementById('overlay');
-        document.getElementById('overlay-msg').textContent = VIEW_LABELS[style] || 'Loading...';
+        if (style === 2 && anim_mode === 'swarm') {
+            document.getElementById('overlay-msg').textContent = 'Rendering INGV Swarm Animation...';
+        } else {
+            document.getElementById('overlay-msg').textContent = VIEW_LABELS[style] || 'Loading...';
+        }
         overlay.classList.add('show');
 
         try {
