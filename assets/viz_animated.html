@@ -93,6 +93,13 @@
             </div>
 
             <div class="settings-group">
+                <label class="glass-checkbox" id="event-vectors-group" style="margin-bottom:0.25rem;">
+                    <input type="checkbox" id="event-vectors-check">
+                    Event Vectors
+                </label>
+            </div>
+
+            <div class="settings-group">
                 <label class="label" for="anim-mag-min">Magnitude Filter</label>
                 <div class="settings-row" style="gap:0.5rem;">
                     <input type="number" id="anim-mag-min" class="glass-input" step="0.1" value="-10.0" style="height:1.8rem; font-size:0.75rem;">
@@ -211,12 +218,11 @@
                 </div>
 
             </div>
-            <button id="apply-all-btn" class="priority-btn" style="margin-top:1.25rem; font-size:0.75rem; height:2.2rem; width:100%; display:flex; justify-content:center; align-items:center; background:rgba(99, 102, 241, 0.2); border:1px solid rgba(99, 102, 241, 0.4); border-radius:0.5rem; color:#fff; cursor:pointer; font-family:inherit; font-weight:600; transition:all 0.2s; flex-shrink: 0;">
+            <button id="apply-all-btn" class="priority-btn" style="margin-top:0.35rem; font-size:0.75rem; height:2.2rem; width:100%; display:flex; justify-content:center; align-items:center; background:rgba(99, 102, 241, 0.2); border:1px solid rgba(99, 102, 241, 0.4); border-radius:0.5rem; color:#fff; cursor:pointer; font-family:inherit; font-weight:600; transition:all 0.2s; flex-shrink: 0;">
                 Apply Changes
             </button>
+            </div>
         </div>
-
-
 
         <div id="jump-bar" class="glass-panel">
             <label for="jump-date" class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Jump to Date</label>
@@ -245,7 +251,6 @@
                 <div class="stats-value" id="stat-energy">0.0</div>
             </div>
         </div>
-    </div>
 
     <div id="filter-loader"><div class="loader-ring" style="width:2rem; height:2rem"></div></div>
     <div id="ws-status" title="Server Disconnected"></div>
@@ -377,18 +382,33 @@
             async function switchSwarm(newIdx) {
                 if (!isSwarmMode || newIdx < 0 || newIdx >= swarmsList.length) return;
                 if (isPlaying) pause();
-                currentSwarmIdx = newIdx;
-                currentSwarm = swarmsList[currentSwarmIdx];
-                currentStepIdx = 0;
-                slider.min = 0;
-                slider.max = Math.max(0, currentSwarm.event_count - 1);
-                slider.value = 0;
-                updateSwarmNavUI();
-                renderHistogram();
-                await updateView(0);
-                const initialTitle = currentMode === 'dep' ? 'Depth (KM)' : (currentMode === 'mag' ? 'Magnitude' : 'Date');
-                const initialLimits = currentMode === 'dep' ? (quakeData.dep_range || [0, 100]) : (currentMode === 'mag' ? (quakeData.mag_range || [0, 10]) : (quakeData.date_range || [0, 1]));
-                updateGlassLegend(true, initialTitle, currentColorScale, invertScale, initialLimits, { startDate: quakeData.start_date });
+                const filterLoader = document.getElementById('filter-loader');
+                if (filterLoader) filterLoader.classList.add('show');
+                // Give browser thread a tick to paint the blurred backdrop
+                await new Promise(resolve => setTimeout(resolve, 40));
+                try {
+                    currentSwarmIdx = newIdx;
+                    currentSwarm = swarmsList[currentSwarmIdx];
+                    currentStepIdx = 0;
+                    slider.min = 0;
+                    slider.max = Math.max(0, currentSwarm.event_count - 1);
+                    slider.value = 0;
+                    updateSwarmNavUI();
+                    renderHistogram();
+                    await updateView(0);
+                    if (window._currentLegendMode === 'vectors') {
+                        const vectorScaleName = (window.SeismicUI && window.SeismicUI._layerScales && window.SeismicUI._layerScales.vectors) ? window.SeismicUI._layerScales.vectors : 'Vectors';
+                        const inv = (window.SeismicUI && window.SeismicUI._layerInverts && window.SeismicUI._layerInverts.vectors) || false;
+                        const maxSwarmVectors = Math.max(1, currentSwarm.event_count - 1);
+                        updateGlassLegend(true, 'VECTOR N°', vectorScaleName, inv, [1, maxSwarmVectors], null);
+                    } else {
+                        const initialTitle = currentMode === 'dep' ? 'Depth (KM)' : (currentMode === 'mag' ? 'Magnitude' : 'Date');
+                        const initialLimits = currentMode === 'dep' ? (quakeData.dep_range || [0, 100]) : (currentMode === 'mag' ? (quakeData.mag_range || [0, 10]) : (quakeData.date_range || [0, 1]));
+                        updateGlassLegend(true, initialTitle, currentColorScale, invertScale, initialLimits, { startDate: quakeData.start_date });
+                    }
+                } finally {
+                    if (filterLoader) filterLoader.classList.remove('show');
+                }
             }
 
             if (isSwarmMode) {
@@ -549,6 +569,257 @@
             let isRendering = false;
             let pendingUpdateIdx = null;
 
+            function updateAnimatedVectors(sliceLon, sliceLat, sliceDep, sliceEventIdx) {
+                const evCheck = document.getElementById('event-vectors-check');
+                const isChecked = !!(evCheck && evCheck.checked);
+
+                let lineIdx = -1;
+                let meshIdx = -1;
+                if (gd && gd.data) {
+                    for (let t = 0; t < gd.data.length; t++) {
+                        if (gd.data[t] && gd.data[t].name === 'Consecutive Event Vectors') lineIdx = t;
+                        else if (gd.data[t] && gd.data[t].name === 'Event Arrowheads') meshIdx = t;
+                    }
+                }
+
+                if (!isChecked) {
+                    if (lineIdx !== -1 && gd.data[lineIdx].visible !== false) {
+                        Plotly.restyle(gd, { visible: false }, [lineIdx]);
+                    }
+                    if (meshIdx !== -1 && gd.data[meshIdx].visible !== false) {
+                        Plotly.restyle(gd, { visible: false }, [meshIdx]);
+                    }
+                    if (window.SeismicUI) {
+                        window.SeismicUI._activeConsecutiveArrows = false;
+                        if (window._currentLegendMode === 'vectors') {
+                            window._currentLegendMode = 'earthquakes';
+                            if (window._earthquakeLegendState) {
+                                const s = window._earthquakeLegendState;
+                                if (typeof updateGlassLegendInternal === 'function') {
+                                    updateGlassLegendInternal(s.show, s.title, s.scaleName, s.invert, s.limits, s.dateInfo);
+                                }
+                            }
+                        }
+                        if (typeof window.SeismicUI.updateSwapLegendVisibility === 'function') {
+                            window.SeismicUI.updateSwapLegendVisibility();
+                        }
+                    }
+                    return;
+                }
+
+                const totalSwarmCount = (isSwarmMode && currentSwarm) ? currentSwarm.event_count : (quakeData.lon ? quakeData.lon.length : 1);
+                const maxSwarmVectors = Math.max(1, totalSwarmCount - 1);
+
+                if (window.SeismicUI) {
+                    window.SeismicUI._activeConsecutiveArrows = true;
+                    window.SeismicUI._consecutiveVectorCount = maxSwarmVectors;
+                    if (typeof window.SeismicUI.updateSwapLegendVisibility === 'function') {
+                        window.SeismicUI.updateSwapLegendVisibility();
+                    }
+                }
+
+                const xs = sliceLon || [];
+                const ys = sliceLat || [];
+                const zs = sliceDep || [];
+
+                if (xs.length < 2) {
+                    // Not enough points in the current frame yet: hide traces quietly without error or unchecking
+                    if (lineIdx !== -1 && gd.data[lineIdx].visible !== false) {
+                        Plotly.restyle(gd, { visible: false }, [lineIdx]);
+                    }
+                    if (meshIdx !== -1 && gd.data[meshIdx].visible !== false) {
+                        Plotly.restyle(gd, { visible: false }, [meshIdx]);
+                    }
+                    return;
+                }
+
+                const lineX = [], lineY = [], lineZ = [], lineColor = [];
+                const meshX = [], meshY = [], meshZ = [];
+                const meshI = [], meshJ = [], meshK = [];
+                const meshIntensity = [];
+
+                let validPairs = 0;
+                const totalPairs = xs.length - 1;
+
+                for (let i = 0; i < totalPairs; i++) {
+                    const x1 = parseFloat(xs[i]), y1 = parseFloat(ys[i]), z1 = parseFloat(zs[i]);
+                    const x2 = parseFloat(xs[i+1]), y2 = parseFloat(ys[i+1]), z2 = parseFloat(zs[i+1]);
+
+                    if (isNaN(x1) || isNaN(y1) || isNaN(z1) || isNaN(x2) || isNaN(y2) || isNaN(z2)) continue;
+
+                    validPairs++;
+                    const vectorNum = (sliceEventIdx && sliceEventIdx[i + 1] !== undefined)
+                        ? Math.max(1, sliceEventIdx[i + 1])
+                        : validPairs;
+
+                    const midLat = (y1 + y2) * 0.5;
+                    const kmPerDegLon = 111.0 * Math.cos(midLat * Math.PI / 180.0);
+                    const kmPerDegLat = 111.0;
+
+                    const dxKm = (x2 - x1) * kmPerDegLon;
+                    const dyKm = (y2 - y1) * kmPerDegLat;
+                    const dzKm = (z2 - z1);
+                    const distKm = Math.sqrt(dxKm * dxKm + dyKm * dyKm + dzKm * dzKm);
+
+                    let stemEndX = x2, stemEndY = y2, stemEndZ = z2;
+
+                    if (distKm > 1e-4) {
+                        const ux = dxKm / distKm;
+                        const uy = dyKm / distKm;
+                        const uz = dzKm / distKm;
+
+                        const headLenKm = Math.min(Math.max(0.010, 0.18 * distKm), 0.060, 0.5 * distKm);
+                        const headWidthKm = headLenKm * 0.45;
+
+                        let rx = 0, ry = 0, rz = 1;
+                        if (Math.abs(uz) > 0.88) { rx = 0; ry = 1; rz = 0; }
+
+                        let n1x = uy * rz - uz * ry;
+                        let n1y = uz * rx - ux * rz;
+                        let n1z = ux * ry - uy * rx;
+                        const n1Len = Math.sqrt(n1x * n1x + n1y * n1y + n1z * n1z) || 1;
+                        n1x /= n1Len; n1y /= n1Len; n1z /= n1Len;
+
+                        const n2x = uy * n1z - uz * n1y;
+                        const n2y = uz * n1x - ux * n1z;
+                        const n2z = ux * n1y - uy * n1x;
+
+                        const x2Km = x2 * kmPerDegLon;
+                        const y2Km = y2 * kmPerDegLat;
+                        const z2Km = z2;
+
+                        const baseKmX = x2Km - headLenKm * ux;
+                        const baseKmY = y2Km - headLenKm * uy;
+                        const baseKmZ = z2Km - headLenKm * uz;
+
+                        const bx = baseKmX / kmPerDegLon;
+                        const by = baseKmY / kmPerDegLat;
+                        const bz = baseKmZ;
+
+                        stemEndX = (distKm > headLenKm) ? bx : x2;
+                        stemEndY = (distKm > headLenKm) ? by : y2;
+                        stemEndZ = (distKm > headLenKm) ? bz : z2;
+
+                        const K = meshX.length;
+                        const N_SIDES = 6;
+
+                        meshX.push(x2);
+                        meshY.push(y2);
+                        meshZ.push(z2);
+                        meshIntensity.push(vectorNum);
+
+                        for (let s = 0; s < N_SIDES; s++) {
+                            const angle = (2 * Math.PI * s) / N_SIDES;
+                            const cosA = Math.cos(angle);
+                            const sinA = Math.sin(angle);
+                            const pxKm = baseKmX + headWidthKm * (cosA * n1x + sinA * n2x);
+                            const pyKm = baseKmY + headWidthKm * (cosA * n1y + sinA * n2y);
+                            const pzKm = baseKmZ + headWidthKm * (cosA * n1z + sinA * n2z);
+                            meshX.push(pxKm / kmPerDegLon);
+                            meshY.push(pyKm / kmPerDegLat);
+                            meshZ.push(pzKm);
+                            meshIntensity.push(vectorNum);
+                        }
+
+                        meshX.push(bx);
+                        meshY.push(by);
+                        meshZ.push(bz);
+                        meshIntensity.push(vectorNum);
+
+                        for (let s = 0; s < N_SIDES; s++) {
+                            const nextS = (s + 1) % N_SIDES;
+                            meshI.push(K + 0);
+                            meshJ.push(K + 1 + s);
+                            meshK.push(K + 1 + nextS);
+
+                            meshI.push(K + 1 + N_SIDES);
+                            meshJ.push(K + 1 + nextS);
+                            meshK.push(K + 1 + s);
+                        }
+                    }
+
+                    lineX.push(x1, stemEndX, null);
+                    lineY.push(y1, stemEndY, null);
+                    lineZ.push(z1, stemEndZ, null);
+                    lineColor.push(vectorNum, vectorNum, vectorNum);
+                }
+
+                if (validPairs === 0) {
+                    if (lineIdx !== -1) Plotly.restyle(gd, { visible: false }, [lineIdx]);
+                    if (meshIdx !== -1) Plotly.restyle(gd, { visible: false }, [meshIdx]);
+                    return;
+                }
+
+                const vectorScaleName = (window.SeismicUI && window.SeismicUI._layerScales && window.SeismicUI._layerScales.vectors) ? window.SeismicUI._layerScales.vectors : 'Vectors';
+                const pScale = (typeof getPlotlyScale === 'function') ? getPlotlyScale(vectorScaleName) : 'Viridis';
+                const inv = (window.SeismicUI && window.SeismicUI._layerInverts && window.SeismicUI._layerInverts.vectors) || false;
+
+                if (lineIdx !== -1) {
+                    Plotly.restyle(gd, {
+                        x: [lineX], y: [lineY], z: [lineZ],
+                        'line.color': [lineColor],
+                        'line.colorscale': [pScale],
+                        'line.reversescale': [inv],
+                        'line.cmin': [1],
+                        'line.cmax': [maxSwarmVectors],
+                        'line.width': [4],
+                        visible: [true]
+                    }, [lineIdx]);
+                } else {
+                    Plotly.addTraces(gd, {
+                        type: 'scatter3d',
+                        name: 'Consecutive Event Vectors',
+                        x: lineX, y: lineY, z: lineZ,
+                        mode: 'lines',
+                        line: {
+                            color: lineColor,
+                            colorscale: pScale,
+                            reversescale: inv,
+                            cmin: 1,
+                            cmax: maxSwarmVectors,
+                            width: 4
+                        },
+                        hoverinfo: 'skip',
+                        showlegend: false,
+                        visible: true
+                    });
+                }
+
+                if (meshIdx !== -1) {
+                    Plotly.restyle(gd, {
+                        x: [meshX], y: [meshY], z: [meshZ],
+                        i: [meshI], j: [meshJ], k: [meshK],
+                        intensity: [meshIntensity],
+                        colorscale: [pScale],
+                        reversescale: [inv],
+                        cmin: [1],
+                        cmax: [maxSwarmVectors],
+                        visible: [meshX.length > 0]
+                    }, [meshIdx]);
+                } else if (meshX.length > 0) {
+                    Plotly.addTraces(gd, {
+                        type: 'mesh3d',
+                        name: 'Event Arrowheads',
+                        x: meshX, y: meshY, z: meshZ,
+                        i: meshI, j: meshJ, k: meshK,
+                        intensity: meshIntensity,
+                        colorscale: pScale,
+                        reversescale: inv,
+                        cmin: 1,
+                        cmax: maxSwarmVectors,
+                        flatshading: true,
+                        lighting: { ambient: 0.85, diffuse: 0.8, specular: 0.15, roughness: 0.5 },
+                        showscale: false,
+                        hoverinfo: 'skip',
+                        visible: true
+                    });
+                }
+
+                if (window._currentLegendMode === 'vectors' && typeof updateGlassLegendInternal === 'function') {
+                    updateGlassLegendInternal(true, 'VECTOR N°', vectorScaleName, inv, [1, maxSwarmVectors], null);
+                }
+            }
+
             async function updateView(idx) {
                 const totalFrames = (isSwarmMode && currentSwarm) ? currentSwarm.event_count : dates.length;
                 if (idx < 0) idx = 0;
@@ -578,18 +849,23 @@
                 
                 let start = 0, end = 0;
                 let activeIndices = [];
+                let swarmLocalIndices = [];
                 if (isSwarmMode && currentSwarm) {
                     for (let s = 0; s <= idx; s++) {
                         const gIdx = currentSwarm.indices[s];
                         if (gIdx !== undefined && gIdx >= 0 && gIdx < quakeData.lon.length) {
                             activeIndices.push(gIdx);
+                            swarmLocalIndices.push(s);
                         }
                     }
                 } else {
                     const range = getActiveRange(idx);
                     start = range[0];
                     end = range[1];
-                    for (let i = start; i < end; i++) activeIndices.push(i);
+                    for (let i = start; i < end; i++) {
+                        activeIndices.push(i);
+                        swarmLocalIndices.push(i - start);
+                    }
                 }
 
                 const magMin = appliedMagMin;
@@ -604,6 +880,7 @@
                 const sliceDnum = [];
                 const sliceHover = [];
                 const filteredLabels = [];
+                const sliceEventIdx = [];
                 
                 // Fallback for missing hover data (stripped for optimization)
                 if (!quakeData.hover || quakeData.hover.length === 0) {
@@ -632,6 +909,7 @@
                         sliceDep.push(d);
                         sliceMag.push(m);
                         sliceDnum.push(quakeData.dnum[i]);
+                        sliceEventIdx.push(swarmLocalIndices[k]);
 
                         let hText = quakeData.hover ? quakeData.hover[i] : "";
                         if (!hText) {
@@ -809,16 +1087,22 @@
                 return Plotly.restyle(gd, bulkUpdate, traceIndices).then(() => {
                     // 2. Mesh traces (from index 4 onwards)
                     if (planeTraces.length === 0) {
-                        // No planes: avoid deleteTraces/addTraces to prevent WebGL context reallocation!
-                        if (gd.data.length > 5) {
-                            const indicesToDelete = [];
-                            for (let t = 5; t < gd.data.length; t++) indicesToDelete.push(t);
+                        // No planes: delete extra plane traces without deleting vector traces
+                        const indicesToDelete = [];
+                        for (let t = gd.data.length - 1; t >= 4; t--) {
+                            const tr = gd.data[t];
+                            if (tr && tr.name !== 'Consecutive Event Vectors' && tr.name !== 'Event Arrowheads') {
+                                if (t > 4) {
+                                    indicesToDelete.push(t);
+                                } else if (t === 4 && tr.visible !== false) {
+                                    Plotly.restyle(gd, { visible: false, x: [[]], y: [[]], z: [[]], i: [[]], j: [[]], k: [[]] }, [4]);
+                                }
+                            }
+                        }
+                        if (indicesToDelete.length > 0) {
                             Plotly.deleteTraces(gd, indicesToDelete);
                         }
-                        if (gd.data.length >= 5 && gd.data[4].visible !== false) {
-                            Plotly.restyle(gd, { visible: false, x: [[]], y: [[]], z: [[]], i: [[]], j: [[]], k: [[]] }, [4]);
-                        }
-                    } else if (planeTraces.length === 1 && gd.data.length === 5 && gd.data[4].type === 'mesh3d') {
+                    } else if (planeTraces.length === 1 && gd.data.length === 5 && gd.data[4].type === 'mesh3d' && gd.data[4].name !== 'Consecutive Event Vectors' && gd.data[4].name !== 'Event Arrowheads') {
                         // Single plane and placeholder exists: update in place without delete/add
                         const pt = planeTraces[0];
                         Plotly.restyle(gd, {
@@ -829,11 +1113,15 @@
                             visible: true
                         }, [4]);
                     } else {
-                        // Multiple planes or count mismatch: delete extra and re-add
-                        const extraCount = gd.data.length - 4;
-                        if (extraCount > 0) {
-                            const indicesToDelete = [];
-                            for (let t = 4; t < gd.data.length; t++) indicesToDelete.push(t);
+                        // Multiple planes or count mismatch: delete extra plane traces (ignoring vector traces) and re-add
+                        const indicesToDelete = [];
+                        for (let t = gd.data.length - 1; t >= 4; t--) {
+                            const tr = gd.data[t];
+                            if (tr && tr.name !== 'Consecutive Event Vectors' && tr.name !== 'Event Arrowheads') {
+                                indicesToDelete.push(t);
+                            }
+                        }
+                        if (indicesToDelete.length > 0) {
                             Plotly.deleteTraces(gd, indicesToDelete);
                         }
                         Plotly.addTraces(gd, planeTraces);
@@ -884,8 +1172,20 @@
                         const dayStart = (idx > 0) ? quakeData.date_to_cum[dates[idx-1]] : 0;
                         updateHUD(start, end, dayStart, dayEnd);
                     }
+
+                    // 3. Update Event Vectors
+                    window._lastSliceLon = sliceLon;
+                    window._lastSliceLat = sliceLat;
+                    window._lastSliceDep = sliceDep;
+                    window._lastSliceEventIdx = sliceEventIdx;
+                    updateAnimatedVectors(sliceLon, sliceLat, sliceDep, sliceEventIdx);
                 }).catch(err => {
                     console.warn("Plotly restyle warning in animation frame:", err);
+                    window._lastSliceLon = sliceLon;
+                    window._lastSliceLat = sliceLat;
+                    window._lastSliceDep = sliceDep;
+                    window._lastSliceEventIdx = sliceEventIdx;
+                    updateAnimatedVectors(sliceLon, sliceLat, sliceDep, sliceEventIdx);
                     // Ensure legend is still rendered even if restyle caught an error
                     updateGlassLegend(
                         true,
@@ -1757,11 +2057,15 @@
                         } else if (planesEnabled) {
                             await syncPlanes();
                         } else {
-                            // Delete all plane traces (4+)
-                            const extra = gd.data.length - 4;
-                            if (extra > 0) {
-                                const ids = [];
-                                for (let t = 4; t < gd.data.length; t++) ids.push(t);
+                            // Delete all plane traces (4+), ignoring vector traces
+                            const ids = [];
+                            for (let t = gd.data.length - 1; t >= 4; t--) {
+                                const tr = gd.data[t];
+                                if (tr && tr.name !== 'Consecutive Event Vectors' && tr.name !== 'Event Arrowheads') {
+                                    ids.push(t);
+                                }
+                            }
+                            if (ids.length > 0) {
                                 Plotly.deleteTraces(gd, ids);
                             }
                             Plotly.addTraces(gd, {
@@ -1836,6 +2140,53 @@
                 if (speedDropdown) speedDropdown.style.display = 'none';
                 if (speedInput) speedInput.style.display = 'block';
                 if (speedLabel) speedLabel.textContent = 'Seconds per frame';
+            }
+
+            // Event Vectors bindings for animated view
+            const eventVectorsCheck = document.getElementById('event-vectors-check');
+            if (eventVectorsCheck) {
+                eventVectorsCheck.addEventListener('change', () => {
+                    updateAnimatedVectors(
+                        window._lastSliceLon || [],
+                        window._lastSliceLat || [],
+                        window._lastSliceDep || [],
+                        window._lastSliceEventIdx || []
+                    );
+                });
+            }
+
+            // Keyboard shortcut 'V' for animated event vectors
+            window.addEventListener('keydown', (e) => {
+                if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement.tagName !== 'INPUT') {
+                    const chk = document.getElementById('event-vectors-check');
+                    if (chk) {
+                        e.stopImmediatePropagation();
+                        e.preventDefault();
+                        chk.checked = !chk.checked;
+                        updateAnimatedVectors(
+                            window._lastSliceLon || [],
+                            window._lastSliceLat || [],
+                            window._lastSliceDep || [],
+                            window._lastSliceEventIdx || []
+                        );
+                    }
+                }
+            }, true);
+
+            // Override SeismicUI.toggleConsecutiveArrows for animated view
+            if (window.SeismicUI) {
+                window.SeismicUI.toggleConsecutiveArrows = function(forceState = null) {
+                    const chk = document.getElementById('event-vectors-check');
+                    if (!chk) return;
+                    const targetState = (forceState !== null) ? forceState : !chk.checked;
+                    chk.checked = targetState;
+                    updateAnimatedVectors(
+                        window._lastSliceLon || [],
+                        window._lastSliceLat || [],
+                        window._lastSliceDep || [],
+                        window._lastSliceEventIdx || []
+                    );
+                };
             }
 
             // Sync UI state and finally hide loader

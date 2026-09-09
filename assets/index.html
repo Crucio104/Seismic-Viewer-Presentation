@@ -235,12 +235,12 @@
                 </label>
                 <label class="radio-label" id="swarm-radio-label">
                     <input type="radio" name="anim_mode" value="swarm" id="anim-mode-swarm" onchange="toggleWindowInput()">
-                    <span>INGV Seismic Swarms</span>
+                    <span>Seismic Swarms</span>
                     <span id="swarm-badge" style="font-size:0.7rem; font-weight:600; padding:0.15rem 0.5rem; border-radius:1rem; margin-left:auto; background:rgba(99,102,241,0.25); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4);">Checking...</span>
                 </label>
             </div>
             
-            <div class="setting-group" id="window_input_group" style="opacity: 0.4; pointer-events: none;">
+            <div class="setting-group" id="window_input_group" style="display: none; opacity: 0.4; pointer-events: none;">
                 <label id="duration_label" for="window_days" style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Days to show:</label>
                 <input type="number" id="window_days" class="glass-input" value="30" min="1" max="365">
             </div>
@@ -461,7 +461,7 @@
             swarmBadge.style.background = 'rgba(99,102,241,0.25)';
             swarmBadge.style.color = '#a5b4fc';
             swarmBadge.style.borderColor = 'rgba(99,102,241,0.4)';
-            swarmLabel.title = `${num} INGV seismic swarms detected in dataset`;
+            swarmLabel.title = `${num} seismic swarms detected in dataset`;
         } else {
             swarmRadio.disabled = true;
             if (swarmRadio.checked) {
@@ -478,7 +478,7 @@
             swarmBadge.style.background = 'rgba(239,68,68,0.15)';
             swarmBadge.style.color = '#fca5a5';
             swarmBadge.style.borderColor = 'rgba(239,68,68,0.3)';
-            swarmLabel.title = 'No seismic swarms meeting INGV criteria found in this dataset';
+            swarmLabel.title = 'No seismic swarms found in this dataset';
         }
     }
 
@@ -732,6 +732,7 @@
 
     function openAnimModal() { 
         updateSwarmOptionState(window.currentDatasetSwarmsCount);
+        toggleWindowInput();
         document.getElementById('anim-modal').classList.add('show'); 
     }
     function closeAnimModal() { document.getElementById('anim-modal').classList.remove('show'); }
@@ -814,20 +815,23 @@
     }
 
     function toggleWindowInput() {
-        const mode = document.querySelector('input[name="anim_mode"]:checked').value;
+        const checkedRadio = document.querySelector('input[name="anim_mode"]:checked');
+        if (!checkedRadio) return;
+        const mode = checkedRadio.value;
         const winGroup = document.getElementById('window_input_group');
         const stepGroup = document.getElementById('step_input_group');
         const label = document.getElementById('duration_label');
         if (mode === 'accumulation' || mode === 'swarm') {
-            winGroup.style.opacity = '0.4';
-            winGroup.style.pointerEvents = 'none';
+            winGroup.style.display = 'none';
             stepGroup.style.display = 'none';
         } else if (mode === 'window') {
+            winGroup.style.display = 'block';
             winGroup.style.opacity = '1';
             winGroup.style.pointerEvents = 'auto';
             label.textContent = "Time Window (days):";
             stepGroup.style.display = 'none';
         } else if (mode === 'block') {
+            winGroup.style.display = 'block';
             winGroup.style.opacity = '1';
             winGroup.style.pointerEvents = 'auto';
             label.textContent = "Time Window (days):";

@@ -209,56 +209,7 @@ def _cleanup() -> None:
 
 atexit.register(_cleanup)
 
-def _patch_edgechromium_background() -> None:
-    """Ensure Edge WebView2 never flashes white during navigation or before rendering."""
-    try:
-        import clr
-        import webview.platforms.edgechromium as edgechromium
-        import System
-        import System.Reflection
-        from System.Drawing import Color
-        from Microsoft.Web.WebView2.WinForms import WebView2
-
-        dark_bg = Color.FromArgb(255, 5, 5, 16)
-        flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public
-        controller_field = clr.GetClrType(WebView2).GetField('_coreWebView2Controller', flags)
-
-        orig_on_webview_ready = edgechromium.EdgeChrome.on_webview_ready
-
-        def patched_on_webview_ready(self, sender, args):
-            orig_on_webview_ready(self, sender, args)
-            if getattr(args, 'IsSuccess', False):
-                try:
-                    sender.DefaultBackgroundColor = dark_bg
-                    sender.BackColor = dark_bg
-                    if hasattr(self, 'form') and self.form:
-                        self.form.BackColor = dark_bg
-                    if controller_field:
-                        ctrl = controller_field.GetValue(sender)
-                        if ctrl:
-                            ctrl.DefaultBackgroundColor = dark_bg
-                except Exception:
-                    pass
-
-                def _on_nav_start(s, e):
-                    try:
-                        sender.DefaultBackgroundColor = dark_bg
-                        if controller_field:
-                            ctrl = controller_field.GetValue(sender)
-                            if ctrl:
-                                ctrl.DefaultBackgroundColor = dark_bg
-                    except Exception:
-                        pass
-
-                sender.NavigationStarting += _on_nav_start
-
-        edgechromium.EdgeChrome.on_webview_ready = patched_on_webview_ready
-    except Exception as e:
-        logger.debug(f"EdgeChromium background color patch skipped: {e}")
-
 def main() -> None:
-    _patch_edgechromium_background()
-
     _win_holder: list[webview.Window] = []
     def win_ref() -> webview.Window: return _win_holder[0]
 

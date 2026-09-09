@@ -1,4 +1,5 @@
 import logging
+import warnings
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
@@ -91,44 +92,40 @@ def view_2d(
     center_lat = origin_lat if origin_lat is not None else (float(np.mean(latitude)) if len(latitude) > 0 else 0.0)
     center_lon = origin_lon if origin_lon is not None else (float(np.mean(longitude)) if len(longitude) > 0 else 0.0)
 
-    scatter_func = getattr(px, 'scatter_map', None) or getattr(px, 'scatter_mapbox')
-    density_cls = getattr(go, 'Densitymap', None) or getattr(go, 'Densitymapbox')
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', category=DeprecationWarning)
+        fig = px.scatter_mapbox(
+            lat=latitude, lon=longitude,
+            size=np.maximum(np.array(magnitude), 0.1),
+            color=depth if depth is not None else magnitude,
+            hover_name=all_hover,
+            zoom=12,
+            center=dict(
+                lat=center_lat,
+                lon=center_lon
+            ),
+            labels={"lat": "Latitude", "lon": "Longitude", "size": "Magnitude", "color": "Depth" if depth is not None else "Magnitude"},
+        )
+        
+        fig.update_traces(
+            marker=dict(coloraxis=None, colorscale='Viridis', showscale=False),
+            hoverinfo='text',
+            hovertemplate='%{hovertext}<extra></extra>',
+            name='Earthquakes (Scatter)'
+        )
+        
+        fig.add_trace(go.Densitymapbox(
+            lat=latitude, lon=longitude, z=magnitude,
+            radius=15, colorscale='Viridis',
+            showscale=False, visible=False,
+            name='Earthquakes (Heatmap)'
+        ))
+        
+        if dates_num is not None:
+            fig.data[0].customdata = np.array(dates_num).reshape(-1, 1)
 
-    fig = scatter_func(
-        lat=latitude, lon=longitude,
-        size=np.maximum(np.array(magnitude), 0.1),
-        color=depth if depth is not None else magnitude,
-        hover_name=all_hover,
-        zoom=12,
-        center=dict(
-            lat=center_lat,
-            lon=center_lon
-        ),
-        labels={"lat": "Latitude", "lon": "Longitude", "size": "Magnitude", "color": "Depth" if depth is not None else "Magnitude"},
-    )
-    
-    fig.update_traces(
-        marker=dict(coloraxis=None, colorscale='Viridis', showscale=False),
-        hoverinfo='text',
-        hovertemplate='%{hovertext}<extra></extra>',
-        name='Earthquakes (Scatter)'
-    )
-    
-    fig.add_trace(density_cls(
-        lat=latitude, lon=longitude, z=magnitude,
-        radius=15, colorscale='Viridis',
-        showscale=False, visible=False,
-        name='Earthquakes (Heatmap)'
-    ))
-    
-    if dates_num is not None:
-        fig.data[0].customdata = np.array(dates_num).reshape(-1, 1)
-
-    if hasattr(px, 'scatter_map'):
-        fig.update_layout(**COMMON_LAYOUT, map_style="open-street-map")
-    else:
         fig.update_layout(**COMMON_LAYOUT, mapbox_style="open-street-map")
-    return fig
+        return fig
 
 def get_3d_static_figure(
     longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], times: list[str], 
