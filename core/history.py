@@ -1,6 +1,9 @@
 import json
+import logging
 from pathlib import Path
 from core.config import HISTORY_FILE
+
+logger = logging.getLogger(__name__)
 
 def get_recent_files() -> list[str]:
     if not HISTORY_FILE.exists():
@@ -10,7 +13,8 @@ def get_recent_files() -> list[str]:
             paths = json.load(f)
             # Filter only existing files
             return [p for p in paths if Path(p).exists()]
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to load recent files: {e}")
         return []
 
 def save_recent_file(path: str) -> None:
@@ -26,12 +30,12 @@ def save_recent_file(path: str) -> None:
         with open(temp_file, "w", encoding='utf-8') as f:
             json.dump(recent, f, indent=2)
         temp_file.replace(HISTORY_FILE)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to save recent files: {e}")
 
 def clear_history() -> None:
     try:
         if HISTORY_FILE.exists():
             HISTORY_FILE.unlink()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to clear history: {e}")

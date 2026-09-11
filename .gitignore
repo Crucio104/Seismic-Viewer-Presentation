@@ -10,6 +10,7 @@ Dati_tomografia/
 # Project specific
 .viz_tmp/
 resources/.map_cache/
+resources/.ingv_cache/
 
 # IDE
 .vscode/

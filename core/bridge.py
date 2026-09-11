@@ -11,13 +11,14 @@ import shutil
 import csv
 import zipfile
 import io
+import gc
 from collections import Counter, defaultdict
 from typing import Any, Callable
 
 from core.config import (
     BASE_DIR, get_http_port, 
     clear_session_data, store_viz_html,
-    MAP_CACHE_DIR, get_session_data, cleanup_temp_files
+    MAP_CACHE_DIR, INGV_CACHE_DIR, get_session_data, cleanup_temp_files
 )
 from core.history import get_recent_files, save_recent_file, clear_history
 from core.online_importer import fetch_ingv_data
@@ -179,7 +180,7 @@ class Api:
         """Fetch data from INGV servers."""
         try:
             self._push_progress("Connecting to INGV servers...")
-            csv_path = fetch_ingv_data(params)
+            csv_path = fetch_ingv_data(params, on_progress=self._push_progress)
             self._push_progress("Processing downloaded data...")
             return self._process_csv_load(csv_path)
         except Exception as e:
@@ -435,9 +436,8 @@ class Api:
             viz_id = uuid.uuid4().hex[:8]
             store_viz_html(viz_id, html)
 
-            if not is_fallback:
-                if curr_history is not None:
-                    curr_history['viz_id'] = viz_id
+            if not is_fallback and curr_history is not None:
+                curr_history['viz_id'] = viz_id
 
             if view_style in (3, 4):
                 s_data = get_session_data(session_id)
@@ -458,7 +458,7 @@ class Api:
             self._window().load_url(url)
             
         except Exception as e:
-            logger.error(f"Failed to generate view {view_style}", exc_info=True)
+            logger.exception(f"Failed to generate view {view_style}")
             self._push_progress(f"Error: {e}")
 
     # --- Async API Updates ---
@@ -575,7 +575,7 @@ class Api:
         self._csv_path = self._data = self._csv_info = None
         self._stored_layer_paths = {'stations': None, 'uplift': None, 'tomography': None}
         clear_session_data()
-        import gc; gc.collect()
+        gc.collect()
         return True
 
     def clear_map_cache(self) -> bool | str:
@@ -583,10 +583,14 @@ class Api:
             if MAP_CACHE_DIR.exists():
                 shutil.rmtree(MAP_CACHE_DIR)
             MAP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+            if INGV_CACHE_DIR.exists():
+                shutil.rmtree(INGV_CACHE_DIR)
+            INGV_CACHE_DIR.mkdir(parents=True, exist_ok=True)
             
             build_map_mesh.cache_clear()
             clear_session_data()
-            import gc; gc.collect()
+            gc.collect()
             return True
         except Exception as e:
             return str(e)

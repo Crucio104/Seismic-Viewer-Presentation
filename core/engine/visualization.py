@@ -355,7 +355,7 @@ def get_3d_subcluster_figure(
         fig.add_trace(t)
 
     apply_3d_style(fig, [x_grid[0], x_grid[-1]], [y_grid[-1], y_grid[0]], [min_depth, 0])
-    return fig, full_labels, n_clusters, sorted(list(locked_ids))
+    return fig, full_labels, n_clusters, sorted(locked_ids)
 
 def get_cluster_update_traces(longitude: list[float], latitude: list[float], magnitude: list[float], depth: list[float], hover: list[str],
                                clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
@@ -484,7 +484,7 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
             n_clusters = max_lbl + 1
             labels = display_labels
         else:
-            unique_l = sorted(list(set(display_labels[display_labels >= 0])))
+            unique_l = sorted(set(display_labels[display_labels >= 0]))
             mapped_labels = np.full_like(display_labels, -1)
             for new_idx, old_idx in enumerate(unique_l):
                 mapped_labels[display_labels == old_idx] = new_idx
@@ -620,7 +620,7 @@ def _get_cluster_plane_trace(pts: np.ndarray, color: str, index: int, visible: b
     lon_to_km_c = KM_PER_DEGREE * np.cos(np.radians(origin_lat_c))
     pts_km_c = np.column_stack(((pts[:, 0] - origin_lon_c) * lon_to_km_c, (pts[:, 1] - origin_lat_c) * KM_PER_DEGREE, pts[:, 2]))
     
-    normal, centroid_km, planarity = fit_plane_ransac(pts_km_c, threshold=0.15)
+    normal, centroid_km, _ = fit_plane_ransac(pts_km_c, threshold=0.15)
     if normal is None or centroid_km is None:
         return go.Mesh3d(x=[], y=[], z=[], visible=False, hoverinfo='skip')
         
@@ -724,10 +724,10 @@ def get_3d_animated_figure(
     min_depth = np.floor(np.min(depth)) if len(depth) > 0 else 0
 
     if map_grids:
-        x_high, y_high, z_high, mat_high, scale_high, map_data = map_grids
+        x_high, y_high, z_high, mat_high, scale_high, _ = map_grids
     else:
         _report("Building map mesh (HD)...")
-        x_high, y_high, z_high, mat_high, scale_high, map_data = build_map_mesh(bbox, MESH_HD_SIZE)
+        x_high, y_high, z_high, mat_high, scale_high, _ = build_map_mesh(bbox, MESH_HD_SIZE)
 
     mag_range, date_range, dep_range = vpack.get('mag_range', [0, 10]), vpack.get('date_range', [0, 0]), vpack.get('dep_range', [0, 0])
 

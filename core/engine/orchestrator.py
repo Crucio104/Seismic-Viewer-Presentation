@@ -86,10 +86,7 @@ def auto_tune_dbscan_params(target_lon, target_lat, target_dep, data: dict[str, 
                 elbow_idx = _find_elbow_point(np.arange(len(k_dists)), k_dists)
                 optimal_eps_km = k_dists[elbow_idx]
                 
-                optimal_eps_m = int(round((optimal_eps_km * 1000) / 10.0) * 10)
-                if optimal_eps_m < 10:
-                    optimal_eps_m = 10
-                    
+                optimal_eps_m = max(10, int(round((optimal_eps_km * 1000) / 10.0) * 10))
                 clustering_params['dbscan_eps'] = optimal_eps_m
     except Exception as e:
         logger.warning(f"Failed to calculate optimal eps: {e}")
@@ -276,12 +273,7 @@ def build_view_html(
         context_indices = kwargs.get('context_indices', None)
         locked_clusters = kwargs.get('locked_clusters', None)
 
-        unlocked_targets = []
-        locked_set = set()
-        if locked_clusters:
-            for k, idxs in locked_clusters.items():
-                for idx in idxs:
-                    locked_set.add(int(idx))
+        locked_set = {int(idx) for idxs in locked_clusters.values() for idx in idxs} if locked_clusters else set()
         unlocked_targets = [int(idx) for idx in target_indices if int(idx) not in locked_set]
         if not unlocked_targets:
             unlocked_targets = list(target_indices)
@@ -291,9 +283,9 @@ def build_view_html(
         if clustering_params is None:
             clustering_params = kwargs['clustering_params'] = {}
 
-        unlocked_lon = np.array(lon)[unlocked_targets]
-        unlocked_lat = np.array(lat)[unlocked_targets]
-        unlocked_dep = np.array(dep)[unlocked_targets]
+        unlocked_lon = np.asarray(lon)[unlocked_targets]
+        unlocked_lat = np.asarray(lat)[unlocked_targets]
+        unlocked_dep = np.asarray(dep)[unlocked_targets]
 
         if clustering_method == 'dbscan' and len(unlocked_targets) >= 5:
             auto_tune_dbscan_params(unlocked_lon, unlocked_lat, unlocked_dep, data, clustering_params)

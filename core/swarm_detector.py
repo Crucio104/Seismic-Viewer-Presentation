@@ -72,10 +72,8 @@ def detect_ingv_swarms(df: pd.DataFrame) -> list[dict[str, Any]]:
     curr_start, curr_end, curr_i, curr_j = windows[0]
     for s, e, i_idx, j_idx in windows[1:]:
         if s <= curr_end:  # Overlaps or touches
-            if e > curr_end:
-                curr_end = e
-            if j_idx > curr_j:
-                curr_j = j_idx
+            curr_end = max(curr_end, e)
+            curr_j = max(curr_j, j_idx)
         else:
             merged.append((curr_start, curr_end, curr_i, curr_j))
             curr_start, curr_end, curr_i, curr_j = s, e, i_idx, j_idx
@@ -85,6 +83,7 @@ def detect_ingv_swarms(df: pd.DataFrame) -> list[dict[str, Any]]:
     for swarm_id, (s_time, e_time, i_idx, j_idx) in enumerate(merged, start=1):
         swarm_events = valid_df.iloc[i_idx:j_idx + 1]
         dataset_indices = valid_indices[i_idx:j_idx + 1].tolist()
+        slice_mags = mags[i_idx:j_idx + 1]
         
         start_str = pd.Timestamp(s_time).strftime('%Y-%m-%d %H:%M:%S')
         end_str = pd.Timestamp(e_time).strftime('%Y-%m-%d %H:%M:%S')
@@ -95,11 +94,11 @@ def detect_ingv_swarms(df: pd.DataFrame) -> list[dict[str, Any]]:
             'start_time': start_str,
             'end_time': end_str,
             'event_count': len(dataset_indices),
-            'max_mag': float(swarm_events['mag'].max()),
-            'min_mag': float(swarm_events['mag'].min()),
+            'max_mag': float(np.max(slice_mags)),
+            'min_mag': float(np.min(slice_mags)),
             'indices': dataset_indices,
             'times': event_times,
-            'mags': [float(m) for m in swarm_events['mag']],
+            'mags': [float(m) for m in slice_mags],
         })
 
     logger.info(f"Detected {len(swarms)} INGV seismic swarms.")

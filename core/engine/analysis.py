@@ -21,7 +21,6 @@ _worker_clustering_data = {}
 
 def _init_worker(pts_km: np.ndarray) -> None:
     """Initialize worker process with shared data once to avoid per-task serialization."""
-    global _worker_data
     _worker_data['pts_km'] = pts_km
 
 def _init_clustering_worker(data: dict[str, Any]) -> None:
@@ -477,7 +476,7 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     
     for i, res in enumerate(frame_results):
         date_str = dates_unique[i]
-        idx, labels, centroids, global_indices, mask, raw_len, frame_planes = res
+        _, labels, _, global_indices, mask, raw_len, frame_planes = res
         final_labels = np.full(raw_len, -1)
 
         if labels is None:
@@ -700,10 +699,10 @@ def _process_frame_worker(idx, data=None):
         else:
             combined_map = curr_pt_cylinder_map
 
-        labels, n_clusters = _perform_cylinder_clustering(combined_map)
+        labels, _ = _perform_cylinder_clustering(combined_map)
         centroids = None
     else:
-        labels, n_clusters, centroids = perform_clustering(pts_subset, method, params, None)
+        labels, _, centroids = perform_clustering(pts_subset, method, params, None)
         
     frame_planes = []
     if (idx % plane_step == 0) and labels is not None:

@@ -27,12 +27,16 @@ class ConnectionManager:
 
     async def broadcast(self, message: dict) -> None:
         """Broadcast message to all active connections."""
+        stale: list[WebSocket] = []
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
             except Exception:
                 # Connection might be stale
-                pass
+                stale.append(connection)
+        for dead in stale:
+            if dead in self.active_connections:
+                self.active_connections.remove(dead)
 
 async def handle_websocket_messages(websocket: WebSocket, manager: ConnectionManager, api_ref: Any | None = None) -> None:
     """Handle incoming WebSocket messages and route them to the API bridge."""

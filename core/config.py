@@ -41,6 +41,7 @@ ANIMATION_BASE_DURATION_MS = 1000
 MESH_HD_SIZE = 1024
 PALETTE_COLORS = 256
 MAP_CACHE_DIR = BASE_DIR / 'resources' / '.map_cache'
+INGV_CACHE_DIR = BASE_DIR / 'resources' / '.ingv_cache'
 
 # ─── Global State ───────────────────────────────────────────────────
 # Note: These are populated at runtime in app.py
