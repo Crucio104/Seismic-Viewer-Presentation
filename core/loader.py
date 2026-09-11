@@ -95,27 +95,35 @@ def load_csv(source_file: str) -> dict[str, Any]:
                 names=['time', 'lat', 'lon', 'depth', 'mag'],
                 header=0
             )
+        essential_cols = ['lat', 'lon', 'time']
+        df = df.dropna(subset=[c for c in essential_cols if c in df.columns])
     except Exception as e:
         logger.error(f"Failed to read CSV: {e}")
         raise ValueError(f"Failed to read CSV: {e}")
 
-    # Drop rows ONLY if they are missing essential coordinates or time
-    essential_cols = ['lat', 'lon', 'time']
-    df = df.dropna(subset=[c for c in essential_cols if c in df.columns])
-    
+    return process_seismic_dataframe(df)
+
+
+def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
+    """Process a seismic DataFrame and return extracted data arrays for visualization."""
+    if df.empty:
+        raise ValueError(f"No seismic events found with M >= {MIN_MAGNITUDE}.")
+
     # Ensure chronological order - CRITICAL for animation slicing
-    if df['time'].astype(str).str.match(r'^\d+(\.\d+)?$').all():
-        df['time_dt'] = pd.to_datetime(pd.to_numeric(df['time']), origin='1899-12-30', unit='D')
-    else:
-        # Fast path: try standard ISO8601/INGV format first via C engine, fallback to flexible mixed
-        try:
-            df['time_dt'] = pd.to_datetime(df['time'], format='ISO8601')
-        except Exception:
-            df['time_dt'] = pd.to_datetime(df['time'], errors='coerce', format='mixed')
-    if hasattr(df['time_dt'].dt, 'tz') and df['time_dt'].dt.tz is not None:
-        df['time_dt'] = df['time_dt'].dt.tz_localize(None)
-    df = df.dropna(subset=['time_dt'])
-    df = df.reset_index(drop=True)
+    if 'time_dt' not in df.columns and 'time' in df.columns:
+        if df['time'].astype(str).str.match(r'^\d+(\.\d+)?$').all():
+            df['time_dt'] = pd.to_datetime(pd.to_numeric(df['time']), origin='1899-12-30', unit='D')
+        else:
+            try:
+                df['time_dt'] = pd.to_datetime(df['time'], format='ISO8601')
+            except Exception:
+                df['time_dt'] = pd.to_datetime(df['time'], errors='coerce', format='mixed')
+    
+    if 'time_dt' in df.columns:
+        if hasattr(df['time_dt'].dt, 'tz') and df['time_dt'].dt.tz is not None:
+            df['time_dt'] = df['time_dt'].dt.tz_localize(None)
+        df = df.dropna(subset=['time_dt'])
+        df = df.reset_index(drop=True)
 
     # Flag missing depth/magnitude BEFORE filling them
     if 'depth' in df.columns:
@@ -129,7 +137,7 @@ def load_csv(source_file: str) -> dict[str, Any]:
     df = df[df['mag'] >= MIN_MAGNITUDE]
 
     if df.empty:
-        raise ValueError(f"No seismic events found with M ≥ {MIN_MAGNITUDE}.")
+        raise ValueError(f"No seismic events found with M >= {MIN_MAGNITUDE}.")
 
     # --- SANITY CHECKS ---
     initial_count = len(df)
@@ -149,7 +157,6 @@ def load_csv(source_file: str) -> dict[str, Any]:
 
     # Sort for visualization consistency
     df = df.sort_values('time_dt').reset_index(drop=True)
-
 
     # Pre-calculate dates_num (days since first event)
     min_t = df['time_dt'].min()

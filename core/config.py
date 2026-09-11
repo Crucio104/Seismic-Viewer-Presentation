@@ -80,17 +80,33 @@ def get_session_data(session_id: str) -> dict[str, Any] | None:
     with _store_lock:
         return _data_store.get(session_id)
 
-def cleanup_temp_files() -> None:
-    """Clean up temporary files created during online imports."""
+MAX_TEMP_FILES = 4
+
+def cleanup_temp_files(max_keep: int = 0) -> None:
+    """
+    Clean up temporary files created during online imports.
+    If max_keep > 0, keeps only the `max_keep` most recently modified files, deleting older ones.
+    If max_keep == 0, deletes all temporary import files.
+    """
     if TEMP_DIR.exists():
         try:
-            for f in TEMP_DIR.glob("ingv_*.csv"):
+            temp_files = sorted(
+                TEMP_DIR.glob("ingv_*.csv"),
+                key=lambda f: f.stat().st_mtime,
+                reverse=True
+            )
+            to_delete = temp_files[max_keep:] if max_keep > 0 else temp_files
+            for f in to_delete:
                 try:
                     f.unlink()
                 except Exception:
                     pass
         except Exception:
             pass
+
+def enforce_temp_dir_limit(max_keep: int = MAX_TEMP_FILES) -> None:
+    """Ensure the temp directory holds at most max_keep recent files."""
+    cleanup_temp_files(max_keep=max_keep)
 
 def clear_session_data() -> None:
     """Clear all stored session data and free memory."""

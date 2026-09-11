@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from core.geo_utils import build_map_mesh
 from core.config import MESH_HD_SIZE, KM_PER_DEGREE
-from .analysis import fit_plane_ransac, get_strike_dip, perform_clustering
+from .analysis import fit_plane_ransac, get_strike_dip, perform_clustering, project_to_km
 
 logger = logging.getLogger(__name__)
 
@@ -266,7 +266,6 @@ def get_3d_subcluster_figure(
         if origin_lon is None:
             origin_lon = float(np.mean(longitude))
 
-        from .analysis import project_to_km
         X_km = project_to_km(sub_lon, sub_lat, sub_dep, origin_lat, origin_lon)
         local_labels, n_local, _ = perform_clustering(X_km, clustering_method, clustering_params or {})
 
@@ -296,8 +295,6 @@ def get_3d_subcluster_figure(
     if map_grids:
         x_grid, y_grid, z_grid_mesh, surfacecolor, colorscale, _ = map_grids
     else:
-        from core.geo_utils import build_map_mesh
-        from core.config import MESH_HD_SIZE
         if bbox is None:
             bbox = (np.min(latitude), np.min(longitude), np.max(latitude), np.max(longitude))
         x_grid, y_grid, z_grid_mesh, surfacecolor, colorscale, _ = build_map_mesh(bbox, MESH_HD_SIZE)

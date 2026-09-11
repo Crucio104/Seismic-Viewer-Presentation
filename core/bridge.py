@@ -21,7 +21,7 @@ from core.config import (
     MAP_CACHE_DIR, INGV_CACHE_DIR, get_session_data, cleanup_temp_files
 )
 from core.history import get_recent_files, save_recent_file, clear_history
-from core.online_importer import fetch_ingv_data
+from core.online_importer import fetch_ingv_data, fetch_ingv_dataframe
 from core.geo_utils import build_map_mesh
 from core.layer_utils import process_tomography_data, process_uplift_data, process_stations_data
 from core import engine
@@ -177,12 +177,23 @@ class Api:
             return {'error': str(e)}
 
     def download_online_data(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Fetch data from INGV servers."""
+        """Fetch data from INGV servers directly in memory."""
         try:
             self._push_progress("Connecting to INGV servers...")
-            csv_path = fetch_ingv_data(params, on_progress=self._push_progress)
-            self._push_progress("Processing downloaded data...")
-            return self._process_csv_load(csv_path)
+            df, csv_path = fetch_ingv_dataframe(params, on_progress=self._push_progress)
+            self._push_progress("Packaging downloaded data...")
+            data = engine.process_seismic_dataframe(df)
+            self._csv_path, self._data = csv_path, data
+            self._stored_layer_paths = {'stations': None, 'uplift': None, 'tomography': None}
+            self._csv_info = {
+                'filename': Path(csv_path).name,
+                'event_count': data['summary']['event_count'],
+                'date_range': data['summary']['date_range'],
+                'total_days': data['summary'].get('total_days', 365),
+                'swarms_count': data['summary'].get('swarms_count', 0),
+            }
+            save_recent_file(csv_path)
+            return self._csv_info
         except Exception as e:
             logger.error(f"Online import failed: {e}", exc_info=True)
             return {'error': str(e)}

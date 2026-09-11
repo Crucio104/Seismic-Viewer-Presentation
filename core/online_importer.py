@@ -5,13 +5,17 @@ import json
 import time
 from datetime import datetime
 from typing import Any, Callable
+import pandas as pd
 from core.config import (
     GOSSIP_BASE_URL, 
     TEMP_DIR, 
     INGV_CACHE_DIR,
     DEFAULT_LOCATED_ONLY, 
     DEFAULT_EXCLUDE_MISSING,
-    CSV_CANONICAL_HEADER
+    CSV_CANONICAL_HEADER,
+    MISSING_DEPTH_VALUE,
+    MISSING_MAG_VALUE,
+    enforce_temp_dir_limit
 )
 from core.utils import parse_seismic_date
 
@@ -143,16 +147,15 @@ def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | No
         logger.error(f"Error fetching data for year {year}: {e}")
         raise
 
-def fetch_ingv_data(params: dict[str, Any], on_progress: Callable[[str], None] | None = None) -> str:
+def fetch_ingv_dataframe(params: dict[str, Any], on_progress: Callable[[str], None] | None = None) -> tuple[pd.DataFrame, str]:
     """
-    Fetch seismic data from INGV (GOSSIP) and save it to a temporary CSV.
-    Returns the path to the generated CSV file.
+    Fetch seismic data from INGV (GOSSIP) and return both an in-memory DataFrame
+    and the saved temporary CSV filepath.
     """
     network = params.get('network')
     if not network:
         raise ValueError("Geographic area is required.")
 
-    # Using the new robust date parser for start/end
     start_dt = parse_seismic_date(f"{params['startdate']} {params['starttime']}")
     end_dt = parse_seismic_date(f"{params['enddate']} {params['endtime']}")
     
@@ -172,12 +175,10 @@ def fetch_ingv_data(params: dict[str, Any], on_progress: Callable[[str], None] |
         year_events = _fetch_year(y, network, on_progress)
         all_events.extend(year_events)
 
-    # Filter events
-    filtered_events = []
-    
     logger.info(f"Starting filtering for {len(all_events)} events. Range: {start_dt} to {end_dt}, Mag: {min_mag}-{max_mag}, Level: {level}, OnlyLocated: {only_located}")
 
     reject_reasons = {"date": 0, "mag": 0, "level": 0, "loc": 0, "parse": 0}
+    filtered_items: list[dict[str, Any]] = []
 
     for e in all_events:
         # Date/Time filter
@@ -190,7 +191,7 @@ def fetch_ingv_data(params: dict[str, Any], on_progress: Callable[[str], None] |
             reject_reasons["date"] += 1
             continue
 
-        # 2. Magnitude filter
+        # Magnitude filter
         md_obj = _extract_md_obj(e.get('magnitudos', []))
         mag = md_obj.get('value')
             
@@ -202,7 +203,7 @@ def fetch_ingv_data(params: dict[str, Any], on_progress: Callable[[str], None] |
             reject_reasons["mag"] += 1
             continue
 
-        # 3. Level filter
+        # Level filter
         if level > 0:
             e_level = e.get('level')
             if not isinstance(e_level, str):
@@ -210,50 +211,62 @@ def fetch_ingv_data(params: dict[str, Any], on_progress: Callable[[str], None] |
                 continue
                 
             e_level_lower = e_level.lower()
-            if level == 2 and e_level_lower in ("automatico", "rivisto"):
-                reject_reasons["level"] += 1
-                continue
-            elif level == 1 and e_level_lower == "automatico":
+            if (level == 2 and e_level_lower in ("automatico", "rivisto")) or (level == 1 and e_level_lower == "automatico"):
                 reject_reasons["level"] += 1
                 continue
 
-        # 4. Location & Missing Data check
+        # Location & Missing Data check
         loc = e.get('location', {})
         if only_located:
             if not loc or loc.get('latitude') is None or loc.get('longitude') is None:
                 reject_reasons["loc"] += 1
                 continue
         
-        if exclude_missing:
-            # We already checked mag above. Now check depth.
-            if not loc or loc.get('depth') is None:
-                reject_reasons["loc"] += 1
-                continue
+        if exclude_missing and (not loc or loc.get('depth') is None):
+            reject_reasons["loc"] += 1
+            continue
 
-        filtered_events.append(e)
+        filtered_items.append({
+            'raw': e,
+            'time_dt': e_dt,
+            'loc': loc,
+            'md': md_obj,
+            'lat': float(loc.get('latitude')) if loc.get('latitude') is not None else 0.0,
+            'lon': float(loc.get('longitude')) if loc.get('longitude') is not None else 0.0,
+            'depth': float(loc.get('depth')) if loc.get('depth') is not None else MISSING_DEPTH_VALUE,
+            'mag': float(mag) if mag is not None else MISSING_MAG_VALUE
+        })
 
-    logger.info(f"Filtering complete. Passed: {len(filtered_events)}. Rejections: {reject_reasons}")
+    rej_str = ", ".join(f"{k}: {v}" for k, v in reject_reasons.items() if v > 0)
+    logger.info(f"Filtering complete. Passed: {len(filtered_items)}{f' (Rejected: {rej_str})' if rej_str else ''}")
 
-    if not filtered_events:
+    if not filtered_items:
         raise ValueError("No events found with the selected filters.")
 
-    # Sort events by date
-    filtered_events.sort(key=lambda x: x['date'])
+    # Chronological sort using reliable datetime objects
+    filtered_items.sort(key=lambda x: x['time_dt'])
 
-    # Generate CSV (following the INGV format)
+    # Build DataFrame directly in-memory
+    df = pd.DataFrame({
+        'time_dt': [x['time_dt'] for x in filtered_items],
+        'lat': [x['lat'] for x in filtered_items],
+        'lon': [x['lon'] for x in filtered_items],
+        'depth': [x['depth'] for x in filtered_items],
+        'mag': [x['mag'] for x in filtered_items]
+    })
+
+    # Persist canonical CSV to temp directory for exports
     TEMP_DIR.mkdir(parents=True, exist_ok=True)
-    
     filename = f"ingv_{network}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     filepath = TEMP_DIR / filename
 
     with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(CSV_CANONICAL_HEADER)
-        
-        for e in filtered_events:
-            loc = e.get('location', {})
-            md = _extract_md_obj(e.get('magnitudos', []))
-            
+        for item in filtered_items:
+            e = item['raw']
+            loc = item['loc']
+            md = item['md']
             row = [
                 e.get('id', ''),
                 e.get('date', ''), 
@@ -268,4 +281,12 @@ def fetch_ingv_data(params: dict[str, Any], on_progress: Callable[[str], None] |
             ]
             writer.writerow(row)
 
-    return str(filepath)
+    # Keep at most 4 most recent temporary CSV files
+    enforce_temp_dir_limit()
+
+    return df, str(filepath)
+
+def fetch_ingv_data(params: dict[str, Any], on_progress: Callable[[str], None] | None = None) -> str:
+    """Legacy backward-compatible wrapper returning the saved CSV filepath."""
+    _, filepath = fetch_ingv_dataframe(params, on_progress=on_progress)
+    return filepath

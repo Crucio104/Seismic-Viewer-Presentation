@@ -32,22 +32,28 @@ def _init_clustering_worker(data: dict[str, Any]) -> None:
 
 def get_strike_dip(normal: np.ndarray) -> tuple[float, float, float]:
     """
-    Convert a 3D normal vector [nx, ny, nz] (x=East, y=North, z=Down) 
-    into geological parameters: Strike, Dip, Dip Direction.
+    Convert a 3D normal vector [nx, ny, nz] into geological parameters: Strike, Dip, Dip Direction.
+    Coordinate reference frame: x=East (km), y=North (km), z=Up/Elevation (km, subterranean z <= 0).
+    Under this convention, for an upward-pointing normal (nz >= 0), the horizontal projection
+    [nx, ny] points along the downward slope azimuth (Dip Direction).
     """
-    # Ensure normal points down (z >= 0)
+    n_len = np.linalg.norm(normal)
+    if n_len < 1e-12:
+        return 0.0, 0.0, 0.0
+    normal = normal / n_len
+
+    # Ensure normal points upward (z >= 0)
     if normal[2] < 0:
         normal = -normal
     
-    # Dip: Angle with horizontal (degrees)
-    # Since normal is unit length, cos(dip) = normal[2]
-    dip = np.degrees(np.arccos(np.clip(normal[2], -1.0, 1.0)))
+    # Dip: Angle between the fault plane and the horizontal (degrees, 0 to 90)
+    dip = float(np.degrees(np.arccos(np.clip(normal[2], -1.0, 1.0))))
     
-    # Dip Direction: Azimuth of the downward slope (degrees)
-    dip_dir = (np.degrees(np.arctan2(normal[0], normal[1]))) % 360
+    # Dip Direction: Azimuth of the downward slope (0 to 360 degrees from North)
+    dip_dir = float((np.degrees(np.arctan2(normal[0], normal[1]))) % 360)
     
-    # Strike: Dip Direction - 90 (using Right Hand Rule: dip is to the right)
-    strike = (dip_dir - 90) % 360
+    # Strike: Azimuth along strike using Right-Hand Rule (RHR, dip is to the right)
+    strike = float((dip_dir - 90) % 360)
     
     return strike, dip, dip_dir
 
@@ -251,15 +257,21 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
         ))
 
     results = {}
-    max_workers = min(os.cpu_count() or 4, 8)
-    
-    with concurrent.futures.ProcessPoolExecutor(
-        max_workers=max_workers,
-        initializer=_init_worker,
-        initargs=(pts_km,)
-    ) as executor:
-        for date_str, planes in executor.map(_worker_calculate_planes, tasks):
+    # Adaptive execution: bypass ProcessPoolExecutor overhead on Windows for small workloads
+    if len(tasks) <= 12 or len(pts_km) < 1500:
+        _init_worker(pts_km)
+        for t in tasks:
+            date_str, planes = _worker_calculate_planes(t)
             results[date_str] = planes
+    else:
+        max_workers = min(os.cpu_count() or 4, 8)
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=max_workers,
+            initializer=_init_worker,
+            initargs=(pts_km,)
+        ) as executor:
+            for date_str, planes in executor.map(_worker_calculate_planes, tasks):
+                results[date_str] = planes
             
     return results
 
@@ -453,20 +465,24 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
         'origin_lat': origin_lat
     }
 
-    # Use max_workers to avoid saturating everything and allowing some room for the server
-    n_workers = min(os.cpu_count(), 8)
-    
-    # 5. Execute Parallel Clustering with shared worker initialization
+    # 5. Execute Clustering with adaptive parallel/sequential execution
     frame_results = [None] * len(date_indices)
-    with ProcessPoolExecutor(
-        max_workers=n_workers,
-        initializer=_init_clustering_worker,
-        initargs=(worker_data,)
-    ) as executor:
-        futures = [executor.submit(_process_frame_worker, i) for i in range(len(date_indices))]
-        for future in concurrent.futures.as_completed(futures):
-            res = future.result()
+    if len(date_indices) <= 15 or len(pts_km) < 1500:
+        _init_clustering_worker(worker_data)
+        for i in range(len(date_indices)):
+            res = _process_frame_worker(i, worker_data)
             frame_results[res[0]] = res
+    else:
+        n_workers = min(os.cpu_count() or 4, 8)
+        with ProcessPoolExecutor(
+            max_workers=n_workers,
+            initializer=_init_clustering_worker,
+            initargs=(worker_data,)
+        ) as executor:
+            futures = [executor.submit(_process_frame_worker, i) for i in range(len(date_indices))]
+            for future in concurrent.futures.as_completed(futures):
+                res = future.result()
+                frame_results[res[0]] = res
 
     # 6. Sequential Post-processing (Matching & Renaming Planes)
     results = {}

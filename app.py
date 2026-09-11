@@ -17,7 +17,7 @@ from starlette.middleware.gzip import GZipMiddleware
 # Core Imports
 from core.config import (
     BASE_DIR, INDEX_REL, set_http_port, get_session_data, 
-    clear_session_data, get_viz_html
+    clear_session_data, get_viz_html, enforce_temp_dir_limit
 )
 from core.bridge import Api
 from core.network import ConnectionManager, handle_websocket_messages
@@ -26,7 +26,9 @@ from core.network import ConnectionManager, handle_websocket_messages
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-    datefmt='%H:%M:%S'
+    datefmt='%H:%M:%S',
+    stream=sys.stdout,
+    force=True
 )
 logger = logging.getLogger("SeismicViewer")
 
@@ -212,6 +214,7 @@ def _cleanup() -> None:
 atexit.register(_cleanup)
 
 def main() -> None:
+    enforce_temp_dir_limit()
     _win_holder: list[webview.Window] = []
     def win_ref() -> webview.Window: return _win_holder[0]
 

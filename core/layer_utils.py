@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any
 import numpy as np
 import pandas as pd
-from core.config import BASE_DIR
+from core.config import BASE_DIR, KM_PER_DEGREE
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,9 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
         df = df.dropna(subset=[utmx_col, utmy_col, utmz_col, vpvs_col]).reset_index(drop=True)
         
         # Convert UTM Zone 33N km to Lat/Lon
-        lats, lons = utm33_to_latlon_numpy(df[utmx_col].values, df[utmy_col].values)
+        utmx_vals = df[utmx_col].values.astype(np.float64)
+        utmy_vals = df[utmy_col].values.astype(np.float64)
+        lats, lons = utm33_to_latlon_numpy(utmx_vals, utmy_vals)
         
         # In our 3D plot, Z is depth in km (positive downwards is represented as negative Z coordinates in 3D space)
         depths = -np.abs(df[utmz_col].values.astype(np.float32))
@@ -102,52 +104,46 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
 
         logger.info(f"Processed {count_rows} tomography points from {path.name}")
         
-        # Build a regular 3D grid for volumetric rendering (server-side continuous IDW interpolation)
+        # Build a regular 3D grid for volumetric rendering (server-side continuous IDW in metric UTM space)
         iso_grid = None
         try:
             from scipy.spatial import cKDTree
             
-            cal_lons = lons[mask]
-            cal_lats = lats[mask]
+            cal_utmx = utmx_vals[mask]
+            cal_utmy = utmy_vals[mask]
             cal_depths = depths[mask]  # Already -abs(utmz)
             cal_vpvs = vp_vs[mask]
             
             if len(cal_vpvs) > 0:
-                pts = np.column_stack([cal_lons, cal_lats, cal_depths])
-                
-                # Normalize coordinates to [0, 1] so horizontal (lat/lon) and vertical (depth) distances are isotropic
-                coord_min = pts.min(axis=0)
-                coord_ptp = np.maximum(pts.max(axis=0) - coord_min, 1e-9)
-                pts_norm = (pts - coord_min) / coord_ptp
-                
-                tree = cKDTree(pts_norm)
+                # Isotropic 3D metric coordinates [X_km, Y_km, Z_km]
+                pts_km = np.column_stack([cal_utmx, cal_utmy, cal_depths])
+                tree = cKDTree(pts_km)
                 
                 # Regular grid dimensions (optimized resolution for smooth 3D volumetric rendering with low memory footprint)
                 nx, ny, nz = 30, 22, 16
                 
-                lon_min, lon_max = float(cal_lons.min()), float(cal_lons.max())
-                lat_min, lat_max = float(cal_lats.min()), float(cal_lats.max())
+                x_km_min, x_km_max = float(cal_utmx.min()), float(cal_utmx.max())
+                y_km_min, y_km_max = float(cal_utmy.min()), float(cal_utmy.max())
                 dep_min, dep_max = float(cal_depths.min()), float(cal_depths.max())
                 
-                X, Y, Z = np.mgrid[
-                    lon_min:lon_max:nx*1j,
-                    lat_min:lat_max:ny*1j,
+                X_km, Y_km, Z = np.mgrid[
+                    x_km_min:x_km_max:nx*1j,
+                    y_km_min:y_km_max:ny*1j,
                     dep_min:dep_max:nz*1j
                 ]
                 
-                grid_pts = np.column_stack([X.ravel(), Y.ravel(), Z.ravel()])
-                grid_norm = (grid_pts - coord_min) / coord_ptp
+                grid_pts_km = np.column_stack([X_km.ravel(), Y_km.ravel(), Z.ravel()])
                 
                 # Query k=16 nearest neighbors for smooth Inverse Distance Weighting (IDW)
                 k_neighbors = min(16, len(cal_vpvs))
-                dists, idxs = tree.query(grid_norm, k=k_neighbors)
+                dists, idxs = tree.query(grid_pts_km, k=k_neighbors)
                 
                 if dists.ndim == 1:
                     dists = dists[:, np.newaxis]
                     idxs = idxs[:, np.newaxis]
                 
                 # Avoid division by zero for points that coincide with sample locations
-                eps = 1e-9
+                eps = 1e-6
                 dists = np.maximum(dists, eps)
                 
                 # Smooth Inverse Distance Weighting (power p = 2.0)
@@ -156,23 +152,27 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
                 idw_vals = (np.sum(weights * cal_vpvs[idxs], axis=1, keepdims=True) / weights_sum).ravel()
                 
                 # Apply smooth Gaussian damping towards crustal background Vp/Vs (1.75) away from measured stations
-                d_min = dists[:, 0]  # Distance to closest seismic sample
-                sigma = 0.15         # Characteristic decay radius in normalized coordinates (~15% of bounding box)
+                # Physical characteristic decay radius in kilometers (sigma = 2.0 km)
+                d_min = dists[:, 0]  # Distance to closest seismic sample in km
+                sigma = 2.0          # Characteristic decay radius in physical kilometers (~2 km)
                 alpha = np.exp(-((d_min / sigma) ** 2))
                 bg_val = 1.75
                 flat_vals = alpha * idw_vals + (1.0 - alpha) * bg_val
                 
+                # Project grid back to WGS84 Lat/Lon for Plotly 3D visual space
+                grid_lats, grid_lons = utm33_to_latlon_numpy(X_km.ravel(), Y_km.ravel())
+                
                 iso_grid = {
-                    'x': np.round(X.flatten(), 4).tolist(),
-                    'y': np.round(Y.flatten(), 4).tolist(),
-                    'z': np.round(Z.flatten(), 2).tolist(),
+                    'x': np.round(grid_lons, 5).tolist(),
+                    'y': np.round(grid_lats, 5).tolist(),
+                    'z': np.round(Z.ravel(), 2).tolist(),
                     'value': np.round(flat_vals, 3).tolist(),
                     'min_val': float(np.nanmin(flat_vals)),
                     'max_val': float(np.nanmax(flat_vals)),
                     'mean_val': float(np.nanmean(flat_vals)),
                 }
                 # Free numpy grid matrices
-                del tree, pts, pts_norm, grid_pts, grid_norm, dists, idxs, weights, idw_vals, flat_vals, X, Y, Z
+                del tree, pts_km, grid_pts_km, dists, idxs, weights, idw_vals, flat_vals, X_km, Y_km, Z, grid_lats, grid_lons
                 logger.info(f"Generated 3D volume grid with continuous IDW: {nx}x{ny}x{nz} = {nx*ny*nz} voxels, "
                             f"Vp/Vs range [{iso_grid['min_val']:.3f}, {iso_grid['max_val']:.3f}]")
         except ImportError:
@@ -297,6 +297,11 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
         min_lat, max_lat = min(lats) - 0.015, max(lats) + 0.015
         min_lon, max_lon = min(lons) - 0.015, max(lons) + 0.015
         
+        # Metric conversion factors for isotropic distance calculation in physical km
+        mean_lat = float(np.mean(lats))
+        lon_to_km = KM_PER_DEGREE * np.cos(np.radians(mean_lat))
+        lat_to_km = KM_PER_DEGREE
+
         # 1. Vertex grid for 3D Surface mesh (30x30 vertices - optimized for smooth rendering & low RAM footprint)
         grid_dim = 30
         grid_lats_mat, grid_lons_mat = np.meshgrid(
@@ -305,8 +310,13 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
         )
         gc_pts = np.column_stack((grid_lats_mat.ravel(), grid_lons_mat.ravel()))
         st_c = np.column_stack((lats, lons))
-        dists = np.linalg.norm(gc_pts[:, None, :] - st_c[None, :, :], axis=2)
-        weights = 1.0 / np.maximum(dists**2.5, 1e-10)
+
+        # Project coordinates to physical kilometers for isotropic distance calculation
+        st_c_km = np.column_stack((st_c[:, 0] * lat_to_km, st_c[:, 1] * lon_to_km))
+        gc_pts_km = np.column_stack((gc_pts[:, 0] * lat_to_km, gc_pts[:, 1] * lon_to_km))
+
+        dists_km = np.linalg.norm(gc_pts_km[:, None, :] - st_c_km[None, :, :], axis=2)
+        weights = 1.0 / np.maximum(dists_km, 1e-4)**2.5
         st_v_np = np.array(up_m_list)
         grid_up_vals = np.sum(weights * st_v_np, axis=1) / np.sum(weights, axis=1)
         
@@ -324,8 +334,10 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
         clons = (grid_lons_1d[:-1] + grid_lons_1d[1:]) / 2.0
         c_lats_mat, c_lons_mat = np.meshgrid(clats, clons, indexing='ij')
         gc_cells = np.column_stack((c_lats_mat.ravel(), c_lons_mat.ravel()))
-        dists_cells = np.linalg.norm(gc_cells[:, None, :] - st_c[None, :, :], axis=2)
-        weights_cells = 1.0 / np.maximum(dists_cells**2.5, 1e-10)
+        
+        gc_cells_km = np.column_stack((gc_cells[:, 0] * lat_to_km, gc_cells[:, 1] * lon_to_km))
+        dists_cells_km = np.linalg.norm(gc_cells_km[:, None, :] - st_c_km[None, :, :], axis=2)
+        weights_cells = 1.0 / np.maximum(dists_cells_km, 1e-4)**2.5
         cell_up_vals = np.round(np.sum(weights_cells * st_v_np, axis=1) / np.sum(weights_cells, axis=1), 5).tolist()
         
         features = [
@@ -367,7 +379,7 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
             'cell_hover': hover_texts
         }
         
-        del gc_pts, st_c, dists, weights, st_v_np, grid_up_vals, c_lats_mat, c_lons_mat, gc_cells, dists_cells, weights_cells
+        del gc_pts, st_c, st_c_km, gc_pts_km, dists_km, weights, st_v_np, grid_up_vals, c_lats_mat, c_lons_mat, gc_cells, gc_cells_km, dists_cells_km, weights_cells
         logger.info(f"Elaborate {len(stations)} stazioni GNSS e generata superficie geografica continua da {path.name}")
         
         return {
