@@ -585,8 +585,11 @@
                     legend.style.width = '10.5rem';
                     legend.style.minWidth = '10.5rem';
                     legend.style.maxWidth = '10.5rem';
-                    legend.style.padding = '0.6rem 0.6rem';
-                    legend.style.minHeight = 'auto'; // Fit content natively
+                    legend.style.height = '31vh';
+                    legend.style.minHeight = '13.5rem';
+                    legend.style.maxHeight = '20rem';
+                    const hasSwap = swapBtn && swapBtn.style.display !== 'none';
+                    legend.style.padding = hasSwap ? '0.85rem 0.65rem 2.6rem 0.65rem' : '0.85rem 0.65rem 0.85rem 0.65rem';
                 }
 
                 const savedScrollTop = clusterList.scrollTop || 0;
@@ -595,16 +598,15 @@
 
                 if (quakeData.n_clusters > 0) {
                     html += `
-                        <div style="display:flex; gap:0.35rem; width:100%; margin-bottom:0.35rem;">
+                        <div style="display:flex; gap:0.35rem; width:100%; margin-bottom:0.35rem; flex-shrink:0;">
                             <button class="btn-cluster-action btn-cluster-lock" onclick="lockAllClusters()" title="Blocca tutti i cluster">Lock All</button>
                             <button class="btn-cluster-action btn-cluster-unlock" onclick="unlockAllClusters()" title="Sblocca tutti i cluster">Unlock All</button>
                         </div>
-                        <div style="margin-bottom:0.45rem; width:100%;">
+                        <div style="margin-bottom:0.45rem; width:100%; flex-shrink:0;">
                             <button class="btn-cluster-subcluster" onclick="subclusterUnlocked()" title="Perform subclustering on unlocked clusters">Subclustering</button>
                         </div>
                     `;
                 }
-
 
                 for (let i = 0; i < quakeData.n_clusters; i++) {
                     const internalLbl = i;
@@ -617,7 +619,7 @@
                     const lockText = isLocked ? "Locked" : "Unlocked";
 
                     html += `
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-bottom: 0.35rem;">
+                        <div class="legend-item-cluster" style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; flex-shrink:0; width:100%; margin-bottom: 0.35rem;">
                             <span style="font-family:inherit;font-size:0.75rem;font-weight:600;color:#fff;opacity:0.9;">Cluster ${displayNum}</span>
                             <div style="display:flex; align-items:center; gap:0.35rem;">
                                 <button class="btn-cluster-item-lock" onclick="toggleClusterLock(${internalLbl})" style="${lockBtnStyle}" title="Toggle lock state">${lockText}</button>
@@ -639,6 +641,10 @@
                     const bodyWrapper = document.getElementById('legend-body-wrapper');
                     if (bodyWrapper) bodyWrapper.style.display = 'none';
                     document.getElementById('legend-title').textContent = 'Clusters';
+                }
+
+                if (window.SeismicUI && typeof window.SeismicUI.updateSwapLegendVisibility === 'function') {
+                    window.SeismicUI.updateSwapLegendVisibility();
                 }
 
                 if (savedScrollTop > 0) {

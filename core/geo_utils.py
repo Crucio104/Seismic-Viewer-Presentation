@@ -8,6 +8,8 @@ import urllib.request
 import ssl
 import PIL.Image
 import logging
+import io
+import contextlib
 from functools import lru_cache
 from typing import Any
 from core.config import PALETTE_COLORS, MAP_CACHE_DIR
@@ -31,7 +33,8 @@ def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] 
     try:
         logger.info(f"Downloading map tiles for area {bbox}...")
         try:
-            map_obj = smopy.Map(bbox)
+            with contextlib.redirect_stdout(io.StringIO()):
+                map_obj = smopy.Map(bbox)
         except (ssl.SSLError, urllib.error.URLError) as ssl_err:
             logger.warning(f"SSL certificate issue downloading tiles ({ssl_err}), retrying with local SSL fallback...")
             with _ssl_opener_lock:
@@ -41,7 +44,8 @@ def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] 
                 orig_opener = urllib.request._opener
                 urllib.request.install_opener(unverified_opener)
                 try:
-                    map_obj = smopy.Map(bbox)
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        map_obj = smopy.Map(bbox)
                 finally:
                     urllib.request.install_opener(orig_opener)
 

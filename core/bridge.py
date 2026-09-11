@@ -12,6 +12,7 @@ import csv
 import zipfile
 import io
 import gc
+import bisect
 from collections import Counter, defaultdict
 from typing import Any, Callable
 
@@ -483,24 +484,21 @@ class Api:
             t1 = params.get('start_date', "").strip() if params.get('start_date') else ""
             t2 = params.get('end_date', "").strip() if params.get('end_date') else ""
             
-            # Fast index slicing
+            # Fast index slicing using binary search
             start_idx, end_idx = 0, len(d['longitude'])
             if t1 or t2:
                 dates = d['visual_pack']['unique_dates']
                 cum = d['visual_pack']['date_to_cum']
                 if t1:
-                    for i, dt in enumerate(dates):
-                        if dt >= t1:
-                            if i > 0:
-                                start_idx = cum[dates[i-1]]
-                            break
+                    i = bisect.bisect_left(dates, t1)
+                    if i < len(dates):
+                        start_idx = cum[dates[i - 1]] if i > 0 else 0
                     else:
                         start_idx = end_idx
                 if t2:
-                    for i, dt in enumerate(dates):
-                        if dt > t2:
-                            end_idx = cum[dates[i-1]] if i > 0 else 0
-                            break
+                    j = bisect.bisect_right(dates, t2)
+                    if j < len(dates):
+                        end_idx = cum[dates[j - 1]] if j > 0 else 0
                     else:
                         end_idx = len(d['longitude'])
 

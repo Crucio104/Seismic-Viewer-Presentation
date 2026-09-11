@@ -677,7 +677,11 @@ body {
     gap: 0.625rem;
     width: 100%;
     overflow-y: auto;
+    overflow-x: hidden;
     padding-right: 0.3rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100%;
 }
 
 /* Custom Scrollbar for Legend rimosse globalmente */

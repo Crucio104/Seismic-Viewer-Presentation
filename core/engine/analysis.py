@@ -130,16 +130,26 @@ def _format_plane_geometry(
     """Helper to convert plane vectors into Plotly-ready coordinates and metadata."""
     strike_val, dip_val, dd_val = get_strike_dip(normal)
     
-    # Basis vectors for the plane
-    u = np.cross(normal, [0, 0, 1])
-    if np.linalg.norm(u) < 1e-6:
-        u = np.array([1, 0, 0])
+    # Rigorous seismotectonic basis vectors:
+    # u: Strike vector (horizontal unit vector pointing along strike azimuth)
+    strike_rad = np.radians(strike_val)
+    u = np.array([np.sin(strike_rad), np.cos(strike_rad), 0.0], dtype=np.float64)
+    u_norm = np.linalg.norm(u)
+    if u_norm > 1e-6:
+        u /= u_norm
     else:
-        u /= np.linalg.norm(u)
-    v = np.cross(normal, u)
-    v /= np.linalg.norm(v)
-    
-    # Square vertices in KM
+        u = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+
+    # v: Down-dip vector (pointing along the maximum downward slope of the fault plane)
+    # v is perpendicular to strike and in the plane (cross product u x normal, pointing downwards)
+    v = np.cross(u, normal)
+    v_norm = np.linalg.norm(v)
+    if v_norm > 1e-6:
+        v /= v_norm
+    else:
+        v = np.array([0.0, 1.0, 0.0], dtype=np.float64)
+
+    # Square patch vertices in KM (oriented with strike along u and dip along v)
     sq_verts_km = np.array([
         centroid_km - radius*u - radius*v,
         centroid_km + radius*u - radius*v,

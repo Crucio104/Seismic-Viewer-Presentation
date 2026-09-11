@@ -599,11 +599,16 @@
                     if (window.SeismicUI) {
                         window.SeismicUI._activeConsecutiveArrows = false;
                         if (window._currentLegendMode === 'vectors') {
-                            window._currentLegendMode = 'earthquakes';
-                            if (window._earthquakeLegendState) {
-                                const s = window._earthquakeLegendState;
-                                if (typeof updateGlassLegendInternal === 'function') {
-                                    updateGlassLegendInternal(s.show, s.title, s.scaleName, s.invert, s.limits, s.dateInfo);
+                            if (animClusteringEnabled) {
+                                window._currentLegendMode = 'clusters';
+                                updateClusterLegend(window._lastPresentLabels || []);
+                            } else {
+                                window._currentLegendMode = 'earthquakes';
+                                if (window._earthquakeLegendState) {
+                                    const s = window._earthquakeLegendState;
+                                    if (typeof updateGlassLegendInternal === 'function') {
+                                        updateGlassLegendInternal(s.show, s.title, s.scaleName, s.invert, s.limits, s.dateInfo);
+                                    }
                                 }
                             }
                         }
@@ -1456,7 +1461,11 @@
                     legend.style.width = '10.5rem';
                     legend.style.minWidth = '10.5rem';
                     legend.style.maxWidth = '10.5rem';
-                    legend.style.padding = '0.6rem 0.6rem';
+                    legend.style.height = '31vh';
+                    legend.style.minHeight = '13.5rem';
+                    legend.style.maxHeight = '20rem';
+                    const hasSwap = swapBtn && swapBtn.style.display !== 'none';
+                    legend.style.padding = hasSwap ? '0.85rem 0.65rem 2.6rem 0.65rem' : '0.85rem 0.65rem 0.85rem 0.65rem';
                 }
                 if (scaleWrapper) scaleWrapper.style.display = 'none';
                 if (invertGroup) invertGroup.style.display = 'none';
@@ -1474,6 +1483,10 @@
                     document.getElementById('legend-title').textContent = 'Clusters';
                 }
                 
+                if (window.SeismicUI && typeof window.SeismicUI.updateSwapLegendVisibility === 'function') {
+                    window.SeismicUI.updateSwapLegendVisibility();
+                }
+
                 if (!presentLabels || presentLabels.length === 0) {
                     clusterList.innerHTML = '';
                     return;
@@ -1486,11 +1499,11 @@
                 let html = '';
                 if (uniqueLabels.length > 0) {
                     html += `
-                        <div style="display:flex; gap:0.35rem; width:100%; margin-bottom:0.35rem;">
+                        <div style="display:flex; gap:0.35rem; width:100%; margin-bottom:0.35rem; flex-shrink:0;">
                             <button class="btn-cluster-action btn-cluster-lock" onclick="lockAllClustersAnim()" title="Blocca tutti i cluster">Lock All</button>
                             <button class="btn-cluster-action btn-cluster-unlock" onclick="unlockAllClustersAnim()" title="Sblocca tutti i cluster">Unlock All</button>
                         </div>
-                        <div style="margin-bottom:0.45rem; width:100%;">
+                        <div style="margin-bottom:0.45rem; width:100%; flex-shrink:0;">
                             <button class="btn-cluster-subcluster" onclick="subclusterUnlockedAnim()" title="Perform subclustering on unlocked clusters">Subclustering</button>
                         </div>
                     `;
@@ -2123,6 +2136,7 @@
                         appliedEventVectorsEnabled = !!(evCheck && evCheck.checked);
 
                         if (animClusteringEnabled) {
+                            window._currentLegendMode = 'clusters';
                             await syncAnimatedClustering();
                         } else if (planesEnabled) {
                             await syncPlanes();
@@ -2148,10 +2162,16 @@
                             lastAccumIdx = -1;
                             animClustersMap = null;
                             window.animClustersMap = null;
+                            if (window._currentLegendMode === 'clusters') {
+                                window._currentLegendMode = 'earthquakes';
+                            }
                         }
 
                         // 4. Final render update
                         updateView(currentStepIdx);
+                        if (window.SeismicUI && typeof window.SeismicUI.updateSwapLegendVisibility === 'function') {
+                            window.SeismicUI.updateSwapLegendVisibility();
+                        }
 
                     } catch (err) {
                         console.error("Apply Changes Error:", err);
