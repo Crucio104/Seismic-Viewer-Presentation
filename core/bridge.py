@@ -22,7 +22,7 @@ from core.config import (
     MAP_CACHE_DIR, INGV_CACHE_DIR, get_session_data, cleanup_temp_files
 )
 from core.history import get_recent_files, save_recent_file, clear_history
-from core.online_importer import fetch_ingv_data, fetch_ingv_dataframe
+from core.online_importer import fetch_ingv_dataframe
 from core.geo_utils import build_map_mesh
 from core.layer_utils import process_tomography_data, process_uplift_data, process_stations_data
 from core import engine
@@ -58,6 +58,26 @@ class Api:
 
     def _make_data_url(self, session_id: str) -> str:
         return f'http://127.0.0.1:{get_http_port()}/api/data/{session_id}'
+
+    def _navigate_frame(self, url: str) -> None:
+        """Navigate the visualization frame without reloading the top-level application shell."""
+        try:
+            safe_url = url.replace('\\', '\\\\').replace("'", "\\'")
+            js_code = (
+                f"if(window.SeismicApp && typeof window.SeismicApp.navigateTo === 'function') {{"
+                f"    window.SeismicApp.navigateTo('{safe_url}');"
+                f"}} else {{"
+                f"    window.location.href = '{safe_url}';"
+                f"}}"
+            )
+            self._window().evaluate_js(js_code)
+        except Exception as e:
+            logger.warning(f"Error navigating frame: {e}, falling back to window.load_url")
+            try:
+                self._inject_dark_overlay()
+                self._window().load_url(url)
+            except Exception:
+                pass
 
     def clear_history(self) -> dict:
         """Clear all history sessions and caches."""
@@ -311,7 +331,11 @@ class Api:
                 threading.Thread(target=self._generate_and_navigate, args=(prev['view_style'],), kwargs=dict(nav_gen=gen, **prev['kwargs']), daemon=True).start()
             else:
                 try:
-                    self._window().evaluate_js("transitionToHub()")
+                    self._window().evaluate_js(
+                        "if(window.SeismicApp && typeof window.SeismicApp.showHub==='function') "
+                        "window.SeismicApp.showHub(); "
+                        "else if(typeof transitionToHub==='function') transitionToHub();"
+                    )
                 except Exception:
                     pass
 
@@ -431,8 +455,7 @@ class Api:
                     url += "&subcluster=true"
                 if nav_gen != 0 and nav_gen != self._nav_generation:
                     return
-                self._inject_dark_overlay()
-                self._window().load_url(url)
+                self._navigate_frame(url)
                 return
 
             # 2. Generate New View
@@ -466,8 +489,7 @@ class Api:
             url = self._make_url(viz_id)
             if view_style == 4:
                 url += "?subcluster=true"
-            self._inject_dark_overlay()
-            self._window().load_url(url)
+            self._navigate_frame(url)
             
         except Exception as e:
             logger.exception(f"Failed to generate view {view_style}")
@@ -828,42 +850,5 @@ class Api:
             return {'status': 'success', 'count': exported_count, 'path': str(save_path)}
         except Exception as e:
             logger.error("Error exporting clusters ZIP", exc_info=True)
-            return {'status': 'error', 'message': str(e)}
-
-    def export_clusters_csv(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Export clustering results (each cluster + outliers) as CSV files to a chosen directory."""
-        try:
-            if not self._data:
-                return {'status': 'error', 'message': 'No dataset loaded'}
-
-            method, params, export_items = self._collect_cluster_export_items(payload)
-            if not export_items:
-                return {'status': 'error', 'message': 'No cluster data available to export in the current frame.'}
-
-            # Open folder selection dialog
-            result = self._window().create_file_dialog(
-                webview.FileDialog.FOLDER,
-                directory=str(Path.home())
-            )
-            
-            if not result:
-                return {'status': 'cancelled'}
-                
-            save_dir = Path(result[0] if isinstance(result, (list, tuple)) else result)
-            save_dir.mkdir(parents=True, exist_ok=True)
-
-            header_comment = self._get_cluster_header_comment(method, params)
-
-            exported_count = 0
-            for file_name, idx_list in export_items:
-                csv_text = self._build_cluster_csv_text(idx_list, header_comment)
-                file_path = save_dir / file_name
-                with open(file_path, 'w', encoding='utf-8', newline='') as f:
-                    f.write(csv_text)
-                exported_count += 1
-
-            return {'status': 'success', 'count': exported_count, 'folder': str(save_dir)}
-        except Exception as e:
-            logger.error("Error exporting clusters CSV", exc_info=True)
             return {'status': 'error', 'message': str(e)}
 

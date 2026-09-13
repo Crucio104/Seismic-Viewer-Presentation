@@ -7,7 +7,7 @@ from scipy.spatial import KDTree, ConvexHull
 from scipy.linalg import svd
 from sklearn.cluster import MiniBatchKMeans, DBSCAN
 import concurrent.futures
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 import os
 from typing import Any
 
@@ -267,19 +267,14 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
         ))
 
     results = {}
-    # Adaptive execution: bypass ProcessPoolExecutor overhead on Windows for small workloads
+    _init_worker(pts_km)
     if len(tasks) <= 12 or len(pts_km) < 1500:
-        _init_worker(pts_km)
         for t in tasks:
             date_str, planes = _worker_calculate_planes(t)
             results[date_str] = planes
     else:
         max_workers = min(os.cpu_count() or 4, 8)
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=max_workers,
-            initializer=_init_worker,
-            initargs=(pts_km,)
-        ) as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             for date_str, planes in executor.map(_worker_calculate_planes, tasks):
                 results[date_str] = planes
             
@@ -477,19 +472,15 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
 
     # 5. Execute Clustering with adaptive parallel/sequential execution
     frame_results = [None] * len(date_indices)
+    _init_clustering_worker(worker_data)
     if len(date_indices) <= 15 or len(pts_km) < 1500:
-        _init_clustering_worker(worker_data)
         for i in range(len(date_indices)):
             res = _process_frame_worker(i, worker_data)
             frame_results[res[0]] = res
     else:
         n_workers = min(os.cpu_count() or 4, 8)
-        with ProcessPoolExecutor(
-            max_workers=n_workers,
-            initializer=_init_clustering_worker,
-            initargs=(worker_data,)
-        ) as executor:
-            futures = [executor.submit(_process_frame_worker, i) for i in range(len(date_indices))]
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            futures = [executor.submit(_process_frame_worker, i, worker_data) for i in range(len(date_indices))]
             for future in concurrent.futures.as_completed(futures):
                 res = future.result()
                 frame_results[res[0]] = res
@@ -600,6 +591,31 @@ def _get_frame_dates_and_indices(dates, date_to_cum, mode, window_days, step_day
         indices.append((s_idx, date_to_cum[d_str]))
     return dates, indices
 
+def compute_robust_hull_simplices(pts: np.ndarray) -> list[list[int]] | None:
+    """
+    Compute convex hull simplices in 3D.
+    If 3D ConvexHull fails because points are coplanar or nearly coplanar
+    (a common case for planar fault clusters), project onto the 2D plane of maximum
+    variance via SVD and compute the 2D convex hull with fan triangulation.
+    """
+    if len(pts) < 3:
+        return None
+    try:
+        hull_3d = ConvexHull(pts)
+        return hull_3d.simplices.tolist()
+    except Exception:
+        try:
+            centered = pts - np.mean(pts, axis=0)
+            _, _, vh = svd(centered, full_matrices=False)
+            pts_2d = centered @ vh[:2].T
+            hull_2d = ConvexHull(pts_2d)
+            v = hull_2d.vertices
+            if len(v) >= 3:
+                return [[int(v[0]), int(v[k]), int(v[k + 1])] for k in range(1, len(v) - 1)]
+            return None
+        except Exception:
+            return None
+
 def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat):
     lon_to_km = KM_PER_DEGREE * np.cos(np.radians(origin_lat))
     planes = []
@@ -630,9 +646,8 @@ def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat):
             )
             p_data['grid_id'] = f"cluster_{lid}_{date_str}"
             
-            try:
-                hull = ConvexHull(fit_pts)
-                
+            simplices = compute_robust_hull_simplices(fit_pts)
+            if simplices is not None:
                 # Convert from km back to degrees for plotly
                 hx = (fit_pts[:, 0] / lon_to_km) + origin_lon
                 hy = (fit_pts[:, 1] / KM_PER_DEGREE) + origin_lat
@@ -641,9 +656,9 @@ def _calculate_frame_planes(labels, points, date_str, origin_lon, origin_lat):
                     'x': hx.tolist(),
                     'y': hy.tolist(),
                     'z': fit_pts[:, 2].tolist(),
-                    'simplices': hull.simplices.tolist()
+                    'simplices': simplices
                 }
-            except Exception:
+            else:
                 p_data['hull'] = None
 
             planes.append(p_data)

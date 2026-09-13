@@ -444,13 +444,18 @@
     }
 
     async function transitionToHub() {
-        if (window.pywebview && window.pywebview.api && window.pywebview.api.clear_history) {
-            await window.pywebview.api.clear_history();
+        const api = (window.pywebview && window.pywebview.api) || (window.parent && window.parent.pywebview && window.parent.pywebview.api);
+        if (api && api.clear_history) {
+            try { await api.clear_history(); } catch(e) {}
         }
-        showInitLoader('Returning to Hub...');
-        setTimeout(() => {
-            window.location.href = '/assets/index.html';
-        }, 150);
+        if (window.parent && window.parent.SeismicApp && typeof window.parent.SeismicApp.showHub === 'function') {
+            window.parent.SeismicApp.showHub();
+        } else {
+            showInitLoader('Returning to Hub...');
+            setTimeout(() => {
+                window.location.href = '/assets/index.html';
+            }, 150);
+        }
     }
 
     // --- History Navigation ---

@@ -4,14 +4,13 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.colors import qualitative as _pq
-from scipy.spatial import ConvexHull
 from typing import Any, Callable
 from bisect import bisect_left
 from datetime import datetime, timedelta
 
 from core.geo_utils import build_map_mesh
 from core.config import MESH_HD_SIZE, KM_PER_DEGREE
-from .analysis import fit_plane_ransac, get_strike_dip, perform_clustering, project_to_km
+from .analysis import fit_plane_ransac, get_strike_dip, perform_clustering, project_to_km, compute_robust_hull_simplices
 
 logger = logging.getLogger(__name__)
 
@@ -574,14 +573,14 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
     return {'traces': traces, 'labels': labels, 'n_clusters': n_clusters}
 
 def _get_cluster_hull_trace(pts: np.ndarray, color: str, index: int) -> go.Scatter3d:
-    """Generate a wireframe hull for a cluster."""
-    if len(pts) <= 4:
+    """Generate a wireframe hull for a cluster with robust coplanar fallback."""
+    if len(pts) <= 3:
         return go.Scatter3d(x=[], y=[], z=[], visible=False, hoverinfo='skip')
     
-    try:
-        hull = ConvexHull(pts)
+    simplices = compute_robust_hull_simplices(pts)
+    if simplices:
         lx, ly, lz = [], [], []
-        for s in hull.simplices:
+        for s in simplices:
             for c in [(0,1), (1,2), (2,0)]:
                 lx.extend([pts[s[c[0]], 0], pts[s[c[1]], 0], None])
                 ly.extend([pts[s[c[0]], 1], pts[s[c[1]], 1], None])
@@ -591,8 +590,7 @@ def _get_cluster_hull_trace(pts: np.ndarray, color: str, index: int) -> go.Scatt
             line=dict(color=color, width=2),
             opacity=0.4, name=f'Cluster {index+1} Wire', visible=True, showlegend=False, hoverinfo='skip'
         )
-    except Exception:
-        return go.Scatter3d(x=[], y=[], z=[], visible=False, hoverinfo='skip')
+    return go.Scatter3d(x=[], y=[], z=[], visible=False, hoverinfo='skip')
 
 def _get_cluster_mesh_trace(pts: np.ndarray, color: str, index: int) -> go.Mesh3d:
     """Generate a solid volume mesh for a cluster."""

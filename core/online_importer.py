@@ -285,8 +285,3 @@ def fetch_ingv_dataframe(params: dict[str, Any], on_progress: Callable[[str], No
     enforce_temp_dir_limit()
 
     return df, str(filepath)
-
-def fetch_ingv_data(params: dict[str, Any], on_progress: Callable[[str], None] | None = None) -> str:
-    """Legacy backward-compatible wrapper returning the saved CSV filepath."""
-    _, filepath = fetch_ingv_dataframe(params, on_progress=on_progress)
-    return filepath

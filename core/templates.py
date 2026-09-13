@@ -74,6 +74,12 @@ def _inject_head_assets(html: str, is_subcluster: bool = False) -> str:
     """Inject CSS and fonts into the <head>."""
     loader_bg = 'rgba(15, 12, 41, 0.6) !important; backdrop-filter: blur(0.8rem); -webkit-backdrop-filter: blur(0.8rem);' if is_subcluster else '#050510 !important;'
     head_css = (
+        '<script>'
+        'if(!window.pywebview && window.parent && window.parent.pywebview){'
+        '  window.pywebview = window.parent.pywebview;'
+        '  try{ window.dispatchEvent(new Event("pywebviewready")); }catch(e){}'
+        '}'
+        '</script>'
         '<style>'
         'html,body,.js-plotly-plot,.plotly-graph-div{background:#050510 !important;margin:0;padding:0;overflow:hidden;height:100%;width:100%}'
         f'#init-loader{{background:{loader_bg}}}'

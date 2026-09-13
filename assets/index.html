@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="index.css">
+    <link rel="preload" href="/assets/plotly.min.js" as="script">
 </head>
 <body>
     <div class="bg"></div>
@@ -988,6 +989,33 @@
             loadView(viewIndexMap[e.key]);
         }
     });
+
+    /* ─── SPA Window Controller ─── */
+    window.SeismicApp = {
+        navigateTo: function(url) {
+            const frame = document.getElementById('viz-frame');
+            const overlay = document.getElementById('overlay');
+            frame.style.display = 'block';
+            frame.src = url;
+            frame.onload = function() {
+                frame.style.opacity = '1';
+                if (overlay) overlay.classList.remove('show');
+                loading = false;
+            };
+        },
+        showHub: function() {
+            const frame = document.getElementById('viz-frame');
+            frame.style.opacity = '0';
+            setTimeout(() => {
+                frame.style.display = 'none';
+                frame.src = 'about:blank';
+                loading = false;
+            }, 250);
+            if (typeof updateRecentFiles === 'function') updateRecentFiles();
+            if (typeof updateCardInfo === 'function') updateCardInfo();
+        }
+    };
 </script>
+<iframe id="viz-frame" name="viz-frame" src="about:blank" style="display:none; position:fixed; inset:0; width:100%; height:100%; border:none; z-index:99999; background:#050510; opacity:0; transition:opacity 0.25s ease-in-out;"></iframe>
 </body>
 </html>
