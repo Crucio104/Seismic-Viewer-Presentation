@@ -777,6 +777,7 @@
             initCluster().catch(err => {
                 console.error('Failed to load cluster data:', err);
                 if (typeof showStatusToast === 'function') showStatusToast('Failed to load data.');
+                hideInitLoader();
             });
         });
 

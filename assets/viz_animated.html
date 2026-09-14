@@ -2279,6 +2279,7 @@
             initAnimation().catch(err => {
                 console.error('Failed to load animation data:', err);
                 if (typeof showStatusToast === 'function') showStatusToast('Failed to load data.');
+                hideInitLoader();
             });
         });
         </script>

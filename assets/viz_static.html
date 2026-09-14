@@ -317,28 +317,25 @@
             if (is3D) {
                 applyBtn.onclick = applyFilterWithLoader;
                 // Initial filter run to sync filtered state and vectors
-                applyFilter();
+                await applyFilter();
                 // Manually trigger initial legend update for 3D
-                setTimeout(() => {
-                    updateGlassLegend(true, 'Depth (KM)', currentColorScale, invertScale, quakeData.dep_limit || quakeData.dep_range, { startDate: quakeData.start_date });
-                }, 10);
+                updateGlassLegend(true, 'Depth (KM)', currentColorScale, invertScale, quakeData.dep_limit || quakeData.dep_range, { startDate: quakeData.start_date });
             } else {
                 applyBtn.style.display = 'flex';
                 applyBtn.onclick = applyFilter;
                 // Initial legend update for 2D view
-                setTimeout(() => {
-                    updateGlassLegend(
-                        currentViewMode !== 'heatmap',
-                        currentColorMode === 'dep' ? 'Depth (KM)' : (currentColorMode === 'mag' ? 'Magnitude' : 'Date'),
-                        currentColorScale,
-                        invertScale,
-                        quakeData.dep_limit || quakeData.dep_range,
-                        { startDate: quakeData.start_date }
-                    );
-                }, 50);
+                await applyFilter();
+                updateGlassLegend(
+                    currentViewMode !== 'heatmap',
+                    currentColorMode === 'dep' ? 'Depth (KM)' : (currentColorMode === 'mag' ? 'Magnitude' : 'Date'),
+                    currentColorScale,
+                    invertScale,
+                    quakeData.dep_limit || quakeData.dep_range,
+                    { startDate: quakeData.start_date }
+                );
             }
 
-            function applyFilter() {
+            async function applyFilter() {
                 if (invertCheck) invertScale = invertCheck.checked;
                 const start = startInput.value ? startInput.value.trim() : '';
                 const end = endInput.value ? endInput.value.trim() : '';
@@ -449,20 +446,26 @@
                     const otherIdx = isDate ? (depthIdx !== -1 ? depthIdx : 1) : (dateIdx !== -1 ? dateIdx : 2);
 
                     if (otherIdx !== -1 && otherIdx < gd.data.length) {
-                        Plotly.restyle(gd, { visible: [false] }, [otherIdx]);
+                        try {
+                            const pHide = Plotly.restyle(gd, { visible: [false] }, [otherIdx]);
+                            if (pHide && typeof pHide.then === 'function') await pHide;
+                        } catch (e) {}
                     }
                     if (traceIdx !== -1 && traceIdx < gd.data.length) {
-                        Plotly.restyle(gd, {
-                            x: [filtered.lon], y: [filtered.lat], z: [filtered.dep],
-                            'marker.size': [markerSizes],
-                            'marker.color': [colorArr],
-                            'marker.cmin': [limits[0]],
-                            'marker.cmax': [limits[1]],
-                            'marker.colorscale': [getPlotlyScale(currentColorScale)],
-                            'marker.reversescale': [invertScale],
-                            'marker.showscale': [false],
-                            hovertext: [filtered.hover], visible: [true]
-                        }, [traceIdx]);
+                        try {
+                            const pShow = Plotly.restyle(gd, {
+                                x: [filtered.lon], y: [filtered.lat], z: [filtered.dep],
+                                'marker.size': [markerSizes],
+                                'marker.color': [colorArr],
+                                'marker.cmin': [limits[0]],
+                                'marker.cmax': [limits[1]],
+                                'marker.colorscale': [getPlotlyScale(currentColorScale)],
+                                'marker.reversescale': [invertScale],
+                                'marker.showscale': [false],
+                                hovertext: [filtered.hover], visible: [true]
+                            }, [traceIdx]);
+                            if (pShow && typeof pShow.then === 'function') await pShow;
+                        } catch (e) {}
                     }
                 } else {
                     let scatterIdx = -1, heatmapIdx = -1;
@@ -471,10 +474,9 @@
                         if (!tr) continue;
                         const name = tr.name || '';
                         const isDensity = (tr.type === 'densitymapbox' || tr.type === 'densitymap');
-                        const isScatter = (tr.type === 'scattermapbox' || tr.type === 'scattermap');
-                        if (isDensity && (name === 'Heatmap' || name === 'Earthquakes (Heatmap)')) {
+                        if (name === 'Earthquakes Heatmap' || isDensity) {
                             heatmapIdx = i;
-                        } else if (isScatter && (name === 'Earthquakes (Scatter)' || name === 'Earthquakes' || (!name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia') && name !== 'Heatmap' && name !== 'Earthquakes (Heatmap)'))) {
+                        } else if (name === 'Earthquakes' || ((tr.type === 'scattermapbox' || tr.type === 'scattermap') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia'))) {
                             scatterIdx = i;
                         }
                     }
@@ -487,6 +489,10 @@
                             gd.data[heatmapIdx].lon = filtered.lon;
                             gd.data[heatmapIdx].z = filtered.mag;
                             gd.data[heatmapIdx].hovertext = filtered.hover;
+                            if (gd.data[heatmapIdx].colorscale !== undefined) {
+                                gd.data[heatmapIdx].colorscale = getPlotlyScale(currentColorScale);
+                                gd.data[heatmapIdx].reversescale = invertScale;
+                            }
                         }
                     } else {
                         if (heatmapIdx !== -1) gd.data[heatmapIdx].visible = false;
@@ -514,7 +520,8 @@
                         }
                     }
                     try {
-                        Plotly.react(gd, gd.data, gd.layout);
+                        const pReact = Plotly.react(gd, gd.data, gd.layout);
+                        if (pReact && typeof pReact.then === 'function') await pReact;
                     } catch (e) {
                         try { Plotly.redraw(gd); } catch (e2) {}
                     }

@@ -992,30 +992,67 @@
 
     /* ─── SPA Window Controller ─── */
     window.SeismicApp = {
+        _revealTimeout: null,
         navigateTo: function(url) {
             const frame = document.getElementById('viz-frame');
             const overlay = document.getElementById('overlay');
+            if (this._revealTimeout) clearTimeout(this._revealTimeout);
+
+            // Keep overlay visible and dark during transition
+            if (overlay) overlay.classList.add('show');
+            
+            // Frame is prepared in background at opacity 0
             frame.style.display = 'block';
+            frame.style.opacity = '0';
             frame.src = url;
-            frame.onload = function() {
+
+            // Safe fallback: in case the view does not signal ready after 8s
+            this._revealTimeout = setTimeout(() => {
+                this.revealVisualization();
+            }, 8000);
+        },
+        revealVisualization: function() {
+            if (this._revealTimeout) {
+                clearTimeout(this._revealTimeout);
+                this._revealTimeout = null;
+            }
+            const frame = document.getElementById('viz-frame');
+            const overlay = document.getElementById('overlay');
+            if (frame) {
                 frame.style.opacity = '1';
+            }
+            // Smooth dissolvenza: wait for frame crossfade before releasing overlay
+            setTimeout(() => {
                 if (overlay) overlay.classList.remove('show');
                 loading = false;
-            };
+            }, 200);
+        },
+        hideOverlay: function() {
+            this.revealVisualization();
         },
         showHub: function() {
+            if (this._revealTimeout) {
+                clearTimeout(this._revealTimeout);
+                this._revealTimeout = null;
+            }
             const frame = document.getElementById('viz-frame');
-            frame.style.opacity = '0';
+            const overlay = document.getElementById('overlay');
+            if (frame) {
+                frame.style.opacity = '0';
+            }
             setTimeout(() => {
-                frame.style.display = 'none';
-                frame.src = 'about:blank';
+                if (frame) {
+                    frame.style.display = 'none';
+                    frame.src = 'about:blank';
+                }
+                if (overlay) overlay.classList.remove('show');
                 loading = false;
-            }, 250);
+            }, 350);
             if (typeof updateRecentFiles === 'function') updateRecentFiles();
             if (typeof updateCardInfo === 'function') updateCardInfo();
         }
     };
 </script>
-<iframe id="viz-frame" name="viz-frame" src="about:blank" style="display:none; position:fixed; inset:0; width:100%; height:100%; border:none; z-index:99999; background:#050510; opacity:0; transition:opacity 0.25s ease-in-out;"></iframe>
+<iframe id="viz-frame" name="viz-frame" src="about:blank" style="display:none; position:fixed; inset:0; width:100%; height:100%; border:none; z-index:99999; background:#050510; opacity:0; transition:opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);"></iframe>
 </body>
 </html>

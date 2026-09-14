@@ -12,38 +12,44 @@ from core.swarm_detector import detect_ingv_swarms
 logger = logging.getLogger(__name__)
 
 def _make_hover(df: pd.DataFrame) -> list[str]:
-    """Generate descriptive hover text strings using vectorized operations."""
-    # Vectorized check for missing flags (if we added them during load)
-    mag_labels = df['mag'].astype(str)
-    if 'mag_is_missing' in df.columns:
-        mag_labels = np.where(df['mag_is_missing'], "N.D. (missing)", df['mag'].astype(str))
-    
-    dep_labels = df['depth'].abs().map('{:.4f}'.format) + " km"
-    if 'depth_is_missing' in df.columns:
-        dep_labels = np.where(df['depth_is_missing'], "N.D. (missing)", dep_labels)
+    """Generate descriptive hover text strings avoiding intermediate Pandas Series overhead."""
+    dates = df['time_dt'].dt.strftime('%d-%m-%Y %H:%M').to_numpy()
+    lats = df['lat'].to_numpy(dtype=float)
+    lons = df['lon'].to_numpy(dtype=float)
+    deps = np.abs(df['depth'].to_numpy(dtype=float))
+    mags = df['mag'].astype(str).to_numpy()
 
-    return (
-        "Date: " + df['time_dt'].dt.strftime('%d-%m-%Y %H:%M') + "<br>" +
-        "Magnitude: " + mag_labels + "<br>" +
-        "Latitude: " + df['lat'].map('{:.4f}'.format) + "<br>" +
-        "Longitude: " + df['lon'].map('{:.4f}'.format) + "<br>" +
-        "Depth: " + dep_labels
-    ).tolist()
+    has_mag_missing = 'mag_is_missing' in df.columns
+    has_dep_missing = 'depth_is_missing' in df.columns
+    mag_miss = df['mag_is_missing'].to_numpy() if has_mag_missing else None
+    dep_miss = df['depth_is_missing'].to_numpy() if has_dep_missing else None
+
+    result: list[str] = []
+    n = len(df)
+    for i in range(n):
+        m_label = "N.D. (missing)" if (has_mag_missing and mag_miss[i]) else mags[i]
+        d_label = "N.D. (missing)" if (has_dep_missing and dep_miss[i]) else f"{deps[i]:.4f} km"
+        result.append(
+            f"Date: {dates[i]}<br>"
+            f"Magnitude: {m_label}<br>"
+            f"Latitude: {lats[i]:.4f}<br>"
+            f"Longitude: {lons[i]:.4f}<br>"
+            f"Depth: {d_label}"
+        )
+    return result
 
 def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
-    """Pre-calculate expensive data structures for visualizations."""
+    """Pre-calculate expensive data structures for visualizations with minimal memory footprint."""
     logger.info("Packaging visualization data...")
     
     # 1. Hover Strings
     all_hover = _make_hover(df)
     
-    # 2. Date grouping for animation (Vectorized)
-    df['date_str'] = df['time_dt'].dt.strftime('%Y-%m-%d')
-    counts = df.groupby('date_str').size().sort_index()
-    
-    unique_dates = counts.index.tolist()
-    date_counts = counts.tolist()
-    date_to_cum = counts.cumsum().to_dict()
+    # 2. Date grouping for animation (without allocating a 50k temporary string column on df)
+    date_counts_series = df['time_dt'].dt.floor('D').value_counts().sort_index()
+    unique_dates = [ts.strftime('%Y-%m-%d') for ts in date_counts_series.index]
+    date_counts = date_counts_series.tolist()
+    date_to_cum = dict(zip(unique_dates, date_counts_series.cumsum().tolist()))
         
     return {
         'hover': all_hover,
@@ -124,6 +130,8 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
             df['time_dt'] = df['time_dt'].dt.tz_localize(None)
         df = df.dropna(subset=['time_dt'])
         df = df.reset_index(drop=True)
+        if 'time' in df.columns:
+            del df['time'] # Immediately free raw CSV strings
 
     # Flag missing depth/magnitude BEFORE filling them
     if 'depth' in df.columns:
@@ -158,9 +166,10 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
     # Sort for visualization consistency
     df = df.sort_values('time_dt').reset_index(drop=True)
 
-    # Pre-calculate dates_num (days since first event)
-    min_t = df['time_dt'].min()
-    df['dates_num'] = (df['time_dt'] - min_t).dt.total_seconds() / SECONDS_PER_DAY
+    # Pre-calculate dates_num (days since first event) directly in Float32 to save RAM
+    min_t_ns = df['time_dt'].iloc[0].value
+    dnum_f32 = ((df['time_dt'].values.astype('int64') - min_t_ns) / (SECONDS_PER_DAY * 1_000_000_000)).astype(np.float32)
+    df['dates_num'] = dnum_f32
     
     # Precompute fast Float32 arrays for binary buffer and core processing
     lon_f32 = df['lon'].to_numpy(dtype=np.float32)

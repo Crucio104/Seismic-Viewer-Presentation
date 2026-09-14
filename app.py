@@ -91,7 +91,11 @@ async def get_data_handler(session_id: str) -> Response:
         'binary_buffer', 'longitude', 'latitude', 'magnitude', 'depth', 'dates_num',
         'lon', 'lat', 'mag', 'dep', 'dnum', 'visual_pack', 'hover'
     }
-    json_data = {k: v for k, v in data.items() if k not in omit_keys and not isinstance(v, bytes)}
+    json_data = {
+        k: (v.tolist() if isinstance(v, np.ndarray) else v)
+        for k, v in data.items()
+        if k not in omit_keys and not isinstance(v, bytes)
+    }
     content = await asyncio.to_thread(json.dumps, json_data, separators=(',', ':'))
     return Response(
         content=content,

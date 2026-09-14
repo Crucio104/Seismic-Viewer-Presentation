@@ -4,7 +4,8 @@ import csv
 import json
 import time
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 import pandas as pd
 from core.config import (
     GOSSIP_BASE_URL, 

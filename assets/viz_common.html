@@ -443,40 +443,49 @@
         }
     }
 
+    function getBridgeApi() {
+        if (window.pywebview && window.pywebview.api) return window.pywebview.api;
+        if (window.parent && window.parent.pywebview && window.parent.pywebview.api) return window.parent.pywebview.api;
+        return null;
+    }
+
     async function transitionToHub() {
-        const api = (window.pywebview && window.pywebview.api) || (window.parent && window.parent.pywebview && window.parent.pywebview.api);
+        showInitLoader('Returning to Hub...');
+        const api = getBridgeApi();
         if (api && api.clear_history) {
             try { await api.clear_history(); } catch(e) {}
         }
         if (window.parent && window.parent.SeismicApp && typeof window.parent.SeismicApp.showHub === 'function') {
             window.parent.SeismicApp.showHub();
         } else {
-            showInitLoader('Returning to Hub...');
             setTimeout(() => {
                 window.location.href = '/assets/index.html';
-            }, 150);
+            }, 250);
         }
     }
 
     // --- History Navigation ---
     async function historyGoBack() {
-        if (!window.pywebview || !window.pywebview.api) return;
+        const api = getBridgeApi();
+        if (!api) return;
         showInitLoader('Loading previous view...');
         if (typeof window.updateHistoryState === 'function') await window.updateHistoryState();
-        await pywebview.api.go_back();
+        await api.go_back();
     }
 
     async function historyGoForward() {
-        if (!window.pywebview || !window.pywebview.api) return;
+        const api = getBridgeApi();
+        if (!api) return;
         showInitLoader('Loading next view...');
         if (typeof window.updateHistoryState === 'function') await window.updateHistoryState();
-        await pywebview.api.go_forward();
+        await api.go_forward();
     }
 
     async function checkHistoryStatus() {
-        if (!window.pywebview || !window.pywebview.api) return;
+        const api = getBridgeApi();
+        if (!api) return;
         try {
-            const status = await pywebview.api.get_history_status();
+            const status = await api.get_history_status();
             const controls = document.getElementById('history-controls');
             const backBtn = document.getElementById('history-back-btn');
             const fwdBtn = document.getElementById('history-forward-btn');
@@ -500,24 +509,41 @@
     let initLoaderTimeout = null;
 
     function hideInitLoader() {
-        const il = document.getElementById('init-loader');
-        if (il) {
-            if (initLoaderTimeout) clearTimeout(initLoaderTimeout);
-            il.style.opacity = '0';
-            initLoaderTimeout = setTimeout(() => { 
-                il.style.display = 'none';
-                const infoBtn = document.getElementById('info-btn');
-                if (infoBtn) infoBtn.classList.add('visible');
-                const overlayBtn = document.getElementById('overlay-btn');
-                if (overlayBtn) {
-                    overlayBtn.classList.add('visible');
-                }
-                const screenshotBtn = document.getElementById('screenshot-btn');
-                if (screenshotBtn) screenshotBtn.classList.add('visible');
-            }, 300);
+        const executeReveal = () => {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    const il = document.getElementById('init-loader');
+                    if (il) {
+                        if (initLoaderTimeout) clearTimeout(initLoaderTimeout);
+                        il.style.opacity = '0';
+                        initLoaderTimeout = setTimeout(() => { 
+                            il.style.display = 'none';
+                            const infoBtn = document.getElementById('info-btn');
+                            if (infoBtn) infoBtn.classList.add('visible');
+                            const overlayBtn = document.getElementById('overlay-btn');
+                            if (overlayBtn) overlayBtn.classList.add('visible');
+                            const screenshotBtn = document.getElementById('screenshot-btn');
+                            if (screenshotBtn) screenshotBtn.classList.add('visible');
+                        }, 400);
+                    }
+                    if (window.parent && window.parent.SeismicApp) {
+                        if (typeof window.parent.SeismicApp.revealVisualization === 'function') {
+                            window.parent.SeismicApp.revealVisualization();
+                        } else if (typeof window.parent.SeismicApp.hideOverlay === 'function') {
+                            window.parent.SeismicApp.hideOverlay();
+                        }
+                    }
+                });
+            });
+        };
+
+        const gd = document.querySelector('.plotly-graph-div') || document.getElementById('plot') || document.getElementById('plotly-div');
+        if (gd && gd._fullLayout) {
+            setTimeout(executeReveal, 80);
+        } else {
+            setTimeout(executeReveal, 140);
         }
     }
-
 
     function showInitLoader(msg) {
         const il = document.getElementById('init-loader');
@@ -526,6 +552,8 @@
             const textEl = il.querySelector('.loader-text');
             if (textEl && msg) textEl.textContent = msg;
             il.style.display = 'flex';
+            il.style.opacity = '0';
+            il.style.transition = 'opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
             setTimeout(() => { il.style.opacity = '1'; }, 10);
         }
     }
@@ -553,12 +581,16 @@
                 isClustering = true;
             }
 
+            const gd = document.querySelector('.plotly-graph-div');
+            const hasTomoInPlot = gd && gd.data && gd.data.some(tr => tr && tr.name && (tr.name.includes('Tomography') || tr.name.includes('Vp/Vs')));
+            const hasUpliftInPlot = gd && gd.data && gd.data.some(tr => tr && tr.name && (tr.name.includes('Uplift') || tr.name.includes('GNSS')));
+
             const available = [];
             if (isClustering) available.push('clusters');
             else available.push('earthquakes');
             if (this._activeConsecutiveArrows) available.push('vectors');
-            if (this._activeTomographyData) available.push('tomo');
-            if (this._activeUpliftData) available.push('uplift');
+            if (this._activeTomographyData || hasTomoInPlot) available.push('tomo');
+            if (this._activeUpliftData || hasUpliftInPlot) available.push('uplift');
 
             const legend = document.getElementById('glass-legend');
             const clusterList = document.getElementById('cluster-list');
@@ -573,8 +605,11 @@
                 }
             } else {
                 btn.style.display = 'flex';
-                if (legend && clusterList && clusterList.style.display !== 'none') {
-                    legend.style.paddingBottom = '2.6rem';
+                if (legend) {
+                    legend.style.display = 'flex';
+                    if (clusterList && clusterList.style.display !== 'none') {
+                        legend.style.paddingBottom = '2.6rem';
+                    }
                 }
                 if (isClustering && (!window._currentLegendMode || window._currentLegendMode === 'earthquakes')) {
                     window._currentLegendMode = 'clusters';
@@ -2154,12 +2189,13 @@
             if (layerType === 'map') {
                 document.getElementById('overlay-input').click();
             } else if (layerType === 'stations' || layerType === 'uplift' || layerType === 'tomography') {
-                if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.select_layer_file) {
-                    showStatusToast('pywebview API not available', false);
+                const api = getBridgeApi();
+                if (!api || !api.select_layer_file) {
+                    showStatusToast('Bridge API not available', false);
                     return;
                 }
                 const self = this;
-                window.pywebview.api.select_layer_file(layerType).then((res) => {
+                api.select_layer_file(layerType).then((res) => {
                     if (res && res.status === 'success') {
                         if (layerType === 'stations') {
                             self._pendingStationsPath = res.path;
@@ -2203,12 +2239,13 @@
         },
 
         restoreStoredLayers(attempt = 0) {
-            if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_stored_layer_paths) {
+            const api = getBridgeApi();
+            if (!api || !api.get_stored_layer_paths) {
                 if (attempt < 8) setTimeout(() => this.restoreStoredLayers(attempt + 1), 300);
                 return;
             }
             const self = this;
-            window.pywebview.api.get_stored_layer_paths().then((stored) => {
+            api.get_stored_layer_paths().then((stored) => {
                 if (!stored) return;
                 if (stored.stations && stored.stations.path) {
                     self._pendingStationsPath = stored.stations.path;
@@ -2254,7 +2291,8 @@
 
             // 2. Applica Uplift e Tomografia se presenti
             if (this._pendingUpliftPath || this._pendingTomoPath || this._pendingStationsPath) {
-                if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.apply_external_layers) return;
+                const api = getBridgeApi();
+                if (!api || !api.apply_external_layers) return;
                 const isMapbox = gd && (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox' || tr.type === 'scattermap' || tr.type === 'densitymap') || (gd.layout && (gd.layout.mapbox || gd.layout.map)));
                 const loader = document.getElementById('loader');
                 const loaderText = loader ? loader.querySelector('.loader-text') : null;
@@ -2262,7 +2300,7 @@
                 if (loader) loader.classList.add('show');
 
                 const self = this;
-                window.pywebview.api.apply_external_layers({
+                api.apply_external_layers({
                     uplift_path: this._pendingUpliftPath || "",
                     tomography_path: this._pendingTomoPath || "",
                     stations_path: this._pendingStationsPath || ""
@@ -2305,6 +2343,7 @@
                                     newTraces.push({
                                         type: 'volume',
                                         name: `Tomography High Vp/Vs (> ${neutralRef.toFixed(2)})`,
+                                        visible: true,
                                         x: isoGrid.x,
                                         y: isoGrid.y,
                                         z: isoGrid.z,
@@ -2313,20 +2352,22 @@
                                         isomax: Math.max(maxVpVs, neutralRef + 0.05),
                                         cmin: 1.15,
                                         cmax: 2.35,
-                                        opacity: 0.45,
-                                        surface: { count: 8 },
+                                        opacity: 0.65,
+                                        surface: { show: true, count: 12, fill: 1.0 },
+                                        spaceframe: { show: true, fill: 1.0 },
+                                        caps: { x: { show: true, fill: 1.0 }, y: { show: true, fill: 1.0 }, z: { show: true, fill: 1.0 } },
                                         colorscale: globalTomoColorScale,
                                         reversescale: false,
                                         showscale: false,
                                         showlegend: true,
-                                        hoverinfo: 'skip',
-                                        caps: { x: { show: false }, y: { show: false }, z: { show: false } }
+                                        hoverinfo: 'skip'
                                     });
 
                                     // 2. Low Vp/Vs Anomaly Volume (min dataset value up to neutralRef)
                                     newTraces.push({
                                         type: 'volume',
                                         name: `Tomography Low Vp/Vs (< ${neutralRef.toFixed(2)})`,
+                                        visible: true,
                                         x: isoGrid.x,
                                         y: isoGrid.y,
                                         z: isoGrid.z,
@@ -2335,30 +2376,46 @@
                                         isomax: neutralRef - 0.01,
                                         cmin: 1.15,
                                         cmax: 2.35,
-                                        opacity: 0.45,
-                                        surface: { count: 8 },
+                                        opacity: 0.65,
+                                        surface: { show: true, count: 12, fill: 1.0 },
+                                        spaceframe: { show: true, fill: 1.0 },
+                                        caps: { x: { show: true, fill: 1.0 }, y: { show: true, fill: 1.0 }, z: { show: true, fill: 1.0 } },
                                         colorscale: globalTomoColorScale,
                                         reversescale: false,
                                         showscale: false,
                                         showlegend: true,
-                                        hoverinfo: 'skip',
-                                        caps: { x: { show: false }, y: { show: false }, z: { show: false } }
+                                        hoverinfo: 'skip'
                                     });
                                 }
+                            } else {
+                                // 2D Horizontal Slice Tiles (Choropleth Grid)
+                                let neutralRef = 1.75;
+                                const neutralInputEl = document.getElementById('tomo-neutral-input');
+                                if (neutralInputEl && neutralInputEl.value) {
+                                    const parsedNeut = parseFloat(neutralInputEl.value);
+                                    if (!isNaN(parsedNeut) && parsedNeut >= 1.2 && parsedNeut <= 2.5) {
+                                        neutralRef = parsedNeut;
+                                    }
+                                }
+                                const sliceTraces = self._buildTomographySliceTraces(null, neutralRef, true, true);
+                                sliceTraces.forEach(tr => newTraces.push(tr));
                             }
                             const toggleTomoBtn = document.getElementById('btn-toggle-tomo-points');
                             if (toggleTomoBtn) {
                                 toggleTomoBtn.classList.add('visible');
+                                toggleTomoBtn.classList.add('active');
                                 toggleTomoBtn.innerHTML = 'Toggle Tomography (ON)';
                             }
                             const tomoHighBtn = document.getElementById('btn-toggle-tomo-high');
                             if (tomoHighBtn) {
                                 tomoHighBtn.classList.add('visible');
+                                tomoHighBtn.classList.add('active');
                                 tomoHighBtn.innerHTML = 'High (ON)';
                             }
                             const tomoLowBtn = document.getElementById('btn-toggle-tomo-low');
                             if (tomoLowBtn) {
                                 tomoLowBtn.classList.add('visible');
+                                tomoLowBtn.classList.add('active');
                                 tomoLowBtn.innerHTML = 'Low (ON)';
                             }
                         }
@@ -2368,50 +2425,16 @@
                         } else if (u && u.lats && u.lons && u.lats.length > 0) {
                             self._activeUpliftData = u;
                             if (isMapbox) {
-                                const choroType = (gd.layout && gd.layout.map) || (gd.data && gd.data.some(tr => tr.type === 'scattermap' || tr.type === 'choroplethmap')) ? 'choroplethmap' : 'choroplethmapbox';
-                                const densityType = (gd.layout && gd.layout.map) || (gd.data && gd.data.some(tr => tr.type === 'scattermap' || tr.type === 'densitymap')) ? 'densitymap' : 'densitymapbox';
-                                if (u.interp_grid && u.interp_grid.geojson && u.interp_grid.cell_locs) {
-                                    newTraces.push({
-                                        type: choroType,
-                                        name: 'Uplift Interpolated Surface',
-                                        geojson: u.interp_grid.geojson,
-                                        locations: u.interp_grid.cell_locs,
-                                        z: u.interp_grid.cell_up_m,
-                                        hovertext: u.interp_grid.cell_hover,
-                                        hovertemplate: '%{hovertext}<extra></extra>',
-                                        visible: true,
-                                        opacity: 0.6,
-                                        colorscale: [
-                                            [0.0, 'rgb(255, 255, 0)'],
-                                            [0.5, 'rgb(255, 140, 0)'],
-                                            [1.0, 'rgb(180, 0, 0)']
-                                        ],
-                                        showscale: false,
-                                        marker: {
-                                            opacity: 0.6,
-                                            line: { width: 0, color: 'rgba(0,0,0,0)' }
-                                        }
-                                    });
-                                } else if (u.interp_grid && u.interp_grid.lats) {
-                                    newTraces.push({
-                                        type: densityType,
-                                        name: 'Uplift Interpolated Surface',
-                                        lat: u.interp_grid.lats,
-                                        lon: u.interp_grid.lons,
-                                        z: u.interp_grid.up_m,
-                                        radius: 25,
-                                        opacity: 0.65,
-                                        colorscale: [
-                                            [0.0, 'rgb(255, 255, 0)'],
-                                            [0.5, 'rgb(255, 140, 0)'],
-                                            [1.0, 'rgb(180, 0, 0)']
-                                        ],
-                                        showscale: false,
-                                        hoverinfo: 'skip'
-                                    });
-                                }
+                                // 2D Interpolated Uplift Tiles & Stations (Rewritten from scratch)
+                                const upTraces = self._buildUplift2DTraces(u, true);
+                                upTraces.forEach(tr => newTraces.push(tr));
+                                
                                 const toggleBtn = document.getElementById('btn-toggle-uplift-surface');
-                                if (toggleBtn) toggleBtn.classList.add('visible');
+                                if (toggleBtn) {
+                                    toggleBtn.classList.add('visible');
+                                    toggleBtn.classList.add('active');
+                                    toggleBtn.innerHTML = 'Toggle Uplift (ON)';
+                                }
                             } else {
                                 if (u.lines && (u.lines.x || u.lons)) {
                                     newTraces.push({
@@ -2447,7 +2470,11 @@
                                     });
                                 }
                                 const toggleBtn = document.getElementById('btn-toggle-uplift-surface');
-                                if (toggleBtn) toggleBtn.classList.add('visible');
+                                if (toggleBtn) {
+                                    toggleBtn.classList.add('visible');
+                                    toggleBtn.classList.add('active');
+                                    toggleBtn.innerHTML = 'Toggle Uplift (ON)';
+                                }
                             }
                         }
                         const s = layers.stations || res.stations;
@@ -2455,7 +2482,7 @@
                             showStatusToast('Stations Error: ' + s.error, false);
                         } else if (s && s.lats && s.lons && s.lats.length > 0) {
                             if (isMapbox) {
-                                const mapScatterType = (gd.layout && gd.layout.map) || (gd.data && gd.data.some(tr => tr.type === 'scattermap')) ? 'scattermap' : 'scattermapbox';
+                                const mapScatterType = (gd.layout && gd.layout.mapbox && !gd.layout.map) ? 'scattermapbox' : 'scattermap';
                                 newTraces.push({
                                     type: mapScatterType,
                                     name: 'Stations Outline',
@@ -2527,10 +2554,11 @@
                             const toggleStBtn = document.getElementById('btn-toggle-stations');
                             if (toggleStBtn) {
                                 toggleStBtn.classList.add('visible');
+                                toggleStBtn.classList.add('active');
                                 toggleStBtn.innerHTML = 'Toggle Stations (ON)';
                             }
                         }
-                        if (newTraces.length > 0 || (isMapbox && self._activeTomographyData)) {
+                        if (newTraces.length > 0) {
                             const gd = document.querySelector('.plotly-graph-div');
                             if (gd && gd.data) {
                                 const indicesToDelete = [];
@@ -2539,42 +2567,50 @@
                                         indicesToDelete.push(idx);
                                     }
                                 });
-                                if (indicesToDelete.length > 0) {
-                                    Plotly.deleteTraces(gd, indicesToDelete.reverse());
-                                }
-                            }
-                            if (newTraces.length > 0) {
-                                Plotly.addTraces(gd, newTraces);
-                            }
-                            if (self._activeTomographyData && isMapbox) {
-                                self.updateTomographySlice(null);
-                            }
-                            self.bringMarkersToFront();
-                            
-                            if (!isMapbox) {
-                                let maxZ = 0;
-                                let minZ = 0;
-                                if (gd.data) {
-                                    gd.data.forEach(tr => {
-                                        if (tr.visible !== false && tr.z && Array.isArray(tr.z)) {
-                                            tr.z.forEach(val => {
-                                                if (val !== null && val !== undefined && !isNaN(val)) {
-                                                    if (val > maxZ) maxZ = val;
-                                                    if (val < minZ) minZ = val;
+                                const deletePromise = (indicesToDelete.length > 0)
+                                    ? Plotly.deleteTraces(gd, indicesToDelete)
+                                    : Promise.resolve();
+
+                                deletePromise.then(() => {
+                                    return Plotly.addTraces(gd, newTraces);
+                                }).then(() => {
+                                    return self.bringMarkersToFront();
+                                }).then(() => {
+                                    if (isMapbox) {
+                                        if (typeof Plotly.Plots.resize === 'function') {
+                                            Plotly.Plots.resize(gd);
+                                        }
+                                    } else if (self._activeTomographyData) {
+                                        const terrainIdx = gd.data.findIndex(tr => tr && (tr.name === 'Map Terrain' || (tr.type === 'surface' && tr.name && tr.name.includes('Terrain'))));
+                                        if (terrainIdx !== -1) {
+                                            Plotly.restyle(gd, { opacity: 0.35 }, [terrainIdx]);
+                                        }
+                                        let maxZ = 0;
+                                        let minZ = 0;
+                                        if (gd.data) {
+                                            gd.data.forEach(tr => {
+                                                if (tr.visible !== false && tr.z && Array.isArray(tr.z)) {
+                                                    tr.z.forEach(val => {
+                                                        if (val !== null && val !== undefined && !isNaN(val)) {
+                                                            if (val > maxZ) maxZ = val;
+                                                            if (val < minZ) minZ = val;
+                                                        }
+                                                    });
                                                 }
                                             });
                                         }
-                                    });
-                                }
-                                if (maxZ > 0 && gd.layout && gd.layout.scene && gd.layout.scene.zaxis) {
-                                    const currentMin = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[0] !== undefined)
-                                        ? gd.layout.scene.zaxis.range[0] : minZ;
-                                    Plotly.relayout(gd, { 'scene.zaxis.range': [currentMin, Math.max(maxZ * 1.15, 0.5)] });
-                                }
+                                        if (maxZ > 0 && gd.layout && gd.layout.scene && gd.layout.scene.zaxis) {
+                                            const currentMin = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[0] !== undefined)
+                                                ? gd.layout.scene.zaxis.range[0] : minZ;
+                                            Plotly.relayout(gd, { 'scene.zaxis.range': [currentMin, Math.max(maxZ * 1.15, 0.5)] });
+                                        }
+                                    }
+                                    showStatusToast('Layers applied successfully!', true);
+                                    self.updateLegendSwapButtonVisibility();
+                                }).catch(err => {
+                                    console.error('[LayerModal] Error applying layers:', err);
+                                });
                             }
-
-                            showStatusToast('Layers applied successfully!', true);
-                            self.updateLegendSwapButtonVisibility();
                         }
                     } else if (res && res.message) {
                         showStatusToast('Error: ' + res.message, false);
@@ -2672,17 +2708,367 @@
             }
         },
 
-        updateTomographySlice(targetDepthStr) {
-            if (!this._activeTomographyData) return;
+        _buildUplift2DTraces(u, isVisible = true) {
             const gd = document.querySelector('.plotly-graph-div');
-            if (!gd || !gd.data) return;
-            const isMapboxView = (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox' || tr.type === 'scattermap' || tr.type === 'densitymap')) || (gd.layout && (gd.layout.mapbox || gd.layout.map));
-            if (!isMapboxView) return; // In 3D views, render 3D volumes instead of 2D plane slices
+            if (!u) u = this._activeUpliftData;
+            if (!u || !u.lats || !u.lons || u.lats.length === 0) return [];
+
+            const lats = u.lats;
+            const lons = u.lons;
+            const upVals = u.up_m || u.up_m_list || [];
+            if (upVals.length === 0) return [];
+
+            // Geographic bounding box with 0.015° margin
+            let minLat = 999, maxLat = -999, minLon = 999, maxLon = -999;
+            for (let i = 0; i < lats.length; i++) {
+                if (lats[i] < minLat) minLat = lats[i];
+                if (lats[i] > maxLat) maxLat = lats[i];
+                if (lons[i] < minLon) minLon = lons[i];
+                if (lons[i] > maxLon) maxLon = lons[i];
+            }
+            minLat -= 0.015; maxLat += 0.015;
+            minLon -= 0.015; maxLon += 0.015;
+
+            // Value range
+            let minVal = 9999, maxVal = -9999;
+            for (let i = 0; i < upVals.length; i++) {
+                if (upVals[i] < minVal) minVal = upVals[i];
+                if (upVals[i] > maxVal) maxVal = upVals[i];
+            }
+            if (minVal === 9999) { minVal = 0.0; maxVal = 0.08; }
+            if (maxVal - minVal < 1e-6) maxVal = minVal + 0.01;
+
+            // Metric projection for isotropic distance calculation in km
+            const meanLat = (minLat + maxLat) / 2;
+            const kx = 111.13 * Math.cos(meanLat * Math.PI / 180);
+            const ky = 111.13;
+            const stKmX = [];
+            const stKmY = [];
+            for (let s = 0; s < lats.length; s++) {
+                stKmX.push(lons[s] * kx);
+                stKmY.push(lats[s] * ky);
+            }
+
+            // Generate regular grid (36x36 tiles)
+            const N = 36, M = 36;
+            const latStep = (maxLat - minLat) / N;
+            const lonStep = (maxLon - minLon) / M;
+
+            const features = [];
+            const locs = [];
+            const cellVals = [];
+            const cellHovers = [];
+
+            for (let r = 0; r < N; r++) {
+                const lat1 = minLat + r * latStep;
+                const lat2 = minLat + (r + 1) * latStep;
+                const cLat = (lat1 + lat2) / 2;
+                const cY = cLat * ky;
+
+                for (let c = 0; c < M; c++) {
+                    const lon1 = minLon + c * lonStep;
+                    const lon2 = minLon + (c + 1) * lonStep;
+                    const cLon = (lon1 + lon2) / 2;
+                    const cX = cLon * kx;
+
+                    let sumW = 0, sumWV = 0;
+                    for (let s = 0; s < lats.length; s++) {
+                        const dx = cX - stKmX[s];
+                        const dy = cY - stKmY[s];
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        const w = 1.0 / Math.pow(Math.max(dist, 0.0001), 2.5);
+                        sumW += w;
+                        sumWV += w * upVals[s];
+                    }
+                    const interpUp = sumWV / sumW;
+                    const cellId = 'u_' + (r * M + c);
+
+                    features.push({
+                        type: 'Feature',
+                        id: cellId,
+                        properties: { id: cellId },
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[[lon1, lat1], [lon2, lat1], [lon2, lat2], [lon1, lat2], [lon1, lat1]]]
+                        }
+                    });
+                    locs.push(cellId);
+                    cellVals.push(interpUp);
+                    cellHovers.push(`<b>Interpolated Uplift Surface</b><br>Value: ${(interpUp * 1000).toFixed(1)} mm (${interpUp.toFixed(4)} m)<br>Lat: ${cLat.toFixed(4)}°, Lon: ${cLon.toFixed(4)}°`);
+                }
+            }
+
+            const isMap = (gd && gd.layout && gd.layout.map) || (gd && gd.data && gd.data.some(tr => tr.type === 'scattermap' || tr.type === 'choroplethmap'));
+            const choroType = isMap ? 'choroplethmap' : 'choroplethmapbox';
+            const scatterType = isMap ? 'scattermap' : 'scattermapbox';
+
+            const choroTrace = {
+                type: choroType,
+                name: 'Uplift Interpolated Surface',
+                geojson: {
+                    type: 'FeatureCollection',
+                    features: features
+                },
+                locations: locs,
+                z: cellVals,
+                zmin: minVal,
+                zmax: maxVal,
+                below: "",
+                hovertext: cellHovers,
+                hovertemplate: '%{hovertext}<extra></extra>',
+                visible: isVisible,
+                opacity: 0.72,
+                colorscale: [
+                    [0.0, 'rgb(255, 255, 0)'],     // Yellow
+                    [0.35, 'rgb(255, 140, 0)'],    // Orange
+                    [0.7, 'rgb(220, 38, 38)'],     // Red
+                    [1.0, 'rgb(127, 29, 29)']      // Dark Red
+                ],
+                showscale: false,
+                marker: {
+                    opacity: 0.72,
+                    line: { width: 0.8, color: 'rgba(255, 255, 255, 0.3)' }
+                }
+            };
+
+            const stations = u.stations || [];
+            const dates = u.dates || [];
+            const stationHovers = [];
+            for (let i = 0; i < lats.length; i++) {
+                const stName = stations[i] || `Station ${i + 1}`;
+                const upVal = upVals[i] || 0;
+                const dt = dates[i] || '';
+                stationHovers.push(`<b>GNSS Station: ${stName}</b><br>Uplift: ${(upVal * 1000).toFixed(1)} mm (${upVal.toFixed(4)} m)<br>Date: ${dt}<br>Lat: ${lats[i].toFixed(4)}°, Lon: ${lons[i].toFixed(4)}°`);
+            }
+
+            const gnssTrace = {
+                type: scatterType,
+                name: 'GNSS Uplift Stations',
+                lat: lats,
+                lon: lons,
+                mode: 'markers',
+                hovertext: stationHovers,
+                hovertemplate: '%{hovertext}<extra></extra>',
+                visible: isVisible,
+                opacity: 1.0,
+                marker: {
+                    size: 9,
+                    color: '#ffffff',
+                    opacity: 1.0,
+                    line: { color: '#b91c1c', width: 2.5 }
+                }
+            };
+
+            return [choroTrace, gnssTrace];
+        },
+
+        _createUplift2DTrace(u) {
+            const traces = this._buildUplift2DTraces(u, true);
+            return traces.length > 0 ? traces[0] : null;
+        },
+
+        _createGNSSStations2DTrace(u) {
+            const traces = this._buildUplift2DTraces(u, true);
+            return traces.length > 1 ? traces[1] : null;
+        },
+
+        _buildTomographySliceTraces(targetDepth, neutralRef, isHighVisible, isLowVisible) {
+            const gd = document.querySelector('.plotly-graph-div');
             const t = this._activeTomographyData;
+            if (!t) return [];
             const lons = t.x || t.lons;
             const lats = t.y || t.lats;
             const depths = t.z || t.depths;
             const vpvs = t.vp_vs;
+            if (!lons || !depths || lons.length === 0) return [];
+
+            if (neutralRef === undefined || isNaN(neutralRef)) neutralRef = 1.75;
+            if (isHighVisible === undefined) isHighVisible = true;
+            if (isLowVisible === undefined) isLowVisible = true;
+
+            const uniqueDepths = Array.from(new Set(depths.map(d => Math.round(Math.abs(d) * 10) / 10))).sort((a, b) => a - b);
+            if (uniqueDepths.length === 0) return [];
+
+            let chosenDepth = 0.8;
+            if (targetDepth !== null && targetDepth !== undefined && !isNaN(parseFloat(targetDepth))) {
+                chosenDepth = parseFloat(targetDepth);
+            } else {
+                const inputEl = document.getElementById('tomo-depth-input');
+                if (inputEl && inputEl.value !== "") {
+                    const parsed = parseFloat(inputEl.value);
+                    if (!isNaN(parsed)) chosenDepth = parsed;
+                } else if (!uniqueDepths.includes(0.8)) {
+                    chosenDepth = uniqueDepths[Math.floor(uniqueDepths.length / 2)];
+                }
+            }
+
+            let closestDepth = uniqueDepths[0];
+            let minDiff = Math.abs(chosenDepth - closestDepth);
+            for (const d of uniqueDepths) {
+                const diff = Math.abs(chosenDepth - d);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closestDepth = d;
+                }
+            }
+
+            const inputEl = document.getElementById('tomo-depth-input');
+            if (inputEl && document.activeElement !== inputEl) {
+                inputEl.value = closestDepth.toFixed(1);
+            }
+            const infoEl = document.getElementById('tomo-slice-info');
+            if (infoEl) {
+                infoEl.textContent = `Horizontal slice at ${closestDepth.toFixed(1)} km depth`;
+            }
+
+            const sliceLons = [];
+            const sliceLats = [];
+            const sliceVpVs = [];
+
+            let tol = 0.08;
+            for (let i = 0; i < depths.length; i++) {
+                if (Math.abs(Math.abs(depths[i]) - closestDepth) < tol) {
+                    sliceLons.push(lons[i]);
+                    sliceLats.push(lats[i]);
+                    sliceVpVs.push(vpvs[i]);
+                }
+            }
+            if (sliceLons.length === 0) {
+                for (let i = 0; i < depths.length; i++) {
+                    if (Math.abs(Math.abs(depths[i]) - closestDepth) < 0.25) {
+                        sliceLons.push(lons[i]);
+                        sliceLats.push(lats[i]);
+                        sliceVpVs.push(vpvs[i]);
+                    }
+                }
+            }
+            if (sliceLons.length === 0) return [];
+
+            const N = 40, M = 40;
+            let minLat = 999, maxLat = -999, minLon = 999, maxLon = -999;
+            for (let i = 0; i < sliceLats.length; i++) {
+                if (sliceLats[i] < minLat) minLat = sliceLats[i];
+                if (sliceLats[i] > maxLat) maxLat = sliceLats[i];
+                if (sliceLons[i] < minLon) minLon = sliceLons[i];
+                if (sliceLons[i] > maxLon) maxLon = sliceLons[i];
+            }
+            minLat -= 0.002; maxLat += 0.002; minLon -= 0.002; maxLon += 0.002;
+            const latStep = (maxLat - minLat) / N;
+            const lonStep = (maxLon - minLon) / M;
+
+            const cellSums = new Float64Array(N * M);
+            const cellCounts = new Int32Array(N * M);
+
+            for (let k = 0; k < sliceLats.length; k++) {
+                const row = Math.floor((sliceLats[k] - minLat) / latStep);
+                const col = Math.floor((sliceLons[k] - minLon) / lonStep);
+                if (row >= 0 && row < N && col >= 0 && col < M) {
+                    const idx = row * M + col;
+                    cellSums[idx] += sliceVpVs[k];
+                    cellCounts[idx]++;
+                }
+            }
+
+            const featuresHigh = [], locsHigh = [], valsHigh = [], hoverHigh = [];
+            const featuresLow = [], locsLow = [], valsLow = [], hoverLow = [];
+
+            for (let r = 0; r < N; r++) {
+                const lat1 = minLat + r * latStep;
+                const lat2 = lat1 + latStep;
+                const clat = (lat1 + lat2) / 2;
+                for (let c = 0; c < M; c++) {
+                    const idx = r * M + c;
+                    if (cellCounts[idx] === 0) continue;
+                    const val = cellSums[idx] / cellCounts[idx];
+                    const lon1 = minLon + c * lonStep;
+                    const lon2 = lon1 + lonStep;
+                    const clon = (lon1 + lon2) / 2;
+                    const cid = 'tcell_' + idx;
+                    const geom = {
+                        type: 'Feature',
+                        id: cid,
+                        properties: { id: cid },
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[[lon1, lat1], [lon2, lat1], [lon2, lat2], [lon1, lat2], [lon1, lat1]]]
+                        }
+                    };
+                    const hTxt = `<b>Tomography Tile Vp/Vs: ${val.toFixed(3)}</b><br>Depth: ${closestDepth.toFixed(1)} km<br>Lat: ${clat.toFixed(4)}°<br>Lon: ${clon.toFixed(4)}°`;
+                    if (val >= neutralRef) {
+                        featuresHigh.push(geom);
+                        locsHigh.push(cid);
+                        valsHigh.push(val);
+                        hoverHigh.push(hTxt);
+                    } else {
+                        featuresLow.push(geom);
+                        locsLow.push(cid);
+                        valsLow.push(val);
+                        hoverLow.push(hTxt);
+                    }
+                }
+            }
+
+            const choroType = (gd && gd.layout && gd.layout.map) || (gd && gd.data && gd.data.some(tr => tr.type === 'scattermap' || tr.type === 'choroplethmap')) ? 'choroplethmap' : 'choroplethmapbox';
+
+            const sliceTraces = [];
+            if (locsHigh.length > 0) {
+                sliceTraces.push({
+                    type: choroType,
+                    name: `Tomography High Vp/Vs Slice (> ${neutralRef.toFixed(2)})`,
+                    geojson: { type: 'FeatureCollection', features: featuresHigh },
+                    locations: locsHigh,
+                    z: valsHigh,
+                    zmin: neutralRef,
+                    zmax: 2.35,
+                    below: "",
+                    hovertext: hoverHigh,
+                    hovertemplate: '%{hovertext}<extra></extra>',
+                    opacity: 0.75,
+                    visible: isHighVisible,
+                    colorscale: [
+                        [0.0, 'rgb(240, 248, 255)'],
+                        [0.5, 'rgb(96, 165, 250)'],
+                        [1.0, 'rgb(30, 58, 138)']
+                    ],
+                    showscale: false,
+                    marker: { opacity: 0.75, line: { width: 0.8, color: 'rgba(255, 255, 255, 0.25)' } }
+                });
+            }
+            if (locsLow.length > 0) {
+                sliceTraces.push({
+                    type: choroType,
+                    name: `Tomography Low Vp/Vs Slice (< ${neutralRef.toFixed(2)})`,
+                    geojson: { type: 'FeatureCollection', features: featuresLow },
+                    locations: locsLow,
+                    z: valsLow,
+                    zmin: 1.15,
+                    zmax: neutralRef,
+                    below: "",
+                    hovertext: hoverLow,
+                    hovertemplate: '%{hovertext}<extra></extra>',
+                    opacity: 0.75,
+                    visible: isLowVisible,
+                    colorscale: [
+                        [0.0, 'rgb(220, 38, 38)'],
+                        [0.5, 'rgb(249, 115, 22)'],
+                        [1.0, 'rgb(254, 240, 138)']
+                    ],
+                    showscale: false,
+                    marker: { opacity: 0.75, line: { width: 0.8, color: 'rgba(255, 255, 255, 0.25)' } }
+                });
+            }
+            return sliceTraces;
+        },
+
+        updateTomographySlice(targetDepthStr) {
+            if (!this._activeTomographyData) return;
+            const gd = document.querySelector('.plotly-graph-div');
+            if (!gd || !gd.data) return;
+            const isMapboxView = (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox' || tr.type === 'scattermap' || tr.type === 'densitymap' || tr.type === 'choroplethmap' || tr.type === 'choroplethmapbox')) || (gd.layout && (gd.layout.mapbox || gd.layout.map));
+            if (!isMapboxView) return; // In 3D views, render 3D volumes instead of 2D plane slices
+            const t = this._activeTomographyData;
+            const lons = t.x || t.lons;
+            const depths = t.z || t.depths;
             if (!lons || !depths || lons.length === 0) return;
 
             const uniqueDepths = Array.from(new Set(depths.map(d => Math.round(Math.abs(d) * 100) / 100))).sort((a, b) => a - b);
@@ -2732,20 +3118,6 @@
                 infoEl.textContent = `Showing horizontal slice at ${closestDepth.toFixed(2)} km depth`;
             }
 
-            const sliceLons = [];
-            const sliceLats = [];
-            const sliceVpVs = [];
-            const sliceHover = [];
-
-            for (let i = 0; i < depths.length; i++) {
-                if (Math.abs(Math.abs(depths[i]) - closestDepth) < 0.05) {
-                    sliceLons.push(lons[i]);
-                    sliceLats.push(lats[i]);
-                    sliceVpVs.push(vpvs[i]);
-                    sliceHover.push(`<b>Tomography Vp/Vs: ${vpvs[i].toFixed(3)}</b><br>Depth: ${closestDepth.toFixed(2)} km<br>Lat: ${lats[i].toFixed(5)}°<br>Lon: ${lons[i].toFixed(5)}°`);
-                }
-            }
-
             let isHighVisible = true;
             let isLowVisible = true;
             const btnHigh = document.getElementById('btn-toggle-tomo-high');
@@ -2758,137 +3130,44 @@
                 isLowVisible = false;
             }
 
+            let neutralRef = 1.75;
+            const neutralInputEl = document.getElementById('tomo-neutral-input');
+            if (neutralInputEl && neutralInputEl.value) {
+                const parsedNeut = parseFloat(neutralInputEl.value);
+                if (!isNaN(parsedNeut) && parsedNeut >= 1.2 && parsedNeut <= 2.5) {
+                    neutralRef = parsedNeut;
+                }
+            }
+
+            const sliceTraces = this._buildTomographySliceTraces(closestDepth, neutralRef, isHighVisible, isLowVisible);
+
             const indicesToDelete = [];
             gd.data.forEach((tr, idx) => {
-                if (tr.name && (tr.name === 'Tomography Slice Vp/Vs' || tr.name === 'Tomography Vp/Vs' || tr.name.includes('Tomography High Vp/Vs Slice') || tr.name.includes('Tomography Low Vp/Vs Slice'))) {
+                if (tr.name && (tr.name === 'Tomography Slice Vp/Vs' || tr.name === 'Tomography Vp/Vs' || tr.name.includes('Tomography High Vp/Vs Slice') || tr.name.includes('Tomography Low Vp/Vs Slice') || tr.name === 'Tomography Inspection Points')) {
                     indicesToDelete.push(idx);
                 }
             });
-            if (indicesToDelete.length > 0) {
-                Plotly.deleteTraces(gd, indicesToDelete.reverse());
-            }
 
-            if (sliceLons.length > 0) {
-                const isMapboxView = gd.layout && (gd.layout.mapbox || gd.layout.map);
-                let neutralRef = 1.75;
-                const neutralInputEl = document.getElementById('tomo-neutral-input');
-                if (neutralInputEl && neutralInputEl.value) {
-                    const parsedNeut = parseFloat(neutralInputEl.value);
-                    if (!isNaN(parsedNeut) && parsedNeut >= 1.2 && parsedNeut <= 2.5) {
-                        neutralRef = parsedNeut;
-                    }
-                }
+            const self = this;
+            const deletePromise = (indicesToDelete.length > 0)
+                ? Plotly.deleteTraces(gd, indicesToDelete)
+                : Promise.resolve();
 
-                const allLats = (this._activeTomographyData && this._activeTomographyData.lats) ? this._activeTomographyData.lats : sliceLats;
-                const allLons = (this._activeTomographyData && this._activeTomographyData.lons) ? this._activeTomographyData.lons : sliceLons;
-                let minLat = 999, maxLat = -999, minLon = 999, maxLon = -999;
-                for (let i = 0; i < allLats.length; i++) {
-                    if (allLats[i] < minLat) minLat = allLats[i];
-                    if (allLats[i] > maxLat) maxLat = allLats[i];
-                }
-                for (let i = 0; i < allLons.length; i++) {
-                    if (allLons[i] < minLon) minLon = allLons[i];
-                    if (allLons[i] > maxLon) maxLon = allLons[i];
-                }
-                minLat -= 0.005; maxLat += 0.005; minLon -= 0.005; maxLon += 0.005;
-                const N = 75, M = 75;
-                const latStep = (maxLat - minLat) / N;
-                const lonStep = (maxLon - minLon) / M;
-                const featuresHigh = [], locsHigh = [], valsHigh = [], hoverHigh = [];
-                const featuresLow = [], locsLow = [], valsLow = [], hoverLow = [];
-                let idx = 0;
-                for (let i = 0; i < N; i++) {
-                    const lat1 = minLat + i * latStep;
-                    const lat2 = lat1 + latStep;
-                    const clat = (lat1 + lat2) / 2;
-                    for (let j = 0; j < M; j++) {
-                        const lon1 = minLon + j * lonStep;
-                        const lon2 = lon1 + lonStep;
-                        const clon = (lon1 + lon2) / 2;
-                        let sumW = 0, sumWV = 0;
-                        for (let k = 0; k < sliceLats.length; k++) {
-                            const dLat = clat - sliceLats[k];
-                            const dLon = clon - sliceLons[k];
-                            const d2 = dLat * dLat + dLon * dLon;
-                            const w = 1.0 / Math.max(d2 * Math.sqrt(d2), 1e-10);
-                            sumW += w;
-                            sumWV += w * sliceVpVs[k];
+            return deletePromise.then(() => {
+                if (sliceTraces.length > 0) {
+                    return Plotly.addTraces(gd, sliceTraces).then(() => {
+                        return self.bringMarkersToFront();
+                    }).then(() => {
+                        if (typeof Plotly.Plots.resize === 'function') {
+                            Plotly.Plots.resize(gd);
                         }
-                        const val = sumWV / sumW;
-                        const cid = 'tcell_' + idx++;
-                        const hTxt = `<b>Tomography Vp/Vs Surface: ${val.toFixed(3)}</b><br>Depth: ${closestDepth.toFixed(2)} km<br>Lat: ${clat.toFixed(4)}°<br>Lon: ${clon.toFixed(4)}°`;
-                        const geom = {
-                            type: 'Feature',
-                            id: cid,
-                            geometry: {
-                                type: 'Polygon',
-                                coordinates: [[[lon1, lat1], [lon2, lat1], [lon2, lat2], [lon1, lat2], [lon1, lat1]]]
-                            }
-                        };
-                        if (val >= neutralRef) {
-                            locsHigh.push(cid);
-                            valsHigh.push(val);
-                            hoverHigh.push(hTxt);
-                            featuresHigh.push(geom);
-                        } else {
-                            locsLow.push(cid);
-                            valsLow.push(val);
-                            hoverLow.push(hTxt);
-                            featuresLow.push(geom);
-                        }
-                    }
+                    });
+                } else {
+                    return self.bringMarkersToFront();
                 }
-
-                if (isMapboxView) {
-                    const sliceTraces = [];
-                    const choroType = (gd.layout && gd.layout.map) || (gd.data && gd.data.some(tr => tr.type === 'scattermap' || tr.type === 'choroplethmap')) ? 'choroplethmap' : 'choroplethmapbox';
-                    const globalColorScale = [
-                        [0.0, 'rgb(255, 60, 0)'],
-                        [0.35, 'rgb(255, 160, 80)'],
-                        [0.5, 'rgb(255, 255, 255)'],
-                        [0.65, 'rgb(80, 180, 255)'],
-                        [1.0, 'rgb(0, 100, 255)']
-                    ];
-                    if (locsHigh.length > 0) {
-                        sliceTraces.push({
-                            type: choroType,
-                            name: `Tomography High Vp/Vs Slice (> ${neutralRef.toFixed(2)})`,
-                            geojson: { type: 'FeatureCollection', features: featuresHigh },
-                            locations: locsHigh,
-                            z: valsHigh,
-                            hovertext: hoverHigh,
-                            hovertemplate: '%{hovertext}<extra></extra>',
-                            opacity: 0.75,
-                            visible: isHighVisible,
-                            zmin: 1.15,
-                            zmax: 2.35,
-                            colorscale: globalColorScale,
-                            showscale: false,
-                            marker: { opacity: 0.75, line: { width: 0, color: 'rgba(0,0,0,0)' } }
-                        });
-                    }
-                    if (locsLow.length > 0) {
-                        sliceTraces.push({
-                            type: choroType,
-                            name: `Tomography Low Vp/Vs Slice (< ${neutralRef.toFixed(2)})`,
-                            geojson: { type: 'FeatureCollection', features: featuresLow },
-                            locations: locsLow,
-                            z: valsLow,
-                            hovertext: hoverLow,
-                            hovertemplate: '%{hovertext}<extra></extra>',
-                            opacity: 0.75,
-                            visible: isLowVisible,
-                            zmin: 1.15,
-                            zmax: 2.35,
-                            colorscale: globalColorScale,
-                            showscale: false,
-                            marker: { opacity: 0.75, line: { width: 0, color: 'rgba(0,0,0,0)' } }
-                        });
-                    }
-                    Plotly.addTraces(gd, sliceTraces);
-                }
-            }
-            this.bringMarkersToFront();
+            }).catch(err => {
+                console.error('Error updating 2D tomography slice traces:', err);
+            });
         },
 
         updateTomographyNeutral(val) {
@@ -2930,11 +3209,16 @@
 
         bringMarkersToFront() {
             const gd = document.querySelector('.plotly-graph-div');
-            if (!gd || !gd.data || gd.data.length <= 1) return;
+            if (!gd || !gd.data || gd.data.length <= 1) return Promise.resolve();
+            const isMapboxView = (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'densitymapbox' || tr.type === 'choroplethmapbox' || tr.type === 'scattermap' || tr.type === 'densitymap' || tr.type === 'choroplethmap')) || (gd.layout && (gd.layout.mapbox || gd.layout.map));
+            if (isMapboxView) {
+                // In MapLibre/Mapbox views, Plotly.moveTraces breaks the WebGL layer stack and conceals choropleth tiles
+                return Promise.resolve();
+            }
             const markerIndices = [];
             for (let i = 0; i < gd.data.length; i++) {
                 const tr = gd.data[i];
-                if (tr && (tr.type === 'scattermapbox' || tr.type === 'scatter3d' || tr.type === 'scatter')) {
+                if (tr && (tr.type === 'scatter3d' || tr.type === 'scatter')) {
                     markerIndices.push(i);
                 }
             }
@@ -2944,12 +3228,16 @@
                 for (let i = 0; i < markerIndices.length; i++) {
                     newIndices.push(startIdx + i);
                 }
-                try {
-                    Plotly.moveTraces(gd, markerIndices, newIndices);
-                } catch (e) {
-                    console.warn('Could not move traces to front:', e);
+                const needsMove = markerIndices.some((idx, i) => idx !== newIndices[i]);
+                if (needsMove) {
+                    try {
+                        return Plotly.moveTraces(gd, markerIndices, newIndices);
+                    } catch (e) {
+                        console.warn('Could not move traces to front:', e);
+                    }
                 }
             }
+            return Promise.resolve();
         },
 
         toggleUpliftSurface() {
@@ -2957,19 +3245,72 @@
             if (!gd || !gd.data) return;
             const indices = [];
             for (let i = 0; i < gd.data.length; i++) {
-                if (gd.data[i].name && (gd.data[i].name.includes('Uplift') || gd.data[i].name.includes('Colonnine') || gd.data[i].name.includes('Superficie'))) {
+                const n = gd.data[i].name || '';
+                if (n === 'Uplift Interpolated Surface' || n === 'Uplift Surface' || n.includes('Colonnine') || n.includes('Superficie Uplift')) {
                     indices.push(i);
                 }
             }
             if (indices.length > 0) {
-                const currentVis = gd.data[indices[0]].visible;
-                const newVis = (currentVis === false || currentVis === 'legendonly') ? true : false;
-                Plotly.restyle(gd, { visible: newVis }, indices);
+                const isCurrentlyVisible = (gd.data[indices[0]].visible !== false && gd.data[indices[0]].visible !== 'legendonly');
+                const newVis = !isCurrentlyVisible;
+
+                // Immediately and synchronously update button label and active state
                 const btn = document.getElementById('btn-toggle-uplift-surface');
-                if (btn) btn.innerHTML = newVis ? 'Toggle Uplift (ON)' : 'Toggle Uplift (OFF)';
+                if (btn) {
+                    btn.innerHTML = newVis ? 'Toggle Uplift (ON)' : 'Toggle Uplift (OFF)';
+                    if (newVis) btn.classList.add('active'); else btn.classList.remove('active');
+                }
+
+                indices.forEach(idx => {
+                    gd.data[idx].visible = newVis;
+                });
+
+                Plotly.restyle(gd, { visible: newVis }, indices).catch(err => {
+                    console.warn('Plotly restyle uplift warning:', err);
+                    try { Plotly.redraw(gd); } catch (e) {}
+                });
+
                 showStatusToast('Uplift toggled ' + (newVis ? 'ON' : 'OFF'), true);
+                this.updateLegendSwapButtonVisibility();
+            } else if (this._activeUpliftData) {
+                const isMapbox = (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'choroplethmapbox' || tr.type === 'scattermap' || tr.type === 'choroplethmap')) || (gd.layout && (gd.layout.mapbox || gd.layout.map));
+                let tracesToAdd = [];
+                if (isMapbox) {
+                    tracesToAdd = this._buildUplift2DTraces(this._activeUpliftData, true);
+                } else {
+                    const u = this._activeUpliftData;
+                    if (u.interp_grid && u.interp_grid.grid_lons_2d) {
+                        tracesToAdd.push({
+                            type: 'surface',
+                            name: 'Uplift Interpolated Surface',
+                            x: u.interp_grid.grid_lons_2d,
+                            y: u.interp_grid.grid_lats_2d,
+                            z: u.interp_grid.grid_z_2d,
+                            surfacecolor: u.interp_grid.grid_up_2d,
+                            colorscale: [[0, 'rgb(255, 255, 0)'], [0.5, 'rgb(255, 140, 0)'], [1, 'rgb(139, 0, 0)']],
+                            showscale: false,
+                            opacity: 0.7,
+                            hoverinfo: 'skip',
+                            visible: true
+                        });
+                    }
+                }
+                if (tracesToAdd.length > 0) {
+                    Plotly.addTraces(gd, tracesToAdd).then(() => {
+                        const btn = document.getElementById('btn-toggle-uplift-surface');
+                        if (btn) {
+                            btn.innerHTML = 'Toggle Uplift (ON)';
+                            btn.classList.add('visible', 'active');
+                        }
+                        showStatusToast('Uplift tiles activated (ON)', true);
+                        this.updateLegendSwapButtonVisibility();
+                    }).catch(err => {
+                        console.error('Error adding uplift traces:', err);
+                    });
+                }
+            } else {
+                showStatusToast('Select and apply Uplift CSV first', false);
             }
-            this.bringMarkersToFront();
         },
 
         toggleTomography() {
@@ -2977,23 +3318,68 @@
             if (!gd || !gd.data) return;
             const indices = [];
             for (let i = 0; i < gd.data.length; i++) {
-                if (gd.data[i].name && (gd.data[i].name.includes('Tomography') || gd.data[i].name.includes('Tomografia') || gd.data[i].name.includes('Vp/Vs'))) {
+                const n = gd.data[i].name || '';
+                if (n.includes('Tomography High Vp/Vs') || n.includes('Tomography Low Vp/Vs') || n.includes('Tomography 2D Slice') || n.includes('Tomography') || n.includes('Tomografia') || n.includes('Vp/Vs')) {
                     indices.push(i);
                 }
             }
             if (indices.length > 0) {
-                const currentVis = gd.data[indices[0]].visible;
-                const newVis = (currentVis === false || currentVis === 'legendonly') ? true : false;
-                Plotly.restyle(gd, { visible: newVis }, indices);
+                const isCurrentlyVisible = (gd.data[indices[0]].visible !== false && gd.data[indices[0]].visible !== 'legendonly');
+                const newVis = !isCurrentlyVisible;
+
+                // Immediately and synchronously flip button text and active class
                 const btn = document.getElementById('btn-toggle-tomo-points');
-                if (btn) btn.innerHTML = newVis ? 'Toggle Tomography (ON)' : 'Toggle Tomography (OFF)';
+                if (btn) {
+                    btn.innerHTML = newVis ? 'Toggle Tomography (ON)' : 'Toggle Tomography (OFF)';
+                    if (newVis) btn.classList.add('active'); else btn.classList.remove('active');
+                }
                 const btnHigh = document.getElementById('btn-toggle-tomo-high');
-                if (btnHigh) btnHigh.innerHTML = newVis ? 'High (ON)' : 'High (OFF)';
+                if (btnHigh) {
+                    btnHigh.innerHTML = newVis ? 'High (ON)' : 'High (OFF)';
+                    if (newVis) btnHigh.classList.add('active'); else btnHigh.classList.remove('active');
+                }
                 const btnLow = document.getElementById('btn-toggle-tomo-low');
-                if (btnLow) btnLow.innerHTML = newVis ? 'Low (ON)' : 'Low (OFF)';
+                if (btnLow) {
+                    btnLow.innerHTML = newVis ? 'Low (ON)' : 'Low (OFF)';
+                    if (newVis) btnLow.classList.add('active'); else btnLow.classList.remove('active');
+                }
+
+                indices.forEach(idx => {
+                    gd.data[idx].visible = newVis;
+                });
+
+                Plotly.restyle(gd, { visible: newVis }, indices).then(() => {
+                    const terrainIdx = gd.data.findIndex(tr => tr && (tr.name === 'Map Terrain' || (tr.type === 'surface' && tr.name && tr.name.includes('Terrain'))));
+                    if (terrainIdx !== -1) {
+                        Plotly.restyle(gd, { opacity: newVis ? 0.35 : 0.9 }, [terrainIdx]);
+                    }
+                }).catch(err => {
+                    console.warn('Plotly restyle tomography warning:', err);
+                    try { Plotly.redraw(gd); } catch (e) {}
+                });
+
                 showStatusToast('Tomography toggled ' + (newVis ? 'ON' : 'OFF'), true);
+                this.updateLegendSwapButtonVisibility();
+            } else if (this._activeTomographyData) {
+                const traces = this._buildTomographySliceTraces(null, 1.75, true, true);
+                if (traces.length > 0) {
+                    Plotly.addTraces(gd, traces).then(() => {
+                        const btn = document.getElementById('btn-toggle-tomo-points');
+                        if (btn) {
+                            btn.innerHTML = 'Toggle Tomography (ON)';
+                            btn.classList.add('visible', 'active');
+                        }
+                        const btnHigh = document.getElementById('btn-toggle-tomo-high');
+                        if (btnHigh) { btnHigh.innerHTML = 'High (ON)'; btnHigh.classList.add('visible', 'active'); }
+                        const btnLow = document.getElementById('btn-toggle-tomo-low');
+                        if (btnLow) { btnLow.innerHTML = 'Low (ON)'; btnLow.classList.add('visible', 'active'); }
+                        showStatusToast('Tomography tiles activated (ON)', true);
+                        this.updateLegendSwapButtonVisibility();
+                    });
+                }
+            } else {
+                showStatusToast('Select and apply Tomography CSV first', false);
             }
-            this.bringMarkersToFront();
         },
 
         toggleTomographyHigh() {
@@ -3006,14 +3392,26 @@
                 }
             }
             if (indices.length > 0) {
-                const currentVis = gd.data[indices[0]].visible;
-                const newVis = (currentVis === false || currentVis === 'legendonly') ? true : false;
-                Plotly.restyle(gd, { visible: newVis }, indices);
+                const isCurrentlyVisible = (gd.data[indices[0]].visible !== false && gd.data[indices[0]].visible !== 'legendonly');
+                const newVis = !isCurrentlyVisible;
+                
                 const btn = document.getElementById('btn-toggle-tomo-high');
-                if (btn) btn.innerHTML = newVis ? 'High (ON)' : 'High (OFF)';
+                if (btn) {
+                    btn.innerHTML = newVis ? 'High (ON)' : 'High (OFF)';
+                    if (newVis) btn.classList.add('active'); else btn.classList.remove('active');
+                }
+
+                indices.forEach(idx => {
+                    gd.data[idx].visible = newVis;
+                });
+
+                Plotly.restyle(gd, { visible: newVis }, indices).catch(err => {
+                    console.warn('Plotly restyle tomography high warning:', err);
+                    try { Plotly.redraw(gd); } catch (e) {}
+                });
+
                 showStatusToast('Tomography High Vp/Vs toggled ' + (newVis ? 'ON' : 'OFF'), true);
             }
-            this.bringMarkersToFront();
         },
 
         toggleTomographyLow() {
@@ -3026,14 +3424,26 @@
                 }
             }
             if (indices.length > 0) {
-                const currentVis = gd.data[indices[0]].visible;
-                const newVis = (currentVis === false || currentVis === 'legendonly') ? true : false;
-                Plotly.restyle(gd, { visible: newVis }, indices);
+                const isCurrentlyVisible = (gd.data[indices[0]].visible !== false && gd.data[indices[0]].visible !== 'legendonly');
+                const newVis = !isCurrentlyVisible;
+
                 const btn = document.getElementById('btn-toggle-tomo-low');
-                if (btn) btn.innerHTML = newVis ? 'Low (ON)' : 'Low (OFF)';
+                if (btn) {
+                    btn.innerHTML = newVis ? 'Low (ON)' : 'Low (OFF)';
+                    if (newVis) btn.classList.add('active'); else btn.classList.remove('active');
+                }
+
+                indices.forEach(idx => {
+                    gd.data[idx].visible = newVis;
+                });
+
+                Plotly.restyle(gd, { visible: newVis }, indices).catch(err => {
+                    console.warn('Plotly restyle tomography low warning:', err);
+                    try { Plotly.redraw(gd); } catch (e) {}
+                });
+
                 showStatusToast('Tomography Low Vp/Vs toggled ' + (newVis ? 'ON' : 'OFF'), true);
             }
-            this.bringMarkersToFront();
         },
 
         toggleStations() {
@@ -3041,19 +3451,27 @@
             if (!gd || !gd.data) return;
             const indices = [];
             for (let i = 0; i < gd.data.length; i++) {
-                if (gd.data[i].name && (gd.data[i].name === 'Stations' || gd.data[i].name === 'Stations Outline')) {
+                const n = gd.data[i].name || '';
+                if (n === 'Stations' || n === 'Stations Outline' || n === 'GNSS Uplift Stations') {
                     indices.push(i);
                 }
             }
             if (indices.length > 0) {
-                const currentVis = gd.data[indices[0]].visible;
-                const newVis = (currentVis === false || currentVis === 'legendonly') ? true : false;
-                Plotly.restyle(gd, { visible: newVis }, indices);
-                const btn = document.getElementById('btn-toggle-stations');
-                if (btn) btn.innerHTML = newVis ? 'Toggle Stations (ON)' : 'Toggle Stations (OFF)';
-                showStatusToast('Stations toggled ' + (newVis ? 'ON' : 'OFF'), true);
+                const isCurrentlyVisible = (gd.data[indices[0]].visible !== false && gd.data[indices[0]].visible !== 'legendonly');
+                const newVis = !isCurrentlyVisible;
+                Plotly.restyle(gd, { visible: newVis }, indices).then(() => {
+                    const btn = document.getElementById('btn-toggle-stations');
+                    if (btn) {
+                        btn.innerHTML = newVis ? 'Toggle Stations (ON)' : 'Toggle Stations (OFF)';
+                        if (newVis) btn.classList.add('active'); else btn.classList.remove('active');
+                    }
+                    showStatusToast('Stations toggled ' + (newVis ? 'ON' : 'OFF'), true);
+                }).catch(err => {
+                    console.error('Error restyling stations:', err);
+                });
+            } else {
+                showStatusToast('No Stations layer loaded to toggle', false);
             }
-            this.bringMarkersToFront();
         },
 
         swapLegend() {
@@ -3189,15 +3607,20 @@
                 if (btn) btn.innerHTML = '⇄ Scale: Uplift';
                 if (container) container.style.display = 'flex';
                 if (clusterList) clusterList.style.display = 'none';
+                if (scaleWrapper) scaleWrapper.style.display = 'flex';
+                if (legend) legend.style.paddingBottom = '';
                 const sc = this._layerScales.uplift || 'Uplift';
                 const u = this._activeUpliftData;
-                const vals = u.up_m || (u.interp_grid ? u.interp_grid.up_m : []) || [];
-                let minU = 9999, maxU = -9999;
-                for (let i = 0; i < vals.length; i++) {
-                    if (vals[i] < minU) minU = vals[i];
-                    if (vals[i] > maxU) maxU = vals[i];
+                let minU = 0, maxU = 0.08;
+                if (u) {
+                    const vals = u.up_m || u.up_m_list || (u.interp_grid ? u.interp_grid.up_m : []) || [];
+                    let minFound = 9999, maxFound = -9999;
+                    for (let i = 0; i < vals.length; i++) {
+                        if (vals[i] < minFound) minFound = vals[i];
+                        if (vals[i] > maxFound) maxFound = vals[i];
+                    }
+                    if (minFound !== 9999) { minU = minFound; maxU = maxFound; }
                 }
-                if (minU === 9999) { minU = 0; maxU = 0.08; }
                 updateGlassLegendInternal(true, 'Uplift (mm)', sc, currentLayerInvert, [minU * 1000, maxU * 1000], null);
             }
         },
@@ -3693,6 +4116,10 @@
                 tick.textContent = val.toFixed(1);
             }
             ticksContainer.appendChild(tick);
+        }
+
+        if (window.SeismicUI && typeof window.SeismicUI.updateLegendSwapButtonVisibility === 'function') {
+            window.SeismicUI.updateLegendSwapButtonVisibility();
         }
     }
 

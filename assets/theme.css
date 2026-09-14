@@ -1,0 +1,186 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Seismic Viewer - Unified Design System & Shared Tokens
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─── 1. Design Tokens & CSS Variables ─── */
+:root {
+    --system-font: 'Outfit', 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    
+    /* Backgrounds */
+    --bg-primary: #050510;
+    --bg-secondary: #0f0f1a;
+    --bg-surface: #1a1a2e;
+    
+    /* Glassmorphism Tokens */
+    --glass: rgba(15, 15, 25, 0.7);
+    --glass-card: rgba(255, 255, 255, 0.03);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-border-hover: rgba(255, 255, 255, 0.2);
+    
+    /* Accent Palettes (Harmonious Dark Theme) */
+    --accent-indigo: #6366f1;
+    --accent-indigo-glow: rgba(99, 102, 241, 0.4);
+    --accent-purple: #a855f7;
+    --accent-pink: #ec4899;
+    --accent-emerald: #10b981;
+    --accent-emerald-glow: rgba(16, 185, 129, 0.3);
+    --accent-rose: #f43f5e;
+    
+    /* Typography Colors */
+    --text-primary: #ffffff;
+    --text-secondary: #e2e8f0;
+    --text-muted: #94a3b8;
+    --text-dim: #64748b;
+}
+
+/* ─── 2. Base Box Model & Typography ─── */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: 2.2vh;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+body {
+    font-family: var(--system-font);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    overflow: hidden;
+}
+
+/* ─── 3. Global Scrollbar Suppression ─── */
+* {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar,
+::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+}
+
+/* ─── 4. Accessibility Utilities ─── */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* ─── 5. Core Keyframes & Animations ─── */
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes float {
+    from { transform: translate(0, 0) rotate(0deg); }
+    to { transform: translate(3.125rem, 1.875rem) rotate(10deg); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(0.625rem); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* ─── 6. Shared Loader & Overlay System ─── */
+#init-loader,
+#overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    font-family: var(--system-font);
+}
+
+.loader-ring {
+    width: 4rem;
+    height: 4rem;
+    border: 0.188rem solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--accent-indigo);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loader-text {
+    margin-top: 1.5rem;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.031rem;
+    text-align: center;
+    line-height: 1;
+    font-family: var(--system-font);
+}
+
+/* ─── 7. Toast Notification Shared Base ─── */
+#toast-container {
+    position: fixed;
+    z-index: 150000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    pointer-events: none;
+}
+
+.toast {
+    min-width: 17.5rem;
+    padding: 0.875rem 1.25rem;
+    background: rgba(15, 15, 25, 0.85);
+    backdrop-filter: blur(1.5rem) saturate(160%);
+    -webkit-backdrop-filter: blur(1.5rem) saturate(160%);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-hover);
+    border-radius: 0.875rem;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: auto;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translate(0, 0);
+}
+
+.toast-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.toast-success .toast-icon { background: var(--accent-emerald); color: var(--bg-primary); }
+.toast-error .toast-icon { background: var(--accent-rose); color: var(--text-primary); }
+.toast-icon svg { width: 0.75rem; height: 0.75rem; fill: currentColor; }

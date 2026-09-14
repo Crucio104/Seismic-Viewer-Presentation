@@ -1,91 +1,13 @@
-/* Screen Reader Only Utility */
-.sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border-width: 0;
-}
+@import "theme.css";
 
-/* Global Custom Scrollbars */
-* {
-    scrollbar-width: none;
-    -ms-overflow-style: none; /* IE and Edge */
-}
-
-::-webkit-scrollbar {
-    display: none !important;
-    width: 0 !important;
-    height: 0 !important;
-    background: transparent !important;
-}
-
-#settings-bar::-webkit-scrollbar,
-.legend-list::-webkit-scrollbar,
-.glass-panel::-webkit-scrollbar {
-    display: none !important;
-    width: 0 !important;
-}
-
-/* Initial Loader Styles from Python */
-#init-loader,
-#overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 999999;
-    background: #050510;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    transition: opacity 0.1s ease-out;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-}
-
-.loader-text {
-    margin-top: 1.500rem;
-    font-size: 1.000rem;
-    font-weight: 500;
-    color: #e2e8f0;
-    letter-spacing: 0.031rem;
-    text-align: center;
-    line-height: 1;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-}
-
+/* Visualization Canvas Global Layout */
 .js-plotly-plot,
 .plotly-graph-div {
     width: 100% !important;
     height: 100% !important;
 }
 
-/* Base Responsive Typography - Height-Dominant Scaling */
-html {
-    font-size: 2.2vh;
-}
-
-:root {
-    --glass: rgba(15, 15, 25, 0.7);
-    --glass-border: rgba(255, 255, 255, 0.1);
-}
-
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
-
 body {
-    margin: 0;
-    padding: 0;
-    font-family: 'Outfit', sans-serif;
     background: radial-gradient(circle at var(--bg-x, 50%) var(--bg-y, 50%), #1a1a2e 0%, #0f0f1a 100%);
     background-attachment: fixed;
     color: #e0e0e0;
@@ -1004,43 +926,10 @@ body {
     box-shadow: 0 0 0.5rem rgba(16, 185, 129, 0.3);
 }
 
-/* Toast Notifications (Top Right) */
+/* Toast Notifications (Top Right for Viz Views) */
 #toast-container {
-    position: fixed;
     top: 1.000rem;
     right: 1.500rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.500rem;
-    z-index: 150000;
-    pointer-events: none;
-}
-
-.toast {
-    background: var(--glass);
-    backdrop-filter: blur(6.250rem);
-    -webkit-backdrop-filter: blur(6.250rem);
-    border: 1px solid var(--glass-border);
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
-    color: #fff;
-    padding: 0.750rem 1.250rem;
-    border-radius: 0.750rem;
-    font-size: 0.812rem;
-    font-weight: 500;
-    box-shadow: 0 0.500rem 2.000rem rgba(0, 0, 0, 0.6);
-    opacity: 0;
-    transform: translateX(1.250rem);
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    display: flex;
-    align-items: center;
-    gap: 0.625rem;
-}
-
-
-
-.toast.show {
-    opacity: 1;
-    transform: translateX(0);
 }
 
 /* Camera Control Panel */

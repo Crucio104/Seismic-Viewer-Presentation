@@ -21,7 +21,7 @@ from core.config import (
     clear_session_data, store_viz_html,
     MAP_CACHE_DIR, INGV_CACHE_DIR, get_session_data, cleanup_temp_files
 )
-from core.history import get_recent_files, save_recent_file, clear_history
+from core.history import get_recent_files, save_recent_file, clear_history as clear_history_file
 from core.online_importer import fetch_ingv_dataframe
 from core.geo_utils import build_map_mesh
 from core.layer_utils import process_tomography_data, process_uplift_data, process_stations_data
@@ -258,7 +258,7 @@ class Api:
     def clear_recent_history(self) -> dict[str, Any]:
         """Clear recent files history and delete unsaved temporary INGV CSV downloads."""
         try:
-            clear_history()
+            clear_history_file()
             cleanup_temp_files()
             logger.info("Recent history and temporary INGV CSV files cleared.")
             return {'status': 'success'}
@@ -661,20 +661,23 @@ class Api:
                 if times:
                     target_date = str(times[-1])[:10]
                     
-            stations_path = params.get('stations_path')
+            stations_path = params.get('stations_path') or (self._stored_layer_paths.get('stations', {}) or {}).get('path')
+            uplift_path = params.get('uplift_path') or (self._stored_layer_paths.get('uplift', {}) or {}).get('path')
+            tomo_path = params.get('tomography_path') or (self._stored_layer_paths.get('tomography', {}) or {}).get('path')
+
             if stations_path:
                 self._stored_layer_paths['stations'] = {'path': str(stations_path), 'filename': Path(stations_path).name}
-            if params.get('uplift_path'):
-                self._stored_layer_paths['uplift'] = {'path': str(params['uplift_path']), 'filename': Path(params['uplift_path']).name}
-            if params.get('tomography_path'):
-                self._stored_layer_paths['tomography'] = {'path': str(params['tomography_path']), 'filename': Path(params['tomography_path']).name}
+            if uplift_path:
+                self._stored_layer_paths['uplift'] = {'path': str(uplift_path), 'filename': Path(uplift_path).name}
+            if tomo_path:
+                self._stored_layer_paths['tomography'] = {'path': str(tomo_path), 'filename': Path(tomo_path).name}
 
-            if params.get('uplift_path'):
-                uplift_res = process_uplift_data(params['uplift_path'], target_date_str=target_date, stations_path=stations_path)
+            if uplift_path:
+                uplift_res = process_uplift_data(uplift_path, target_date_str=target_date, stations_path=stations_path)
                 res['layers']['uplift'] = uplift_res
                 
-            if params.get('tomography_path'):
-                tomo_res = process_tomography_data(params['tomography_path'])
+            if tomo_path:
+                tomo_res = process_tomography_data(tomo_path)
                 res['layers']['tomography'] = tomo_res
                 
             if stations_path:

@@ -109,30 +109,39 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
         try:
             from scipy.spatial import cKDTree
             
-            cal_utmx = utmx_vals[mask]
-            cal_utmy = utmy_vals[mask]
+            cal_lons = lons[mask]
+            cal_lats = lats[mask]
             cal_depths = depths[mask]  # Already -abs(utmz)
             cal_vpvs = vp_vs[mask]
             
             if len(cal_vpvs) > 0:
-                # Isotropic 3D metric coordinates [X_km, Y_km, Z_km]
-                pts_km = np.column_stack([cal_utmx, cal_utmy, cal_depths])
+                # Metric scaling: 1 deg lat = 111.13 km, 1 deg lon = 111.13 * cos(mean_lat) km
+                mean_lat = float(np.mean(cal_lats))
+                kx = 111.13 * np.cos(np.radians(mean_lat))
+                ky = 111.13
+
+                pts_km = np.column_stack([cal_lons * kx, cal_lats * ky, cal_depths])
                 tree = cKDTree(pts_km)
                 
                 # Regular grid dimensions (optimized resolution for smooth 3D volumetric rendering with low memory footprint)
                 nx, ny, nz = 30, 22, 16
                 
-                x_km_min, x_km_max = float(cal_utmx.min()), float(cal_utmx.max())
-                y_km_min, y_km_max = float(cal_utmy.min()), float(cal_utmy.max())
+                lon_min, lon_max = float(cal_lons.min()), float(cal_lons.max())
+                lat_min, lat_max = float(cal_lats.min()), float(cal_lats.max())
                 dep_min, dep_max = float(cal_depths.min()), float(cal_depths.max())
                 
-                X_km, Y_km, Z = np.mgrid[
-                    x_km_min:x_km_max:nx*1j,
-                    y_km_min:y_km_max:ny*1j,
+                # Plotly volume & isosurface require a strict rectilinear grid flattened in C-order (X slowest, Z fastest)
+                X, Y, Z = np.mgrid[
+                    lon_min:lon_max:nx*1j,
+                    lat_min:lat_max:ny*1j,
                     dep_min:dep_max:nz*1j
                 ]
                 
-                grid_pts_km = np.column_stack([X_km.ravel(), Y_km.ravel(), Z.ravel()])
+                flat_lons = X.ravel()
+                flat_lats = Y.ravel()
+                flat_deps = Z.ravel()
+
+                grid_pts_km = np.column_stack([flat_lons * kx, flat_lats * ky, flat_deps])
                 
                 # Query k=16 nearest neighbors for smooth Inverse Distance Weighting (IDW)
                 k_neighbors = min(16, len(cal_vpvs))
@@ -159,20 +168,17 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
                 bg_val = 1.75
                 flat_vals = alpha * idw_vals + (1.0 - alpha) * bg_val
                 
-                # Project grid back to WGS84 Lat/Lon for Plotly 3D visual space
-                grid_lats, grid_lons = utm33_to_latlon_numpy(X_km.ravel(), Y_km.ravel())
-                
                 iso_grid = {
-                    'x': np.round(grid_lons, 5).tolist(),
-                    'y': np.round(grid_lats, 5).tolist(),
-                    'z': np.round(Z.ravel(), 2).tolist(),
+                    'x': np.round(flat_lons, 5).tolist(),
+                    'y': np.round(flat_lats, 5).tolist(),
+                    'z': np.round(flat_deps, 2).tolist(),
                     'value': np.round(flat_vals, 3).tolist(),
                     'min_val': float(np.nanmin(flat_vals)),
                     'max_val': float(np.nanmax(flat_vals)),
                     'mean_val': float(np.nanmean(flat_vals)),
                 }
                 # Free numpy grid matrices
-                del tree, pts_km, grid_pts_km, dists, idxs, weights, idw_vals, flat_vals, X_km, Y_km, Z, grid_lats, grid_lons
+                del tree, pts_km, grid_pts_km, dists, idxs, weights, idw_vals, flat_vals, X, Y, Z, flat_lons, flat_lats, flat_deps
                 logger.info(f"Generated 3D volume grid with continuous IDW: {nx}x{ny}x{nz} = {nx*ny*nz} voxels, "
                             f"Vp/Vs range [{iso_grid['min_val']:.3f}, {iso_grid['max_val']:.3f}]")
         except ImportError:
@@ -185,10 +191,10 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
             'type': 'tomography',
             'filename': path.name,
             'count': count_rows,
-            'x': np.round(lons, 5).tolist(),
-            'y': np.round(lats, 5).tolist(),
-            'z': np.round(depths, 3).tolist(),
-            'vp_vs': np.round(vp_vs, 3).tolist(),
+            'x': np.round(lons, 4).tolist(),
+            'y': np.round(lats, 4).tolist(),
+            'z': np.round(depths, 2).tolist(),
+            'vp_vs': np.round(vp_vs, 2).tolist(),
             'min_vp_vs': float(np.min(vp_vs)),
             'max_vp_vs': float(np.max(vp_vs))
         }
@@ -344,6 +350,7 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
             {
                 'type': 'Feature',
                 'id': f'c_{i*M+j}',
+                'properties': {'id': f'c_{i*M+j}'},
                 'geometry': {
                     'type': 'Polygon',
                     'coordinates': [[[round(float(grid_lons_1d[j]), 5), round(float(grid_lats_1d[i]), 5)],
@@ -376,6 +383,8 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
             },
             'cell_locs': locs,
             'cell_up_m': cell_up_vals,
+            'min_val': float(min(cell_up_vals)) if cell_up_vals else 0.0,
+            'max_val': float(max(cell_up_vals)) if cell_up_vals else 1.0,
             'cell_hover': hover_texts
         }
         
