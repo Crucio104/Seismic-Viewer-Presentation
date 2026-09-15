@@ -305,10 +305,16 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[
         if n_clusters > 0:
             centroids = np.array([np.mean(pts_km[labels == i], axis=0) for i in range(n_clusters)])
     elif method == 'hdbscan':
+        n_pts = len(pts_km)
+        if n_pts < 3:
+            return np.full(n_pts, -1, dtype=int), 0, None
+
         min_cluster_size = int(params.get('hdbscan_min_cluster_size', 5))
+        min_cluster_size = min(max(2, min_cluster_size), n_pts)
+
         min_samples = params.get('hdbscan_min_samples')
         if min_samples is not None and str(min_samples).strip() != "":
-            min_samples = max(1, int(min_samples))
+            min_samples = min(max(1, int(min_samples)), n_pts)
         else:
             min_samples = None
         
@@ -316,9 +322,11 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[
         cluster_selection_epsilon = (eps_m / 1000.0) if eps_m > 0 else 0.0
         
         hdb = HDBSCAN(
-            min_cluster_size=max(2, min_cluster_size),
+            min_cluster_size=min_cluster_size,
             min_samples=min_samples,
             cluster_selection_epsilon=cluster_selection_epsilon,
+            cluster_selection_method='eom',
+            allow_single_cluster=True,
             metric='euclidean',
             copy=True
         ).fit(pts_km)
@@ -880,8 +888,11 @@ def auto_tune_hdbscan_params(target_lon: np.ndarray, target_lat: np.ndarray, tar
         pts_km = project_to_km(target_lon, target_lat, target_dep, o_lat, o_lon)
         n_pts = len(pts_km)
 
-        optimal_min_samples = max(3, int(np.log(n_pts))) if n_pts > 0 else 3
-        optimal_min_cluster_size = max(5, int(optimal_min_samples * 1.5))
+        # In seismology, swarms typically have >= 4-10 events.
+        # min_samples regulates noise sensitivity (core distance):
+        optimal_min_samples = max(3, min(15, int(np.log(n_pts)))) if n_pts > 0 else 3
+        # min_cluster_size sets the smallest viable geological fault patch:
+        optimal_min_cluster_size = max(5, int(round(optimal_min_samples * 1.5)))
         clustering_params['hdbscan_min_cluster_size'] = optimal_min_cluster_size
         clustering_params['hdbscan_min_samples'] = optimal_min_samples
 
@@ -894,7 +905,8 @@ def auto_tune_hdbscan_params(target_lon: np.ndarray, target_lat: np.ndarray, tar
             if len(k_dists) > 0:
                 elbow_idx = _find_elbow_point(np.arange(len(k_dists)), k_dists)
                 optimal_eps_km = k_dists[elbow_idx]
-                optimal_eps_m = max(10, int(round((optimal_eps_km * 1000) / 10.0) * 10))
+                # Clamp within reasonable physical seismological bounds (20m to 2000m)
+                optimal_eps_m = max(20, min(2000, int(round((optimal_eps_km * 1000) / 10.0) * 10)))
                 clustering_params['hdbscan_cluster_selection_epsilon'] = optimal_eps_m
                 clustering_params['hdbscan_eps'] = optimal_eps_m
     except (ValueError, RuntimeError, TypeError, KeyError) as e:
