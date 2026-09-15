@@ -168,7 +168,7 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
 
     # Pre-calculate dates_num (days since first event) directly in Float32 to save RAM
     min_t_ns = df['time_dt'].iloc[0].value
-    dnum_f32 = ((df['time_dt'].values.astype('int64') - min_t_ns) / (SECONDS_PER_DAY * 1_000_000_000)).astype(np.float32)
+    dnum_f32 = ((df['time_dt'].to_numpy(dtype='int64', copy=False) - min_t_ns) / (SECONDS_PER_DAY * 1_000_000_000)).astype(np.float32)
     df['dates_num'] = dnum_f32
     
     # Precompute fast Float32 arrays for binary buffer and core processing
@@ -177,16 +177,6 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
     dep_f32 = (-df['depth']).to_numpy(dtype=np.float32)
     mag_f32 = df['mag'].to_numpy(dtype=np.float32)
     dnum_f32 = df['dates_num'].to_numpy(dtype=np.float32)
-
-    count = len(df)
-    binary_buffer = b"".join([
-        np.array([count, 0], dtype=np.float32).tobytes(),
-        lon_f32.tobytes(),
-        lat_f32.tobytes(),
-        mag_f32.tobytes(),
-        dep_f32.tobytes(),
-        dnum_f32.tobytes(),
-    ])
 
     # Pre-calculate visual pack
     visual_pack = precompute_visual_data(df)
@@ -206,7 +196,7 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
     bbox = (float(df['lat'].min()), float(df['lon'].min()), float(df['lat'].max()), float(df['lon'].max()))
     logger.info(f"Loaded {len(df)} seismic events (M >= {MIN_MAGNITUDE}) and {len(swarms)} INGV swarms.")
 
-    return {
+    result = {
         'latitude': latitude,
         'longitude': longitude,
         'depth': depth,
@@ -218,7 +208,6 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
         'visual_pack': visual_pack,
         'origin_lat': float(df['lat'].mean()),
         'origin_lon': float(df['lon'].mean()),
-        'binary_buffer': binary_buffer,
         'swarms': swarms,
         'swarms_count': len(swarms),
         'summary': {
@@ -228,6 +217,49 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
             'swarms_count': len(swarms),
         },
     }
+    result['binary_buffer'] = pack_seismic_binary(result)
+    return result
+
+
+def pack_seismic_binary(data: dict[str, Any]) -> bytes:
+    """Pack seismic dictionary data into a compact binary Float32 buffer."""
+    cluster = data.get('cluster', [])
+    has_clusters = cluster is not None and len(cluster) > 0
+    if 'binary_buffer' in data and not has_clusters:
+        return data['binary_buffer']
+
+    # Canonical key mapping
+    lon_key = 'longitude' if 'longitude' in data else 'lon'
+    lat_key = 'latitude' if 'latitude' in data else 'lat'
+    mag_key = 'magnitude' if 'magnitude' in data else 'mag'
+    dep_key = 'depth' if 'depth' in data else 'dep'
+    dnum_key = 'dates_num' if 'dates_num' in data else 'dnum'
+
+    count = len(data.get(lon_key, []))
+
+    def _to_f32_bytes(key: str, length: int) -> bytes:
+        arr = data.get(key)
+        if arr is None or len(arr) == 0:
+            return np.zeros(length, dtype=np.float32).tobytes()
+        if isinstance(arr, np.ndarray) and arr.dtype == np.float32:
+            return arr.tobytes()
+        return np.array(arr, dtype=np.float32).tobytes()
+
+    cluster_bytes = np.array(cluster, dtype=np.float32).tobytes() if has_clusters else b""
+
+    buffer = b"".join([
+        np.array([count, len(cluster)], dtype=np.float32).tobytes(),
+        _to_f32_bytes(lon_key, count),
+        _to_f32_bytes(lat_key, count),
+        _to_f32_bytes(mag_key, count),
+        _to_f32_bytes(dep_key, count),
+        _to_f32_bytes(dnum_key, count),
+        cluster_bytes
+    ])
+    if not has_clusters:
+        data['binary_buffer'] = buffer
+    return buffer
+
 
 
 

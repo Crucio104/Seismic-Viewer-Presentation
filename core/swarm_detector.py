@@ -34,8 +34,8 @@ def detect_ingv_swarms(df: pd.DataFrame) -> list[dict[str, Any]]:
         return []
 
     valid_df = sorted_df.iloc[valid_indices].reset_index(drop=True)
-    times = valid_df['time_dt'].values
-    mags = valid_df['mag'].values
+    times = valid_df['time_dt'].to_numpy()
+    mags = valid_df['mag'].to_numpy(dtype=float, copy=False)
 
     windows: list[tuple[np.datetime64, np.datetime64, int, int]] = []
     n = len(valid_df)

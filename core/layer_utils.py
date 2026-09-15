@@ -1,8 +1,10 @@
 import logging
 from pathlib import Path
 from typing import Any
+
 import numpy as np
 import pandas as pd
+
 from core.config import BASE_DIR, KM_PER_DEGREE
 
 logger = logging.getLogger(__name__)
@@ -83,19 +85,19 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
         df = df.dropna(subset=[utmx_col, utmy_col, utmz_col, vpvs_col]).reset_index(drop=True)
         
         # Convert UTM Zone 33N km to Lat/Lon
-        utmx_vals = df[utmx_col].values.astype(np.float64)
-        utmy_vals = df[utmy_col].values.astype(np.float64)
+        utmx_vals = df[utmx_col].to_numpy(dtype=np.float64, copy=False)
+        utmy_vals = df[utmy_col].to_numpy(dtype=np.float64, copy=False)
         lats, lons = utm33_to_latlon_numpy(utmx_vals, utmy_vals)
         
         # In our 3D plot, Z is depth in km (positive downwards is represented as negative Z coordinates in 3D space)
-        depths = -np.abs(df[utmz_col].values.astype(np.float32))
-        vp_vs = df[vpvs_col].values.astype(np.float32)
+        depths = -np.abs(df[utmz_col].to_numpy(dtype=np.float32, copy=False))
+        vp_vs = df[vpvs_col].to_numpy(dtype=np.float32, copy=False)
         count_rows = len(df)
         
         # Only interpolate calibrated points (VP != 0) for clean volumes
         vp_col = next((c for c in df.columns if c == 'VP' or 'V_P' in c or 'P_VEL' in c), None)
         if vp_col is not None:
-            mask = (df[vp_col].values != 0) & np.isfinite(vp_vs)
+            mask = (df[vp_col].to_numpy() != 0) & np.isfinite(vp_vs)
         else:
             mask = np.isfinite(vp_vs)
             
@@ -115,10 +117,10 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
             cal_vpvs = vp_vs[mask]
             
             if len(cal_vpvs) > 0:
-                # Metric scaling: 1 deg lat = 111.13 km, 1 deg lon = 111.13 * cos(mean_lat) km
+                # Metric scaling: 1 deg lat = KM_PER_DEGREE km, 1 deg lon = KM_PER_DEGREE * cos(mean_lat) km
                 mean_lat = float(np.mean(cal_lats))
-                kx = 111.13 * np.cos(np.radians(mean_lat))
-                ky = 111.13
+                kx = KM_PER_DEGREE * np.cos(np.radians(mean_lat))
+                ky = KM_PER_DEGREE
 
                 pts_km = np.column_stack([cal_lons * kx, cal_lats * ky, cal_depths])
                 tree = cKDTree(pts_km)

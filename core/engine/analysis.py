@@ -1,15 +1,17 @@
-import logging
-import time
 import bisect
-import numpy as np
-from datetime import datetime, timedelta
-from scipy.spatial import KDTree, ConvexHull
-from scipy.linalg import svd
-from sklearn.cluster import MiniBatchKMeans, DBSCAN
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
+import logging
 import os
+import time
 from typing import Any
+
+import numpy as np
+from scipy.linalg import svd
+from scipy.spatial import ConvexHull, KDTree
+from sklearn.cluster import DBSCAN, MiniBatchKMeans
+from sklearn.neighbors import NearestNeighbors
 
 from core.config import KM_PER_DEGREE
 
@@ -750,3 +752,90 @@ def _process_frame_worker(idx, data=None):
         frame_planes = _calculate_frame_planes(labels, pts_subset, "TMP", origin_lon, origin_lat)
 
     return idx, labels, centroids, global_indices, mask, len(pts_raw), frame_planes
+
+def _find_elbow_point(x_vals: np.ndarray, y_vals: np.ndarray) -> int:
+    """Find the elbow point index in a curve using maximum orthogonal distance to the start-end line."""
+    if len(x_vals) == 0:
+        return 0
+    all_coord = np.vstack((x_vals, y_vals)).T
+    first_point = all_coord[0]
+    line_vec = all_coord[-1] - first_point
+    norm_val = np.linalg.norm(line_vec)
+    if norm_val <= 0:
+        return 0
+    line_vec_norm = line_vec / norm_val
+    vec_from_first = all_coord - first_point
+    scalar_proj = np.sum(vec_from_first * line_vec_norm, axis=1)
+    vec_proj = np.outer(scalar_proj, line_vec_norm)
+    vec_to_line = vec_from_first - vec_proj
+    dist_to_line = np.linalg.norm(vec_to_line, axis=1)
+    return int(np.argmax(dist_to_line))
+
+def auto_tune_dbscan_params(target_lon: np.ndarray, target_lat: np.ndarray, target_dep: np.ndarray, data: dict[str, Any], clustering_params: dict[str, Any]) -> None:
+    """Auto-tune DBSCAN min_samples and eps using k-nearest neighbors and elbow detection."""
+    if len(target_lon) < 5:
+        return
+    try:
+        # Exclude events with missing depth from 3D parameter tuning
+        if 'depth_is_missing' in data and data['depth_is_missing'] is not None:
+            mask = ~np.array(data['depth_is_missing'][:len(target_lon)], dtype=bool)
+            if np.sum(mask) >= 5:
+                target_lon, target_lat, target_dep = target_lon[mask], target_lat[mask], target_dep[mask]
+
+        o_lat = data.get('origin_lat', float(np.mean(target_lat)))
+        o_lon = data.get('origin_lon', float(np.mean(target_lon)))
+        
+        pts_km = project_to_km(target_lon, target_lat, target_dep, o_lat, o_lon)
+        n_pts = len(pts_km)
+        
+        optimal_min_samples = max(3, int(np.log(n_pts))) if n_pts > 0 else 3
+        clustering_params['dbscan_min_samples'] = optimal_min_samples
+        min_samples = optimal_min_samples
+        
+        if len(pts_km) > min_samples:
+            nn = NearestNeighbors(n_neighbors=min_samples)
+            nn.fit(pts_km)
+            distances, _ = nn.kneighbors(pts_km)
+            
+            k_dists = np.sort(distances[:, -1])
+            if len(k_dists) > 0:
+                elbow_idx = _find_elbow_point(np.arange(len(k_dists)), k_dists)
+                optimal_eps_km = k_dists[elbow_idx]
+                
+                optimal_eps_m = max(10, int(round((optimal_eps_km * 1000) / 10.0) * 10))
+                clustering_params['dbscan_eps'] = optimal_eps_m
+    except (ValueError, RuntimeError, TypeError, KeyError) as e:
+        logger.warning(f"Failed to calculate optimal eps: {e}")
+
+def auto_tune_kmeans_params(target_lon: np.ndarray, target_lat: np.ndarray, target_dep: np.ndarray, data: dict[str, Any], clustering_params: dict[str, Any]) -> None:
+    """Auto-tune KMeans k using inertia curve and elbow detection."""
+    if len(target_lon) < 3:
+        return
+    try:
+        # Exclude events with missing depth from 3D parameter tuning
+        if 'depth_is_missing' in data and data['depth_is_missing'] is not None:
+            mask = ~np.array(data['depth_is_missing'][:len(target_lon)], dtype=bool)
+            if np.sum(mask) >= 3:
+                target_lon, target_lat, target_dep = target_lon[mask], target_lat[mask], target_dep[mask]
+
+        o_lat = data.get('origin_lat', float(np.mean(target_lat)))
+        o_lon = data.get('origin_lon', float(np.mean(target_lon)))
+
+        pts_km = project_to_km(target_lon, target_lat, target_dep, o_lat, o_lon)
+        n_pts = len(pts_km)
+        max_k = min(10, n_pts)
+        if max_k < 3:
+            return
+
+        ks = list(range(2, max_k + 1))
+        inertias = []
+        for k in ks:
+            km = MiniBatchKMeans(n_clusters=k, random_state=42, n_init='auto').fit(pts_km)
+            inertias.append(float(km.inertia_))
+
+        if len(ks) > 0:
+            elbow_idx = _find_elbow_point(np.array(ks), np.array(inertias))
+            optimal_k = ks[elbow_idx]
+            clustering_params['kmeans_clusters'] = int(optimal_k)
+    except (ValueError, RuntimeError, TypeError, KeyError) as e:
+        logger.warning(f"Failed to calculate optimal kmeans clusters: {e}")

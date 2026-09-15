@@ -993,6 +993,13 @@
     /* ─── SPA Window Controller ─── */
     window.SeismicApp = {
         _revealTimeout: null,
+        showOverlay: function(msg) {
+            const overlay = document.getElementById('overlay');
+            const overlayMsg = document.getElementById('overlay-msg');
+            if (overlayMsg && msg) overlayMsg.textContent = msg;
+            if (overlay) overlay.classList.add('show');
+            loading = true;
+        },
         navigateTo: function(url) {
             const frame = document.getElementById('viz-frame');
             const overlay = document.getElementById('overlay');

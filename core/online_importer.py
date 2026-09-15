@@ -3,7 +3,7 @@ import logging
 import csv
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from collections.abc import Callable
 import pandas as pd
@@ -43,7 +43,7 @@ def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | No
     cache_file = INGV_CACHE_DIR / f"{network}_{year}.json"
     meta_file = INGV_CACHE_DIR / f"{network}_{year}.meta.json"
 
-    current_year = datetime.now().year
+    current_year = datetime.now(timezone.utc).year
     is_past_year = year < current_year
 
     # Past years are immutable: load directly from local cache if present
@@ -75,8 +75,8 @@ def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | No
                 etag = meta.get('etag')
                 if etag:
                     headers['If-None-Match'] = etag
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError) as e:
+            logger.debug(f"Failed to read INGV meta cache {meta_file}: {e}")
 
     try:
         with requests.Session() as s:
@@ -117,7 +117,7 @@ def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | No
                     new_etag = resp.headers.get('ETag')
                     if new_etag:
                         with open(meta_file, 'w', encoding='utf-8') as f:
-                            json.dump({'etag': new_etag, 'updated_at': datetime.now().isoformat()}, f)
+                            json.dump({'etag': new_etag, 'updated_at': datetime.now(timezone.utc).isoformat()}, f)
                 except Exception as ce:
                     logger.warning(f"Failed to write INGV cache: {ce}")
 
@@ -258,7 +258,7 @@ def fetch_ingv_dataframe(params: dict[str, Any], on_progress: Callable[[str], No
 
     # Persist canonical CSV to temp directory for exports
     TEMP_DIR.mkdir(parents=True, exist_ok=True)
-    filename = f"ingv_{network}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    filename = f"ingv_{network}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
     filepath = TEMP_DIR / filename
 
     with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:

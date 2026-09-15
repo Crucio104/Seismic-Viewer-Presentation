@@ -1,24 +1,23 @@
 import logging
-import socket
-import time
+from collections import defaultdict
+from collections.abc import Callable
+from typing import Any
+
 import numpy as np
 import plotly.graph_objects as go
-from typing import Any, Callable
-from collections import defaultdict
 
-# Core modules
-from core.geo_utils import build_map_mesh
 from core.config import MESH_HD_SIZE, store_session_data
-from core.templates import generate_html
-
-# Sub-engine modules
+from core.engine.analysis import auto_tune_dbscan_params, auto_tune_kmeans_params
 from core.engine.visualization import (
-    view_2d, get_3d_static_figure, get_3d_cluster_figure, 
-    get_3d_animated_figure, get_3d_subcluster_figure
+    get_3d_animated_figure,
+    get_3d_cluster_figure,
+    get_3d_static_figure,
+    get_3d_subcluster_figure,
+    view_2d,
 )
-from core.engine.analysis import project_to_km
-from sklearn.neighbors import NearestNeighbors
-from sklearn.cluster import MiniBatchKMeans
+from core.geo_utils import build_map_mesh
+from core.network import is_osm_online
+from core.templates import generate_html
 
 logger = logging.getLogger(__name__)
 
@@ -43,114 +42,6 @@ def strip_data(fig_obj: go.Figure, data_dict: dict[str, Any]) -> None:
     for k in keys_to_strip:
         if k in data_dict:
             data_dict[k] = []
-
-def _find_elbow_point(x_vals: np.ndarray, y_vals: np.ndarray) -> int:
-    """Find the elbow point index in a curve using maximum orthogonal distance to the start-end line."""
-    if len(x_vals) == 0:
-        return 0
-    all_coord = np.vstack((x_vals, y_vals)).T
-    first_point = all_coord[0]
-    line_vec = all_coord[-1] - first_point
-    norm_val = np.linalg.norm(line_vec)
-    if norm_val <= 0:
-        return 0
-    line_vec_norm = line_vec / norm_val
-    vec_from_first = all_coord - first_point
-    scalar_proj = np.sum(vec_from_first * line_vec_norm, axis=1)
-    vec_proj = np.outer(scalar_proj, line_vec_norm)
-    vec_to_line = vec_from_first - vec_proj
-    dist_to_line = np.linalg.norm(vec_to_line, axis=1)
-    return int(np.argmax(dist_to_line))
-
-def auto_tune_dbscan_params(target_lon, target_lat, target_dep, data: dict[str, Any], clustering_params: dict[str, Any]) -> None:
-    if len(target_lon) < 5:
-        return
-    try:
-        # Exclude events with missing depth from 3D parameter tuning
-        if 'depth_is_missing' in data and data['depth_is_missing'] is not None:
-            mask = ~np.array(data['depth_is_missing'][:len(target_lon)], dtype=bool)
-            if np.sum(mask) >= 5:
-                target_lon, target_lat, target_dep = target_lon[mask], target_lat[mask], target_dep[mask]
-
-        o_lat = data.get('origin_lat', np.mean(target_lat))
-        o_lon = data.get('origin_lon', np.mean(target_lon))
-        
-        pts_km = project_to_km(target_lon, target_lat, target_dep, o_lat, o_lon)
-        n_pts = len(pts_km)
-        
-        optimal_min_samples = max(3, int(np.log(n_pts))) if n_pts > 0 else 3
-        clustering_params['dbscan_min_samples'] = optimal_min_samples
-        min_samples = optimal_min_samples
-        
-        if len(pts_km) > min_samples:
-            nn = NearestNeighbors(n_neighbors=min_samples)
-            nn.fit(pts_km)
-            distances, _ = nn.kneighbors(pts_km)
-            
-            k_dists = np.sort(distances[:, -1])
-            if len(k_dists) > 0:
-                elbow_idx = _find_elbow_point(np.arange(len(k_dists)), k_dists)
-                optimal_eps_km = k_dists[elbow_idx]
-                
-                optimal_eps_m = max(10, int(round((optimal_eps_km * 1000) / 10.0) * 10))
-                clustering_params['dbscan_eps'] = optimal_eps_m
-    except Exception as e:
-        logger.warning(f"Failed to calculate optimal eps: {e}")
-
-def auto_tune_kmeans_params(target_lon, target_lat, target_dep, data: dict[str, Any], clustering_params: dict[str, Any]) -> None:
-    if len(target_lon) < 3:
-        return
-    try:
-        # Exclude events with missing depth from 3D parameter tuning
-        if 'depth_is_missing' in data and data['depth_is_missing'] is not None:
-            mask = ~np.array(data['depth_is_missing'][:len(target_lon)], dtype=bool)
-            if np.sum(mask) >= 3:
-                target_lon, target_lat, target_dep = target_lon[mask], target_lat[mask], target_dep[mask]
-
-        o_lat = data.get('origin_lat', np.mean(target_lat))
-        o_lon = data.get('origin_lon', np.mean(target_lon))
-
-        pts_km = project_to_km(target_lon, target_lat, target_dep, o_lat, o_lon)
-        n_pts = len(pts_km)
-        max_k = min(10, n_pts)
-        if max_k < 3:
-            return
-
-        ks = list(range(2, max_k + 1))
-        inertias = []
-        for k in ks:
-            km = MiniBatchKMeans(n_clusters=k, random_state=42, n_init='auto').fit(pts_km)
-            inertias.append(float(km.inertia_))
-
-        if len(ks) > 0:
-            elbow_idx = _find_elbow_point(np.array(ks), np.array(inertias))
-            optimal_k = ks[elbow_idx]
-            clustering_params['kmeans_clusters'] = int(optimal_k)
-    except Exception as e:
-        logger.warning(f"Failed to calculate optimal kmeans clusters: {e}")
-
-_osm_online_cache: dict[str, Any] = {'time': 0.0, 'status': False}
-
-def _is_osm_online() -> bool:
-    """Quick cached check if OSM tile servers are reachable without blocking page generation."""
-    now = time.time()
-    if now - _osm_online_cache['time'] < 60.0:
-        return bool(_osm_online_cache['status'])
-    
-    online = False
-    try:
-        with socket.create_connection(("a.tile.openstreetmap.org", 443), timeout=0.6):
-            online = True
-    except Exception:
-        try:
-            with socket.create_connection(("1.1.1.1", 53), timeout=0.5):
-                online = True
-        except Exception:
-            online = False
-    
-    _osm_online_cache['time'] = now
-    _osm_online_cache['status'] = online
-    return online
 
 def build_view_html(
     data: dict[str, Any], 
@@ -199,7 +90,7 @@ def build_view_html(
     # 2. View Routing
     if view_style == 0:
         _report("Generating 2D map…")
-        is_fallback = not _is_osm_online()
+        is_fallback = not is_osm_online()
 
         fig = view_2d(
             lon, lat, mag, times, 

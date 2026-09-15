@@ -1,7 +1,9 @@
 import logging
-import plotly.graph_objects as go
 from typing import Any
-from core.config import BASE_DIR, ANIMATION_BASE_DURATION_MS
+
+import plotly.graph_objects as go
+
+from core.config import ANIMATION_BASE_DURATION_MS, BASE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +32,7 @@ def _ensure_templates_loaded() -> None:
                 with open(path, 'r', encoding='utf-8') as f:
                     TEMPLATE_CACHE[key] = f.read()
                 _TEMPLATE_MTIMES[key] = mtime
-        except Exception as e:
+        except OSError as e:
             logger.warning(f"Failed to load template {filename}: {e}")
             if key not in TEMPLATE_CACHE:
                 TEMPLATE_CACHE[key] = ""
@@ -54,10 +56,27 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
     html_content = _inject_head_assets(html_content, is_subcluster=is_subcluster)
     
     # 1. Prepare Content
-    loader_msg = _get_loader_message(is_animated, is_cluster)
+    loader_msg = _get_loader_message(is_animated, is_cluster, is_subcluster=is_subcluster)
     loader_html = _get_loader_html(loader_msg, is_subcluster=is_subcluster)
     
-    scripts = TEMPLATE_CACHE.get('common', "")
+    is_static_3d = is_3d and not is_animated and not is_cluster
+    config_script = (
+        '<script>\n'
+        f'window.SEISMIC_CONFIG = {{\n'
+        f'  dataUrl: "{data_url}",\n'
+        f'  animDuration: {ANIMATION_BASE_DURATION_MS},\n'
+        f'  is3D: {"true" if is_3d else "false"},\n'
+        f'  is3DStatic: {"true" if is_static_3d else "false"},\n'
+        f'  isCluster: {"true" if is_cluster else "false"},\n'
+        f'  isFallback: {"true" if is_fallback else "false"}\n'
+        f'}};\n'
+        f'window.IS_3D_VIEW = {"true" if is_3d else "false"};\n'
+        f'window.IS_3D_STATIC_VIEW = {"true" if is_static_3d else "false"};\n'
+        f'window.IS_CLUSTER_VIEW = {"true" if is_cluster else "false"};\n'
+        '</script>'
+    )
+
+    scripts = f"{config_script}\n{TEMPLATE_CACHE.get('common', '')}\n"
     scripts += _get_view_scripts(is_animated, is_cluster, earthquake_data, data_url, is_fallback, is_3d)
 
     # 2. Inject into Body
@@ -72,7 +91,6 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
 
 def _inject_head_assets(html: str, is_subcluster: bool = False) -> str:
     """Inject CSS and fonts into the <head>."""
-    loader_bg = 'rgba(15, 12, 41, 0.6) !important; backdrop-filter: blur(0.8rem); -webkit-backdrop-filter: blur(0.8rem);' if is_subcluster else '#050510 !important;'
     head_css = (
         '<script>'
         '(function(){'
@@ -92,11 +110,15 @@ def _inject_head_assets(html: str, is_subcluster: bool = False) -> str:
         '  if(window.parent && window.parent.pywebview){'
         '    try{ window.dispatchEvent(new Event("pywebviewready")); }catch(e){}'
         '  }'
+        '  if(window.parent && window.parent.SeismicApp){'
+        '    try{ document.documentElement.classList.add("in-spa"); }catch(e){}'
+        '  }'
         '})();'
         '</script>'
         '<style>'
         'html,body,.js-plotly-plot,.plotly-graph-div{background:#050510 !important;margin:0;padding:0;overflow:hidden;height:100%;width:100%}'
-        f'#init-loader{{background:{loader_bg}}}'
+        '#init-loader{background:#050510 !important;}'
+        '.in-spa #init-loader{display:none !important;}'
         '</style>'
         '<script src="/assets/plotly.min.js" charset="utf-8"></script>'
         '<link rel="preconnect" href="https://fonts.googleapis.com">'
@@ -106,7 +128,9 @@ def _inject_head_assets(html: str, is_subcluster: bool = False) -> str:
     )
     return html.replace('<head>', f'<head>\n{head_css}')
 
-def _get_loader_message(is_animated: bool, is_cluster: bool) -> str:
+def _get_loader_message(is_animated: bool, is_cluster: bool, is_subcluster: bool = False) -> str:
+    if is_subcluster:
+        return 'Rendering Subcluster Analysis...'
     if is_animated:
         return 'Rendering Animation...'
     if is_cluster:
@@ -114,14 +138,12 @@ def _get_loader_message(is_animated: bool, is_cluster: bool) -> str:
     return 'Rendering Visualization...'
 
 def _get_loader_html(msg: str, is_subcluster: bool = False) -> str:
-    bg_style = 'background:rgba(15, 12, 41, 0.6);backdrop-filter:blur(0.8rem);-webkit-backdrop-filter:blur(0.8rem);' if is_subcluster else 'background:#050510;'
-    disp_style = 'display:flex;'
     return (
-        f'<div id="init-loader" style="position:fixed;inset:0;z-index:999999;{bg_style}{disp_style}flex-direction:column;align-items:center;justify-content:center;opacity:1;transition:opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);pointer-events:auto;">'
-        f'  <div class="loader-ring" style="width:4rem;height:4rem;border:0.188rem solid rgba(255,255,255,0.1);border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;"></div>'
+        '<div id="init-loader" style="position:fixed;inset:0;z-index:999999;background:#050510;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:1;transition:opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);pointer-events:auto;">'
+        '  <div class="loader-ring" style="width:4rem;height:4rem;border:0.188rem solid rgba(255,255,255,0.1);border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;"></div>'
         f'  <p class="loader-text" style="margin-top:1.5rem;font-size:1rem;font-weight:500;color:#e2e8f0;text-align:center;">{msg}</p>'
-        f'</div>'
-        f'<style>@keyframes spin{{to{{transform:rotate(360deg)}}}}</style>'
+        '</div>'
+        '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>'
     )
 
 def _get_view_scripts(is_animated: bool, is_cluster: bool, earthquake_data: dict[str, Any] | None, data_url: str, is_fallback: bool, is_3d: bool) -> str:
@@ -136,9 +158,5 @@ def _get_view_scripts(is_animated: bool, is_cluster: bool, earthquake_data: dict
 
     if is_fallback:
         scripts += "<script>window.addEventListener('load', () => { showStatusToast('Offline: Map tiles unavailable.'); });</script>"
-    
-    if earthquake_data or data_url:
-        is_static_3d = is_3d and not is_animated and not is_cluster
-        scripts += f"\n<script>window.IS_3D_VIEW = {'true' if is_3d else 'false'}; window.IS_3D_STATIC_VIEW = {'true' if is_static_3d else 'false'}; window.IS_CLUSTER_VIEW = {'true' if is_cluster else 'false'};</script>"
     
     return scripts

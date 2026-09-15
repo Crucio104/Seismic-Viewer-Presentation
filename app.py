@@ -8,6 +8,7 @@ import asyncio
 import socket
 import numpy as np
 import uvicorn
+from contextlib import asynccontextmanager
 from typing import Any
 from fastapi import FastAPI, WebSocket, Response
 from fastapi.staticfiles import StaticFiles
@@ -20,6 +21,7 @@ from core.config import (
     clear_session_data, get_viz_html, enforce_temp_dir_limit
 )
 from core.bridge import Api
+from core.loader import pack_seismic_binary
 from core.network import ConnectionManager, handle_websocket_messages
 
 # --- Logging Setup ---
@@ -72,8 +74,8 @@ class ServerController:
         if self.uvicorn_server:
             try:
                 self.uvicorn_server.should_exit = True
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error while requesting uvicorn shutdown: {e}")
             self.uvicorn_server = None
             self.server_thread = None
 
@@ -127,69 +129,34 @@ async def get_data_binary_handler(session_id: str) -> Response:
         logger.error(f"Binary Packing Error: {e}")
         return Response(status_code=500)
 
-def pack_seismic_binary(data: dict[str, Any]) -> bytes:
-    """Pack seismic dictionary data into a compact binary Float32 buffer."""
-    cluster = data.get('cluster', [])
-    has_clusters = cluster is not None and len(cluster) > 0
-    if 'binary_buffer' in data and not has_clusters:
-        return data['binary_buffer']
-
-    # Canonical key mapping
-    lon_key = 'longitude' if 'longitude' in data else 'lon'
-    lat_key = 'latitude' if 'latitude' in data else 'lat'
-    mag_key = 'magnitude' if 'magnitude' in data else 'mag'
-    dep_key = 'depth' if 'depth' in data else 'dep'
-    dnum_key = 'dates_num' if 'dates_num' in data else 'dnum'
-
-    count = len(data.get(lon_key, []))
-    
-    def _to_f32_bytes(key: str, length: int) -> bytes:
-        arr = data.get(key)
-        if arr is None or len(arr) == 0:
-            return np.zeros(length, dtype=np.float32).tobytes()
-        if isinstance(arr, np.ndarray) and arr.dtype == np.float32:
-            return arr.tobytes()
-        return np.array(arr, dtype=np.float32).tobytes()
-
-    cluster_bytes = np.array(cluster, dtype=np.float32).tobytes() if has_clusters else b""
-
-    buffer = b"".join([
-        np.array([count, len(cluster)], dtype=np.float32).tobytes(),
-        _to_f32_bytes(lon_key, count),
-        _to_f32_bytes(lat_key, count),
-        _to_f32_bytes(mag_key, count),
-        _to_f32_bytes(dep_key, count),
-        _to_f32_bytes(dnum_key, count),
-        cluster_bytes
-    ])
-    if not has_clusters:
-        data['binary_buffer'] = buffer
-    return buffer
-
 # --- App Factory ---
 
 def _create_fastapi_app(controller: ServerController) -> FastAPI:
     """Build the FastAPI application."""
-    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    manager = ConnectionManager()
+    if controller.api_ref:
+        controller.api_ref.set_socket_manager(manager, None)
 
-    try:
-        controller.uvicorn_loop = asyncio.get_event_loop()
-        def _quiet_exception_handler(loop, context):
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        loop = asyncio.get_running_loop()
+        controller.uvicorn_loop = loop
+
+        def _quiet_exception_handler(l, context):
             exc = context.get("exception")
             if isinstance(exc, (ConnectionResetError, OSError)):
                 return
             msg = context.get("message", "")
             if "_call_connection_lost" in msg or "ConnectionResetError" in msg:
                 return
-            loop.default_exception_handler(context)
-        controller.uvicorn_loop.set_exception_handler(_quiet_exception_handler)
-    except Exception:
-        controller.uvicorn_loop = None
+            l.default_exception_handler(context)
 
-    manager = ConnectionManager()
-    if controller.api_ref:
-        controller.api_ref.set_socket_manager(manager, controller.uvicorn_loop)
+        loop.set_exception_handler(_quiet_exception_handler)
+        if controller.api_ref:
+            controller.api_ref.set_socket_manager(manager, loop)
+        yield
 
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.add_middleware(GZipMiddleware, minimum_size=500)
 
     # WebSocket

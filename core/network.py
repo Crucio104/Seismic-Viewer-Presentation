@@ -1,10 +1,36 @@
-import logging
 import asyncio
 import json
+import logging
+import socket
+import time
 from typing import Any
+
 from fastapi import WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
+
+_osm_online_cache: dict[str, Any] = {'time': 0.0, 'status': False}
+
+def is_osm_online() -> bool:
+    """Quick cached check if OSM tile servers are reachable without blocking page generation."""
+    now = time.time()
+    if now - _osm_online_cache['time'] < 60.0:
+        return bool(_osm_online_cache['status'])
+
+    online = False
+    try:
+        with socket.create_connection(("a.tile.openstreetmap.org", 443), timeout=0.6):
+            online = True
+    except OSError:
+        try:
+            with socket.create_connection(("1.1.1.1", 53), timeout=0.5):
+                online = True
+        except OSError:
+            online = False
+
+    _osm_online_cache['time'] = now
+    _osm_online_cache['status'] = online
+    return online
 
 class ConnectionManager:
     """Manages active WebSocket connections and broadcasting."""
