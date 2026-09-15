@@ -1718,6 +1718,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             const calcFramesAnim = document.getElementById('anim-calc-frames');
             const animKmeansParams = document.getElementById('anim-kmeans-params');
             const animDbscanParams = document.getElementById('anim-dbscan-params');
+            const animHdbscanParams = document.getElementById('anim-hdbscan-params');
+            const pHdbMinClusterAnim = document.getElementById('anim-param-hdb-min-cluster');
+            const pHdbMinSamplesAnim = document.getElementById('anim-param-hdb-min-samples');
+            const pHdbEpsAnim = document.getElementById('anim-param-hdb-eps');
             const useCylindersCheck = document.getElementById('anim-use-cylinders');
             const cylinderOptions = document.getElementById('anim-cylinder-options');
             const pCylinderRadius = document.getElementById('anim-cylinder-radius');
@@ -1756,6 +1760,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 animMethodToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
                 animKmeansParams.style.display = currentAnimClustMethod === 'kmeans' ? 'block' : 'none';
                 animDbscanParams.style.display = currentAnimClustMethod === 'dbscan' ? 'block' : 'none';
+                if (animHdbscanParams) animHdbscanParams.style.display = currentAnimClustMethod === 'hdbscan' ? 'block' : 'none';
             });
 
             async function syncAnimatedClustering() {
@@ -1768,6 +1773,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                         kmeans_max_dist: pDistAnim.value,
                         dbscan_eps: pEpsAnim.value,
                         dbscan_min_samples: pMinAnim.value,
+                        hdbscan_min_cluster_size: pHdbMinClusterAnim ? pHdbMinClusterAnim.value : 5,
+                        hdbscan_min_samples: pHdbMinSamplesAnim ? pHdbMinSamplesAnim.value : 3,
+                        hdbscan_cluster_selection_epsilon: pHdbEpsAnim ? pHdbEpsAnim.value : 0,
+                        hdbscan_eps: pHdbEpsAnim ? pHdbEpsAnim.value : 0,
                         show_cluster_planes: showAnimPlanesCheck.checked || (typeof currentAnimDisplayMode !== 'undefined' && currentAnimDisplayMode !== 'points'),
                         mag_min: document.getElementById('anim-mag-min').value,
                         mag_max: document.getElementById('anim-mag-max').value,

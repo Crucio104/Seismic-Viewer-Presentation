@@ -7,7 +7,7 @@ import numpy as np
 import plotly.graph_objects as go
 
 from core.config import MESH_HD_SIZE, store_session_data
-from core.engine.analysis import auto_tune_dbscan_params, auto_tune_kmeans_params
+from core.engine.analysis import auto_tune_dbscan_params, auto_tune_hdbscan_params, auto_tune_kmeans_params
 from core.engine.visualization import (
     get_3d_animated_figure,
     get_3d_cluster_figure,
@@ -138,6 +138,8 @@ def build_view_html(
             clustering_params = {}
         if clustering_method == 'dbscan':
             auto_tune_dbscan_params(np.array(lon), np.array(lat), np.array(dep), data, clustering_params)
+        elif clustering_method == 'hdbscan':
+            auto_tune_hdbscan_params(np.array(lon), np.array(lat), np.array(dep), data, clustering_params)
 
         fig, labels, n_clusters = get_3d_cluster_figure(
             lon, lat, mag, dep, clustering_method=clustering_method, clustering_params=clustering_params, 
@@ -191,6 +193,8 @@ def build_view_html(
 
         if clustering_method == 'dbscan' and len(unlocked_targets) >= 5:
             auto_tune_dbscan_params(unlocked_lon, unlocked_lat, unlocked_dep, data, clustering_params)
+        elif clustering_method == 'hdbscan' and len(unlocked_targets) >= 5:
+            auto_tune_hdbscan_params(unlocked_lon, unlocked_lat, unlocked_dep, data, clustering_params)
         elif clustering_method == 'kmeans' and len(unlocked_targets) >= 3:
             auto_tune_kmeans_params(unlocked_lon, unlocked_lat, unlocked_dep, data, clustering_params)
         # -------------------------------------------------------------------------

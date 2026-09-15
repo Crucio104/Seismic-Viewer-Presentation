@@ -24,6 +24,7 @@
                 <div class="glass-panel glass-menu" id="method-menu">
                     <div class="menu-item" data-val="kmeans">K-Means</div>
                     <div class="menu-item active" data-val="dbscan">DBSCAN</div>
+                    <div class="menu-item" data-val="hdbscan">HDBSCAN</div>
                 </div>
             </div>
 
@@ -46,6 +47,18 @@
                     
                     <label class="label" for="param-min-samples" style="font-size:0.6rem; opacity:0.7; margin-top:0.75rem; display: block;">Min Samples</label>
                     <input type="number" class="glass-input" id="param-min-samples" value="5" min="1" step="1" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                </div>
+
+                <div id="hdbscan-params" style="display:none">
+                    <label class="label" for="param-hdb-min-cluster" style="font-size:0.6rem; opacity:0.7; display: block;">Min Cluster Size</label>
+                    <input type="number" class="glass-input" id="param-hdb-min-cluster" value="5" min="2" step="1" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
+
+                    <label class="label" for="param-hdb-min-samples" style="font-size:0.6rem; opacity:0.7; margin-top:0.75rem; display: block;">Min Samples (Noise Sensitivity)</label>
+                    <input type="number" class="glass-input" id="param-hdb-min-samples" value="3" min="1" step="1" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
+
+                    <label class="label" for="param-hdb-eps" style="font-size:0.6rem; opacity:0.7; margin-top:0.75rem; display: block;">Selection Epsilon (m)</label>
+                    <input type="number" class="glass-input" id="param-hdb-eps" value="0" step="10" min="0" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                    <div style="font-size:0.688rem; color:#fff; margin-top:0.250rem; font-weight: 500;">0 = automatic hierarchical cutoff</div>
                 </div>
             </div>
 

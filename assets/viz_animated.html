@@ -157,6 +157,7 @@
                     <div class="glass-panel glass-menu" id="anim-method-menu">
                         <div class="menu-item" data-val="kmeans">K-Means</div>
                         <div class="menu-item active" data-val="dbscan">DBSCAN</div>
+                        <div class="menu-item" data-val="hdbscan">HDBSCAN</div>
                     </div>
 
                     <div id="anim-kmeans-params" style="display:none">
@@ -171,6 +172,15 @@
                         <input type="number" class="glass-input" id="anim-param-eps" value="500" step="10" min="1" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
                         <label class="label" for="anim-param-min-samples" style="font-size:0.6rem; opacity:0.7; display: block;">Min Samples</label>
                         <input type="number" class="glass-input" id="anim-param-min-samples" value="5" min="1" step="1" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                    </div>
+
+                    <div id="anim-hdbscan-params" style="display:none">
+                        <label class="label" for="anim-param-hdb-min-cluster" style="font-size:0.6rem; opacity:0.7; display: block;">Min Cluster Size</label>
+                        <input type="number" class="glass-input" id="anim-param-hdb-min-cluster" value="5" min="2" step="1" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
+                        <label class="label" for="anim-param-hdb-min-samples" style="font-size:0.6rem; opacity:0.7; display: block;">Min Samples</label>
+                        <input type="number" class="glass-input" id="anim-param-hdb-min-samples" value="3" min="1" step="1" style="width:100%; height:1.8rem; font-size:0.75rem; margin-bottom:0.5rem;">
+                        <label class="label" for="anim-param-hdb-eps" style="font-size:0.6rem; opacity:0.7; display: block;">Selection Epsilon (m)</label>
+                        <input type="number" class="glass-input" id="anim-param-hdb-eps" value="0" step="10" min="0" style="width:100%; height:1.8rem; font-size:0.75rem;">
                     </div>
 
                     <div style="margin-top: 0.75rem; padding-top: 0.5rem;">

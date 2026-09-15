@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 from scipy.linalg import svd
 from scipy.spatial import ConvexHull, KDTree
-from sklearn.cluster import DBSCAN, MiniBatchKMeans
+from sklearn.cluster import DBSCAN, HDBSCAN, MiniBatchKMeans
 from sklearn.neighbors import NearestNeighbors
 
 from core.config import KM_PER_DEGREE
@@ -304,6 +304,29 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[
         # DBSCAN doesn't have true centroids, but we can return mean of points for tracking
         if n_clusters > 0:
             centroids = np.array([np.mean(pts_km[labels == i], axis=0) for i in range(n_clusters)])
+    elif method == 'hdbscan':
+        min_cluster_size = int(params.get('hdbscan_min_cluster_size', 5))
+        min_samples = params.get('hdbscan_min_samples')
+        if min_samples is not None and str(min_samples).strip() != "":
+            min_samples = max(1, int(min_samples))
+        else:
+            min_samples = None
+        
+        eps_m = float(params.get('hdbscan_cluster_selection_epsilon', params.get('hdbscan_eps', 0.0)))
+        cluster_selection_epsilon = (eps_m / 1000.0) if eps_m > 0 else 0.0
+        
+        hdb = HDBSCAN(
+            min_cluster_size=max(2, min_cluster_size),
+            min_samples=min_samples,
+            cluster_selection_epsilon=cluster_selection_epsilon,
+            metric='euclidean',
+            copy=True
+        ).fit(pts_km)
+        labels = hdb.labels_
+        unique_labels = sorted(set(labels) - {-1})
+        n_clusters = len(unique_labels)
+        if n_clusters > 0:
+            centroids = np.array([np.mean(pts_km[labels == i], axis=0) for i in unique_labels])
     else:
         n_clusters_req = int(params.get('kmeans_clusters', 3))
         if len(pts_km) >= n_clusters_req:
@@ -839,3 +862,40 @@ def auto_tune_kmeans_params(target_lon: np.ndarray, target_lat: np.ndarray, targ
             clustering_params['kmeans_clusters'] = int(optimal_k)
     except (ValueError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"Failed to calculate optimal kmeans clusters: {e}")
+
+def auto_tune_hdbscan_params(target_lon: np.ndarray, target_lat: np.ndarray, target_dep: np.ndarray, data: dict[str, Any], clustering_params: dict[str, Any]) -> None:
+    """Auto-tune HDBSCAN min_cluster_size, min_samples and optimal cluster_selection_epsilon using k-nearest neighbors and elbow detection."""
+    if len(target_lon) < 5:
+        return
+    try:
+        # Exclude events with missing depth from 3D parameter tuning
+        if 'depth_is_missing' in data and data['depth_is_missing'] is not None:
+            mask = ~np.array(data['depth_is_missing'][:len(target_lon)], dtype=bool)
+            if np.sum(mask) >= 5:
+                target_lon, target_lat, target_dep = target_lon[mask], target_lat[mask], target_dep[mask]
+
+        o_lat = data.get('origin_lat', float(np.mean(target_lat)))
+        o_lon = data.get('origin_lon', float(np.mean(target_lon)))
+
+        pts_km = project_to_km(target_lon, target_lat, target_dep, o_lat, o_lon)
+        n_pts = len(pts_km)
+
+        optimal_min_samples = max(3, int(np.log(n_pts))) if n_pts > 0 else 3
+        optimal_min_cluster_size = max(5, int(optimal_min_samples * 1.5))
+        clustering_params['hdbscan_min_cluster_size'] = optimal_min_cluster_size
+        clustering_params['hdbscan_min_samples'] = optimal_min_samples
+
+        if len(pts_km) > optimal_min_samples:
+            nn = NearestNeighbors(n_neighbors=optimal_min_samples)
+            nn.fit(pts_km)
+            distances, _ = nn.kneighbors(pts_km)
+
+            k_dists = np.sort(distances[:, -1])
+            if len(k_dists) > 0:
+                elbow_idx = _find_elbow_point(np.arange(len(k_dists)), k_dists)
+                optimal_eps_km = k_dists[elbow_idx]
+                optimal_eps_m = max(10, int(round((optimal_eps_km * 1000) / 10.0) * 10))
+                clustering_params['hdbscan_cluster_selection_epsilon'] = optimal_eps_m
+                clustering_params['hdbscan_eps'] = optimal_eps_m
+    except (ValueError, RuntimeError, TypeError, KeyError) as e:
+        logger.warning(f"Failed to calculate optimal hdbscan params: {e}")

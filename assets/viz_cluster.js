@@ -60,10 +60,14 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             const kmParams = document.getElementById('kmeans-params');
             const dbParams = document.getElementById('dbscan-params');
+            const hdbParams = document.getElementById('hdbscan-params');
             const pClusters = document.getElementById('param-clusters');
             const pDist = document.getElementById('param-dist');
             const pEps = document.getElementById('param-eps');
             const pMin = document.getElementById('param-min-samples');
+            const pHdbMinCluster = document.getElementById('param-hdb-min-cluster');
+            const pHdbMinSamples = document.getElementById('param-hdb-min-samples');
+            const pHdbEps = document.getElementById('param-hdb-eps');
 
             // Initialize params from backend if they exist
             if (quakeData.clustering_params) {
@@ -72,6 +76,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 if (cp.kmeans_max_dist) pDist.value = cp.kmeans_max_dist;
                 if (cp.dbscan_eps) pEps.value = cp.dbscan_eps;
                 if (cp.dbscan_min_samples) pMin.value = cp.dbscan_min_samples;
+                if (cp.hdbscan_min_cluster_size && pHdbMinCluster) pHdbMinCluster.value = cp.hdbscan_min_cluster_size;
+                if (cp.hdbscan_min_samples && pHdbMinSamples) pHdbMinSamples.value = cp.hdbscan_min_samples;
+                if (cp.hdbscan_cluster_selection_epsilon !== undefined && pHdbEps) pHdbEps.value = cp.hdbscan_cluster_selection_epsilon;
+                else if (cp.hdbscan_eps !== undefined && pHdbEps) pHdbEps.value = cp.hdbscan_eps;
                 
                 // Restore Filters
                 if (cp.mag_min) magMin.value = cp.mag_min;
@@ -87,6 +95,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             function syncParamVisibility() {
                 kmParams.style.display = currentMethod === 'kmeans' ? 'block' : 'none';
                 dbParams.style.display = currentMethod === 'dbscan' ? 'block' : 'none';
+                if (hdbParams) hdbParams.style.display = currentMethod === 'hdbscan' ? 'block' : 'none';
             }
 
             // Set initial method toggle text
@@ -94,6 +103,12 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 methodToggle.textContent = 'DBSCAN ▾';
                 methodMenu.querySelectorAll('.menu-item').forEach(i => {
                     i.classList.toggle('active', i.dataset.val === 'dbscan');
+                });
+                syncParamVisibility();
+            } else if (currentMethod === 'hdbscan') {
+                methodToggle.textContent = 'HDBSCAN ▾';
+                methodMenu.querySelectorAll('.menu-item').forEach(i => {
+                    i.classList.toggle('active', i.dataset.val === 'hdbscan');
                 });
                 syncParamVisibility();
             }
@@ -139,6 +154,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     kmeans_max_dist: pDist.value,
                     dbscan_eps: pEps.value,
                     dbscan_min_samples: pMin.value,
+                    hdbscan_min_cluster_size: pHdbMinCluster ? pHdbMinCluster.value : 5,
+                    hdbscan_min_samples: pHdbMinSamples ? pHdbMinSamples.value : 3,
+                    hdbscan_cluster_selection_epsilon: pHdbEps ? pHdbEps.value : 0,
+                    hdbscan_eps: pHdbEps ? pHdbEps.value : 0,
                     display_mode: currentDisplayMode,
                     show_cluster_planes: document.getElementById('show-planes').checked,
                     point_size_mode: currentSizeMode,
