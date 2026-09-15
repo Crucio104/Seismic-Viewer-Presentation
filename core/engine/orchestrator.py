@@ -43,6 +43,18 @@ def strip_data(fig_obj: go.Figure, data_dict: dict[str, Any]) -> None:
         if k in data_dict:
             data_dict[k] = []
 
+def _build_base_earthquake_dict(data: dict[str, Any], vpack: dict[str, Any], times: list[str]) -> dict[str, Any]:
+    """Prepare the standardized earthquake data dictionary with visual limits and hover metadata."""
+    earthquake_data = data.copy()
+    earthquake_data.update({
+        'hover': vpack.get('hover', []),
+        'mag_limit': vpack.get('mag_range', [0, 10]),
+        'date_limit': vpack.get('date_range', [0, 0]),
+        'dep_limit': vpack.get('dep_range', [0, 0]),
+        'start_date': times[0][:10] if times else ""
+    })
+    return earthquake_data
+
 def build_view_html(
     data: dict[str, Any], 
     view_style: int, 
@@ -97,14 +109,7 @@ def build_view_html(
             dates_num=d_num, depth=dep, visual_pack=vpack,
             origin_lat=data.get('origin_lat'), origin_lon=data.get('origin_lon')
         )
-        earthquake_data = data.copy()
-        earthquake_data.update({
-            'hover': vpack.get('hover', []),
-            'mag_limit': vpack.get('mag_range', [0, 10]),
-            'date_limit': vpack.get('date_range', [0, 0]),
-            'dep_limit': vpack.get('dep_range', [0, 0]),
-            'start_date': times[0][:10] if times else ""
-        })
+        earthquake_data = _build_base_earthquake_dict(data, vpack, times)
         
         if session_id:
             store_session_data(session_id, earthquake_data.copy())
@@ -114,14 +119,7 @@ def build_view_html(
     elif view_style == 1:
         _report("Rendering 3D static view…")
         fig = get_3d_static_figure(lon, lat, mag, dep, times, dates_num=d_num, bbox=bbox, visual_pack=vpack, map_grids=map_grids)
-        earthquake_data = data.copy()
-        earthquake_data.update({
-            'hover': vpack.get('hover', []),
-            'mag_limit': vpack.get('mag_range', [0, 10]),
-            'date_limit': vpack.get('date_range', [0, 0]),
-            'dep_limit': vpack.get('dep_range', [0, 0]),
-            'start_date': times[0][:10] if times else ""
-        })
+        earthquake_data = _build_base_earthquake_dict(data, vpack, times)
 
         if session_id:
             store_session_data(session_id, earthquake_data.copy())

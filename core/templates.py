@@ -77,7 +77,7 @@ def generate_html(fig: go.Figure, is_animated: bool = False, is_cluster: bool = 
     )
 
     scripts = f"{config_script}\n{TEMPLATE_CACHE.get('common', '')}\n"
-    scripts += _get_view_scripts(is_animated, is_cluster, earthquake_data, data_url, is_fallback, is_3d)
+    scripts += _get_view_scripts(is_animated, is_cluster, earthquake_data, data_url, is_fallback)
 
     # 2. Inject into Body
     body_tag = '<body style="background:#050510;margin:0;padding:0;">'
@@ -146,7 +146,7 @@ def _get_loader_html(msg: str, is_subcluster: bool = False) -> str:
         '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>'
     )
 
-def _get_view_scripts(is_animated: bool, is_cluster: bool, earthquake_data: dict[str, Any] | None, data_url: str, is_fallback: bool, is_3d: bool) -> str:
+def _get_view_scripts(is_animated: bool, is_cluster: bool, earthquake_data: dict[str, Any] | None, data_url: str, is_fallback: bool) -> str:
     scripts = ""
     if is_animated:
         content = TEMPLATE_CACHE.get('animated', "").replace('__DATA_URL__', data_url)

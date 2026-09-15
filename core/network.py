@@ -78,6 +78,9 @@ async def handle_websocket_messages(websocket: WebSocket, manager: ConnectionMan
                 await manager.send_personal_message({"type": "pong", "id": request_id}, websocket)
             
             elif msg_type in ("get_cluster_update", "get_structural_planes", "get_animated_clustering"):
+                if not api_ref:
+                    await manager.send_personal_message({"type": "rpc_response", "id": request_id, "error": "API bridge not ready"}, websocket)
+                    continue
                 p = message.get("params", {})
                 if msg_type == "get_cluster_update":
                     result = await asyncio.to_thread(api_ref.get_cluster_update, p.get("method"), p.get("params"))

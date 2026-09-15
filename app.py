@@ -43,7 +43,6 @@ class ServerController:
     def __init__(self):
         self.server_thread: threading.Thread | None = None
         self.uvicorn_server: uvicorn.Server | None = None
-        self.uvicorn_loop: asyncio.AbstractEventLoop | None = None
         self.api_ref: Api | None = None
         self.port: int = 0
 
@@ -139,7 +138,6 @@ def _create_fastapi_app(controller: ServerController) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         loop = asyncio.get_running_loop()
-        controller.uvicorn_loop = loop
 
         def _quiet_exception_handler(l, context):
             exc = context.get("exception")

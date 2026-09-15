@@ -176,7 +176,6 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
     lat_f32 = df['lat'].to_numpy(dtype=np.float32)
     dep_f32 = (-df['depth']).to_numpy(dtype=np.float32)
     mag_f32 = df['mag'].to_numpy(dtype=np.float32)
-    dnum_f32 = df['dates_num'].to_numpy(dtype=np.float32)
 
     # Pre-calculate visual pack
     visual_pack = precompute_visual_data(df)
