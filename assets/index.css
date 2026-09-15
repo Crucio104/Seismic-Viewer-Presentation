@@ -587,11 +587,26 @@
         border-radius: 0.500rem;
         transition: color 0.2s ease, background-color 0.2s ease;
         text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+    }
+
+    .change-link svg {
+        width: 0.950rem;
+        height: 0.950rem;
+        stroke: currentColor;
+        flex-shrink: 0;
+        opacity: 0.85;
+        transition: opacity 0.2s ease;
     }
 
     .change-link:hover {
         color: #f1f5f9;
         background-color: rgba(255, 255, 255, 0.08);
+    }
+    .change-link:hover svg {
+        opacity: 1;
     }
 
     .btn-clear-cache {
