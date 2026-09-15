@@ -193,7 +193,8 @@ def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitu
                             clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None,
                             bbox: tuple[float, float, float, float] | None = None, visual_pack: dict[str, Any] | None = None, 
                             map_grids: tuple[Any, ...] | None = None,
-                            origin_lat: float | None = None, origin_lon: float | None = None) -> tuple[go.Figure, np.ndarray, int]:
+                            origin_lat: float | None = None, origin_lon: float | None = None,
+                            depth_is_missing: np.ndarray | None = None) -> tuple[go.Figure, np.ndarray, int]:
     """Generate the initial high-quality 3D Cluster figure."""
     min_depth = np.floor(np.min(depth)) if len(depth) > 0 else 0
     if bbox is None:
@@ -208,7 +209,8 @@ def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitu
         longitude, latitude, magnitude, depth, 
         visual_pack.get('hover', []) if visual_pack else [],
         clustering_method, clustering_params, viz_mask=None,
-        origin_lat=origin_lat, origin_lon=origin_lon
+        origin_lat=origin_lat, origin_lon=origin_lon,
+        depth_is_missing=depth_is_missing
     )
     
     fig = go.Figure()
@@ -440,7 +442,8 @@ def get_cluster_update_traces(longitude: list[float], latitude: list[float], mag
 
 def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list[float] | np.ndarray, magnitude: list[float] | np.ndarray, depth: list[float] | np.ndarray, hover: list[str],
                              method: str = 'dbscan', params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
-                             origin_lat: float | None = None, origin_lon: float | None = None, global_indices: np.ndarray | None = None) -> dict[str, Any]:
+                             origin_lat: float | None = None, origin_lon: float | None = None, global_indices: np.ndarray | None = None,
+                             depth_is_missing: np.ndarray | None = None) -> dict[str, Any]:
     """Shared helper to perform clustering and generate Plotly trace objects."""
     params = params or {}
     longitude, latitude, depth = np.array(longitude), np.array(latitude), np.array(depth)
@@ -530,7 +533,21 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
             n_clusters = int(np.max(active_labels)) + 1 if len(active_labels) > 0 else 0
             labels = display_labels
         else:
-            display_labels, n_clusters, _ = perform_clustering(X_km, method, params)
+            dep_missing = depth_is_missing if depth_is_missing is not None else params.get('depth_is_missing')
+            if dep_missing is not None and np.any(dep_missing):
+                dep_missing_arr = np.array(dep_missing)
+                if viz_mask is not None:
+                    dep_missing_arr = dep_missing_arr[viz_mask]
+                valid_3d = ~dep_missing_arr
+                if np.any(valid_3d):
+                    sub_labels, n_clusters, _ = perform_clustering(X_km[valid_3d], method, params)
+                    display_labels = np.full(len(X_km), -1, dtype=int)
+                    display_labels[valid_3d] = sub_labels
+                else:
+                    display_labels = np.full(len(X_km), -1, dtype=int)
+                    n_clusters = 0
+            else:
+                display_labels, n_clusters, _ = perform_clustering(X_km, method, params)
             labels = display_labels # For return consistency
 
     cluster_colors = _pq.Plotly

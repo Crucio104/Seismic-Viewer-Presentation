@@ -210,6 +210,7 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
         'latitude': latitude,
         'longitude': longitude,
         'depth': depth,
+        'depth_is_missing': df['depth_is_missing'].to_numpy() if 'depth_is_missing' in df.columns else np.zeros(len(df), dtype=bool),
         'magnitude': magnitude,
         'times': times,
         'dates_num': dates_num,

@@ -89,7 +89,7 @@ async def get_data_handler(session_id: str) -> Response:
     # Exclude non-JSON serializable binary buffers and heavy arrays transferred via /bin or unused in JS
     omit_keys = {
         'binary_buffer', 'longitude', 'latitude', 'magnitude', 'depth', 'dates_num',
-        'lon', 'lat', 'mag', 'dep', 'dnum', 'visual_pack', 'hover'
+        'lon', 'lat', 'mag', 'dep', 'dnum', 'visual_pack', 'hover', 'depth_is_missing'
     }
     json_data = {
         k: (v.tolist() if isinstance(v, np.ndarray) else v)

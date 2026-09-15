@@ -66,6 +66,12 @@ def auto_tune_dbscan_params(target_lon, target_lat, target_dep, data: dict[str, 
     if len(target_lon) < 5:
         return
     try:
+        # Exclude events with missing depth from 3D parameter tuning
+        if 'depth_is_missing' in data and data['depth_is_missing'] is not None:
+            mask = ~np.array(data['depth_is_missing'][:len(target_lon)], dtype=bool)
+            if np.sum(mask) >= 5:
+                target_lon, target_lat, target_dep = target_lon[mask], target_lat[mask], target_dep[mask]
+
         o_lat = data.get('origin_lat', np.mean(target_lat))
         o_lon = data.get('origin_lon', np.mean(target_lon))
         
@@ -95,6 +101,12 @@ def auto_tune_kmeans_params(target_lon, target_lat, target_dep, data: dict[str, 
     if len(target_lon) < 3:
         return
     try:
+        # Exclude events with missing depth from 3D parameter tuning
+        if 'depth_is_missing' in data and data['depth_is_missing'] is not None:
+            mask = ~np.array(data['depth_is_missing'][:len(target_lon)], dtype=bool)
+            if np.sum(mask) >= 3:
+                target_lon, target_lat, target_dep = target_lon[mask], target_lat[mask], target_dep[mask]
+
         o_lat = data.get('origin_lat', np.mean(target_lat))
         o_lon = data.get('origin_lon', np.mean(target_lon))
 
@@ -233,15 +245,16 @@ def build_view_html(
         html = generate_html(fig, is_animated=True, is_3d=True, earthquake_data=anim_data, is_fallback=is_fallback, data_url=data_url)
 
     elif view_style == 3:
+        if clustering_params is None:
+            clustering_params = {}
         if clustering_method == 'dbscan':
-            if clustering_params is None:
-                clustering_params = {}
             auto_tune_dbscan_params(np.array(lon), np.array(lat), np.array(dep), data, clustering_params)
 
         fig, labels, n_clusters = get_3d_cluster_figure(
             lon, lat, mag, dep, clustering_method=clustering_method, clustering_params=clustering_params, 
             bbox=bbox, visual_pack=vpack, map_grids=map_grids,
-            origin_lat=data.get('origin_lat'), origin_lon=data.get('origin_lon')
+            origin_lat=data.get('origin_lat'), origin_lon=data.get('origin_lon'),
+            depth_is_missing=data.get('depth_is_missing')
         )
         
         cluster_indices_dd = defaultdict(list)

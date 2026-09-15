@@ -994,6 +994,38 @@ body {
     opacity: 0.9;
 }
 
+#camera-controls .cam-btn-row {
+    display: flex;
+    gap: 0.375rem;
+    width: 100%;
+}
+
+#camera-controls .btn-cam-half {
+    flex: 1;
+    min-width: 0;
+    padding: 0.45rem 0.25rem;
+    justify-content: center;
+    gap: 0.3rem;
+    font-size: 0.700rem;
+    letter-spacing: 0.01em;
+}
+
+#camera-controls .btn-cam-half svg {
+    width: 0.8rem;
+    height: 0.8rem;
+    flex-shrink: 0;
+}
+
+#camera-controls .btn-cam:disabled,
+#camera-controls .btn-cam.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+    filter: grayscale(0.7);
+    transform: none !important;
+    box-shadow: none !important;
+}
+
 
 /* =========================================
    ANIMATED VIEW SPECIFIC STYLES
