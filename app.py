@@ -9,7 +9,6 @@ import socket
 import numpy as np
 import uvicorn
 from contextlib import asynccontextmanager
-from typing import Any
 from fastapi import FastAPI, WebSocket, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, HTMLResponse

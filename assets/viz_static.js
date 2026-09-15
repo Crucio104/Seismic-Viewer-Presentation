@@ -1,28 +1,7 @@
 const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__DATA_URL__';
 
         async function initVisualization() {
-            // Parallel fetch: Metadata (JSON) + Numerical Data (Binary)
-            const [respJson, respBin] = await Promise.all([
-                fetch(DATA_URL),
-                fetch(DATA_URL + '/bin')
-            ]);
-            
-            if (!respJson.ok || !respBin.ok) throw new Error("Data fetch failed");
-            
-            window.quakeData = await respJson.json();
-            const buffer = await respBin.arrayBuffer();
-            
-            // Unpack Binary Buffer (Float32)
-            const f32 = new Float32Array(buffer);
-            const count = Math.round(f32[0]);
-            
-            // Map subarrays (Zero-copy) - Data starts at index 2 (8 bytes)
-            quakeData.longitude = f32.subarray(2, 2 + count);
-            quakeData.latitude  = f32.subarray(2 + count, 2 + 2 * count);
-            quakeData.magnitude = f32.subarray(2 + 2 * count, 2 + 3 * count);
-            quakeData.depth     = f32.subarray(2 + 3 * count, 2 + 4 * count);
-            quakeData.dates_num = f32.subarray(2 + 4 * count, 2 + 5 * count);
-            // Ignore cluster labels in static view
+            window.quakeData = await fetchAndUnpackSeismicData(DATA_URL);
 
             const gd = document.querySelector('.plotly-graph-div');
             const startInput = document.getElementById('filter-start');

@@ -1,39 +1,8 @@
 const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__DATA_URL__';
-        const clusterColors = [
-            '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52',
-            '#00b8d4', '#ff1744', '#00e676', '#d500f9', '#ff9100', '#2979ff', '#ff5252', '#00e5ff', '#76ff03', '#f50057',
-            '#3d5afe', '#ffea00', '#64ffda', '#ff3d00', '#1de9b6', '#c6ff00', '#ff6d00', '#00b0ff', '#f4ff81', '#ff5722'
-        ];
 
         async function initCluster() {
-            // Parallel fetch: Metadata (JSON) + Numerical Data (Binary)
-            const [respJson, respBin] = await Promise.all([
-                fetch(DATA_URL),
-                fetch(DATA_URL + '/bin')
-            ]);
-            
-            if (!respJson.ok || !respBin.ok) throw new Error("Data fetch failed");
-            
             window.IS_CLUSTER_VIEW = true;
-            window.quakeData = await respJson.json();
-            const buffer = await respBin.arrayBuffer();
-
-            // Unpack Binary Buffer (Float32)
-            const f32 = new Float32Array(buffer);
-            const count = Math.round(f32[0]);
-            const clusterCount = Math.round(f32[1]);
-            
-            // Map subarrays (Zero-copy) - Data starts at index 2 (8 bytes)
-            quakeData.longitude = f32.subarray(2, 2 + count);
-            quakeData.latitude  = f32.subarray(2 + count, 2 + 2 * count);
-            quakeData.magnitude = f32.subarray(2 + 2 * count, 2 + 3 * count);
-            quakeData.depth     = f32.subarray(2 + 3 * count, 2 + 4 * count);
-            quakeData.dates_num = f32.subarray(2 + 4 * count, 2 + 5 * count);
-            
-            // Cluster labels (Optional column)
-            if (clusterCount > 0) {
-                quakeData.cluster = f32.subarray(2 + 5 * count, 2 + 5 * count + clusterCount);
-            }
+            window.quakeData = await fetchAndUnpackSeismicData(DATA_URL);
 
 
             const gd = document.querySelector('.plotly-graph-div');
@@ -475,7 +444,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 for (let i = 0; i < quakeData.n_clusters; i++) {
                     const internalLbl = i;
                     const displayNum = i + 1;
-                    const color = clusterColors[i % clusterColors.length];
+                    const color = getClusterColor(i);
                     const isLocked = window.lockedClusters.has(internalLbl);
                     const lockBtnStyle = isLocked
                         ? "background:rgba(245,158,11,0.25); border:1px solid rgba(245,158,11,0.6); color:#fcd34d;"

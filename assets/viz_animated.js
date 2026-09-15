@@ -2,28 +2,12 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
         window.quakeData = null;
 
         async function initAnimation() {
-            // Parallel fetch: Metadata (JSON) + Numerical Data (Binary)
-            const [respJson, respBin] = await Promise.all([
-                fetch(DATA_URL),
-                fetch(DATA_URL + '/bin')
-            ]);
-            
-            if (!respJson.ok || !respBin.ok) throw new Error("Data fetch failed");
-            
-            quakeData = await respJson.json();
-            const buffer = await respBin.arrayBuffer();
-
-            // Unpack Binary Buffer (Float32)
-            const f32 = new Float32Array(buffer);
-            const count = Math.round(f32[0]);
-            const clusterCount = Math.round(f32[1]);
-            
-            // Map subarrays (Zero-copy) - Data starts at index 2 (8 bytes)
-            quakeData.lon = f32.subarray(2, 2 + count);
-            quakeData.lat = f32.subarray(2 + count, 2 + 2 * count);
-            quakeData.mag = f32.subarray(2 + 2 * count, 2 + 3 * count);
-            quakeData.dep = f32.subarray(2 + 3 * count, 2 + 4 * count);
-            quakeData.dnum = f32.subarray(2 + 4 * count, 2 + 5 * count);
+            window.quakeData = await fetchAndUnpackSeismicData(DATA_URL);
+            quakeData.lon = quakeData.longitude;
+            quakeData.lat = quakeData.latitude;
+            quakeData.mag = quakeData.magnitude;
+            quakeData.dep = quakeData.depth;
+            quakeData.dnum = quakeData.dates_num;
 
 
             const gd = document.querySelector('.plotly-graph-div');
@@ -68,33 +52,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             let animClustersMap = null; // Mapping date -> {labels: [], planes: []}
             let currentAnimClustMethod = 'dbscan';
             let showAnimClusterPlanes = false;
-            function getClusterColor(lbl) {
-                if (lbl < 0) return '#888888';
-                const predefined = [
-                    '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52',
-                    '#00b8d4', '#ff1744', '#00e676', '#d500f9', '#ff9100', '#2979ff', '#ff5252', '#00e5ff', '#76ff03', '#f50057',
-                    '#3d5afe', '#ffea00', '#64ffda', '#ff3d00', '#1de9b6', '#c6ff00', '#ff6d00', '#00b0ff', '#f4ff81', '#ff5722'
-                ];
-                if (lbl < predefined.length) return predefined[lbl];
-                
-                const h = (lbl * 137.508) % 360;
-                const s = 0.8;
-                const l = 0.55;
-                const c = (1 - Math.abs(2 * l - 1)) * s;
-                const x = c * (1 - Math.abs((h / 60) % 2 - 1));
-                const m = l - c / 2;
-                let r=0, g=0, b=0;
-                if (h < 60) { r=c; g=x; b=0; }
-                else if (h < 120) { r=x; g=c; b=0; }
-                else if (h < 180) { r=0; g=c; b=x; }
-                else if (h < 240) { r=0; g=x; b=c; }
-                else if (h < 300) { r=x; g=0; b=c; }
-                else { r=c; g=0; b=x; }
-                r = Math.round((r + m) * 255).toString(16).padStart(2, '0');
-                g = Math.round((g + m) * 255).toString(16).padStart(2, '0');
-                b = Math.round((b + m) * 255).toString(16).padStart(2, '0');
-                return `#${r}${g}${b}`;
-            }
             
             let baseDelay = 1000; 
             let speedMult = 1;

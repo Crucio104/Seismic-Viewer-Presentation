@@ -1,3 +1,59 @@
+// --- Shared Seismic Data Binary Loader ---
+window.fetchAndUnpackSeismicData = async function(dataUrl) {
+    const [respJson, respBin] = await Promise.all([
+        fetch(dataUrl),
+        fetch(dataUrl + '/bin')
+    ]);
+    if (!respJson.ok || !respBin.ok) throw new Error("Data fetch failed");
+    const quakeData = await respJson.json();
+    const buffer = await respBin.arrayBuffer();
+
+    // Zero-copy Float32Array subarrays
+    const f32 = new Float32Array(buffer);
+    const count = Math.round(f32[0]);
+    const clusterCount = Math.round(f32[1]);
+
+    quakeData.longitude = f32.subarray(2, 2 + count);
+    quakeData.latitude  = f32.subarray(2 + count, 2 + 2 * count);
+    quakeData.magnitude = f32.subarray(2 + 2 * count, 2 + 3 * count);
+    quakeData.depth     = f32.subarray(2 + 3 * count, 2 + 4 * count);
+    quakeData.dates_num = f32.subarray(2 + 4 * count, 2 + 5 * count);
+    if (clusterCount > 0) {
+        quakeData.cluster = f32.subarray(2 + 5 * count, 2 + 5 * count + clusterCount);
+    }
+    return quakeData;
+};
+
+// --- Shared Cluster Palette & Color Generator ---
+window.CLUSTER_PALETTE = [
+    '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52',
+    '#00b8d4', '#ff1744', '#00e676', '#d500f9', '#ff9100', '#2979ff', '#ff5252', '#00e5ff', '#76ff03', '#f50057',
+    '#3d5afe', '#ffea00', '#64ffda', '#ff3d00', '#1de9b6', '#c6ff00', '#ff6d00', '#00b0ff', '#f4ff81', '#ff5722'
+];
+
+window.getClusterColor = function(lbl) {
+    if (lbl < 0) return '#888888';
+    if (lbl < window.CLUSTER_PALETTE.length) return window.CLUSTER_PALETTE[lbl];
+    const h = (lbl * 137.508) % 360;
+    const s = 0.8;
+    const l = 0.55;
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    const m = l - c / 2;
+    let r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; }
+    else if (h < 120) { r = x; g = c; }
+    else if (h < 180) { g = c; b = x; }
+    else if (h < 240) { g = x; b = c; }
+    else if (h < 300) { r = x; b = c; }
+    else { r = c; b = x; }
+    const toHex = (n) => {
+        const hx = Math.round((n + m) * 255).toString(16);
+        return hx.length === 1 ? '0' + hx : hx;
+    };
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+};
+
 // --- Message Synchronization & WebSocket ---
     class SeismicSocket {
         constructor() {

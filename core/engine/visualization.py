@@ -1,29 +1,55 @@
 import logging
 import warnings
-import numpy as np
-import plotly.graph_objects as go
-import plotly.express as px
-from plotly.colors import qualitative as _pq
-from typing import Any, Callable
 from bisect import bisect_left
+from collections.abc import Callable
 from datetime import datetime, timedelta
+from typing import Any
 
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.colors import qualitative as _pq
+
+from core.config import KM_PER_DEGREE, MESH_HD_SIZE
 from core.geo_utils import build_map_mesh
-from core.config import MESH_HD_SIZE, KM_PER_DEGREE
-from .analysis import fit_plane_ransac, get_strike_dip, perform_clustering, project_to_km, compute_robust_hull_simplices
+
+from .analysis import (
+    compute_robust_hull_simplices,
+    fit_plane_ransac,
+    get_strike_dip,
+    perform_clustering,
+    project_to_km,
+)
 
 logger = logging.getLogger(__name__)
 
 # --- Visual Constants ---
 
-COMMON_LAYOUT = dict(
-    autosize=True,
-    paper_bgcolor='rgba(0,0,0,0)',
-    plot_bgcolor='rgba(0,0,0,0)',
-    margin=dict(l=0, r=0, b=0, t=0),
-    showlegend=False,
-    uirevision='constant'
-)
+COMMON_LAYOUT = {
+    'autosize': True,
+    'paper_bgcolor': 'rgba(0,0,0,0)',
+    'plot_bgcolor': 'rgba(0,0,0,0)',
+    'margin': {'l': 0, 'r': 0, 'b': 0, 't': 0},
+    'showlegend': False,
+    'uirevision': 'constant',
+}
+
+def _create_terrain_surface_trace(
+    x_grid: np.ndarray, y_grid: np.ndarray, z_grid: np.ndarray,
+    surfacecolor: np.ndarray, colorscale: list, opacity: float = 0.9
+) -> go.Surface:
+    """Factory helper to build consistent 3D map terrain surface traces."""
+    return go.Surface(
+        x=x_grid, y=y_grid, z=z_grid,
+        surfacecolor=surfacecolor, colorscale=colorscale,
+        showscale=False, opacity=opacity, hoverinfo='skip', name='Map Terrain',
+        contours={
+            'x': {'highlight': False, 'show': False},
+            'y': {'highlight': False, 'show': False},
+            'z': {'highlight': False, 'show': False},
+        },
+        lighting={'ambient': 1, 'diffuse': 0, 'specular': 0, 'roughness': 1, 'fresnel': 0}
+    )
 
 def apply_3d_style(fig: go.Figure, x_range: list[float], y_range: list[float], z_range: list[float]) -> None:
     """Unified style application for 3D scenes with proportional aspect ratio."""
@@ -99,8 +125,8 @@ def view_2d(
     # The dynamic resolution below ensures compatibility across Plotly 5.x, 6.x, and 7.x+.
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', category=DeprecationWarning)
-        scatter_func = getattr(px, 'scatter_map', None) or getattr(px, 'scatter_mapbox')
-        density_cls = getattr(go, 'Densitymap', None) or getattr(go, 'Densitymapbox')
+        scatter_func = getattr(px, 'scatter_map', None) or px.scatter_mapbox
+        density_cls = getattr(go, 'Densitymap', None) or go.Densitymapbox
 
         fig = scatter_func(
             lat=latitude, lon=longitude,
@@ -153,13 +179,7 @@ def get_3d_static_figure(
     all_hover = visual_pack.get('hover', []) if visual_pack else []
     fig = go.Figure()
 
-    fig.add_trace(go.Surface(
-        x=x_grid, y=y_grid, z=z_grid,
-        surfacecolor=surfacecolor, colorscale=colorscale,
-        showscale=False, opacity=0.9, hoverinfo='skip', name='Map Terrain',
-        contours=dict(x=dict(highlight=False, show=False), y=dict(highlight=False, show=False), z=dict(highlight=False, show=False)),
-        lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0)
-    ))
+    fig.add_trace(_create_terrain_surface_trace(x_grid, y_grid, z_grid, surfacecolor, colorscale, opacity=0.9))
 
     fig.add_trace(go.Scatter3d(
         x=longitude, y=latitude, z=depth, mode='markers', hovertext=all_hover,
@@ -214,13 +234,7 @@ def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitu
     )
     
     fig = go.Figure()
-    fig.add_trace(go.Surface(
-        x=x_grid, y=y_grid, z=z_grid,
-        surfacecolor=surfacecolor, colorscale=colorscale,
-        showscale=False, opacity=0.9, hoverinfo='skip', name='Map Terrain',
-        contours=dict(x=dict(highlight=False, show=False), y=dict(highlight=False, show=False), z=dict(highlight=False, show=False)),
-        lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0)
-    ))
+    fig.add_trace(_create_terrain_surface_trace(x_grid, y_grid, z_grid, surfacecolor, colorscale, opacity=0.9))
 
     for t in result['traces']:
         fig.add_trace(t)
@@ -300,14 +314,7 @@ def get_3d_subcluster_figure(
             bbox = (np.min(latitude), np.min(longitude), np.max(latitude), np.max(longitude))
         x_grid, y_grid, z_grid_mesh, surfacecolor, colorscale, _ = build_map_mesh(bbox, MESH_HD_SIZE)
 
-    fig.add_trace(go.Surface(
-        x=x_grid, y=y_grid, z=z_grid_mesh,
-        surfacecolor=surfacecolor, colorscale=colorscale,
-        opacity=0.9, showscale=False,
-        hoverinfo='skip', name='Map Terrain',
-        contours=dict(x=dict(highlight=False, show=False), y=dict(highlight=False, show=False), z=dict(highlight=False, show=False)),
-        lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0)
-    ))
+    fig.add_trace(_create_terrain_surface_trace(x_grid, y_grid, z_grid_mesh, surfacecolor, colorscale, opacity=0.9))
 
     # Add background points (Other Events: noise -1)
     bg_mask = (full_labels == -1)
@@ -744,12 +751,7 @@ def get_3d_animated_figure(
     mag_range, date_range, dep_range = vpack.get('mag_range', [0, 10]), vpack.get('date_range', [0, 0]), vpack.get('dep_range', [0, 0])
 
     fig = go.Figure()
-    fig.add_trace(go.Surface(
-        x=x_high, y=y_high, z=z_high, surfacecolor=mat_high, colorscale=scale_high,
-        showscale=False, opacity=0.85, hoverinfo='skip', visible=True, name='Map Terrain',
-        contours=dict(x=dict(highlight=False, show=False), y=dict(highlight=False, show=False), z=dict(highlight=False, show=False)),
-        lighting=dict(ambient=1, diffuse=0, specular=0, roughness=1, fresnel=0),
-    ))
+    fig.add_trace(_create_terrain_surface_trace(x_high, y_high, z_high, mat_high, scale_high, opacity=0.85))
 
     for name, vis, scale, r in [('Magnitude', True, 'Viridis', mag_range), ('Date', False, 'Jet', date_range), ('Depth', False, 'Viridis', dep_range)]:
         fig.add_trace(go.Scatter3d(
