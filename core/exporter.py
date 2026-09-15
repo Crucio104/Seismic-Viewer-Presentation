@@ -55,6 +55,12 @@ def build_cluster_csv_text(data: dict[str, Any] | None, idx_list: list[int], hea
     return output.getvalue()
 
 
+def _cluster_filename(label: int | str) -> str:
+    """Format standard export filename for a cluster label."""
+    lbl_int = int(label)
+    return "outliers.csv" if lbl_int == -1 else f"cluster_{lbl_int}.csv"
+
+
 def collect_cluster_export_items(payload: dict[str, Any] | None, last_result: dict[str, Any] | None = None) -> tuple[str, Any, list[tuple[str, list[int]]]]:
     """Extract method, params, and (filename, indices) tuples from export payload."""
     payload = payload or {}
@@ -70,28 +76,23 @@ def collect_cluster_export_items(payload: dict[str, Any] | None, last_result: di
                 export_items.append((fname, idxs))
     elif payload.get('cluster_indices'):
         for lbl_str, idx_list in payload['cluster_indices'].items():
-            lbl_int = int(lbl_str)
-            fname = "outliers.csv" if lbl_int == -1 else f"cluster_{lbl_int}.csv"
             if idx_list:
-                export_items.append((fname, idx_list))
+                export_items.append((_cluster_filename(lbl_str), idx_list))
     elif last_result:
         method = last_result.get('method', method)
         params = last_result.get('params', params)
         c_indices = last_result.get('cluster_indices')
         if c_indices:
             for lbl_str, idx_list in c_indices.items():
-                lbl_int = int(lbl_str)
-                fname = "outliers.csv" if lbl_int == -1 else f"cluster_{lbl_int}.csv"
                 if idx_list:
-                    export_items.append((fname, idx_list))
+                    export_items.append((_cluster_filename(lbl_str), idx_list))
         elif last_result.get('labels') is not None:
             c_map = defaultdict(list)
             for idx, lbl in enumerate(last_result['labels']):
                 c_map[int(lbl)].append(idx)
             for lbl_int, idx_list in c_map.items():
-                fname = "outliers.csv" if lbl_int == -1 else f"cluster_{lbl_int}.csv"
                 if idx_list:
-                    export_items.append((fname, idx_list))
+                    export_items.append((_cluster_filename(lbl_int), idx_list))
     return method, params, export_items
 
 
