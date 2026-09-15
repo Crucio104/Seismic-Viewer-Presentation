@@ -5,7 +5,7 @@ scipy
 smopy
 Pillow
 pywebview
-scikit-learn
+scikit-learn>=1.3.0
 fastapi
 uvicorn[standard]
 requests

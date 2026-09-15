@@ -5,6 +5,7 @@ import threading
 import numpy as np
 import smopy
 import urllib.request
+import urllib.error
 import ssl
 import PIL.Image
 import logging
