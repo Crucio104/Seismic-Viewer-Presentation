@@ -8,7 +8,8 @@
 <title>Seismic Viewer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="app_icon.png">
     <link rel="stylesheet" href="index.css">
     <link rel="preload" href="/assets/plotly.min.js" as="script">
 </head>
@@ -35,9 +36,9 @@
 
             <button class="btn-pick" id="pick-btn" onclick="selectFile()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                Import Dataset
+                Import Local Dataset
             </button>
-            <button class="btn-pick" id="online-pick-btn" onclick="openOnlineImportModal()" style="margin-top: 0.75rem; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.2);">
+            <button class="btn-pick btn-pick-secondary" id="online-pick-btn" onclick="openOnlineImportModal()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
                 Import Online (INGV)
             </button>
@@ -83,9 +84,26 @@
     <div id="view-hub" class="view-section">
         <header class="hub-header">
             <h2 class="hub-title">Visualization Hub</h2>
-            <div class="csv-badge" id="csv-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                <span id="badge-text">Synchronizing dataset...</span>
+            <div class="hub-meta-bar">
+                <div class="csv-badge" id="csv-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    <span id="badge-text">Synchronizing dataset...</span>
+                </div>
+                <div class="hub-chips-row" id="hub-chips-row">
+                    <div class="stat-chip" id="chip-events" title="Total earthquakes analyzed">
+                        <span class="stat-chip-dot"></span>
+                        <span class="stat-chip-num" id="chip-events-val">0</span>
+                        <span class="stat-chip-lbl">Events</span>
+                    </div>
+                    <div class="stat-chip" id="chip-swarms" title="Detected seismic swarms">
+                        <span class="stat-chip-num" id="chip-swarms-val">0</span>
+                        <span class="stat-chip-lbl">Swarms</span>
+                    </div>
+                    <div class="stat-chip" id="chip-days" title="Temporal catalog span">
+                        <span class="stat-chip-num" id="chip-days-val">0</span>
+                        <span class="stat-chip-lbl">Days</span>
+                    </div>
+                </div>
             </div>
             <div class="hub-actions">
                 <button class="hub-btn-export" id="export-csv-btn" onclick="saveCurrentCsvJS()" title="Save CSV dataset locally">
@@ -149,11 +167,11 @@
                     </svg>
                 </div>
                 <h2>Cluster Analysis</h2>
-                <p>Identify seismic zones with K-Means and DBSCAN spatial clustering.</p>
+                <p>Identify seismic zones with DBSCAN, HDBSCAN, and K-Means spatial clustering.</p>
             </div>
         </div>
 
-        <div class="change-link" style="margin-top: 0.2rem; margin-bottom: 0.2rem; opacity: 0.6;" onclick="clearCacheJS()">Clear Cache</div>
+        <div class="change-link btn-clear-cache" id="clear-cache-btn" onclick="clearCacheJS()">Clear Cache</div>
 
         <button id="hub-shortcuts-btn" onclick="toggleHubShortcuts(event)" title="Keyboard Shortcuts (H / F1 / ?)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1.05rem;height:1.05rem;">
@@ -208,9 +226,10 @@
     <div id="toast-container"></div>
 
     <div id="overlay">
-
-        <div class="loader-ring"></div>
         <p class="loader-text" id="overlay-msg">Loading...</p>
+        <div class="overlay-progress-bar">
+            <div class="overlay-progress-fill"></div>
+        </div>
     </div>
 
     <!-- Animation Settings Modal -->
@@ -235,7 +254,7 @@
                 <label class="radio-label" id="swarm-radio-label">
                     <input type="radio" name="anim_mode" value="swarm" id="anim-mode-swarm" onchange="toggleWindowInput()">
                     <span>Seismic Swarms</span>
-                    <span id="swarm-badge" style="font-size:0.7rem; font-weight:600; padding:0.15rem 0.5rem; border-radius:1rem; margin-left:auto; background:rgba(99,102,241,0.25); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4);">Checking...</span>
+                    <span id="swarm-badge" style="font-size:0.7rem; font-weight:600; padding:0.15rem 0.5rem; border-radius:1rem; margin-left:auto; background:rgba(5,150,105,0.25); color:#a7f3d0; border:1px solid rgba(16,185,129,0.4);">Checking...</span>
                 </label>
             </div>
             

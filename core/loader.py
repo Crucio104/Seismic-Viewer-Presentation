@@ -167,8 +167,7 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
     df = df.sort_values('time_dt').reset_index(drop=True)
 
     # Pre-calculate dates_num (days since first event) directly in Float32 to save RAM
-    min_t_ns = df['time_dt'].iloc[0].value
-    dnum_f32 = ((df['time_dt'].to_numpy(dtype='int64', copy=False) - min_t_ns) / (SECONDS_PER_DAY * 1_000_000_000)).astype(np.float32)
+    dnum_f32 = ((df['time_dt'] - df['time_dt'].iloc[0]).dt.total_seconds() / SECONDS_PER_DAY).to_numpy(dtype=np.float32)
     df['dates_num'] = dnum_f32
     
     # Precompute fast Float32 arrays for binary buffer and core processing

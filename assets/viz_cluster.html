@@ -60,6 +60,21 @@
                     <input type="number" class="glass-input" id="param-hdb-eps" value="0" step="10" min="0" style="width:100%; height:1.8rem; font-size:0.75rem;">
                     <div style="font-size:0.688rem; color:#fff; margin-top:0.250rem; font-weight: 500;">0 = automatic hierarchical cutoff</div>
                 </div>
+
+                <!-- Spatio-Temporal 4D Option -->
+                <div style="margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.08);">
+                    <label class="glass-checkbox" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.2rem;">
+                        <input type="checkbox" id="param-use-time">
+                        <span style="font-size: 0.7rem; font-weight: 600; color: #fff;">Spatio-Temporal (4D)</span>
+                    </label>
+                    <div id="spatiotemporal-params" style="display: none; margin-top: 0.4rem;">
+                        <label class="label" for="param-time-window" style="font-size:0.6rem; opacity:0.7; margin-bottom: 0.25rem; display: block;">Time Window (hours)</label>
+                        <input type="number" class="glass-input" id="param-time-window" value="72" min="1" step="1" style="width:100%; height:1.8rem; font-size:0.75rem;">
+                        <div style="font-size:0.65rem; color:rgba(255,255,255,0.7); margin-top:0.25rem; line-height: 1.2;">
+                            Events separated by &gt; window will not link in the same swarm.
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="settings-group">
@@ -123,7 +138,7 @@
                 </label>
             </div>
 
-            <button id="apply-filters-btn" class="priority-btn" style="margin-top:1.25rem; font-size:0.75rem; height:2.2rem; width:100%; display:flex; justify-content:center; align-items:center; background:rgba(99, 102, 241, 0.2); border:1px solid rgba(99, 102, 241, 0.4); border-radius:0.5rem; color:#fff; cursor:pointer; font-family:inherit; font-weight:600; transition:all 0.2s; flex-shrink: 0;">
+            <button id="apply-filters-btn" class="priority-btn" style="margin-top:1.25rem; font-size:0.75rem; height:2.2rem; width:100%; display:flex; justify-content:center; align-items:center; background:rgba(5, 150, 105, 0.25); border:1px solid rgba(16, 185, 129, 0.45); border-radius:0.5rem; color:#fff; cursor:pointer; font-family:inherit; font-weight:600; transition:all 0.2s; flex-shrink: 0;">
                 Apply Changes
             </button>
             </div>

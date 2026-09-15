@@ -214,7 +214,8 @@ def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitu
                             bbox: tuple[float, float, float, float] | None = None, visual_pack: dict[str, Any] | None = None, 
                             map_grids: tuple[Any, ...] | None = None,
                             origin_lat: float | None = None, origin_lon: float | None = None,
-                            depth_is_missing: np.ndarray | None = None) -> tuple[go.Figure, np.ndarray, int]:
+                            depth_is_missing: np.ndarray | None = None,
+                            dates_num: list[float] | np.ndarray | None = None) -> tuple[go.Figure, np.ndarray, int]:
     """Generate the initial high-quality 3D Cluster figure."""
     min_depth = np.floor(np.min(depth)) if len(depth) > 0 else 0
     if bbox is None:
@@ -230,7 +231,8 @@ def get_3d_cluster_figure(longitude: list[float], latitude: list[float], magnitu
         visual_pack.get('hover', []) if visual_pack else [],
         clustering_method, clustering_params, viz_mask=None,
         origin_lat=origin_lat, origin_lon=origin_lon,
-        depth_is_missing=depth_is_missing
+        depth_is_missing=depth_is_missing,
+        dates_num=dates_num
     )
     
     fig = go.Figure()
@@ -250,7 +252,8 @@ def get_3d_subcluster_figure(
     bbox: tuple[float, float, float, float] | None = None,
     visual_pack: dict[str, Any] | None = None, map_grids: tuple | None = None,
     origin_lat: float | None = None, origin_lon: float | None = None,
-    locked_clusters: dict[int, list[int]] | None = None
+    locked_clusters: dict[int, list[int]] | None = None,
+    dates_num: list[float] | np.ndarray | None = None
 ) -> tuple[go.Figure, np.ndarray, int, list[int]]:
     
     n_points = len(longitude)
@@ -275,6 +278,7 @@ def get_3d_subcluster_figure(
         sub_lat = np.array([latitude[i] for i in unlocked_targets], dtype=float)
         _sub_mag = np.array([magnitude[i] for i in unlocked_targets], dtype=float)
         sub_dep = np.array([depth[i] for i in unlocked_targets], dtype=float)
+        sub_dnum = np.array([dates_num[i] for i in unlocked_targets], dtype=float) if dates_num is not None else None
 
         if origin_lat is None:
             origin_lat = float(np.mean(latitude))
@@ -282,7 +286,7 @@ def get_3d_subcluster_figure(
             origin_lon = float(np.mean(longitude))
 
         X_km = project_to_km(sub_lon, sub_lat, sub_dep, origin_lat, origin_lon)
-        local_labels, n_local, _ = perform_clustering(X_km, clustering_method, clustering_params or {})
+        local_labels, n_local, _ = perform_clustering(X_km, clustering_method, clustering_params or {}, dates_num=sub_dnum)
 
         # Map local cluster labels to global IDs starting from 0, skipping locked_ids
         local_to_global = {}
@@ -366,7 +370,8 @@ def get_cluster_update_traces(longitude: list[float], latitude: list[float], mag
                                clustering_method: str = 'dbscan', clustering_params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
                                origin_lat: float | None = None, origin_lon: float | None = None, 
                                subcluster_target_mask: np.ndarray | None = None, subcluster_context_mask: np.ndarray | None = None,
-                               global_indices: np.ndarray | None = None) -> dict[str, Any]:
+                               global_indices: np.ndarray | None = None,
+                               dates_num: list[float] | np.ndarray | None = None) -> dict[str, Any]:
     """Perform clustering and return a JSON-ready package for async updates."""
     actual_viz_mask = viz_mask
     if subcluster_target_mask is not None:
@@ -378,7 +383,8 @@ def get_cluster_update_traces(longitude: list[float], latitude: list[float], mag
     result = _generate_cluster_traces(
         longitude, latitude, magnitude, depth, hover,
         clustering_method, clustering_params, actual_viz_mask,
-        origin_lat=origin_lat, origin_lon=origin_lon, global_indices=global_indices
+        origin_lat=origin_lat, origin_lon=origin_lon, global_indices=global_indices,
+        dates_num=dates_num
     )
     
     traces = result['traces']
@@ -450,7 +456,8 @@ def get_cluster_update_traces(longitude: list[float], latitude: list[float], mag
 def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list[float] | np.ndarray, magnitude: list[float] | np.ndarray, depth: list[float] | np.ndarray, hover: list[str],
                              method: str = 'dbscan', params: dict[str, Any] | None = None, viz_mask: np.ndarray | None = None,
                              origin_lat: float | None = None, origin_lon: float | None = None, global_indices: np.ndarray | None = None,
-                             depth_is_missing: np.ndarray | None = None) -> dict[str, Any]:
+                             depth_is_missing: np.ndarray | None = None,
+                             dates_num: list[float] | np.ndarray | None = None) -> dict[str, Any]:
     """Shared helper to perform clustering and generate Plotly trace objects."""
     params = params or {}
     longitude, latitude, depth = np.array(longitude), np.array(latitude), np.array(depth)
@@ -461,8 +468,10 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
         f_lon, f_lat, f_dep = longitude[m_idx], latitude[m_idx], depth[m_idx]
         f_mag = magnitude[m_idx]
         f_hover = [hover[i] for i, val in enumerate(m_idx) if val and i < len(hover)]
+        f_dnum = np.array(dates_num)[m_idx] if dates_num is not None else None
     else:
         f_lon, f_lat, f_dep, f_mag, f_hover = longitude, latitude, depth, magnitude, hover
+        f_dnum = np.array(dates_num) if dates_num is not None else None
 
     if len(f_lon) == 0:
         return {'traces': [], 'labels': np.array([]), 'n_clusters': 0}
@@ -520,7 +529,8 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
 
             unlocked_indices = [j for j in range(len(f_lon)) if not locked_mask[j]]
             if len(unlocked_indices) > 0:
-                local_labels, n_local, _ = perform_clustering(X_km[unlocked_indices], method, params)
+                unlocked_dnum = f_dnum[unlocked_indices] if f_dnum is not None else None
+                local_labels, n_local, _ = perform_clustering(X_km[unlocked_indices], method, params, dates_num=unlocked_dnum)
                 local_to_global = {}
                 next_id = 0
                 for loc_id in range(n_local):
@@ -547,14 +557,15 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
                     dep_missing_arr = dep_missing_arr[viz_mask]
                 valid_3d = ~dep_missing_arr
                 if np.any(valid_3d):
-                    sub_labels, n_clusters, _ = perform_clustering(X_km[valid_3d], method, params)
+                    valid_dnum = f_dnum[valid_3d] if f_dnum is not None else None
+                    sub_labels, n_clusters, _ = perform_clustering(X_km[valid_3d], method, params, dates_num=valid_dnum)
                     display_labels = np.full(len(X_km), -1, dtype=int)
                     display_labels[valid_3d] = sub_labels
                 else:
                     display_labels = np.full(len(X_km), -1, dtype=int)
                     n_clusters = 0
             else:
-                display_labels, n_clusters, _ = perform_clustering(X_km, method, params)
+                display_labels, n_clusters, _ = perform_clustering(X_km, method, params, dates_num=f_dnum)
             labels = display_labels # For return consistency
 
     cluster_colors = _pq.Plotly

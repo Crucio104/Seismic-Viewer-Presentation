@@ -77,20 +77,82 @@
          loader.style.display = 'none';
     }
 
-    function showHub(badgeText, totalDays, swarmsCount) {
-        if(badgeText) {
-            document.getElementById('badge-text').textContent = badgeText;
-            localStorage.setItem('hub_badge', badgeText);
+    function animateCounter(el, target, duration = 700) {
+        if (!el) return;
+        const startTime = performance.now();
+        const endVal = typeof target === 'number' ? target : parseInt(String(target).replace(/[^0-9]/g, ''), 10) || 0;
+        if (endVal === 0) {
+            el.textContent = '0';
+            return;
         }
-        if(totalDays !== undefined && totalDays !== null) {
+        function step(now) {
+            const elapsed = now - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const ease = 1 - Math.pow(1 - progress, 3);
+            const current = Math.round(endVal * ease);
+            el.textContent = current.toLocaleString();
+            if (progress < 1) {
+                requestAnimationFrame(step);
+            } else {
+                el.textContent = endVal.toLocaleString();
+            }
+        }
+        requestAnimationFrame(step);
+    }
+
+    function showHub(badgeText, totalDays, swarmsCount, eventCount) {
+        let cleanName = badgeText;
+        let detectedEvents = eventCount;
+
+        if (badgeText) {
+            if (badgeText.includes(' | ')) {
+                const parts = badgeText.split(' | ');
+                cleanName = parts[0];
+                if (detectedEvents === undefined && parts[1]) {
+                    const parsed = parseInt(parts[1].replace(/[^0-9]/g, ''), 10);
+                    if (!isNaN(parsed)) detectedEvents = parsed;
+                }
+            }
+            document.getElementById('badge-text').textContent = cleanName;
+            localStorage.setItem('hub_badge', cleanName);
+        }
+
+        if (detectedEvents !== undefined && detectedEvents !== null) {
+            window.currentDatasetEventCount = detectedEvents;
+            localStorage.setItem('hub_event_count', detectedEvents);
+            animateCounter(document.getElementById('chip-events-val'), detectedEvents);
+        } else {
+            const cachedEvents = localStorage.getItem('hub_event_count');
+            if (cachedEvents) {
+                animateCounter(document.getElementById('chip-events-val'), parseInt(cachedEvents, 10));
+            }
+        }
+
+        if (totalDays !== undefined && totalDays !== null) {
             window.currentDatasetTotalDays = totalDays;
             localStorage.setItem('hub_total_days', totalDays);
+            animateCounter(document.getElementById('chip-days-val'), totalDays);
+        } else {
+            const cachedDays = localStorage.getItem('hub_total_days');
+            if (cachedDays) {
+                animateCounter(document.getElementById('chip-days-val'), parseInt(cachedDays, 10));
+            }
         }
-        if(swarmsCount !== undefined && swarmsCount !== null) {
+
+        if (swarmsCount !== undefined && swarmsCount !== null) {
             window.currentDatasetSwarmsCount = swarmsCount;
             localStorage.setItem('hub_swarms_count', swarmsCount);
             updateSwarmOptionState(swarmsCount);
+            animateCounter(document.getElementById('chip-swarms-val'), swarmsCount);
+        } else {
+            const cachedSwarms = localStorage.getItem('hub_swarms_count');
+            if (cachedSwarms) {
+                const s = parseInt(cachedSwarms, 10);
+                updateSwarmOptionState(s);
+                animateCounter(document.getElementById('chip-swarms-val'), s);
+            }
         }
+
         document.getElementById('view-picker').classList.remove('active');
         document.getElementById('view-hub').classList.add('active');
     }
@@ -110,9 +172,9 @@
             swarmLabel.style.pointerEvents = 'auto';
             swarmLabel.style.cursor = 'pointer';
             swarmBadge.textContent = `${num} swarms`;
-            swarmBadge.style.background = 'rgba(99,102,241,0.25)';
-            swarmBadge.style.color = '#a5b4fc';
-            swarmBadge.style.borderColor = 'rgba(99,102,241,0.4)';
+            swarmBadge.style.background = 'rgba(5,150,105,0.25)';
+            swarmBadge.style.color = '#a7f3d0';
+            swarmBadge.style.borderColor = 'rgba(16,185,129,0.4)';
             swarmLabel.title = `${num} seismic swarms detected in dataset`;
         } else {
             swarmRadio.disabled = true;
@@ -139,10 +201,12 @@
         const cachedBadge = localStorage.getItem('hub_badge');
         const cachedDays = localStorage.getItem('hub_total_days');
         const cachedSwarms = localStorage.getItem('hub_swarms_count');
-        if (cachedDays) window.currentDatasetTotalDays = parseInt(cachedDays);
-        if (cachedSwarms) window.currentDatasetSwarmsCount = parseInt(cachedSwarms);
+        const cachedEvents = localStorage.getItem('hub_event_count');
+        if (cachedDays) window.currentDatasetTotalDays = parseInt(cachedDays, 10);
+        if (cachedSwarms) window.currentDatasetSwarmsCount = parseInt(cachedSwarms, 10);
+        if (cachedEvents) window.currentDatasetEventCount = parseInt(cachedEvents, 10);
         if (cachedBadge) {
-            showHub(cachedBadge, window.currentDatasetTotalDays, window.currentDatasetSwarmsCount);
+            showHub(cachedBadge, window.currentDatasetTotalDays, window.currentDatasetSwarmsCount, window.currentDatasetEventCount);
         } else {
             document.getElementById('view-picker').classList.add('active');
         }
@@ -153,7 +217,7 @@
         try {
             const info = await pywebview.api.get_csv_info();
             if (info && info.filename) {
-                showHub(info.filename + ' | ' + info.event_count.toLocaleString() + ' events', info.total_days, info.swarms_count);
+                showHub(info.filename, info.total_days, info.swarms_count, info.event_count);
             } else {
                 localStorage.removeItem('hub_badge');
                 showFilePicker();
@@ -226,7 +290,7 @@
                 
                 progressBar.style.width = '100%';
                 setTimeout(() => {
-                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events', result.total_days, result.swarms_count);
+                    showHub(result.filename, result.total_days, result.swarms_count, result.event_count);
                 }, 400);
             } else {
                 showToast(result?.error || 'Failed to load recent file', 'error');
@@ -288,7 +352,7 @@
                 if (p === 100) {
                     clearInterval(interval);
                     // Fade into Hub instead of full navigate
-                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events', result.total_days, result.swarms_count);
+                    showHub(result.filename, result.total_days, result.swarms_count, result.event_count);
                 }
             }, 100);
 
@@ -303,6 +367,9 @@
         // Clear via API, then show picker
         pywebview.api.change_file().then(() => {
             localStorage.removeItem('hub_badge');
+            localStorage.removeItem('hub_total_days');
+            localStorage.removeItem('hub_swarms_count');
+            localStorage.removeItem('hub_event_count');
             showFilePicker();
             refreshRecentFiles();
         }).catch(() => {
@@ -449,7 +516,7 @@
                 
                 progressBar.style.width = '100%';
                 setTimeout(() => {
-                    showHub(result.filename + ' | ' + result.event_count.toLocaleString() + ' events', result.total_days, result.swarms_count);
+                    showHub(result.filename, result.total_days, result.swarms_count, result.event_count);
                     btn.disabled = false;
                 }, 400);
             } else {
@@ -569,6 +636,12 @@
     }
 
     document.addEventListener('click', (e) => {
+        const card = e.target.closest('.vcard');
+        if (card) {
+            card.classList.add('card-pulse');
+            setTimeout(() => card.classList.remove('card-pulse'), 550);
+        }
+
         const modal = document.getElementById('hub-shortcuts-modal');
         if (modal && modal.classList.contains('active')) {
             if (!e.target.closest('#hub-shortcuts-modal') && !e.target.closest('#hub-shortcuts-btn')) {
@@ -710,3 +783,118 @@
             if (typeof updateCardInfo === 'function') updateCardInfo();
         }
     };
+
+    // --- Drag & Drop File Import ---
+    function initDragAndDrop() {
+        const picker = document.getElementById('view-picker');
+        const container = document.querySelector('.container');
+        if (!picker || !container) return;
+
+        let dragCounter = 0;
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            window.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        window.addEventListener('dragenter', (e) => {
+            if (!picker.classList.contains('active')) return;
+            dragCounter++;
+            container.classList.add('drag-active');
+        });
+
+        window.addEventListener('dragleave', (e) => {
+            if (!picker.classList.contains('active')) return;
+            dragCounter--;
+            if (dragCounter <= 0) {
+                dragCounter = 0;
+                container.classList.remove('drag-active');
+            }
+        });
+
+        window.addEventListener('drop', async (e) => {
+            dragCounter = 0;
+            container.classList.remove('drag-active');
+            if (!picker.classList.contains('active')) return;
+
+            const dt = e.dataTransfer;
+            const files = dt?.files;
+            if (!files || files.length === 0) return;
+
+            const file = files[0];
+            if (!file.name.toLowerCase().endsWith('.csv')) {
+                showToast('Please drop a valid .csv file', 'error');
+                return;
+            }
+
+            handleDroppedFile(file);
+        });
+    }
+
+    async function handleDroppedFile(file) {
+        const btn = document.getElementById('pick-btn');
+        const status = document.getElementById('status');
+        const card = document.getElementById('file-card');
+        const loader = document.getElementById('loader');
+        const progressBar = document.getElementById('progress-bar');
+
+        btn.disabled = true;
+        status.innerHTML = '';
+        card.style.display = 'none';
+        loader.style.display = 'block';
+        progressBar.style.width = '25%';
+        document.getElementById('recent-files-section').style.display = 'none';
+
+        try {
+            let result = null;
+            // 1. Try native file path if supported by WebKit / pywebview
+            if (file.path && window.pywebview?.api?.load_recent_file) {
+                updateProgress('Reading local file...');
+                result = await pywebview.api.load_recent_file(file.path);
+            }
+
+            // 2. Fallback via file text content (100% reliable)
+            if (!result || result.error) {
+                updateProgress('Importing CSV content...');
+                const text = await file.text();
+                result = await pywebview.api.load_csv_content(file.name, text);
+            }
+
+            if (!result || result.error) {
+                status.className = 'status-msg status-error';
+                status.textContent = result?.error || 'Failed to process dropped CSV file.';
+                btn.disabled = false;
+                loader.style.display = 'none';
+                document.getElementById('recent-files-section').style.display = 'block';
+                return;
+            }
+
+            // Success
+            document.getElementById('fi-name').textContent = result.filename;
+            document.getElementById('fi-count').textContent = result.event_count.toLocaleString() + ' quakes recovered';
+            document.getElementById('fi-range').textContent = result.date_range;
+
+            card.style.display = 'block';
+            status.className = 'status-msg status-ok';
+            status.textContent = 'Dataset loaded via Drag & Drop';
+            progressBar.style.width = '100%';
+
+            setTimeout(() => {
+                showHub(result.filename, result.total_days, result.swarms_count, result.event_count);
+            }, 400);
+
+        } catch(err) {
+            status.className = 'status-msg status-error';
+            status.textContent = 'Error loading dropped file: ' + err;
+            btn.disabled = false;
+            loader.style.display = 'none';
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initDragAndDrop);
+    } else {
+        initDragAndDrop();
+    }

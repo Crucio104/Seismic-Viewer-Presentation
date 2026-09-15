@@ -284,28 +284,63 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
 
 # --- Clustering Analysis ---
 
-def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[str, Any] | None = None, prev_centroids: np.ndarray | None = None) -> tuple[np.ndarray, int, np.ndarray | None]:
+def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[str, Any] | None = None, prev_centroids: np.ndarray | None = None, dates_num: np.ndarray | list[float] | None = None) -> tuple[np.ndarray, int, np.ndarray | None]:
     """
-    Perform clustering (KMeans or DBSCAN) on 3D points.
+    Perform 3D or 4D spatio-temporal clustering (DBSCAN, HDBSCAN, or KMeans).
+    If params['use_time'] is True and dates_num is provided, clusters in 4D space-time
+    with the temporal coordinate scaled to match the physical correlation time window.
     Returns: (labels, n_clusters, centroids)
     """
     params = params or {}
     if len(pts_km) == 0:
         return np.array([]), 0, None
 
+    # Spatio-Temporal 4D scaling
+    use_time = bool(params.get('use_time', False))
+    if 'time_window_hours' in params:
+        time_window_hours = float(params['time_window_hours'])
+    elif 'time_window' in params:
+        time_window_hours = float(params['time_window'])
+    elif 'time_window_days' in params:
+        time_window_hours = float(params['time_window_days']) * 24.0
+    else:
+        time_window_hours = 72.0
+
+    if time_window_hours <= 0:
+        time_window_hours = 72.0
+
+    time_window_days = time_window_hours / 24.0
+
+    if method == 'dbscan':
+        eps_km = float(params.get('dbscan_eps', 500)) / 1000.0
+        d_ref = eps_km
+    elif method == 'hdbscan':
+        eps_m = float(params.get('hdbscan_cluster_selection_epsilon', params.get('hdbscan_eps', 0.0)))
+        d_ref = (eps_m / 1000.0) if eps_m > 0 else 0.5
+    else:
+        d_ref = 1.0
+
+    if use_time and dates_num is not None and len(dates_num) == len(pts_km):
+        t_arr = np.asarray(dates_num, dtype=float)
+        time_scale = d_ref / time_window_days
+        t_scaled = (t_arr - t_arr[0]) * time_scale
+        features = np.column_stack((pts_km, t_scaled))
+    else:
+        features = pts_km
+
     centroids = None
     if method == 'dbscan':
         eps_km = float(params.get('dbscan_eps', 500)) / 1000.0
         min_samples = int(params.get('dbscan_min_samples', 5))
-        db = DBSCAN(eps=eps_km, min_samples=min_samples, metric='euclidean').fit(pts_km)
+        db = DBSCAN(eps=eps_km, min_samples=min_samples, metric='euclidean').fit(features)
         labels = db.labels_
         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
         
-        # DBSCAN doesn't have true centroids, but we can return mean of points for tracking
+        # DBSCAN centroids in 3D spatial space
         if n_clusters > 0:
             centroids = np.array([np.mean(pts_km[labels == i], axis=0) for i in range(n_clusters)])
     elif method == 'hdbscan':
-        n_pts = len(pts_km)
+        n_pts = len(features)
         if n_pts < 3:
             return np.full(n_pts, -1, dtype=int), 0, None
 
@@ -329,7 +364,7 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[
             allow_single_cluster=True,
             metric='euclidean',
             copy=True
-        ).fit(pts_km)
+        ).fit(features)
         labels = hdb.labels_
         unique_labels = sorted(set(labels) - {-1})
         n_clusters = len(unique_labels)
@@ -337,18 +372,17 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[
             centroids = np.array([np.mean(pts_km[labels == i], axis=0) for i in unique_labels])
     else:
         n_clusters_req = int(params.get('kmeans_clusters', 3))
-        if len(pts_km) >= n_clusters_req:
-            # For stabilization, we use previous centroids as initialization
+        if len(features) >= n_clusters_req:
             init_val = 'k-means++'
             n_init_val = 'auto'
-            if prev_centroids is not None and prev_centroids.shape == (n_clusters_req, pts_km.shape[1]):
+            if prev_centroids is not None and prev_centroids.shape == (n_clusters_req, features.shape[1]):
                 init_val = prev_centroids
                 n_init_val = 1
             
-            kmeans = MiniBatchKMeans(n_clusters=n_clusters_req, random_state=42, init=init_val, n_init=n_init_val).fit(pts_km)
+            kmeans = MiniBatchKMeans(n_clusters=n_clusters_req, random_state=42, init=init_val, n_init=n_init_val).fit(features)
             labels = kmeans.labels_
             n_clusters = n_clusters_req
-            centroids = kmeans.cluster_centers_
+            centroids = np.array([np.mean(pts_km[labels == i], axis=0) for i in range(n_clusters)])
         else:
             labels = np.zeros(len(pts_km), dtype=int)
             n_clusters = 1
@@ -809,7 +843,8 @@ def auto_tune_dbscan_params(target_lon: np.ndarray, target_lat: np.ndarray, targ
     try:
         # Exclude events with missing depth from 3D parameter tuning
         if 'depth_is_missing' in data and data['depth_is_missing'] is not None:
-            mask = ~np.array(data['depth_is_missing'][:len(target_lon)], dtype=bool)
+            dim = np.array(data['depth_is_missing'], dtype=bool)
+            mask = ~dim if len(dim) == len(target_lon) else ~dim[:len(target_lon)]
             if np.sum(mask) >= 5:
                 target_lon, target_lat, target_dep = target_lon[mask], target_lat[mask], target_dep[mask]
 
@@ -835,6 +870,9 @@ def auto_tune_dbscan_params(target_lon: np.ndarray, target_lat: np.ndarray, targ
                 
                 optimal_eps_m = max(10, int(round((optimal_eps_km * 1000) / 10.0) * 10))
                 clustering_params['dbscan_eps'] = optimal_eps_m
+
+        if 'dates_num' in data and data['dates_num'] is not None:
+            auto_tune_time_window(data['dates_num'][:len(target_lon)], clustering_params, min_samples=optimal_min_samples)
     except (ValueError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"Failed to calculate optimal eps: {e}")
 
@@ -845,7 +883,8 @@ def auto_tune_kmeans_params(target_lon: np.ndarray, target_lat: np.ndarray, targ
     try:
         # Exclude events with missing depth from 3D parameter tuning
         if 'depth_is_missing' in data and data['depth_is_missing'] is not None:
-            mask = ~np.array(data['depth_is_missing'][:len(target_lon)], dtype=bool)
+            dim = np.array(data['depth_is_missing'], dtype=bool)
+            mask = ~dim if len(dim) == len(target_lon) else ~dim[:len(target_lon)]
             if np.sum(mask) >= 3:
                 target_lon, target_lat, target_dep = target_lon[mask], target_lat[mask], target_dep[mask]
 
@@ -868,6 +907,9 @@ def auto_tune_kmeans_params(target_lon: np.ndarray, target_lat: np.ndarray, targ
             elbow_idx = _find_elbow_point(np.array(ks), np.array(inertias))
             optimal_k = ks[elbow_idx]
             clustering_params['kmeans_clusters'] = int(optimal_k)
+
+        if 'dates_num' in data and data['dates_num'] is not None:
+            auto_tune_time_window(data['dates_num'][:len(target_lon)], clustering_params, min_samples=5)
     except (ValueError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"Failed to calculate optimal kmeans clusters: {e}")
 
@@ -878,7 +920,8 @@ def auto_tune_hdbscan_params(target_lon: np.ndarray, target_lat: np.ndarray, tar
     try:
         # Exclude events with missing depth from 3D parameter tuning
         if 'depth_is_missing' in data and data['depth_is_missing'] is not None:
-            mask = ~np.array(data['depth_is_missing'][:len(target_lon)], dtype=bool)
+            dim = np.array(data['depth_is_missing'], dtype=bool)
+            mask = ~dim if len(dim) == len(target_lon) else ~dim[:len(target_lon)]
             if np.sum(mask) >= 5:
                 target_lon, target_lat, target_dep = target_lon[mask], target_lat[mask], target_dep[mask]
 
@@ -909,5 +952,43 @@ def auto_tune_hdbscan_params(target_lon: np.ndarray, target_lat: np.ndarray, tar
                 optimal_eps_m = max(20, min(2000, int(round((optimal_eps_km * 1000) / 10.0) * 10)))
                 clustering_params['hdbscan_cluster_selection_epsilon'] = optimal_eps_m
                 clustering_params['hdbscan_eps'] = optimal_eps_m
+
+        if 'dates_num' in data and data['dates_num'] is not None:
+            auto_tune_time_window(data['dates_num'][:len(target_lon)], clustering_params, min_samples=optimal_min_samples)
     except (ValueError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"Failed to calculate optimal hdbscan params: {e}")
+
+def auto_tune_time_window(dates_num: np.ndarray | list[float], clustering_params: dict[str, Any], min_samples: int = 5) -> float:
+    """
+    Auto-tune the spatio-temporal correlation time window (in hours / days) using temporal k-NN elbow detection.
+    Finds the characteristic transition between rapid intra-swarm clustering and background recurrence intervals.
+    Returns: optimal window in hours.
+    """
+    if dates_num is None or len(dates_num) < min_samples:
+        clustering_params.setdefault('time_window_hours', 72.0)
+        clustering_params.setdefault('time_window', 72.0)
+        clustering_params.setdefault('time_window_days', 3.0)
+        return 72.0
+    try:
+        t_arr = np.sort(np.asarray(dates_num, dtype=float))
+        k = max(2, min(min_samples, len(t_arr) - 1))
+        nn = NearestNeighbors(n_neighbors=k)
+        nn.fit(t_arr.reshape(-1, 1))
+        distances, _ = nn.kneighbors(t_arr.reshape(-1, 1))
+        k_dists = np.sort(distances[:, -1])
+        if len(k_dists) > 0:
+            elbow_idx = _find_elbow_point(np.arange(len(k_dists)), k_dists)
+            optimal_window_days = float(k_dists[elbow_idx])
+            # Clamp between 0.05 days (1.2h) and 60.0 days (1440h) for realistic seismological swarms
+            optimal_window_days = max(0.05, min(60.0, optimal_window_days))
+            optimal_window_hours = max(1.0, min(1440.0, round(optimal_window_days * 24.0, 1)))
+            clustering_params['time_window_hours'] = optimal_window_hours
+            clustering_params['time_window'] = optimal_window_hours
+            clustering_params['time_window_days'] = round(optimal_window_hours / 24.0, 2)
+            return optimal_window_hours
+    except Exception as e:
+        logger.warning(f"Failed to calculate optimal time window: {e}")
+    clustering_params.setdefault('time_window_hours', 72.0)
+    clustering_params.setdefault('time_window', 72.0)
+    clustering_params.setdefault('time_window_days', 3.0)
+    return 72.0

@@ -68,6 +68,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             const pHdbMinCluster = document.getElementById('param-hdb-min-cluster');
             const pHdbMinSamples = document.getElementById('param-hdb-min-samples');
             const pHdbEps = document.getElementById('param-hdb-eps');
+            const pUseTime = document.getElementById('param-use-time');
+            const pTimeWindow = document.getElementById('param-time-window');
+            const spatiotemporalParams = document.getElementById('spatiotemporal-params');
+            const btnAutotuneTime = document.getElementById('btn-autotune-time');
 
             // Initialize params from backend if they exist
             if (quakeData.clustering_params) {
@@ -80,6 +84,17 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 if (cp.hdbscan_min_samples && pHdbMinSamples) pHdbMinSamples.value = cp.hdbscan_min_samples;
                 if (cp.hdbscan_cluster_selection_epsilon !== undefined && pHdbEps) pHdbEps.value = cp.hdbscan_cluster_selection_epsilon;
                 else if (cp.hdbscan_eps !== undefined && pHdbEps) pHdbEps.value = cp.hdbscan_eps;
+                if (cp.use_time !== undefined && pUseTime) {
+                    pUseTime.checked = Boolean(cp.use_time);
+                    if (spatiotemporalParams) spatiotemporalParams.style.display = pUseTime.checked ? 'block' : 'none';
+                }
+                if (cp.time_window_hours && pTimeWindow) {
+                    pTimeWindow.value = cp.time_window_hours;
+                } else if (cp.time_window && pTimeWindow) {
+                    pTimeWindow.value = cp.time_window;
+                } else if (cp.time_window_days && pTimeWindow) {
+                    pTimeWindow.value = Math.round(cp.time_window_days * 24 * 10) / 10;
+                }
                 
                 // Restore Filters
                 if (cp.mag_min) magMin.value = cp.mag_min;
@@ -91,6 +106,33 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 if (cp.show_cluster_planes) document.getElementById('show-planes').checked = cp.show_cluster_planes;
             }
 
+            if (pUseTime && spatiotemporalParams) {
+                pUseTime.onchange = () => {
+                    spatiotemporalParams.style.display = pUseTime.checked ? 'block' : 'none';
+                };
+            }
+
+            if (btnAutotuneTime) {
+                btnAutotuneTime.onclick = async (e) => {
+                    e.preventDefault();
+                    try {
+                        let res = null;
+                        if (window.seismicSocket) {
+                            res = await window.seismicSocket.sendRequest('auto_tune_time_window', {});
+                        } else if (window.pywebview && window.pywebview.api && window.pywebview.api.auto_tune_time_window) {
+                            res = await window.pywebview.api.auto_tune_time_window();
+                        }
+                        if (res) {
+                            const hours = res.time_window_hours || (res.time_window_days ? Math.round(res.time_window_days * 24 * 10) / 10 : 72);
+                            if (pTimeWindow) pTimeWindow.value = hours;
+                            applyCombinedFilters();
+                        }
+                    } catch(err) {
+                        console.warn("Autotune time window error:", err);
+                    }
+                };
+            }
+
 
             function syncParamVisibility() {
                 kmParams.style.display = currentMethod === 'kmeans' ? 'block' : 'none';
@@ -99,19 +141,12 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             }
 
             // Set initial method toggle text
-            if (currentMethod === 'dbscan') {
-                methodToggle.textContent = 'DBSCAN ▾';
-                methodMenu.querySelectorAll('.menu-item').forEach(i => {
-                    i.classList.toggle('active', i.dataset.val === 'dbscan');
-                });
-                syncParamVisibility();
-            } else if (currentMethod === 'hdbscan') {
-                methodToggle.textContent = 'HDBSCAN ▾';
-                methodMenu.querySelectorAll('.menu-item').forEach(i => {
-                    i.classList.toggle('active', i.dataset.val === 'hdbscan');
-                });
-                syncParamVisibility();
-            }
+            const methodLabelMap = { 'dbscan': 'DBSCAN', 'hdbscan': 'HDBSCAN', 'kmeans': 'K-Means' };
+            methodToggle.textContent = (methodLabelMap[currentMethod] || 'DBSCAN') + ' ▾';
+            methodMenu.querySelectorAll('.menu-item').forEach(i => {
+                i.classList.toggle('active', i.dataset.val === currentMethod);
+            });
+            syncParamVisibility();
 
             // Menus
             SeismicUI.initMenu(methodToggle, methodMenu);
@@ -158,6 +193,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     hdbscan_min_samples: pHdbMinSamples ? pHdbMinSamples.value : 3,
                     hdbscan_cluster_selection_epsilon: pHdbEps ? pHdbEps.value : 0,
                     hdbscan_eps: pHdbEps ? pHdbEps.value : 0,
+                    use_time: pUseTime ? pUseTime.checked : false,
+                    time_window_hours: pTimeWindow ? (parseFloat(pTimeWindow.value) || 72.0) : 72.0,
+                    time_window: pTimeWindow ? (parseFloat(pTimeWindow.value) || 72.0) : 72.0,
+                    time_window_days: pTimeWindow ? ((parseFloat(pTimeWindow.value) || 72.0) / 24.0) : 3.0,
                     display_mode: currentDisplayMode,
                     show_cluster_planes: document.getElementById('show-planes').checked,
                     point_size_mode: currentSizeMode,
@@ -283,6 +322,12 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     });
                 }
             });
+
+            if (pTimeWindow) {
+                pTimeWindow.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') applyCombinedFilters();
+                });
+            }
 
             const dates = (quakeData.times && Array.isArray(quakeData.times)) ? quakeData.times.map(t => t.slice(0, 10)) : [];
             const uniqueDates = Array.from(new Set(dates)).sort();

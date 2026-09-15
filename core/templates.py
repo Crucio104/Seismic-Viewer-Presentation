@@ -140,10 +140,12 @@ def _get_loader_message(is_animated: bool, is_cluster: bool, is_subcluster: bool
 def _get_loader_html(msg: str, is_subcluster: bool = False) -> str:
     return (
         '<div id="init-loader" style="position:fixed;inset:0;z-index:999999;background:#050510;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:1;transition:opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);pointer-events:auto;">'
-        '  <div class="loader-ring" style="width:4rem;height:4rem;border:0.188rem solid rgba(255,255,255,0.1);border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;"></div>'
-        f'  <p class="loader-text" style="margin-top:1.5rem;font-size:1rem;font-weight:500;color:#e2e8f0;text-align:center;">{msg}</p>'
+        f'  <p class="loader-text" style="margin:0 0 1.15rem 0;font-size:1.05rem;font-weight:500;color:#f1f5f9;text-align:center;">{msg}</p>'
+        '  <div style="width:14rem;height:3px;background:rgba(255,255,255,0.08);border-radius:99px;overflow:hidden;position:relative;">'
+        '    <div style="position:absolute;top:0;left:0;height:100%;width:40%;background:linear-gradient(90deg,transparent,#10b981,#6ee7b7,transparent);border-radius:99px;animation:overlayTrack 1.5s infinite ease-in-out;"></div>'
+        '  </div>'
         '</div>'
-        '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>'
+        '<style>@keyframes overlayTrack{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}</style>'
     )
 
 def _get_view_scripts(is_animated: bool, is_cluster: bool, earthquake_data: dict[str, Any] | None, data_url: str, is_fallback: bool) -> str:

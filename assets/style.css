@@ -86,7 +86,7 @@ body {
     width: 4.000rem;
     height: 4.000rem;
     border: 0.188rem solid rgba(255, 255, 255, 0.1);
-    border-top-color: #6366f1;
+    border-top-color: #10b981;
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }

@@ -4,7 +4,7 @@
 
 /* ─── 1. Design Tokens & CSS Variables ─── */
 :root {
-    --system-font: 'Outfit', 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --system-font: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     
     /* Backgrounds */
     --bg-primary: #050510;
@@ -18,12 +18,14 @@
     --glass-border-hover: rgba(255, 255, 255, 0.2);
     
     /* Accent Palettes (Harmonious Dark Theme) */
-    --accent-indigo: #6366f1;
-    --accent-indigo-glow: rgba(99, 102, 241, 0.4);
-    --accent-purple: #a855f7;
-    --accent-pink: #ec4899;
+    --accent-indigo: #059669;
+    --accent-indigo-glow: rgba(5, 150, 105, 0.4);
+    --accent-purple: #047857;
+    --accent-pink: #10b981;
     --accent-emerald: #10b981;
     --accent-emerald-glow: rgba(16, 185, 129, 0.3);
+    --accent-dark-green: #047857;
+    --accent-forest: #064e3b;
     --accent-rose: #f43f5e;
     
     /* Typography Colors */
@@ -125,14 +127,40 @@ body {
 }
 
 .loader-text {
-    margin-top: 1.5rem;
-    font-size: 1rem;
+    margin-top: 0;
+    margin-bottom: 1.15rem;
+    font-size: 1.050rem;
     font-weight: 500;
-    color: var(--text-secondary);
-    letter-spacing: 0.031rem;
+    color: #f1f5f9;
+    letter-spacing: -0.01rem;
     text-align: center;
-    line-height: 1;
+    line-height: 1.2;
     font-family: var(--system-font);
+}
+
+.overlay-progress-bar {
+    width: 14rem;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 99px;
+    overflow: hidden;
+    position: relative;
+}
+
+.overlay-progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, #10b981, #6ee7b7, transparent);
+    border-radius: 99px;
+    animation: overlayTrack 1.5s infinite ease-in-out;
+}
+
+@keyframes overlayTrack {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
 }
 
 /* ─── 7. Toast Notification Shared Base ─── */

@@ -30,6 +30,18 @@ def get_cluster_header_comment(method: str, params: Any) -> str:
                 param_str = f"n_clusters={n_clust}"
         else:
             param_str = ", ".join(f"{k}={v}" for k, v in params.items())
+
+        if params.get('use_time'):
+            time_win_h = params.get('time_window_hours')
+            if time_win_h is None and 'time_window' in params:
+                time_win_h = params.get('time_window')
+            if time_win_h is not None:
+                param_str += f", spatio_temporal=True, time_window={time_win_h}h"
+            else:
+                time_win_d = params.get('time_window_days', 'N/A')
+                param_str += f", spatio_temporal=True, time_window={time_win_d}d"
+        else:
+            param_str += ", spatio_temporal=False"
     else:
         param_str = str(params)
     return f"# Clustering Method: {str(method).upper()} | Parameters: {param_str}\n"

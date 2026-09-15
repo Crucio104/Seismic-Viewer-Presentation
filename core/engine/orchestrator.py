@@ -145,7 +145,8 @@ def build_view_html(
             lon, lat, mag, dep, clustering_method=clustering_method, clustering_params=clustering_params, 
             bbox=bbox, visual_pack=vpack, map_grids=map_grids,
             origin_lat=data.get('origin_lat'), origin_lon=data.get('origin_lon'),
-            depth_is_missing=data.get('depth_is_missing')
+            depth_is_missing=data.get('depth_is_missing'),
+            dates_num=data.get('dates_num', data.get('dnum'))
         )
         
         cluster_indices_dd = defaultdict(list)
@@ -191,12 +192,22 @@ def build_view_html(
         unlocked_lat = np.asarray(lat)[unlocked_targets]
         unlocked_dep = np.asarray(dep)[unlocked_targets]
 
+        sub_data = dict(data)
+        if 'depth_is_missing' in data and data['depth_is_missing'] is not None:
+            dim = np.asarray(data['depth_is_missing'])
+            if len(dim) == len(lon):
+                sub_data['depth_is_missing'] = dim[unlocked_targets]
+        if 'dates_num' in data and data['dates_num'] is not None:
+            dim_t = np.asarray(data['dates_num'])
+            if len(dim_t) == len(lon):
+                sub_data['dates_num'] = dim_t[unlocked_targets]
+
         if clustering_method == 'dbscan' and len(unlocked_targets) >= 5:
-            auto_tune_dbscan_params(unlocked_lon, unlocked_lat, unlocked_dep, data, clustering_params)
+            auto_tune_dbscan_params(unlocked_lon, unlocked_lat, unlocked_dep, sub_data, clustering_params)
         elif clustering_method == 'hdbscan' and len(unlocked_targets) >= 5:
-            auto_tune_hdbscan_params(unlocked_lon, unlocked_lat, unlocked_dep, data, clustering_params)
+            auto_tune_hdbscan_params(unlocked_lon, unlocked_lat, unlocked_dep, sub_data, clustering_params)
         elif clustering_method == 'kmeans' and len(unlocked_targets) >= 3:
-            auto_tune_kmeans_params(unlocked_lon, unlocked_lat, unlocked_dep, data, clustering_params)
+            auto_tune_kmeans_params(unlocked_lon, unlocked_lat, unlocked_dep, sub_data, clustering_params)
         # -------------------------------------------------------------------------
 
         fig, full_labels, n_clusters, locked_cluster_ids = get_3d_subcluster_figure(
@@ -204,7 +215,8 @@ def build_view_html(
             clustering_method=clustering_method, clustering_params=clustering_params, 
             bbox=bbox, visual_pack=vpack, map_grids=map_grids,
             origin_lat=data.get('origin_lat'), origin_lon=data.get('origin_lon'),
-            locked_clusters=locked_clusters
+            locked_clusters=locked_clusters,
+            dates_num=data.get('dates_num', data.get('dnum'))
         )
 
         cluster_indices_dd = defaultdict(list)

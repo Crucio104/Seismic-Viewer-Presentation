@@ -243,6 +243,21 @@ class Api:
             logger.error(f"Failed to load CSV: {path}", exc_info=True)
             return {'error': str(e)}
 
+    def load_csv_content(self, filename: str, content: str) -> dict[str, Any]:
+        """Load a CSV directly from file text content (used for Drag & Drop)."""
+        try:
+            temp_dir = BASE_DIR / 'cache' / 'dropped_files'
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            safe_name = Path(filename).name
+            if not safe_name.lower().endswith('.csv'):
+                safe_name += '.csv'
+            target_path = temp_dir / safe_name
+            target_path.write_text(content, encoding='utf-8')
+            return self._process_csv_load(str(target_path))
+        except Exception as e:
+            logger.error(f"Failed to load dropped CSV: {filename}", exc_info=True)
+            return {'error': str(e)}
+
     def get_csv_info(self) -> dict[str, Any] | None:
         """Return information about the currently loaded CSV."""
         return self._csv_info
@@ -549,6 +564,9 @@ class Api:
 
             global_indices = np.where(actual_mask)[0] + start_idx
 
+            dnums = np.array(d.get('dates_num', d.get('dnum', [])))
+            f_dnums = dnums[start_idx:end_idx] if len(dnums) >= end_idx else None
+
             res = engine.get_cluster_update_traces(
                 longitude=d['longitude'][start_idx:end_idx],
                 latitude=d['latitude'][start_idx:end_idx],
@@ -559,7 +577,8 @@ class Api:
                 origin_lat=d.get('origin_lat'), origin_lon=d.get('origin_lon'),
                 subcluster_target_mask=target_mask,
                 subcluster_context_mask=context_mask,
-                global_indices=global_indices
+                global_indices=global_indices,
+                dates_num=f_dnums
             )
 
             # Map the returned labels back to global indices
@@ -584,6 +603,17 @@ class Api:
         except Exception as e:
             logger.error("Cluster update failed", exc_info=True)
             return {'error': str(e)}
+
+    def auto_tune_time_window(self) -> dict[str, Any]:
+        """Auto-tune spatio-temporal correlation time window based on current catalog."""
+        if not self._data:
+            return {'time_window_hours': 72.0, 'time_window_days': 3.0}
+        dnums = self._data.get('dates_num', self._data.get('dnum'))
+        if dnums is not None and len(dnums) > 0:
+            dummy = {}
+            val_hours = engine.auto_tune_time_window(dnums, dummy)
+            return {'time_window_hours': val_hours, 'time_window_days': dummy.get('time_window_days', round(val_hours / 24.0, 2))}
+        return {'time_window_hours': 72.0, 'time_window_days': 3.0}
 
     def get_structural_planes(self, radius_km: float = 2.0, min_pts: int = 10, window_days: int = 30, anim_mode: str = 'accumulation', step_days: int = 7) -> dict[str, Any]:
         if not self._data:

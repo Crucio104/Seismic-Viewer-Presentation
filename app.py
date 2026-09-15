@@ -186,6 +186,19 @@ def main() -> None:
     _win_holder: list[webview.Window] = []
     def win_ref() -> webview.Window: return _win_holder[0]
 
+    icon_path = BASE_DIR / 'assets' / 'app_icon.png'
+    icon_str = str(icon_path.resolve()) if icon_path.exists() else None
+
+    # On macOS, proactively configure the Dock icon via AppKit
+    if sys.platform == 'darwin' and icon_str:
+        try:
+            import AppKit
+            ns_image = AppKit.NSImage.alloc().initByReferencingFile_(icon_str)
+            if ns_image and ns_image.isValid():
+                AppKit.NSApplication.sharedApplication().setApplicationIconImage_(ns_image)
+        except Exception as e:
+            logger.debug(f"Could not set macOS Dock icon via AppKit: {e}")
+
     api = Api(win_ref)
     server_controller.start(api)
     port = server_controller.port
@@ -202,7 +215,7 @@ def main() -> None:
 
     logger.info("Starting Seismic Viewer…")
     try:
-        webview.start(debug=False)
+        webview.start(debug=False, icon=icon_str)
     except KeyboardInterrupt:
         pass
 
