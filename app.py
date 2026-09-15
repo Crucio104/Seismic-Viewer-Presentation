@@ -1,25 +1,25 @@
+import asyncio
+import atexit
+import json
+import logging
+import socket
 import sys
 import threading
-import atexit
-import webview
-import logging
-import json
-import asyncio
-import socket
+from contextlib import asynccontextmanager
+
 import numpy as np
 import uvicorn
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, Response
+import webview
+from fastapi import FastAPI, Response, WebSocket
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, HTMLResponse
 from starlette.middleware.gzip import GZipMiddleware
 
-# Core Imports
-from core.config import (
-    BASE_DIR, INDEX_REL, set_http_port, get_session_data, 
-    clear_session_data, get_viz_html, enforce_temp_dir_limit
-)
 from core.bridge import Api
+from core.config import (
+    BASE_DIR, INDEX_REL, set_http_port, get_session_data,
+    clear_session_data, get_viz_html, enforce_temp_dir_limit,
+)
 from core.loader import pack_seismic_binary
 from core.network import ConnectionManager, handle_websocket_messages
 

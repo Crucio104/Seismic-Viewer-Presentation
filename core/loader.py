@@ -259,7 +259,3 @@ def pack_seismic_binary(data: dict[str, Any]) -> bytes:
     if not has_clusters:
         data['binary_buffer'] = buffer
     return buffer
-
-
-
-

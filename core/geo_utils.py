@@ -161,5 +161,3 @@ def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> 
             logger.error(f"Failed to cache mesh: {e}")
 
     return result
-
-
