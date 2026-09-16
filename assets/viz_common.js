@@ -288,28 +288,80 @@ window.getClusterColor = function(lbl) {
             uplift: 'Uplift'
         },
 
-        updateLegendSwapButtonVisibility() {
-            const btn = document.getElementById('btn-swap-legend');
-            if (!btn) return;
+        getAvailableLegendScales() {
+            const gd = document.querySelector('.plotly-graph-div') || 
+                       (window.plotlyId ? document.getElementById(window.plotlyId) : null) || 
+                       document.getElementById('plotly-div') || 
+                       document.getElementById('plot');
 
             let isClustering = false;
+            const clusterList = document.getElementById('cluster-list');
             if (typeof window.animClusteringEnabled !== 'undefined' && window.animClusteringEnabled) {
+                isClustering = true;
+            } else if (clusterList && clusterList.children && clusterList.children.length > 0 && clusterList.style.display !== 'none') {
+                isClustering = true;
+            } else if (window.quakeData && (window.quakeData.n_clusters > 0 || (window.quakeData.cluster && window.quakeData.cluster.length > 0))) {
                 isClustering = true;
             } else if (typeof window.lockedClusters !== 'undefined') {
                 isClustering = true;
             }
 
-            const gd = document.querySelector('.plotly-graph-div');
-            const hasTomoInPlot = gd && gd.data && gd.data.some(tr => tr && tr.name && (tr.name.includes('Tomography') || tr.name.includes('Vp/Vs')));
-            const hasUpliftInPlot = gd && gd.data && gd.data.some(tr => tr && tr.name && (tr.name.includes('Uplift') || tr.name.includes('GNSS')));
-
             const available = [];
-            if (isClustering) available.push('clusters');
-            else available.push('earthquakes');
-            if (this._activeConsecutiveArrows) available.push('vectors');
-            if (this._activeTomographyData || hasTomoInPlot) available.push('tomo');
-            if (this._activeUpliftData || hasUpliftInPlot) available.push('uplift');
+            if (isClustering) {
+                available.push('clusters');
+            } else {
+                available.push('earthquakes');
+            }
 
+            // Vector detection: check internal flag, global UI flag, DOM checkbox or actual Plotly traces
+            const evCheck = document.getElementById('event-vectors-check');
+            const hasVectorsChecked = Boolean(evCheck && evCheck.checked);
+            const hasVectorsInPlot = Boolean(gd && gd.data && gd.data.some(tr => tr && tr.visible !== false && (
+                tr.name === 'Consecutive Event Vectors' || 
+                tr.name === 'Event Arrowheads' || 
+                (typeof tr.name === 'string' && (tr.name.includes('Vector') || tr.name.includes('Arrow')))
+            )));
+            const vectorsActive = Boolean(
+                this._activeConsecutiveArrows || 
+                (window.SeismicUI && window.SeismicUI._activeConsecutiveArrows) || 
+                hasVectorsChecked || 
+                hasVectorsInPlot
+            );
+
+            if (vectorsActive) {
+                available.push('vectors');
+                this._activeConsecutiveArrows = true;
+                if (window.SeismicUI) window.SeismicUI._activeConsecutiveArrows = true;
+            }
+
+            // Tomography detection
+            const hasTomoInPlot = Boolean(gd && gd.data && gd.data.some(tr => tr && tr.visible !== false && typeof tr.name === 'string' && (
+                tr.name.toLowerCase().includes('tomography') || 
+                tr.name.includes('Vp/Vs') || 
+                tr.name.includes('Tomografia')
+            )));
+            if (this._activeTomographyData || hasTomoInPlot) {
+                available.push('tomo');
+            }
+
+            // Uplift detection
+            const hasUpliftInPlot = Boolean(gd && gd.data && gd.data.some(tr => tr && tr.visible !== false && typeof tr.name === 'string' && (
+                tr.name.includes('Uplift') || 
+                tr.name.includes('GNSS') || 
+                tr.name.includes('Deformazione')
+            )));
+            if (this._activeUpliftData || hasUpliftInPlot) {
+                available.push('uplift');
+            }
+
+            return available;
+        },
+
+        updateLegendSwapButtonVisibility() {
+            const btn = document.getElementById('btn-swap-legend');
+            if (!btn) return;
+
+            const available = this.getAvailableLegendScales();
             const legend = document.getElementById('glass-legend');
             const clusterList = document.getElementById('cluster-list');
 
@@ -329,22 +381,21 @@ window.getClusterColor = function(lbl) {
                         legend.style.paddingBottom = '2.6rem';
                     }
                 }
-                if (isClustering && (!window._currentLegendMode || window._currentLegendMode === 'earthquakes')) {
-                    window._currentLegendMode = 'clusters';
+                if (!window._currentLegendMode || !available.includes(window._currentLegendMode)) {
+                    window._currentLegendMode = available[0];
                 }
-                // Ensure the button shows the correct current mode
-                const current = window._currentLegendMode || (isClustering ? 'clusters' : 'earthquakes');
-                if (current === 'clusters') {
-                    btn.innerHTML = '⇄ Scale: Clusters';
-                } else if (current === 'earthquakes') {
-                    btn.innerHTML = '⇄ Scale: Quakes';
-                } else if (current === 'vectors') {
-                    btn.innerHTML = '⇄ Scale: Vectors';
-                } else if (current === 'tomo') {
-                    btn.innerHTML = '⇄ Scale: Tomo';
-                } else if (current === 'uplift') {
-                    btn.innerHTML = '⇄ Scale: Uplift';
-                }
+
+                const currentIdx = available.indexOf(window._currentLegendMode);
+                const nextMode = available[(currentIdx + 1) % available.length];
+                const modeLabels = {
+                    'clusters': 'Clusters',
+                    'earthquakes': 'Quakes',
+                    'vectors': 'Vectors',
+                    'tomo': 'Tomo',
+                    'uplift': 'Uplift'
+                };
+                btn.innerHTML = `⇄ Scale: ${modeLabels[nextMode] || nextMode}`;
+                btn.title = `Switch color scale to ${modeLabels[nextMode] || nextMode}`;
             }
         },
 
@@ -2958,35 +3009,14 @@ window.getClusterColor = function(lbl) {
         },
 
         swapLegend() {
-            let isClustering = false;
-            if (typeof window.animClusteringEnabled !== 'undefined' && window.animClusteringEnabled) {
-                isClustering = true;
-            } else if (typeof window.lockedClusters !== 'undefined') {
-                isClustering = true;
-            }
-
-            const available = [];
-            if (isClustering) {
-                available.push('clusters');
-            } else {
-                available.push('earthquakes');
-            }
-            if (this._activeConsecutiveArrows) {
-                available.push('vectors');
-            }
-            if (this._activeTomographyData) {
-                available.push('tomo');
-            }
-            if (this._activeUpliftData) {
-                available.push('uplift');
-            }
+            const available = this.getAvailableLegendScales();
 
             if (available.length <= 1) {
                 showStatusToast('Apply layers or vectors to swap scale', false);
                 return;
             }
 
-            let currentIdx = available.indexOf(window._currentLegendMode || (isClustering ? 'clusters' : 'earthquakes'));
+            let currentIdx = available.indexOf(window._currentLegendMode);
             if (currentIdx === -1) currentIdx = 0;
             const nextIdx = (currentIdx + 1) % available.length;
             const nextMode = available[nextIdx];
@@ -3041,71 +3071,78 @@ window.getClusterColor = function(lbl) {
 
             const legend = document.getElementById('glass-legend');
             if (nextMode === 'earthquakes') {
-                if (btn) btn.innerHTML = '⇄ Scale: Quakes';
                 if (container) container.style.display = 'flex';
                 if (clusterList) clusterList.style.display = 'none';
                 if (scaleWrapper) scaleWrapper.style.display = 'flex';
-                if (legend) legend.style.paddingBottom = '';
+                if (legend) legend.style.paddingBottom = '2.6rem';
                 const sc = this._layerScales.earthquakes || (window._earthquakeLegendState ? window._earthquakeLegendState.scaleName : 'Viridis');
                 if (window._earthquakeLegendState) {
                     const s = window._earthquakeLegendState;
                     updateGlassLegendInternal(s.show, s.title, sc, currentLayerInvert, s.limits, s.dateInfo);
                 }
+                showStatusToast('Switched to Earthquake color scale', true);
             } else if (nextMode === 'vectors') {
-                if (btn) btn.innerHTML = '⇄ Scale: Vectors';
                 if (container) container.style.display = 'flex';
                 if (clusterList) clusterList.style.display = 'none';
                 if (scaleWrapper) scaleWrapper.style.display = 'flex';
-                if (legend) legend.style.paddingBottom = '';
+                if (legend) legend.style.paddingBottom = '2.6rem';
                 const sc = this._layerScales.vectors || 'Vectors';
-                const maxV = this._consecutiveVectorCount || 100;
+                let maxV = this._consecutiveVectorCount;
+                if (!maxV || maxV <= 1) {
+                    const gd = document.querySelector('.plotly-graph-div');
+                    if (gd && gd.data) {
+                        const vTr = gd.data.find(tr => tr && tr.name === 'Consecutive Event Vectors');
+                        if (vTr && vTr.line && vTr.line.cmax) maxV = vTr.line.cmax;
+                    }
+                }
+                if (!maxV || maxV <= 1) maxV = 100;
                 updateGlassLegendInternal(true, 'VECTOR N°', sc, currentLayerInvert, [1, maxV], null);
+                showStatusToast('Switched to Vectors color scale', true);
             } else if (nextMode === 'clusters') {
-                if (btn) btn.innerHTML = '⇄ Scale: Clusters';
                 if (container) container.style.display = 'none';
                 if (clusterList) clusterList.style.display = 'flex';
                 if (scaleWrapper) scaleWrapper.style.display = 'none';
                 if (legend) legend.style.paddingBottom = '2.6rem';
                 document.getElementById('legend-title').textContent = 'Clusters';
+                showStatusToast('Switched to Clusters legend', true);
             } else if (nextMode === 'tomo') {
-                if (btn) btn.innerHTML = '⇄ Scale: Tomo';
                 if (container) container.style.display = 'flex';
                 if (clusterList) clusterList.style.display = 'none';
                 if (scaleWrapper) scaleWrapper.style.display = 'flex';
-                if (legend) legend.style.paddingBottom = '';
+                if (legend) legend.style.paddingBottom = '2.6rem';
                 const sc = this._layerScales.tomo || 'Tomography';
                 const t = this._activeTomographyData;
-                let minV = t.min_vp_vs, maxV = t.max_vp_vs;
-                if (minV === undefined || maxV === undefined) {
-                    const vals = t.vp_vs || [];
-                    minV = 9999; maxV = -9999;
-                    for (let i = 0; i < vals.length; i++) {
-                        if (vals[i] < minV) minV = vals[i];
-                        if (vals[i] > maxV) maxV = vals[i];
+                let minV = 1.15, maxV = 2.35;
+                if (t) {
+                    if (t.min_vp_vs !== undefined && t.max_vp_vs !== undefined) {
+                        minV = t.min_vp_vs; maxV = t.max_vp_vs;
+                    } else if (t.vp_vs && t.vp_vs.length > 0) {
+                        minV = Math.min(...t.vp_vs);
+                        maxV = Math.max(...t.vp_vs);
                     }
                 }
-                if (minV === 9999) { minV = 1.0; maxV = 2.5; }
-                updateGlassLegendInternal(true, 'Tomo Vp/Vs', sc, currentLayerInvert, [1.15, 2.35], null);
+                updateGlassLegendInternal(true, 'Tomo Vp/Vs', sc, currentLayerInvert, [minV, maxV], null);
+                showStatusToast('Switched to Tomography color scale', true);
             } else if (nextMode === 'uplift') {
-                if (btn) btn.innerHTML = '⇄ Scale: Uplift';
                 if (container) container.style.display = 'flex';
                 if (clusterList) clusterList.style.display = 'none';
                 if (scaleWrapper) scaleWrapper.style.display = 'flex';
-                if (legend) legend.style.paddingBottom = '';
+                if (legend) legend.style.paddingBottom = '2.6rem';
                 const sc = this._layerScales.uplift || 'Uplift';
                 const u = this._activeUpliftData;
                 let minU = 0, maxU = 0.08;
                 if (u) {
                     const vals = u.up_m || u.up_m_list || (u.interp_grid ? u.interp_grid.up_m : []) || [];
-                    let minFound = 9999, maxFound = -9999;
-                    for (let i = 0; i < vals.length; i++) {
-                        if (vals[i] < minFound) minFound = vals[i];
-                        if (vals[i] > maxFound) maxFound = vals[i];
+                    if (vals.length > 0) {
+                        minU = Math.min(...vals);
+                        maxU = Math.max(...vals);
                     }
-                    if (minFound !== 9999) { minU = minFound; maxU = maxFound; }
                 }
                 updateGlassLegendInternal(true, 'Uplift (mm)', sc, currentLayerInvert, [minU * 1000, maxU * 1000], null);
+                showStatusToast('Switched to Uplift color scale', true);
             }
+
+            this.updateLegendSwapButtonVisibility();
         },
 
         handleOverlayUpload(input) {

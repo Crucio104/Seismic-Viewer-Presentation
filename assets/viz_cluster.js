@@ -726,6 +726,16 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             applyDisplayMode();
             updateClusterLegend();
 
+            const evCheckInit = document.getElementById('event-vectors-check');
+            if (evCheckInit && !evCheckInit._hooked) {
+                evCheckInit._hooked = true;
+                evCheckInit.addEventListener('change', () => {
+                    if (window.SeismicUI && typeof window.SeismicUI.toggleConsecutiveArrows === 'function') {
+                        window.SeismicUI.toggleConsecutiveArrows(evCheckInit.checked);
+                    }
+                });
+            }
+
             // Finally hide the loader once everything is ready
             hideInitLoader();
         }

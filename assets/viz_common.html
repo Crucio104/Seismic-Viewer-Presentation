@@ -76,7 +76,7 @@
         </div>
     </div>
     <div id="cluster-list" class="legend-list" style="display:none; width:100%;"></div>
-    <button id="btn-swap-legend" class="btn-legend-swap" style="display:none;" onclick="SeismicUI.swapLegend()" title="Swap Color Scale Legend">⇄ Scale: Quakes</button>
+    <button id="btn-swap-legend" class="btn-legend-swap" style="display:none;" onclick="if(window.SeismicUI &amp;&amp; window.SeismicUI.swapLegend) window.SeismicUI.swapLegend(); else if(typeof SeismicUI !== 'undefined' &amp;&amp; SeismicUI.swapLegend) SeismicUI.swapLegend();" title="Swap Color Scale Legend">⇄ Scale: Quakes</button>
 </div>
 
 <div id="camera-controls" class="glass-panel">

@@ -1984,8 +1984,19 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 if (speedLabel) speedLabel.textContent = 'Seconds per frame';
             }
 
-            // Event Vectors bindings for animated view: checkbox changes take effect on "Apply Changes"
             const eventVectorsCheck = document.getElementById('event-vectors-check');
+            if (eventVectorsCheck && !eventVectorsCheck._hooked) {
+                eventVectorsCheck._hooked = true;
+                eventVectorsCheck.addEventListener('change', () => {
+                    appliedEventVectorsEnabled = eventVectorsCheck.checked;
+                    updateAnimatedVectors(
+                        window._lastSliceLon || [],
+                        window._lastSliceLat || [],
+                        window._lastSliceDep || [],
+                        window._lastSliceEventIdx || []
+                    );
+                });
+            }
 
             // Keyboard shortcut 'V' for animated event vectors
             window.addEventListener('keydown', (e) => {

@@ -71,6 +71,13 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     eventVectorsCheck.checked = false;
                     eventVectorsCheck.disabled = true;
                 }
+            } else if (is3D && eventVectorsCheck && !eventVectorsCheck._hooked) {
+                eventVectorsCheck._hooked = true;
+                eventVectorsCheck.addEventListener('change', () => {
+                    if (window.SeismicUI && typeof window.SeismicUI.toggleConsecutiveArrows === 'function') {
+                        window.SeismicUI.toggleConsecutiveArrows(eventVectorsCheck.checked);
+                    }
+                });
             }
 
             if (!is3D) {
