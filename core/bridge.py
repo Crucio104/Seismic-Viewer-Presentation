@@ -249,7 +249,7 @@ class Api:
             if self._csv_path == path and self._data is not None:
                 return self._csv_info
 
-            if self._csv_path is not None and self._csv_path != path:
+            if self._csv_path != path:
                 self._stored_layer_paths = {'stations': None, 'uplift': None, 'tomography': None}
 
             data = load_csv(path)

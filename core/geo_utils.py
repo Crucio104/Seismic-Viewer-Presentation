@@ -5,7 +5,7 @@ import hashlib
 import pickle
 import numpy as np
 import requests
-import PIL.Image
+from PIL import Image
 import logging
 import io
 from functools import lru_cache
@@ -45,13 +45,13 @@ def _get_cache_path(bbox: tuple[float, float, float, float], resolution: int) ->
     key = hashlib.md5(key_str.encode()).hexdigest()
     return MAP_CACHE_DIR / f'mesh_{key}.pkl'
 
-def _fetch_single_tile(z: int, x: int, y: int, session: requests.Session, tile_cache_dir: Path) -> tuple[int, int, PIL.Image.Image | None]:
+def _fetch_single_tile(z: int, x: int, y: int, session: requests.Session, tile_cache_dir: Path) -> tuple[int, int, Image.Image | None]:
     """Download a single tile with on-disk caching, returning (x, y, Image)."""
     tile_file = tile_cache_dir / f"{z}_{x}_{y}.png"
     if tile_file.exists():
         try:
             with open(tile_file, 'rb') as f:
-                img = PIL.Image.open(io.BytesIO(f.read()))
+                img = Image.open(io.BytesIO(f.read()))
                 img.load()
                 return x, y, img
         except Exception:
@@ -61,7 +61,7 @@ def _fetch_single_tile(z: int, x: int, y: int, session: requests.Session, tile_c
     try:
         resp = session.get(url, headers={'User-Agent': USER_AGENT}, timeout=5)
         if resp.status_code == 200:
-            img = PIL.Image.open(io.BytesIO(resp.content))
+            img = Image.open(io.BytesIO(resp.content))
             img.load()
             try:
                 with open(tile_file, 'wb') as f:
@@ -95,7 +95,7 @@ def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] 
         tile_cache_dir = MAP_CACHE_DIR / 'tiles'
         tile_cache_dir.mkdir(parents=True, exist_ok=True)
 
-        composite = PIL.Image.new('RGB', (x_count * TILE_SIZE, y_count * TILE_SIZE), (25, 25, 35))
+        composite = Image.new('RGB', (x_count * TILE_SIZE, y_count * TILE_SIZE), (25, 25, 35))
         tasks = []
         for x in range(xmin, xmax + 1):
             for y in range(ymin, ymax + 1):
@@ -162,7 +162,7 @@ def expand_to_square_bbox(bbox: tuple[float, float, float, float]) -> tuple[floa
     )
 
 
-@lru_cache(maxsize=4)
+@lru_cache(maxsize=2)
 def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[list[float | str]], dict[str, Any] | None]:
     """
     Build a map mesh at the given resolution.
@@ -204,8 +204,8 @@ def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> 
         new_w, new_h = int(original_w / scale), int(original_h / scale)
 
         logger.info(f"Processing map mesh: {original_w}x{original_h} -> {new_w}x{new_h}...")
-        img_rs = img.resize((new_w, new_h), resample=PIL.Image.Resampling.BILINEAR)
-        img_p = img_rs.convert('P', palette=PIL.Image.Palette.ADAPTIVE, colors=PALETTE_COLORS)
+        img_rs = img.resize((new_w, new_h), resample=Image.Resampling.BILINEAR)
+        img_p = img_rs.convert('P', palette=Image.Palette.ADAPTIVE, colors=PALETTE_COLORS)
         
         matrix = np.array(img_p)
         palette = img_p.getpalette()

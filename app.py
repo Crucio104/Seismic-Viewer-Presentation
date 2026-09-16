@@ -17,16 +17,16 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 
-def _stringify_keys_fallback(item: Any) -> Any:
-    if isinstance(item, dict):
-        return {str(k): _stringify_keys_fallback(v) for k, v in item.items()}
-    if isinstance(item, list):
-        return [_stringify_keys_fallback(v) for v in item]
-    if isinstance(item, np.ndarray):
-        return item.tolist()
-    if isinstance(item, (np.integer, np.floating)):
-        return item.item()
-    return item
+def _json_default(obj: Any) -> Any:
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, (np.integer, np.floating)):
+        return obj.item()
+    if isinstance(obj, (bytes, bytearray)):
+        return obj.decode('utf-8', errors='replace')
+    if hasattr(obj, '__str__'):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 try:
     import orjson
@@ -35,10 +35,10 @@ try:
         try:
             return orjson.dumps(obj, option=orjson.OPT_SERIALIZE_NUMPY | orjson.OPT_NON_STR_KEYS)
         except Exception:
-            return json.dumps(_stringify_keys_fallback(obj), separators=(',', ':'), default=str)
+            return json.dumps(obj, separators=(',', ':'), default=_json_default)
 except ImportError:
     def _fast_dumps(obj: Any) -> str:
-        return json.dumps(_stringify_keys_fallback(obj), separators=(',', ':'), default=str)
+        return json.dumps(obj, separators=(',', ':'), default=_json_default)
 
 from core.bridge import Api
 from core.config import (

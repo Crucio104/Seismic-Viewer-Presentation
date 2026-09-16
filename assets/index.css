@@ -214,7 +214,7 @@
         margin: 0.6rem auto 0.25rem auto;
         background: transparent;
         border: none;
-        color: rgba(255, 255, 255, 0.4);
+        color: rgba(255, 255, 255, 0.65);
         font-size: 0.7rem;
         font-weight: 500;
         cursor: pointer;
@@ -854,8 +854,8 @@
     }
     
     .menu-item.active {
-        background: rgba(99, 102, 241, 0.25);
-        border: 1px solid rgba(99, 102, 241, 0.4);
+        background: rgba(16, 185, 129, 0.25);
+        border: 1px solid rgba(16, 185, 129, 0.45);
         font-weight: 600;
     }
 

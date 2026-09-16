@@ -63,6 +63,7 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
     Robust plane fitting using RANSAC for 3D points (Total Least Squares).
     Returns: (normal, centroid, planarity)
     """
+    points = np.ascontiguousarray(points, dtype=np.float64)
     n_points = points.shape[0]
     if n_points < min_inliers:
         return None, None, 0.0
@@ -75,10 +76,15 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
     best_loss = float('inf')
     best_inlier_count = 0
     
+    # Pre-generate candidate triplets in a single vectorised call to avoid repeated Python RNG dispatch
+    triplet_indices = rng.integers(0, n_points, size=(max_iterations, 3))
+    
     # RANSAC Loop
-    for _ in range(max_iterations):
-        # Pick 3 random points
-        idx = rng.choice(n_points, 3, replace=False)
+    for it in range(max_iterations):
+        idx = triplet_indices[it]
+        # Skip degenerate triplets
+        if idx[0] == idx[1] or idx[0] == idx[2] or idx[1] == idx[2]:
+            continue
         sample = points[idx]
         
         # Calculate candidate plane via cross product
@@ -92,7 +98,7 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
             
         normal /= norm_len
         
-        # Calculate orthogonal distances to plane
+        # Calculate orthogonal distances to plane (vectorized BLAS)
         dists = np.abs(np.dot(points, normal) - np.dot(sample[0], normal))
         
         inliers = np.where(dists < threshold)[0]
@@ -105,6 +111,9 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
                 best_inlier_count = n_inliers
                 best_loss = inlier_loss
                 best_inliers = inliers
+                # Early consensus exit when >= 90% of points are inliers
+                if n_inliers >= int(0.90 * n_points):
+                    break
             
     if len(best_inliers) < min_inliers:
         return None, None, 0.0

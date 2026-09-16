@@ -360,7 +360,7 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
         df = df.dropna(subset=['time_dt'])
         df = df.reset_index(drop=True)
         if 'time' in df.columns:
-            del df['time'] # Immediately free raw CSV strings
+            df.drop(columns=['time'], inplace=True, errors='ignore') # Immediately free raw CSV strings
 
     # Flag missing depth/magnitude BEFORE filling them
     if 'depth' in df.columns:
