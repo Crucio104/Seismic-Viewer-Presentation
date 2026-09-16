@@ -385,7 +385,7 @@ window.getClusterColor = function(lbl) {
             if (!loader) {
                 loader = document.createElement('div');
                 loader.id = 'filter-loader';
-                loader.innerHTML = '<div class="overlay-progress-bar"><div class="overlay-progress-fill overlay-progress-track"></div></div>';
+                loader.innerHTML = '<p class="loader-text">Applying Filters...</p><div class="overlay-progress-bar"><div class="overlay-progress-fill overlay-progress-track"></div></div>';
                 document.body.appendChild(loader);
             }
             loader.classList.add('show');
@@ -515,7 +515,7 @@ window.getClusterColor = function(lbl) {
             if (!loader) {
                 loader = document.createElement('div');
                 loader.id = 'filter-loader';
-                loader.innerHTML = '<div class="overlay-progress-bar"><div class="overlay-progress-fill overlay-progress-track"></div></div>';
+                loader.innerHTML = '<p class="loader-text">Applying Filters...</p><div class="overlay-progress-bar"><div class="overlay-progress-fill overlay-progress-track"></div></div>';
                 document.body.appendChild(loader);
             }
             loader.classList.add('show');
@@ -1570,43 +1570,14 @@ window.getClusterColor = function(lbl) {
         }
     }
 
-    function toggleCinemaMode() {
-        if (window.SeismicCamera && window.SeismicCamera.toggleCinemaMode) {
-            return window.SeismicCamera.toggleCinemaMode();
-        }
-    }
-
-    function snapToView(view) {
-        if (window.SeismicCamera && window.SeismicCamera.snapToView) {
-            return window.SeismicCamera.snapToView(view);
-        }
-        return Promise.resolve();
-    }
-
-    function copyCameraOrientation() {
-        if (window.SeismicCamera && window.SeismicCamera.copyCameraOrientation) {
-            return window.SeismicCamera.copyCameraOrientation();
-        }
-    }
-
-    function pasteCameraOrientation() {
-        if (window.SeismicCamera && window.SeismicCamera.pasteCameraOrientation) {
-            return window.SeismicCamera.pasteCameraOrientation();
-        }
-        return Promise.resolve();
-    }
-
-    function updatePasteButtonState() {
-        if (window.SeismicCamera && window.SeismicCamera.updatePasteButtonState) {
-            return window.SeismicCamera.updatePasteButtonState();
-        }
-    }
-
-    function setupCameraRelayoutWatcher(gd) {
-        if (window.SeismicCamera && window.SeismicCamera.setupCameraRelayoutWatcher) {
-            return window.SeismicCamera.setupCameraRelayoutWatcher(gd);
-        }
-    }
+    // Camera integration: use SeismicCamera from viz_camera.js
+    const cam = window.SeismicCamera || {};
+    const snapToView = cam.snapToView || window.snapToView || (() => Promise.resolve());
+    const toggleCinemaMode = cam.toggleCinemaMode || window.toggleCinemaMode || (() => {});
+    const copyCameraOrientation = cam.copyCameraOrientation || window.copyCameraOrientation || (() => {});
+    const pasteCameraOrientation = cam.pasteCameraOrientation || window.pasteCameraOrientation || (() => Promise.resolve());
+    const updatePasteButtonState = cam.updatePasteButtonState || window.updatePasteButtonState || (() => {});
+    const setupCameraRelayoutWatcher = cam.setupCameraRelayoutWatcher || window.setupCameraRelayoutWatcher || (() => {});
 
     window.copyCameraOrientation = copyCameraOrientation;
     window.pasteCameraOrientation = pasteCameraOrientation;
@@ -1651,6 +1622,12 @@ window.getClusterColor = function(lbl) {
 
     /* ─── Global Keyboard Shortcuts ─── */
     window.addEventListener('keydown', (e) => {
+        // Prevent accidental page reload in desktop application
+        if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R'))) {
+            e.preventDefault();
+            return;
+        }
+
         // Ignore keystrokes when typing inside inputs, textareas, selects
         const target = e.target;
         const tag = (target && target.tagName) ? target.tagName.toLowerCase() : '';

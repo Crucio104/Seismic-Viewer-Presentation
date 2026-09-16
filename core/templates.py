@@ -29,7 +29,7 @@ def _ensure_templates_loaded() -> None:
         try:
             mtime = path.stat().st_mtime
             if key not in TEMPLATE_CACHE or _TEMPLATE_MTIMES.get(key) != mtime:
-                with open(path, 'r', encoding='utf-8') as f:
+                with open(path, encoding='utf-8') as f:
                     TEMPLATE_CACHE[key] = f.read()
                 _TEMPLATE_MTIMES[key] = mtime
         except OSError as e:
@@ -122,6 +122,7 @@ def _inject_head_assets(html: str, is_subcluster: bool = False) -> str:
         '</style>'
         '<script src="/assets/plotly.min.js" charset="utf-8"></script>'
         '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" media="print" onload="this.media=\'all\'">'
+        '<link rel="stylesheet" href="/assets/theme.css">'
         '<link rel="stylesheet" href="/assets/style.css">'
     )
     return html.replace('<head>', f'<head>\n{head_css}')

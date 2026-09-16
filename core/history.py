@@ -9,7 +9,7 @@ def get_recent_files() -> list[str]:
     if not HISTORY_FILE.exists():
         return []
     try:
-        with open(HISTORY_FILE, "r") as f:
+        with open(HISTORY_FILE, encoding='utf-8') as f:
             paths = json.load(f)
             # Filter only existing files
             return [p for p in paths if Path(p).exists()]

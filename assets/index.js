@@ -1,14 +1,34 @@
-// --- Mouse Parallax Ambient Background ---
-    window.addEventListener('mousemove', (e) => {
-        const orb1 = document.querySelector('.orb-1');
-        const orb2 = document.querySelector('.orb-2');
-        if (orb1 && orb2) {
-            const x = (e.clientX / window.innerWidth - 0.5) * 35;
-            const y = (e.clientY / window.innerHeight - 0.5) * 35;
-            orb1.style.transform = `translate(${x}px, ${y}px)`;
-            orb2.style.transform = `translate(${-x}px, ${-y}px)`;
+// --- Mouse Parallax Ambient Background (Throttled via requestAnimationFrame) ---
+(function() {
+    let orb1 = null;
+    let orb2 = null;
+    let mouseX = 0;
+    let mouseY = 0;
+    let rafPending = false;
+
+    function updateOrbs() {
+        if (!orb1 || !orb2) {
+            orb1 = document.querySelector('.orb-1');
+            orb2 = document.querySelector('.orb-2');
         }
-    });
+        if (orb1 && orb2) {
+            const x = (mouseX / window.innerWidth - 0.5) * 35;
+            const y = (mouseY / window.innerHeight - 0.5) * 35;
+            orb1.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+            orb2.style.transform = `translate(${(-x).toFixed(1)}px, ${(-y).toFixed(1)}px)`;
+        }
+        rafPending = false;
+    }
+
+    window.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        if (!rafPending) {
+            rafPending = true;
+            requestAnimationFrame(updateOrbs);
+        }
+    }, { passive: true });
+})();
 
     // --- Custom Dropdown Logic ---
     function toggleDropdown(event, menuId) {
@@ -259,7 +279,6 @@
         try {
             const res = await pywebview.api.clear_recent_history();
             if (res && res.status === 'success') {
-                showToast('History and temporary files cleared', 'success');
                 refreshRecentFiles();
             } else {
                 showToast(res?.error || 'Failed to clear history', 'error');
@@ -407,7 +426,6 @@
             const res = await pywebview.api.clear_map_cache();
             overlay.classList.remove('show');
             if (res === true) {
-                showToast('System cache and history cleared.', 'success');
                 refreshRecentFiles();
             } else {
                 showToast('Error clearing cache: ' + res, 'error');
@@ -653,6 +671,12 @@
 
     // Global keyboard shortcuts in Hub
     window.addEventListener('keydown', (e) => {
+        // Prevent accidental page reload in desktop application
+        if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R'))) {
+            e.preventDefault();
+            return;
+        }
+
         const target = e.target;
         const tag = (target && target.tagName) ? target.tagName.toLowerCase() : '';
         if (tag === 'input' || tag === 'textarea' || tag === 'select' || (target && target.isContentEditable)) {

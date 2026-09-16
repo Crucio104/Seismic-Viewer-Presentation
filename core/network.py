@@ -19,11 +19,16 @@ def is_osm_online() -> bool:
 
     online = False
     try:
-        with socket.create_connection(("a.tile.openstreetmap.org", 443), timeout=0.6):
+        # 1. Quick probe to raw IP (no DNS resolution overhead or timeout hang when offline)
+        with socket.create_connection(("1.1.1.1", 53), timeout=0.4):
             online = True
     except OSError:
+        online = False
+
+    if online:
+        # 2. Verify OSM tile server domain
         try:
-            with socket.create_connection(("1.1.1.1", 53), timeout=0.5):
+            with socket.create_connection(("a.tile.openstreetmap.org", 443), timeout=0.5):
                 online = True
         except OSError:
             online = False

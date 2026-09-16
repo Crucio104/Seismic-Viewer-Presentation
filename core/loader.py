@@ -1,8 +1,11 @@
+import json
 import logging
-import pandas as pd
-import numpy as np
-from typing import Any
 from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pandas as pd
 from core.config import (
     MIN_MAGNITUDE, MISSING_MAG_VALUE, MISSING_DEPTH_VALUE, CSV_SCHEMA, SECONDS_PER_DAY
 )
@@ -50,7 +53,7 @@ def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
     date_counts_series = df['time_dt'].dt.floor('D').value_counts().sort_index()
     unique_dates = [ts.strftime('%Y-%m-%d') for ts in date_counts_series.index]
     date_counts = date_counts_series.tolist()
-    date_to_cum = dict(zip(unique_dates, date_counts_series.cumsum().tolist()))
+    date_to_cum = dict(zip(unique_dates, date_counts_series.cumsum().tolist(), strict=True))
         
     return {
         'hover': all_hover,
@@ -63,9 +66,6 @@ def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
         'total_days': int((df['time_dt'].max() - df['time_dt'].min()).days) + 1,
     }
 
-import json
-from pathlib import Path
-
 try:
     import orjson  # type: ignore
     def _parse_json_file(source_file: str | Path) -> Any:
@@ -75,11 +75,11 @@ except ImportError:
     try:
         import ujson  # type: ignore
         def _parse_json_file(source_file: str | Path) -> Any:
-            with open(source_file, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(source_file, encoding='utf-8', errors='ignore') as f:
                 return ujson.load(f)
     except ImportError:
         def _parse_json_file(source_file: str | Path) -> Any:
-            with open(source_file, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(source_file, encoding='utf-8', errors='ignore') as f:
                 return json.load(f)
 
 
@@ -122,13 +122,13 @@ def _load_geojson(source_file: str | Path) -> pd.DataFrame:
                 kl = str(k).strip().lower()
                 if kl in ('lon', 'longitude') and lon is None:
                     try: lon = float(v)
-                    except: pass
+                    except (ValueError, TypeError): pass
                 elif kl in ('lat', 'latitude') and lat is None:
                     try: lat = float(v)
-                    except: pass
+                    except (ValueError, TypeError): pass
                 elif kl in ('depth', 'depth/km', 'depth(km)', 'profondità', 'profondita'):
                     try: depth = abs(float(v))
-                    except: pass
+                    except (ValueError, TypeError): pass
 
             time_val = None
             for k, v in props.items():
@@ -148,7 +148,7 @@ def _load_geojson(source_file: str | Path) -> pd.DataFrame:
                     try:
                         mag_val = float(v)
                         break
-                    except:
+                    except (ValueError, TypeError):
                         pass
 
             if lat is not None and lon is not None:
@@ -163,7 +163,7 @@ def _load_geojson(source_file: str | Path) -> pd.DataFrame:
         return pd.DataFrame(rows)
     except Exception as e:
         logger.error(f"Failed to read GeoJSON: {e}", exc_info=True)
-        raise ValueError(f"Failed to read GeoJSON: {e}")
+        raise ValueError(f"Failed to read GeoJSON: {e}") from e
 
 
 def _load_json(source_file: str | Path) -> pd.DataFrame:
@@ -250,13 +250,13 @@ def _load_json(source_file: str | Path) -> pd.DataFrame:
         return pd.DataFrame(rows)
     except Exception as e:
         logger.error(f"Failed to read JSON: {e}", exc_info=True)
-        raise ValueError(f"Failed to read JSON: {e}")
+        raise ValueError(f"Failed to read JSON: {e}") from e
 
 
 def _load_csv_internal(source_file: str) -> pd.DataFrame:
     """Internal CSV parsing logic."""
     try:
-        with open(source_file, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(source_file, encoding='utf-8', errors='ignore') as f:
             first_line = f.readline()
             sep = ';' if ';' in first_line else ','
 
@@ -292,7 +292,7 @@ def _load_csv_internal(source_file: str) -> pd.DataFrame:
         return df
     except Exception as e:
         logger.error(f"Failed to read CSV: {e}")
-        raise ValueError(f"Failed to read CSV: {e}")
+        raise ValueError(f"Failed to read CSV: {e}") from e
 
 
 def load_dataset(source_file: str) -> dict[str, Any]:
@@ -304,7 +304,7 @@ def load_dataset(source_file: str) -> dict[str, Any]:
         df = _load_geojson(source_file)
     elif suffix == '.json':
         try:
-            with open(source_file, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(source_file, encoding='utf-8', errors='ignore') as f:
                 head = f.read(512)
             if '"FeatureCollection"' in head or '"Feature"' in head:
                 df = _load_geojson(source_file)
@@ -316,16 +316,16 @@ def load_dataset(source_file: str) -> dict[str, Any]:
         # Check if content is actually JSON / GeoJSON despite missing or differing extension
         is_json_content = False
         try:
-            with open(source_file, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(source_file, encoding='utf-8', errors='ignore') as f:
                 first_chars = f.read(10).strip()
-                if first_chars.startswith('{') or first_chars.startswith('['):
+                if first_chars.startswith(('{', '[')):
                     is_json_content = True
         except Exception:
             pass
 
         if is_json_content:
             try:
-                with open(source_file, 'r', encoding='utf-8', errors='ignore') as f:
+                with open(source_file, encoding='utf-8', errors='ignore') as f:
                     head = f.read(512)
                 if '"FeatureCollection"' in head or '"Feature"' in head:
                     df = _load_geojson(source_file)

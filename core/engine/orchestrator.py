@@ -140,6 +140,8 @@ def build_view_html(
             auto_tune_dbscan_params(np.array(lon), np.array(lat), np.array(dep), data, clustering_params)
         elif clustering_method == 'hdbscan':
             auto_tune_hdbscan_params(np.array(lon), np.array(lat), np.array(dep), data, clustering_params)
+        elif clustering_method == 'kmeans':
+            auto_tune_kmeans_params(np.array(lon), np.array(lat), np.array(dep), data, clustering_params)
 
         fig, labels, n_clusters = get_3d_cluster_figure(
             lon, lat, mag, dep, clustering_method=clustering_method, clustering_params=clustering_params, 

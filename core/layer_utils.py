@@ -237,9 +237,8 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
             
         # Parse dates if date column exists
         if date_col:
-            df['parsed_date'] = pd.to_datetime(df[date_col], format='%d/%m/%Y', errors='coerce')
-            if df['parsed_date'].isna().all():
-                df['parsed_date'] = pd.to_datetime(df[date_col], errors='coerce')
+            from core.utils import parse_seismic_date_series
+            df['parsed_date'] = parse_seismic_date_series(df[date_col])
         
         # Load station coordinates mapping
         coord_map = _load_station_coordinates(path.parent, stations_path=stations_path)
@@ -303,7 +302,7 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
         lines_y = []
         lines_z = []
         lines_hover = []
-        for st, lon, lat, z_val, up_val, dt in zip(stations, lons, lats, z_scaled, up_m_list, dates_used):
+        for st, lon, lat, z_val, up_val, dt in zip(stations, lons, lats, z_scaled, up_m_list, dates_used, strict=True):
             txt = f"Station: {st}<br>Real Uplift: {up_val * 1000:.1f} mm ({up_val:.4f} m)<br>Date: {dt}"
             lines_x.extend([lon, lon, None])
             lines_y.extend([lat, lat, None])
@@ -462,7 +461,7 @@ def _load_station_coordinates(search_dir: Path, stations_path: str | Path | None
             
         return {
             str(st).strip().upper(): (float(lat), float(lon))
-            for st, lat, lon in zip(df[st_col], df[lat_col], df[lon_col])
+            for st, lat, lon in zip(df[st_col], df[lat_col], df[lon_col], strict=True)
         }
     except Exception as e:
         logger.error(f"Errore lettura file coordinate stazioni: {e}")

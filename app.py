@@ -2,18 +2,43 @@ import asyncio
 import atexit
 import json
 import logging
+from pathlib import Path
 import socket
 import sys
 import threading
 from contextlib import asynccontextmanager
+from typing import Any
 
 import numpy as np
 import uvicorn
 import webview
 from fastapi import FastAPI, Response, WebSocket
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
+
+def _stringify_keys_fallback(item: Any) -> Any:
+    if isinstance(item, dict):
+        return {str(k): _stringify_keys_fallback(v) for k, v in item.items()}
+    if isinstance(item, list):
+        return [_stringify_keys_fallback(v) for v in item]
+    if isinstance(item, np.ndarray):
+        return item.tolist()
+    if isinstance(item, (np.integer, np.floating)):
+        return item.item()
+    return item
+
+try:
+    import orjson
+
+    def _fast_dumps(obj: Any) -> bytes | str:
+        try:
+            return orjson.dumps(obj, option=orjson.OPT_SERIALIZE_NUMPY | orjson.OPT_NON_STR_KEYS)
+        except Exception:
+            return json.dumps(_stringify_keys_fallback(obj), separators=(',', ':'), default=str)
+except ImportError:
+    def _fast_dumps(obj: Any) -> str:
+        return json.dumps(_stringify_keys_fallback(obj), separators=(',', ':'), default=str)
 
 from core.bridge import Api
 from core.config import (
@@ -91,12 +116,13 @@ async def get_data_handler(session_id: str) -> Response:
         'binary_buffer', 'longitude', 'latitude', 'magnitude', 'depth', 'dates_num',
         'lon', 'lat', 'mag', 'dep', 'dnum', 'visual_pack', 'hover', 'depth_is_missing'
     }
+    has_orjson = 'orjson' in sys.modules
     json_data = {
-        k: (v.tolist() if isinstance(v, np.ndarray) else v)
+        k: (v if (has_orjson or not isinstance(v, np.ndarray)) else v.tolist())
         for k, v in data.items()
         if k not in omit_keys and not isinstance(v, bytes)
     }
-    content = await asyncio.to_thread(json.dumps, json_data, separators=(',', ':'))
+    content = await asyncio.to_thread(_fast_dumps, json_data)
     return Response(
         content=content,
         media_type="application/json",
@@ -177,9 +203,7 @@ def _create_fastapi_app(controller: ServerController) -> FastAPI:
 
             if full_path and "gzip" in accept_enc:
                 gz_path = f"{full_path}.gz"
-                from pathlib import Path
                 if Path(gz_path).is_file():
-                    from fastapi.responses import FileResponse
                     resp = FileResponse(gz_path, headers={"Content-Encoding": "gzip", "Vary": "Accept-Encoding"})
                     resp.headers["Cache-Control"] = "public, max-age=86400"
                     if str(full_path).endswith('.js'):
@@ -255,6 +279,12 @@ def main() -> None:
         webview.start(debug=False, icon=icon_str)
     except KeyboardInterrupt:
         pass
+    except Exception as e:
+        logger.warning(f"Failed to start with custom icon ({e}), falling back to default icon...")
+        try:
+            webview.start(debug=False)
+        except KeyboardInterrupt:
+            pass
 
 if __name__ == '__main__':
     main()

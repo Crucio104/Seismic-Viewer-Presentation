@@ -219,6 +219,9 @@ def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> 
         x, y = _compute_grid(new_w, new_h, scale, ts, map_data['xmin'], map_data['ymin'], n)
         z = np.zeros(matrix.shape, dtype=np.float32)
 
+        # Strip raw composite image to free memory and prevent huge cache files
+        map_data.pop('img', None)
+
     result = (x, y, z, matrix, cscale, map_data)
 
 

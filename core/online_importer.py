@@ -1,12 +1,13 @@
-import requests
-import logging
 import csv
 import json
+import logging
+from pathlib import Path
 import time
 from datetime import datetime, timezone
 from typing import Any
 from collections.abc import Callable
 import pandas as pd
+import requests
 from core.config import (
     GOSSIP_BASE_URL, 
     TEMP_DIR, 
@@ -46,7 +47,7 @@ except ImportError:
     def _parse_json_bytes(content: bytes | bytearray) -> Any:
         return json.loads(content)
     def _read_json_file(file_path: Path) -> Any:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding='utf-8') as f:
             return json.load(f)
 
 def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | None = None) -> list[dict[str, Any]]:

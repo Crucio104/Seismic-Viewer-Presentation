@@ -193,7 +193,7 @@ def calculate_structural_planes(
     ransac_threshold = max(0.02, radius_km * 0.1)
     start_idx, end_idx = valid_range if valid_range else (0, len(pts_km))
 
-    for ix, iy, cx, cy, global_indices in active_grid:
+    for ix, iy, _cx, _cy, global_indices in active_grid:
         valid_indices = [i for i in global_indices if start_idx <= i < end_idx]
         
         if len(valid_indices) >= min_pts:
@@ -269,15 +269,18 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
 
     results = {}
     _init_worker(pts_km)
-    if len(tasks) <= 12 or len(pts_km) < 1500:
-        for t in tasks:
-            date_str, planes = _worker_calculate_planes(t)
-            results[date_str] = planes
-    else:
-        max_workers = min(os.cpu_count() or 4, 8)
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            for date_str, planes in executor.map(_worker_calculate_planes, tasks):
+    try:
+        if len(tasks) <= 12 or len(pts_km) < 1500:
+            for t in tasks:
+                date_str, planes = _worker_calculate_planes(t)
                 results[date_str] = planes
+        else:
+            max_workers = min(os.cpu_count() or 4, 8)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                for date_str, planes in executor.map(_worker_calculate_planes, tasks):
+                    results[date_str] = planes
+    finally:
+        _worker_data.clear()
             
     return results
 
@@ -337,7 +340,7 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[
         
         # DBSCAN centroids in 3D spatial space
         if n_clusters > 0:
-            centroids = np.array([np.mean(pts_km[labels == i], axis=0) for i in range(n_clusters)])
+            centroids = np.array([np.mean(pts_km[labels == i], axis=0) if np.any(labels == i) else np.zeros(pts_km.shape[1]) for i in range(n_clusters)])
     elif method == 'hdbscan':
         n_pts = len(features)
         if n_pts < 3:
@@ -368,7 +371,7 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[
         unique_labels = sorted(set(labels) - {-1})
         n_clusters = len(unique_labels)
         if n_clusters > 0:
-            centroids = np.array([np.mean(pts_km[labels == i], axis=0) for i in unique_labels])
+            centroids = np.array([np.mean(pts_km[labels == i], axis=0) if np.any(labels == i) else np.zeros(pts_km.shape[1]) for i in unique_labels])
     else:
         n_clusters_req = int(params.get('kmeans_clusters', 3))
         if len(features) >= n_clusters_req:
@@ -381,7 +384,7 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[
             kmeans = MiniBatchKMeans(n_clusters=n_clusters_req, random_state=42, init=init_val, n_init=n_init_val).fit(features)
             labels = kmeans.labels_
             n_clusters = n_clusters_req
-            centroids = np.array([np.mean(pts_km[labels == i], axis=0) for i in range(n_clusters)])
+            centroids = np.array([np.mean(pts_km[labels == i], axis=0) if np.any(labels == i) else np.zeros(pts_km.shape[1]) for i in range(n_clusters)])
         else:
             labels = np.zeros(len(pts_km), dtype=int)
             n_clusters = 1
@@ -539,17 +542,20 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     # 5. Execute Clustering with adaptive parallel/sequential execution
     frame_results = [None] * len(date_indices)
     _init_clustering_worker(worker_data)
-    if len(date_indices) <= 15 or len(pts_km) < 1500:
-        for i in range(len(date_indices)):
-            res = _process_frame_worker(i, worker_data)
-            frame_results[res[0]] = res
-    else:
-        n_workers = min(os.cpu_count() or 4, 8)
-        with ThreadPoolExecutor(max_workers=n_workers) as executor:
-            futures = [executor.submit(_process_frame_worker, i, worker_data) for i in range(len(date_indices))]
-            for future in as_completed(futures):
-                res = future.result()
+    try:
+        if len(date_indices) <= 15 or len(pts_km) < 1500:
+            for i in range(len(date_indices)):
+                res = _process_frame_worker(i, worker_data)
                 frame_results[res[0]] = res
+        else:
+            n_workers = min(os.cpu_count() or 4, 8)
+            with ThreadPoolExecutor(max_workers=n_workers) as executor:
+                futures = [executor.submit(_process_frame_worker, i, worker_data) for i in range(len(date_indices))]
+                for future in as_completed(futures):
+                    res = future.result()
+                    frame_results[res[0]] = res
+    finally:
+        _worker_clustering_data.clear()
 
     # 6. Sequential Post-processing (Matching & Renaming Planes)
     results = {}

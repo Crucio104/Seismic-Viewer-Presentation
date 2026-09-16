@@ -274,11 +274,10 @@ def get_3d_subcluster_figure(
     unlocked_targets = [idx for idx in target_indices if 0 <= int(idx) < n_points and not locked_mask[int(idx)]]
 
     if len(unlocked_targets) > 0:
-        sub_lon = np.array([longitude[i] for i in unlocked_targets], dtype=float)
-        sub_lat = np.array([latitude[i] for i in unlocked_targets], dtype=float)
-        _sub_mag = np.array([magnitude[i] for i in unlocked_targets], dtype=float)
-        sub_dep = np.array([depth[i] for i in unlocked_targets], dtype=float)
-        sub_dnum = np.array([dates_num[i] for i in unlocked_targets], dtype=float) if dates_num is not None else None
+        sub_lon = np.asarray(longitude, dtype=float)[unlocked_targets]
+        sub_lat = np.asarray(latitude, dtype=float)[unlocked_targets]
+        sub_dep = np.asarray(depth, dtype=float)[unlocked_targets]
+        sub_dnum = np.asarray(dates_num, dtype=float)[unlocked_targets] if dates_num is not None else None
 
         if origin_lat is None:
             origin_lat = float(np.mean(latitude))

@@ -115,7 +115,16 @@
                     return reject(new Error("Socket not connected"));
                 }
                 const id = this.requestId++;
-                this.requests.set(id, resolve);
+                const timeoutId = setTimeout(() => {
+                    if (this.requests.has(id)) {
+                        this.requests.delete(id);
+                        reject(new Error(`Socket request '${type}' timed out.`));
+                    }
+                }, 30000);
+                this.requests.set(id, (result) => {
+                    clearTimeout(timeoutId);
+                    resolve(result);
+                });
                 this.socket.send(JSON.stringify({ type, id, params }));
             });
         }

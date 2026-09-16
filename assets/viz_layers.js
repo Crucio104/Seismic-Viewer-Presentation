@@ -525,6 +525,7 @@
                         <div class="settings-row">
                             <input type="number" class="glass-input" id="tomo-depth-input" step="0.5" placeholder="Depth (km)">
                         </div>
+                        <div id="tomo-slice-info" style="font-size:0.65rem; color:rgba(255,255,255,0.7); margin-top:0.25rem; line-height:1.2;"></div>
                     `;
                     
                     const applyBtn = settingsBar.querySelector('#apply-filters-btn') || settingsBar.querySelector('#apply-all-btn') || settingsBar.querySelector('#apply-btn');

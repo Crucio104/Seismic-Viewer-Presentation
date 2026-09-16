@@ -273,7 +273,7 @@ class Api:
             DROPPED_FILES_DIR.mkdir(parents=True, exist_ok=True)
             safe_name = Path(filename).name
             lower_name = safe_name.lower()
-            if not (lower_name.endswith('.csv') or lower_name.endswith('.geojson') or lower_name.endswith('.json')):
+            if not lower_name.endswith(('.csv', '.geojson', '.json')):
                 safe_name += '.csv'
             target_path = DROPPED_FILES_DIR / safe_name
             target_path.write_text(content, encoding='utf-8')
@@ -464,6 +464,7 @@ class Api:
             logger.info(f"apply_subclusters: unique global_labels now = {unique_lbls} with counts = {counts}")
             
             self._history_stack.pop()
+            self._history_idx = len(self._history_stack) - 1
             
             if 'clustering_params' not in prev_view['kwargs'] or prev_view['kwargs']['clustering_params'] is None:
                 prev_view['kwargs']['clustering_params'] = {}
@@ -613,7 +614,7 @@ class Api:
             cluster_indices = defaultdict(list)
             # labels length should match global_indices length
             if len(labels) == len(global_indices):
-                for lbl, g_idx in zip(labels, global_indices):
+                for lbl, g_idx in zip(labels, global_indices, strict=True):
                     cluster_indices[int(lbl)].append(int(g_idx))
             
             res['cluster_indices'] = dict(cluster_indices)

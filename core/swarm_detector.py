@@ -81,13 +81,12 @@ def detect_ingv_swarms(df: pd.DataFrame) -> list[dict[str, Any]]:
 
     swarms: list[dict[str, Any]] = []
     for swarm_id, (s_time, e_time, i_idx, j_idx) in enumerate(merged, start=1):
-        swarm_events = valid_df.iloc[i_idx:j_idx + 1]
         dataset_indices = valid_indices[i_idx:j_idx + 1].tolist()
         slice_mags = mags[i_idx:j_idx + 1]
         
         start_str = pd.Timestamp(s_time).strftime('%Y-%m-%d %H:%M:%S')
         end_str = pd.Timestamp(e_time).strftime('%Y-%m-%d %H:%M:%S')
-        event_times = [pd.Timestamp(t).strftime('%Y-%m-%d %H:%M:%S') for t in swarm_events['time_dt']]
+        event_times = [pd.Timestamp(t).strftime('%Y-%m-%d %H:%M:%S') for t in times[i_idx:j_idx + 1]]
         
         swarms.append({
             'id': swarm_id,

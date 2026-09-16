@@ -440,7 +440,6 @@
         try {
             localStorage.setItem(CAMERA_STORAGE_KEY, JSON.stringify(savedOrientation));
             updatePasteButtonState();
-            if (typeof showStatusToast === 'function') showStatusToast('Camera orientation copied', true);
         } catch (e) {
             console.warn('Could not save camera orientation to localStorage:', e);
         }
@@ -459,7 +458,6 @@
         if (cinemaModeActive) toggleCinemaMode();
         currentSideIndex = -1;
 
-        if (typeof showStatusToast === 'function') showStatusToast('Camera orientation restored', true);
         return smoothAnimateCamera(
             savedOrientation.eye,
             savedOrientation.up || { x: 0, y: 0, z: 1 },
