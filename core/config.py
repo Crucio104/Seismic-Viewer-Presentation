@@ -58,28 +58,39 @@ def set_http_port(port: int) -> None:
 
 # ─── Session Data Store ─────────────────────────────────────────────
 # In-memory store for visualization data served via the REST API.
-# Keys are session IDs (short hex strings), values are JSON-serializable dicts.
-_data_store: dict[str, Any] = {}
+# Keys are session IDs (short hex strings), values are (timestamp, data) tuples.
+import time as _time
+
+_data_store: dict[str, tuple[float, dict[str, Any]]] = {}
 _html_store: dict[str, str] = {}
 _store_lock = threading.Lock()
 
+_SESSION_MAX_COUNT = 5
+_SESSION_TTL_SECONDS = 600  # Evict sessions older than 10 minutes
+
 def store_session_data(session_id: str, data: dict[str, Any]) -> None:
-    """Store visualization data for a session, evicting old entries."""
+    """Store visualization data for a session, evicting old or expired entries."""
+    now = _time.monotonic()
     with _store_lock:
-        # Keep at most 5 sessions to bound memory usage
+        # Evict expired sessions first
+        expired = [k for k, (ts, _) in _data_store.items() if now - ts > _SESSION_TTL_SECONDS]
+        for k in expired:
+            del _data_store[k]
+        # Then enforce count limit
         evicted = False
-        while len(_data_store) >= 5:
+        while len(_data_store) >= _SESSION_MAX_COUNT:
             oldest_key = next(iter(_data_store))
             del _data_store[oldest_key]
             evicted = True
-        _data_store[session_id] = data
-        if evicted:
+        _data_store[session_id] = (now, data)
+        if evicted or expired:
             gc.collect()
 
 def get_session_data(session_id: str) -> dict[str, Any] | None:
     """Retrieve stored visualization data for a session."""
     with _store_lock:
-        return _data_store.get(session_id)
+        entry = _data_store.get(session_id)
+        return entry[1] if entry is not None else None
 
 MAX_TEMP_FILES = 4
 

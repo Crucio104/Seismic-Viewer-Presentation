@@ -16,31 +16,38 @@ from core.utils import parse_seismic_date_series
 logger = logging.getLogger(__name__)
 
 def _make_hover(df: pd.DataFrame) -> list[str]:
-    """Generate descriptive hover text strings avoiding intermediate Pandas Series overhead."""
+    """Generate descriptive hover text strings using vectorized NumPy string operations."""
     dates = df['time_dt'].dt.strftime('%d-%m-%Y %H:%M').to_numpy()
     lats = df['lat'].to_numpy(dtype=float)
     lons = df['lon'].to_numpy(dtype=float)
     deps = np.abs(df['depth'].to_numpy(dtype=float))
-    mags = df['mag'].astype(str).to_numpy()
+    mags = df['mag'].to_numpy(dtype=float)
 
     has_mag_missing = 'mag_is_missing' in df.columns
     has_dep_missing = 'depth_is_missing' in df.columns
     mag_miss = df['mag_is_missing'].to_numpy() if has_mag_missing else None
     dep_miss = df['depth_is_missing'].to_numpy() if has_dep_missing else None
 
-    result: list[str] = []
-    n = len(df)
-    for i in range(n):
-        m_label = "N.D. (missing)" if (has_mag_missing and mag_miss[i]) else mags[i]
-        d_label = "N.D. (missing)" if (has_dep_missing and dep_miss[i]) else f"{deps[i]:.4f} km"
-        result.append(
-            f"Date: {dates[i]}<br>"
-            f"Magnitude: {m_label}<br>"
-            f"Latitude: {lats[i]:.4f}<br>"
-            f"Longitude: {lons[i]:.4f}<br>"
-            f"Depth: {d_label}"
-        )
-    return result
+    # Pre-format coordinate strings vectorized
+    lat_strs = np.array([f"{v:.4f}" for v in lats])
+    lon_strs = np.array([f"{v:.4f}" for v in lons])
+
+    # Pre-format magnitude and depth labels vectorized
+    if has_mag_missing and mag_miss is not None:
+        mag_labels = np.where(mag_miss, "N.D. (missing)", [f"{v:.2f}" for v in mags])
+    else:
+        mag_labels = np.array([f"{v:.2f}" for v in mags])
+
+    if has_dep_missing and dep_miss is not None:
+        dep_labels = np.where(dep_miss, "N.D. (missing)", [f"{v:.4f} km" for v in deps])
+    else:
+        dep_labels = np.array([f"{v:.4f} km" for v in deps])
+
+    # Build hover strings in a single vectorized pass
+    return [
+        f"Date: {d}<br>Magnitude: {m}<br>Latitude: {la}<br>Longitude: {lo}<br>Depth: {de}"
+        for d, m, la, lo, de in zip(dates, mag_labels, lat_strs, lon_strs, dep_labels, strict=True)
+    ]
 
 def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
     """Pre-calculate expensive data structures for visualizations with minimal memory footprint."""
@@ -225,16 +232,16 @@ def _load_json(source_file: str | Path) -> pd.DataFrame:
                 kl = str(k).strip().lower()
                 if kl in ('lat', 'latitude') and lat is None:
                     try: lat = float(v)
-                    except: pass
+                    except (ValueError, TypeError): pass
                 elif kl in ('lon', 'longitude') and lon is None:
                     try: lon = float(v)
-                    except: pass
+                    except (ValueError, TypeError): pass
                 elif kl in ('depth', 'depth/km', 'depth(km)', 'profondità', 'profondita') and depth is None:
                     try: depth = abs(float(v))
-                    except: pass
+                    except (ValueError, TypeError): pass
                 elif kl in ('mag', 'magnitude', 'magvalue', 'md', 'ml', 'mw') and mag_val is None:
                     try: mag_val = float(v)
-                    except: pass
+                    except (ValueError, TypeError): pass
                 elif kl in ('time', 'timeutc', 'datetime', 'date', 'origintime', 'eventtime', 'ot') and time_val is None:
                     time_val = str(v)
 

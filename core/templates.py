@@ -137,17 +137,19 @@ def _get_loader_message(is_animated: bool, is_cluster: bool, is_subcluster: bool
     return 'Rendering Visualization...'
 
 def _get_loader_html(msg: str, is_subcluster: bool = False) -> str:
+    """Build the init-loader HTML.
+
+    Only critical first-paint properties (position, background, z-index) are inlined
+    to guarantee the loader is visible before theme.css finishes loading.
+    All visual styles (gradient, glow, animation) come from theme.css classes.
+    """
     return (
         '<div id="init-loader" style="position:fixed;inset:0;z-index:999999;background:#050510;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:1;transition:opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);pointer-events:auto;">'
-        f'  <p class="loader-text" style="margin:0 0 1.15rem 0;font-size:1.05rem;font-weight:500;color:#f1f5f9;text-align:center;">{msg}</p>'
-        '  <div class="overlay-progress-bar" style="width:14rem;height:4px;background:rgba(255,255,255,0.08);border-radius:99px;overflow:hidden;position:relative;box-shadow:inset 0 1px 3px rgba(0,0,0,0.6),0 0 16px rgba(16,185,129,0.35);border:1px solid rgba(255,255,255,0.12);contain:paint;-webkit-transform:translateZ(0);transform:translateZ(0);will-change:transform;">'
-        '    <div class="overlay-progress-fill overlay-progress-track" style="position:absolute;top:0;left:0;height:100%;width:45%;background:linear-gradient(90deg,transparent,#059669,#10b981,#34d399,#6ee7b7,#10b981,transparent);border-radius:99px;box-shadow:0 0 14px #10b981,0 0 28px rgba(52,211,153,0.85),0 0 42px rgba(16,185,129,0.5);filter:drop-shadow(0 0 6px #34d399);-webkit-filter:drop-shadow(0 0 6px #34d399);will-change:transform;-webkit-transform:translate3d(-100%,0,0);transform:translate3d(-100%,0,0);-webkit-backface-visibility:hidden;backface-visibility:hidden;-webkit-animation:overlayTrack 1.35s infinite cubic-bezier(0.4,0,0.2,1);animation:overlayTrack 1.35s infinite cubic-bezier(0.4,0,0.2,1);pointer-events:none;"></div>'
+        f'  <p class="loader-text">{msg}</p>'
+        '  <div class="overlay-progress-bar">'
+        '    <div class="overlay-progress-fill overlay-progress-track"></div>'
         '  </div>'
         '</div>'
-        '<style>'
-        '@-webkit-keyframes overlayTrack{0%{-webkit-transform:translate3d(-100%,0,0);transform:translate3d(-100%,0,0);}100%{-webkit-transform:translate3d(350%,0,0);transform:translate3d(350%,0,0);}}'
-        '@keyframes overlayTrack{0%{-webkit-transform:translate3d(-100%,0,0);transform:translate3d(-100%,0,0);}100%{-webkit-transform:translate3d(350%,0,0);transform:translate3d(350%,0,0);}}'
-        '</style>'
     )
 
 def _get_view_scripts(is_animated: bool, is_cluster: bool, earthquake_data: dict[str, Any] | None, data_url: str, is_fallback: bool) -> str:

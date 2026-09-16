@@ -52,7 +52,8 @@
                 '#back-btn', '#camera-controls', '#info-btn', '#overlay-btn',
                 '#screenshot-btn', '#shortcuts-btn', '#layer-modal', '#export-modal',
                 '#shortcuts-modal', '#glass-legend', '#info-panel', '#left-panel-wrapper',
-                '#filter-bar', '#ws-status', '.timeline-container', '.playback-controls',
+                '#btn-expand-legend', '#btn-expand-camera',
+                '#btn-expand-sidebar', '#filter-bar', '#ws-status', '.timeline-container', '.playback-controls',
                 '#settings-bar', '#swarm-chart-dialog', '#screenshot-preview-dialog', '#cluster-csv-dialog'
             ];
 

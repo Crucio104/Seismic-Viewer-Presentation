@@ -621,12 +621,15 @@
         loading = true;
 
         const overlay = document.getElementById('overlay');
-        if (style === 2 && anim_mode === 'swarm') {
-            document.getElementById('overlay-msg').textContent = 'Rendering INGV Swarm Animation...';
-        } else {
-            document.getElementById('overlay-msg').textContent = VIEW_LABELS[style] || 'Loading...';
+        const overlayMsg = document.getElementById('overlay-msg');
+        if (overlayMsg) {
+            if (style === 2 && anim_mode === 'swarm') {
+                overlayMsg.textContent = 'Rendering INGV Swarm Animation...';
+            } else {
+                overlayMsg.textContent = VIEW_LABELS[style] || 'Loading...';
+            }
         }
-        overlay.classList.add('show');
+        if (overlay) overlay.classList.add('show');
 
         try {
             await pywebview.api.load_view(style, anim_mode, window_days, step_days, clustering_method);
@@ -634,7 +637,7 @@
             // but in case it fails midway:
             setTimeout(() => { loading = false; }, 3000); 
         } catch(e) {
-            overlay.classList.remove('show');
+            if (overlay) overlay.classList.remove('show');
             loading = false;
             showToast('Engine failure: ' + e, 'error');
         }

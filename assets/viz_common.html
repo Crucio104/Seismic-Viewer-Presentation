@@ -6,7 +6,12 @@
 </div>
 
 <div id="top-left-controls" style="position:fixed; top:1.25rem; left:1.25rem; z-index:99999; display:flex; gap:0.5rem; align-items:center;">
-    <button id="back-btn" class="glass-panel" onclick="transitionToHub()">← Hub</button>
+    <button id="back-btn" class="glass-panel" onclick="transitionToHub()" title="Return to Hub (Esc)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        <span>Hub</span>
+    </button>
     <div id="swarm-nav" class="glass-panel" style="display:none; align-items:center; gap:0.35rem; padding:0.3rem 0.55rem; border-radius:0.75rem;">
         <button id="swarm-prev-btn" class="btn-circle-nav" title="Previous Swarm (←)" style="width:1.8rem; height:1.8rem; font-size:0.85rem;">❮</button>
         <div id="swarm-indicator" style="display:flex; flex-direction:column; align-items:center; padding:0 0.4rem; min-width:6.8rem; user-select:none;">
@@ -22,7 +27,12 @@
 </div>
 
 <div id="glass-legend" class="glass-panel">
-    <div id="legend-title">Variable</div>
+    <div class="panel-header-row legend-header-row">
+        <div id="legend-title">Variable</div>
+        <button class="btn-box-minimize" onclick="window.toggleLegendPanel && window.toggleLegendPanel()" title="Minimize Legend (L)" aria-label="Minimize Legend">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="4" y1="12" x2="20" y2="12"/></svg>
+        </button>
+    </div>
     <div id="legend-body-wrapper">
         <div class="legend-scale-wrapper" id="legend-scale-wrapper">
             <button id="legend-scale-toggle" class="btn-legend-scale-swatch" title="Change Color Scale">
@@ -80,7 +90,12 @@
 </div>
 
 <div id="camera-controls" class="glass-panel">
-    <div class="label" style="text-align: center; margin-bottom: 0.500rem;">Camera</div>
+    <div class="panel-header-row camera-header-row">
+        <div class="label" style="flex:1; text-align:center; margin-bottom:0; padding-left:0.5rem;">Camera</div>
+        <button class="btn-box-minimize" onclick="window.toggleCameraPanel && window.toggleCameraPanel()" title="Minimize Camera Controls (K)" aria-label="Minimize Camera Controls">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="4" y1="12" x2="20" y2="12"/></svg>
+        </button>
+    </div>
     <button class="btn-cam cam-3d-only" id="btn-cinema" onclick="toggleCinemaMode()" title="Auto-rotation (C)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M23 7l-7 5 7 5V7z" />
@@ -124,6 +139,15 @@
         </button>
     </div>
 </div>
+
+<button id="btn-expand-legend" class="drawer-tab-btn-right" onclick="window.toggleLegendPanel && window.toggleLegendPanel()" title="Open Legend (L)">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+    <span>Legend</span>
+</button>
+<button id="btn-expand-camera" class="drawer-tab-btn-right" onclick="window.toggleCameraPanel && window.toggleCameraPanel()" title="Open Camera Controls (K)">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+    <span>Camera</span>
+</button>
 
 <!-- Scene Info UI -->
 <button id="info-btn" class="hidden-initially" onclick="SeismicUI.toggleInfoPanel(event)" title="Scene Information">
@@ -338,6 +362,18 @@
         <div class="shortcut-row" id="shortcut-row-vectors">
             <span>Consecutive Event Vectors</span>
             <span class="shortcut-key">V</span>
+        </div>
+        <div class="shortcut-row" id="shortcut-row-panel">
+            <span>Toggle Controls Drawer</span>
+            <span class="shortcut-key">F</span>
+        </div>
+        <div class="shortcut-row" id="shortcut-row-legend">
+            <span>Toggle Legend Drawer</span>
+            <span class="shortcut-key">L</span>
+        </div>
+        <div class="shortcut-row" id="shortcut-row-camera">
+            <span>Toggle Camera Drawer</span>
+            <span class="shortcut-key">K</span>
         </div>
         <div class="shortcut-row">
             <span>Quick View Switch</span>

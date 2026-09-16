@@ -17,16 +17,21 @@
     --glass-border: rgba(255, 255, 255, 0.1);
     --glass-border-hover: rgba(255, 255, 255, 0.2);
     
-    /* Accent Palettes (Harmonious Dark Theme) */
-    --accent-indigo: #059669;
-    --accent-indigo-glow: rgba(5, 150, 105, 0.4);
-    --accent-purple: #047857;
-    --accent-pink: #10b981;
+    /* Accent Palettes (Harmonious Dark Theme — Emerald) */
+    --accent-primary: #059669;
+    --accent-primary-glow: rgba(5, 150, 105, 0.4);
+    --accent-primary-dark: #047857;
+    --accent-primary-light: #10b981;
     --accent-emerald: #10b981;
     --accent-emerald-glow: rgba(16, 185, 129, 0.3);
     --accent-dark-green: #047857;
     --accent-forest: #064e3b;
     --accent-rose: #f43f5e;
+    /* Backward-compatible aliases (legacy references) */
+    --accent-indigo: var(--accent-primary);
+    --accent-indigo-glow: var(--accent-primary-glow);
+    --accent-purple: var(--accent-primary-dark);
+    --accent-pink: var(--accent-primary-light);
     
     /* Typography Colors */
     --text-primary: #ffffff;

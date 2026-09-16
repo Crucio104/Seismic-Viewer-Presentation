@@ -16,6 +16,12 @@
 }
 </style>
         <div id="left-panel-wrapper" class="glass-panel">
+            <div class="panel-header-row controls-header-row">
+                <span class="panel-header-title">Controls</span>
+                <button class="btn-collapse-drawer" onclick="window.toggleLeftPanel && window.toggleLeftPanel()" title="Minimize Controls (F)" aria-label="Minimize Controls">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="4" y1="12" x2="20" y2="12"/></svg>
+                </button>
+            </div>
             <div id="settings-bar">
 
             <div class="settings-group">
@@ -163,14 +169,21 @@
 
 
 
-        <div id="filter-bar" class="glass-panel" style="position: fixed; top: 2.5vh; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 0.75rem; padding: 0 0.8rem; height: 2.5rem;">
-            <div style="display: flex; align-items: center; gap: 0.4rem; height: 100%;">
-                <label for="filter-start" style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05rem; opacity: 0.6; font-weight: 600; line-height: 1; margin-top: 0.1rem; cursor: pointer;">From</label>
-                <input type="date" id="filter-start" class="glass-input" style="height: 1.8rem; font-size: 0.7rem; margin: 0; width: 8.2rem; text-align: center;">
+        <div id="filter-bar" class="glass-panel">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="filter-bar-cal-icon">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <div class="filter-date-group">
+                <label for="filter-start" class="filter-date-label">From</label>
+                <input type="date" id="filter-start" class="filter-date-input">
             </div>
-            <div style="display: flex; align-items: center; gap: 0.4rem; height: 100%;">
-                <label for="filter-end" style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05rem; opacity: 0.6; font-weight: 600; line-height: 1; margin-top: 0.1rem; cursor: pointer;">To</label>
-                <input type="date" id="filter-end" class="glass-input" style="height: 1.8rem; font-size: 0.7rem; margin: 0; width: 8.2rem; text-align: center;">
+            <span class="filter-date-sep">→</span>
+            <div class="filter-date-group">
+                <label for="filter-end" class="filter-date-label">To</label>
+                <input type="date" id="filter-end" class="filter-date-input">
             </div>
         </div>
 

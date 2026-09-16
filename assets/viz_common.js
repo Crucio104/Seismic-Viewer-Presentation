@@ -1,3 +1,8 @@
+// --- Debug Logger (set window.__SV_DEBUG = true in DevTools to enable verbose logging) ---
+window._svLog = function(...args) { if (window.__SV_DEBUG) console.log('[SV]', ...args); };
+window._svWarn = function(...args) { if (window.__SV_DEBUG) console.warn('[SV]', ...args); };
+window._svErr = function(...args) { console.error('[SV]', ...args); };  // Errors always logged
+
 // --- Shared Seismic Data Binary Loader ---
 window.fetchAndUnpackSeismicData = async function(dataUrl) {
     const [respJson, respBin] = await Promise.all([
@@ -1620,6 +1625,83 @@ window.getClusterColor = function(lbl) {
         }
     }, 300);
 
+    /* ─── Controls Side Panel Drawer Toggle ─── */
+    window.toggleLeftPanel = function() {
+        const panel = document.getElementById('left-panel-wrapper');
+        if (!panel) return;
+        const isCollapsed = panel.classList.toggle('collapsed');
+        let expandBtn = document.getElementById('btn-expand-sidebar');
+        if (!expandBtn) {
+            expandBtn = document.createElement('button');
+            expandBtn.id = 'btn-expand-sidebar';
+            expandBtn.className = 'glass-panel drawer-tab-btn';
+            expandBtn.title = 'Open Controls Panel (F)';
+            expandBtn.setAttribute('aria-label', 'Open Controls Panel');
+            expandBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg><span>Controls</span>';
+            expandBtn.onclick = () => window.toggleLeftPanel();
+            document.body.appendChild(expandBtn);
+        }
+        if (isCollapsed) {
+            expandBtn.classList.add('show');
+        } else {
+            expandBtn.classList.remove('show');
+        }
+    };
+
+    /* ─── Legend Drawer Toggle ─── */
+    window.toggleLegendPanel = function() {
+        const panel = document.getElementById('glass-legend');
+        if (!panel) return;
+        const isCollapsed = panel.classList.toggle('collapsed');
+        let expandBtn = document.getElementById('btn-expand-legend');
+        if (!expandBtn) {
+            expandBtn = document.createElement('button');
+            expandBtn.id = 'btn-expand-legend';
+            expandBtn.className = 'glass-panel drawer-tab-btn-right';
+            expandBtn.title = 'Open Legend (L)';
+            expandBtn.setAttribute('aria-label', 'Open Legend');
+            expandBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg><span>Legend</span>';
+            expandBtn.onclick = () => window.toggleLegendPanel();
+            document.body.appendChild(expandBtn);
+        }
+        if (isCollapsed) {
+            expandBtn.classList.add('show');
+        } else {
+            expandBtn.classList.remove('show');
+        }
+    };
+
+    /* ─── Camera Controls Drawer Toggle ─── */
+    window.toggleCameraPanel = function() {
+        const panel = document.getElementById('camera-controls');
+        if (!panel) return;
+        const isCollapsed = panel.classList.toggle('collapsed');
+        let expandBtn = document.getElementById('btn-expand-camera');
+        if (!expandBtn) {
+            expandBtn = document.createElement('button');
+            expandBtn.id = 'btn-expand-camera';
+            expandBtn.className = 'glass-panel drawer-tab-btn-right';
+            expandBtn.title = 'Open Camera Controls (K)';
+            expandBtn.setAttribute('aria-label', 'Open Camera Controls');
+            expandBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg><span>Camera</span>';
+            expandBtn.onclick = () => window.toggleCameraPanel();
+            document.body.appendChild(expandBtn);
+        }
+        if (isCollapsed) {
+            expandBtn.classList.add('show');
+        } else {
+            expandBtn.classList.remove('show');
+        }
+    };
+
+    window.toggleRightPanel = function() {
+        window.toggleLegendPanel && window.toggleLegendPanel();
+        window.toggleCameraPanel && window.toggleCameraPanel();
+    };
+
+
+
+
     /* ─── Global Keyboard Shortcuts ─── */
     window.addEventListener('keydown', (e) => {
         // Prevent accidental page reload in desktop application
@@ -1769,6 +1851,33 @@ window.getClusterColor = function(lbl) {
                 transitionToHub();
             } else if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.go_back === 'function') {
                 window.pywebview.api.go_back();
+            }
+        }
+        // F / f: Toggle Controls Drawer
+        else if (e.key === 'f' || e.key === 'F') {
+            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                if (typeof window.toggleLeftPanel === 'function') {
+                    window.toggleLeftPanel();
+                }
+            }
+        }
+        // L / l: Toggle Legend Drawer
+        else if (e.key === 'l' || e.key === 'L') {
+            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                if (typeof window.toggleLegendPanel === 'function') {
+                    window.toggleLegendPanel();
+                }
+            }
+        }
+        // K / k: Toggle Camera Controls Drawer
+        else if (e.key === 'k' || e.key === 'K') {
+            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                if (typeof window.toggleCameraPanel === 'function') {
+                    window.toggleCameraPanel();
+                }
             }
         }
         // H / ? / F1: Toggle Keyboard Shortcuts Modal

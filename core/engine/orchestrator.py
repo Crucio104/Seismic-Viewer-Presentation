@@ -44,7 +44,13 @@ def strip_data(fig_obj: go.Figure, data_dict: dict[str, Any]) -> None:
             data_dict[k] = []
 
 def _build_base_earthquake_dict(data: dict[str, Any], vpack: dict[str, Any], times: list[str]) -> dict[str, Any]:
-    """Prepare the standardized earthquake data dictionary with visual limits and hover metadata."""
+    """Prepare the standardized earthquake data dictionary with visual limits and hover metadata.
+
+    NOTE: Intentionally uses shallow copy (dict.copy()) — the contained NumPy arrays
+    are read-only in the downstream JS-serialization workflow.  A deep copy would waste
+    ~50MB of RAM for no benefit.  If future code needs to mutate array values in the
+    copy, switch to copy.deepcopy() or explicit array slicing.
+    """
     earthquake_data = data.copy()
     earthquake_data.update({
         'hover': vpack.get('hover', []),

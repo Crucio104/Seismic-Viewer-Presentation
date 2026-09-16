@@ -14,6 +14,9 @@ from core.config import PALETTE_COLORS, MAP_CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
+# Cache version: increment when the cached data format changes to auto-invalidate stale entries
+_MESH_CACHE_VERSION = 2
+
 TILE_SIZE = 256
 OSM_TILE_SERVER = "https://tile.openstreetmap.org"
 USER_AGENT = "SeismicViewer/1.0 (academic-research; contact: seismic-viewer@local)"
@@ -42,7 +45,7 @@ def _get_cache_path(bbox: tuple[float, float, float, float], resolution: int) ->
     """Generate a deterministic cache path from the bounding box and resolution."""
     rounded_bbox: tuple[float, float, float, float] = tuple(round(v, 5) for v in bbox)
     key_str = f"{rounded_bbox}_{resolution}"
-    key = hashlib.md5(key_str.encode()).hexdigest()
+    key = hashlib.blake2b(key_str.encode(), digest_size=16).hexdigest()
     return MAP_CACHE_DIR / f'mesh_{key}.pkl'
 
 def _fetch_single_tile(z: int, x: int, y: int, session: requests.Session, tile_cache_dir: Path) -> tuple[int, int, Image.Image | None]:
@@ -177,7 +180,11 @@ def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> 
         logger.info(f"Loading processed map mesh ({resolution}px) from cache...")
         try:
             with open(cache_path, 'rb') as f:
-                return pickle.load(f)
+                cached = pickle.load(f)
+            # Validate cache version to prevent stale-format crashes
+            if isinstance(cached, tuple) and len(cached) == 2 and cached[0] == _MESH_CACHE_VERSION:
+                return cached[1]
+            logger.info("Cache version mismatch, rebuilding...")
         except Exception:
             logger.warning("Cache corrupted, rebuilding...")
 
@@ -229,7 +236,7 @@ def build_map_mesh(bbox: tuple[float, float, float, float], resolution: int) -> 
     if map_data is not None:
         try:
             with open(cache_path, 'wb') as f:
-                pickle.dump(result, f, protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump((_MESH_CACHE_VERSION, result), f, protocol=pickle.HIGHEST_PROTOCOL)
         except Exception as e:
             logger.error(f"Failed to cache mesh: {e}")
 
