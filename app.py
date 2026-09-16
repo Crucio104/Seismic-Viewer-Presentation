@@ -210,14 +210,27 @@ def main() -> None:
     _win_holder: list[webview.Window] = []
     def win_ref() -> webview.Window: return _win_holder[0]
 
-    icon_path = BASE_DIR / 'assets' / 'app_icon.png'
-    icon_str = str(icon_path.resolve()) if icon_path.exists() else None
+    icon_png = BASE_DIR / 'assets' / 'app_icon.png'
+    icon_ico = BASE_DIR / 'assets' / 'app_icon.ico'
+
+    if sys.platform == 'win32':
+        if not icon_ico.exists() and icon_png.exists():
+            try:
+                from PIL import Image
+                img = Image.open(icon_png)
+                img.save(icon_ico, format='ICO', sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+            except Exception as e:
+                logger.debug(f"Could not generate .ico from app_icon.png: {e}")
+        icon_str = str(icon_ico.resolve()) if icon_ico.exists() else None
+    else:
+        icon_target = icon_png if icon_png.exists() else icon_ico
+        icon_str = str(icon_target.resolve()) if icon_target.exists() else None
 
     # On macOS, proactively configure the Dock icon via AppKit
-    if sys.platform == 'darwin' and icon_str:
+    if sys.platform == 'darwin' and icon_png.exists():
         try:
             import AppKit
-            ns_image = AppKit.NSImage.alloc().initByReferencingFile_(icon_str)
+            ns_image = AppKit.NSImage.alloc().initByReferencingFile_(str(icon_png.resolve()))
             if ns_image and ns_image.isValid():
                 AppKit.NSApplication.sharedApplication().setApplicationIconImage_(ns_image)
         except Exception as e:
