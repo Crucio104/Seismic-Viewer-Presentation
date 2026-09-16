@@ -161,6 +161,10 @@ window.getClusterColor = function(lbl) {
 
     async function transitionToHub() {
         showInitLoader('Returning to Hub...');
+        try {
+            const gd = document.querySelector('.plotly-graph-div') || document.getElementById('plot') || document.getElementById('plotly-div');
+            if (gd && window.Plotly) window.Plotly.purge(gd);
+        } catch(e) {}
         const api = getBridgeApi();
         if (api && api.clear_history) {
             try { await api.clear_history(); } catch(e) {}
@@ -425,7 +429,7 @@ window.getClusterColor = function(lbl) {
             if (!loader) {
                 loader = document.createElement('div');
                 loader.id = 'filter-loader';
-                loader.innerHTML = '<div class="loader-ring" style="width:2rem; height:2rem"></div>';
+                loader.innerHTML = '<div class="overlay-progress-bar" style="width:7rem;"><div class="overlay-progress-track"></div></div>';
                 document.body.appendChild(loader);
             }
             loader.classList.add('show');
@@ -555,7 +559,7 @@ window.getClusterColor = function(lbl) {
             if (!loader) {
                 loader = document.createElement('div');
                 loader.id = 'filter-loader';
-                loader.innerHTML = '<div class="loader-ring" style="width:2rem; height:2rem"></div>';
+                loader.innerHTML = '<div class="overlay-progress-bar" style="width:7rem;"><div class="overlay-progress-track"></div></div>';
                 document.body.appendChild(loader);
             }
             loader.classList.add('show');
@@ -1167,275 +1171,40 @@ window.getClusterColor = function(lbl) {
             this.updateLegendSwapButtonVisibility();
         },
 
-        _pendingClusterPayload: null,
-        _activeClusterTabIdx: 0,
+        setExportFormat(fmt) {
+            if (window.SeismicExport) return window.SeismicExport.setExportFormat(fmt);
+        },
 
-        async exportClustersCSV() {
-            if (typeof window.pauseAnimation === 'function') {
-                window.pauseAnimation();
-            }
-
-            if (!this.isClusteringActive()) {
-                showStatusToast("Clustering is not active in the current view.", false);
-                return;
-            }
-            
-            this.toggleExportModal(true);
-
-            let payload = null;
-            if (typeof window.getCurrentFrameClusterExportData === 'function') {
-                payload = window.getCurrentFrameClusterExportData();
-            }
-
-            // Fallback if not defined or returned empty
-            if (!payload || !payload.clusters || payload.clusters.length === 0) {
-                const qd = window.quakeData || {};
-                if (qd.cluster || qd.cluster_indices) {
-                    const clustersList = [];
-                    const cIndices = qd.cluster_indices || {};
-                    const nC = qd.n_clusters || 0;
-                    for (let i = 0; i < nC; i++) {
-                        const idxs = cIndices[i] || cIndices[String(i)] || [];
-                        if (idxs.length > 0) {
-                            clustersList.push({
-                                name: `Cluster ${i + 1}`,
-                                filename: `cluster_${i + 1}.csv`,
-                                clusterNum: i + 1,
-                                internalLbl: i,
-                                indices: idxs
-                            });
-                        }
-                    }
-                    const outlierIdxs = cIndices[-1] || cIndices['-1'] || [];
-                    if (outlierIdxs.length > 0) {
-                        clustersList.push({
-                            name: "Outliers",
-                            filename: "outliers.csv",
-                            clusterNum: -1,
-                            internalLbl: -1,
-                            indices: outlierIdxs
-                        });
-                    }
-                    if (clustersList.length > 0) {
-                        payload = {
-                            method: qd.clustering_method || 'dbscan',
-                            params: qd.clustering_params || {},
-                            clusters: clustersList
-                        };
-                    }
-                }
-            }
-
-            if (!payload || !payload.clusters || payload.clusters.length === 0) {
-                showStatusToast("No clusters found in the current frame.", false);
-                return;
-            }
-
-            this.openClusterCsvPreview(payload);
+        exportClustersCSV() {
+            if (window.SeismicExport) return window.SeismicExport.exportClustersCSV();
         },
 
         openClusterCsvPreview(payload) {
-            const qd = window.quakeData || window.fullData || {};
-            const times = qd.times || [];
-            const lats = qd.lat || qd.latitude || [];
-            const lons = qd.lon || qd.longitude || [];
-            const deps = qd.dep || qd.depth || [];
-            const mags = qd.mag || qd.magnitude || [];
-
-            const clusters = payload.clusters || [];
-            if (clusters.length === 0) {
-                showStatusToast("No cluster data available in the current frame.", false);
-                return;
-            }
-
-            this._pendingClusterPayload = payload;
-            this._activeClusterTabIdx = 0;
-
-            const tabsBar = document.getElementById('cluster-csv-nav');
-            if (tabsBar) {
-                tabsBar.innerHTML = '';
-                clusters.forEach((c, idx) => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    const count = (c.indices || []).length;
-                    btn.className = 'cluster-csv-tab' + (idx === this._activeClusterTabIdx ? ' active' : '');
-                    btn.textContent = `${c.name} (${count})`;
-                    btn.onclick = () => {
-                        SeismicUI.selectClusterPreviewTab(idx);
-                    };
-                    tabsBar.appendChild(btn);
-                });
-            }
-
-            this.renderClusterPreviewTable();
-            this.updateClusterExportButtons();
-
-            const dialog = document.getElementById('cluster-csv-dialog');
-            if (dialog) dialog.classList.add('active');
+            if (window.SeismicExport) return window.SeismicExport.openClusterCsvPreview(payload);
         },
 
         selectClusterPreviewTab(idx) {
-            this._activeClusterTabIdx = idx;
-            const tabsBar = document.getElementById('cluster-csv-nav');
-            if (tabsBar) {
-                const tabs = tabsBar.querySelectorAll('.cluster-csv-tab');
-                tabs.forEach((tab, i) => {
-                    if (i === idx) {
-                        tab.classList.add('active');
-                    } else {
-                        tab.classList.remove('active');
-                    }
-                });
-            }
-            this.renderClusterPreviewTable();
-            this.updateClusterExportButtons();
+            if (window.SeismicExport) return window.SeismicExport.selectClusterPreviewTab(idx);
         },
 
         updateClusterExportButtons() {
-            if (!this._pendingClusterPayload || !this._pendingClusterPayload.clusters) return;
-            const clusters = this._pendingClusterPayload.clusters;
-            const currentCluster = clusters[this._activeClusterTabIdx];
-            const selLabel = document.getElementById('btn-download-selected-label');
-            if (selLabel && currentCluster) {
-                const fname = currentCluster.filename || `cluster_${this._activeClusterTabIdx}.csv`;
-                selLabel.textContent = `Download ${fname}`;
-            }
-            const zipLabel = document.getElementById('btn-download-zip-label');
-            if (zipLabel) {
-                zipLabel.textContent = `Download All (${clusters.length} .zip)`;
-            }
+            if (window.SeismicExport) return window.SeismicExport.updateClusterExportButtons();
         },
 
         renderClusterPreviewTable() {
-            if (!this._pendingClusterPayload || !this._pendingClusterPayload.clusters) return;
-            const clusters = this._pendingClusterPayload.clusters;
-            const currentCluster = clusters[this._activeClusterTabIdx];
-            if (!currentCluster) return;
-
-            const qd = window.quakeData || window.fullData || {};
-            const times = qd.times || [];
-            const lats = qd.lat || qd.latitude || [];
-            const lons = qd.lon || qd.longitude || [];
-            const deps = qd.dep || qd.depth || [];
-            const mags = qd.mag || qd.magnitude || [];
-
-            const indices = currentCluster.indices || [];
-
-            const metaEl = document.getElementById('cluster-csv-meta');
-            if (metaEl) {
-                const method = (this._pendingClusterPayload.method || 'DBSCAN').toUpperCase();
-                metaEl.textContent = `File: ${currentCluster.filename} • Algorithm: ${method}`;
-            }
-
-            const badgeEl = document.getElementById('cluster-csv-count-badge');
-            if (badgeEl) {
-                badgeEl.textContent = indices.length > 100 
-                    ? `Showing first 100 of ${indices.length} events` 
-                    : `Total events: ${indices.length}`;
-            }
-
-            const tbody = document.getElementById('cluster-csv-tbody');
-            if (!tbody) return;
-            tbody.innerHTML = '';
-
-            const maxRows = Math.min(indices.length, 100);
-            for (let r = 0; r < maxRows; r++) {
-                const idx = indices[r];
-                const tr = document.createElement('tr');
-
-                const tdIdx = document.createElement('td');
-                tdIdx.textContent = r + 1;
-                tdIdx.style.color = '#64748b';
-                tr.appendChild(tdIdx);
-
-                const tdTime = document.createElement('td');
-                tdTime.textContent = (times && times[idx] !== undefined) ? String(times[idx]) : '';
-                tr.appendChild(tdTime);
-
-                const tdLat = document.createElement('td');
-                tdLat.textContent = (lats && lats[idx] !== undefined) ? Number(lats[idx]).toFixed(4) : '';
-                tr.appendChild(tdLat);
-
-                const tdLon = document.createElement('td');
-                tdLon.textContent = (lons && lons[idx] !== undefined) ? Number(lons[idx]).toFixed(4) : '';
-                tr.appendChild(tdLon);
-
-                const tdDep = document.createElement('td');
-                tdDep.textContent = (deps && deps[idx] !== undefined) ? Math.abs(Number(deps[idx])).toFixed(2) : '';
-                tr.appendChild(tdDep);
-
-                const tdMag = document.createElement('td');
-                tdMag.textContent = (mags && mags[idx] !== undefined) ? Number(mags[idx]).toFixed(1) : '';
-                tr.appendChild(tdMag);
-
-                tbody.appendChild(tr);
-            }
+            if (window.SeismicExport) return window.SeismicExport.renderClusterPreviewTable();
         },
 
         closeClusterCsvDialog() {
-            const dialog = document.getElementById('cluster-csv-dialog');
-            if (dialog) dialog.classList.remove('active');
+            if (window.SeismicExport) return window.SeismicExport.closeClusterCsvDialog();
         },
 
-        async downloadSelectedClusterCSV() {
-            if (!this._pendingClusterPayload || !this._pendingClusterPayload.clusters) {
-                showStatusToast("No cluster data to export.", false);
-                return;
-            }
-            const currentCluster = this._pendingClusterPayload.clusters[this._activeClusterTabIdx];
-            if (!currentCluster) {
-                showStatusToast("Selected cluster not found.", false);
-                return;
-            }
-            if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.export_single_cluster_csv) {
-                showStatusToast("Export API not available.", false);
-                return;
-            }
-            try {
-                const payload = {
-                    filename: currentCluster.filename,
-                    indices: currentCluster.indices,
-                    method: this._pendingClusterPayload.method,
-                    params: this._pendingClusterPayload.params
-                };
-                const res = await window.pywebview.api.export_single_cluster_csv(payload);
-                if (res && res.status === 'success') {
-                    showStatusToast(`Saved ${res.filename} successfully!`, true, 4000);
-                    this.closeClusterCsvDialog();
-                } else if (res && res.status === 'cancelled') {
-                    showStatusToast("Export cancelled.", true);
-                } else {
-                    showStatusToast("Error: " + (res ? res.message : "Unknown error"), false);
-                }
-            } catch (err) {
-                console.error("Single CSV export failed:", err);
-                showStatusToast("Export failed: " + err, false);
-            }
+        downloadSelectedClusterCSV() {
+            if (window.SeismicExport) return window.SeismicExport.downloadSelectedClusterCSV();
         },
 
-        async downloadAllClustersZIP() {
-            if (!this._pendingClusterPayload || !this._pendingClusterPayload.clusters) {
-                showStatusToast("No cluster data to export.", false);
-                return;
-            }
-            if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.export_clusters_zip) {
-                showStatusToast("ZIP Export API not available.", false);
-                return;
-            }
-            try {
-                const res = await window.pywebview.api.export_clusters_zip(this._pendingClusterPayload);
-                if (res && res.status === 'success') {
-                    showStatusToast(`Exported all ${res.count} clusters to ZIP archive successfully!`, true, 4000);
-                    this.closeClusterCsvDialog();
-                } else if (res && res.status === 'cancelled') {
-                    showStatusToast("Export cancelled.", true);
-                } else {
-                    showStatusToast("Error: " + (res ? res.message : "Unknown error"), false);
-                }
-            } catch (err) {
-                console.error("ZIP export failed:", err);
-                showStatusToast("ZIP export failed: " + err, false);
-            }
+        downloadAllClustersZIP() {
+            if (window.SeismicExport) return window.SeismicExport.downloadAllClustersZIP();
         },
 
         downloadClustersCSV() {
@@ -3558,143 +3327,27 @@ window.getClusterColor = function(lbl) {
             }, 100);
         },
 
-        _activeScreenshotDataUrl: null,
-
-        async captureScreenshot() {
-            this.toggleExportModal(true);
-            const gd = document.querySelector('.plotly-graph-div');
-            if (!gd) {
-                showStatusToast('No visualization found to capture', false);
-                return;
-            }
-
-            // Elements to hide during capture
-            const elementsToHide = [
-                '#back-btn',
-                '#camera-controls',
-                '#info-btn',
-                '#overlay-btn',
-                '#screenshot-btn',
-                '#shortcuts-btn',
-                '#layer-modal',
-                '#export-modal',
-                '#shortcuts-modal',
-                '#glass-legend',
-                '#info-panel',
-                '#left-panel-wrapper',
-                '#filter-bar',
-                '#ws-status',
-                '.timeline-container',
-                '.playback-controls',
-                '#settings-bar',
-                '#swarm-chart-dialog',
-                '#screenshot-preview-dialog',
-                '#cluster-csv-dialog'
-            ];
-
-            const hiddenElements = [];
-            elementsToHide.forEach(sel => {
-                const els = document.querySelectorAll(sel);
-                els.forEach(el => {
-                    if (el && el.style.visibility !== 'hidden' && getComputedStyle(el).display !== 'none') {
-                        el.style.visibility = 'hidden';
-                        hiddenElements.push(el);
-                    }
-                });
-            });
-
-            try {
-                // Sync current interactive camera / mapbox view right before capture
-                if (gd._fullLayout) {
-                    const mapFull = gd._fullLayout.mapbox || gd._fullLayout.map;
-                    if (mapFull) {
-                        const mapKey = gd._fullLayout.map ? 'map' : 'mapbox';
-                        gd.layout[mapKey] = gd.layout[mapKey] || {};
-                        if (mapFull.center) gd.layout[mapKey].center = Object.assign({}, mapFull.center);
-                        if (mapFull.zoom !== undefined) gd.layout[mapKey].zoom = mapFull.zoom;
-                        if (mapFull.bearing !== undefined) gd.layout[mapKey].bearing = mapFull.bearing;
-                        if (mapFull.pitch !== undefined) gd.layout[mapKey].pitch = mapFull.pitch;
-                    }
-                    if (gd._fullLayout.scene && gd._fullLayout.scene.camera) {
-                        gd.layout.scene = gd.layout.scene || {};
-                        gd.layout.scene.camera = JSON.parse(JSON.stringify(gd._fullLayout.scene.camera));
-                    }
-                    if (gd._fullLayout.xaxis && gd._fullLayout.xaxis.range) {
-                        gd.layout.xaxis = gd.layout.xaxis || {};
-                        gd.layout.xaxis.range = [...gd._fullLayout.xaxis.range];
-                    }
-                    if (gd._fullLayout.yaxis && gd._fullLayout.yaxis.range) {
-                        gd.layout.yaxis = gd.layout.yaxis || {};
-                        gd.layout.yaxis.range = [...gd._fullLayout.yaxis.range];
-                    }
-                }
-
-                const rect = gd.getBoundingClientRect();
-                // Use exact active container dimensions so 2D map bounding box is preserved accurately
-                const dataUrl = await Plotly.toImage(gd, {
-                    format: 'png',
-                    width: Math.round(rect.width || gd.clientWidth || window.innerWidth),
-                    height: Math.round(rect.height || gd.clientHeight || window.innerHeight),
-                    scale: 2
-                });
-
-                this._activeScreenshotDataUrl = dataUrl;
-                this.openScreenshotPreview(dataUrl);
-            } catch (err) {
-                console.error('[Screenshot] Error:', err);
-                showStatusToast('Capture failed: ' + err.message, false);
-            } finally {
-                // Restore hidden elements
-                hiddenElements.forEach(el => el.style.visibility = 'visible');
-            }
+        captureScreenshot() {
+            if (window.SeismicExport) return window.SeismicExport.captureScreenshot();
         },
 
         openScreenshotPreview(dataUrl) {
-            const imgEl = document.getElementById('screenshot-preview-img');
-            if (imgEl) imgEl.src = dataUrl;
-            const dialog = document.getElementById('screenshot-preview-dialog');
-            if (dialog) dialog.classList.add('active');
+            if (window.SeismicExport) return window.SeismicExport.openScreenshotPreview(dataUrl);
         },
 
         closeScreenshotPreview() {
-            const dialog = document.getElementById('screenshot-preview-dialog');
-            if (dialog) dialog.classList.remove('active');
+            if (window.SeismicExport) return window.SeismicExport.closeScreenshotPreview();
         },
 
-        async downloadScreenshot() {
-            if (!this._activeScreenshotDataUrl) {
-                showStatusToast('No screenshot available to download', false);
-                return;
-            }
-            const dataUrl = this._activeScreenshotDataUrl;
-            const filename = 'seismic_viewer_screenshot.png';
-
-            if (window.pywebview && window.pywebview.api && window.pywebview.api.save_screenshot) {
-                try {
-                    // Direct call without full-screen loading screen
-                    const result = await window.pywebview.api.save_screenshot(dataUrl, filename);
-                    if (result && result.status === 'success') {
-                        showStatusToast('Screenshot saved: ' + (result.path ? result.path.split(/[/\\]/).pop() : filename), true);
-                        this.closeScreenshotPreview();
-                    } else if (result && result.status === 'cancelled') {
-                        showStatusToast('Download cancelled.', true);
-                    } else if (result && result.error) {
-                        showStatusToast('Save failed: ' + result.error, false);
-                    }
-                } catch (err) {
-                    console.error('[Screenshot] Pywebview save failed, using fallback:', err);
-                    this._fallbackBrowserDownload(dataUrl, filename);
-                    this.closeScreenshotPreview();
-                }
-            } else {
-                this._fallbackBrowserDownload(dataUrl, filename);
-                this.closeScreenshotPreview();
+        downloadScreenshot() {
+            if (window.SeismicExport && typeof window.SeismicExport.downloadScreenshotPNG === 'function') {
+                return window.SeismicExport.downloadScreenshotPNG();
             }
         }
     };
     
-    // Esponi SeismicUI globalmente per permettere agli altri script (come viz_animated.html e viz_cluster.html) di accedervi
-    window.SeismicUI = SeismicUI;
+    // Esponi SeismicUI globalmente fondendo con i moduli esportati (come viz_export.js)
+    window.SeismicUI = Object.assign(window.SeismicUI || {}, SeismicUI);
 
     document.onclick = () => {
         document.querySelectorAll('.glass-menu').forEach(m => m.classList.remove('show'));
@@ -3980,505 +3633,48 @@ window.getClusterColor = function(lbl) {
     }
 
     function toggleCinemaMode() {
-        if (typeof currentSideIndex !== 'undefined') currentSideIndex = -1;
-        findPlotlyGraph();
-        if (!plotlyId) {
-            showStatusToast('Waiting for plot initialization...', true);
-            return;
+        if (window.SeismicCamera && window.SeismicCamera.toggleCinemaMode) {
+            return window.SeismicCamera.toggleCinemaMode();
         }
-
-        const gd = document.getElementById(plotlyId);
-        if (!gd || !gd.layout || !gd.layout.scene) {
-            showStatusToast('Preparing 3D scene...', true);
-            setTimeout(toggleCinemaMode, 200);
-            return;
-        }
-
-
-        cinemaModeActive = !cinemaModeActive;
-        const btn = document.getElementById('btn-cinema');
-
-        if (cinemaModeActive) {
-            btn.classList.add('active');
-            
-            // Perform a fluid transition to the standard position before starting rotation
-            window._cinemaStartTime = null; 
-            snapToView('cinema_reset').then(() => {
-                if (!cinemaModeActive) return;
-                window._cinemaStartTime = performance.now();
-                
-                try {
-                    const gd = document.getElementById(plotlyId);
-                    const eye = gd.layout.scene.camera.eye || { x: 1.27, y: 1.27, z: 1.0 };
-                    cinemaAngle = Math.atan2(eye.y, eye.x);
-                } catch (e) {
-                    cinemaAngle = Math.PI / 4;
-                }
-                animateCinema();
-            });
-        } else {
-            btn.classList.remove('active');
-            window._cinemaStartTime = null;
-            if (cinemaReqId) cancelAnimationFrame(cinemaReqId);
-        }
-    }
-
-    function animateCinema() {
-        if (!cinemaModeActive) return;
-        const gd = document.getElementById(plotlyId);
-        if (!gd || !gd.layout || !gd.layout.scene) return;
-
-        // Smooth speed ramp-up
-        if (!window._cinemaStartTime) window._cinemaStartTime = performance.now();
-        const elapsed = performance.now() - window._cinemaStartTime;
-        const ramp = Math.min(elapsed / 1500, 1); // 1.5s ramp up
-        
-        cinemaAngle += 0.005 * ramp;
-        const radius = 1.8;
-
-        try {
-            // Update Background "Skybox"
-            const bgX = 50 + 10 * Math.cos(cinemaAngle);
-            const bgY = 50 + 10 * Math.sin(cinemaAngle);
-            document.body.style.setProperty('--bg-x', `${bgX}%`);
-            document.body.style.setProperty('--bg-y', `${bgY}%`);
-
-            const camEye = {
-                x: radius * Math.cos(cinemaAngle),
-                y: radius * Math.sin(cinemaAngle),
-                z: 1.0
-            };
-            const renderedDirect = renderDirectCameraFrame(gd, camEye, { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: 0 });
-            if (!renderedDirect) {
-                Plotly.relayout(gd, { 'scene.camera.eye': camEye });
-            }
-        } catch (e) {
-            console.warn("Auto-rotation mode skipped frame:", e);
-        }
-
-        cinemaReqId = requestAnimationFrame(animateCinema);
-    }
-
-    const CAMERA_STORAGE_KEY = 'seismic_custom_camera_orientation';
-
-    const SIDE_VIEWS = [
-        { eye: { x: 0, y: -1.8, z: 0.15 }, up: { x: 0, y: 0, z: 1 }, center: { x: 0, y: 0, z: 0 } },  // 0: South / Front
-        { eye: { x: 1.8, y: 0, z: 0.15 }, up: { x: 0, y: 0, z: 1 }, center: { x: 0, y: 0, z: 0 } },   // 1: East / Right
-        { eye: { x: 0, y: 1.8, z: 0.15 }, up: { x: 0, y: 0, z: 1 }, center: { x: 0, y: 0, z: 0 } },   // 2: North / Back
-        { eye: { x: -1.8, y: 0, z: 0.15 }, up: { x: 0, y: 0, z: 1 }, center: { x: 0, y: 0, z: 0 } }   // 3: West / Left
-    ];
-    let currentSideIndex = -1;
-    let isProgrammaticCameraChange = false;
-    let lastProgrammaticChangeTime = 0;
-    let smoothCameraReqId = null;
-    let activeCameraEye = null;
-    let activeCameraUp = null;
-    let activeCameraCenter = null;
-    let isRelayoutBusy = false;
-    let pendingRelayoutData = null;
-
-    function getPlotlyGlScene(gd) {
-        if (!gd || !gd._fullLayout) return null;
-        const subplots = gd._fullLayout._subplots;
-        const gl3dList = (subplots && subplots.gl3d) ? subplots.gl3d : ['scene'];
-        for (const sName of gl3dList) {
-            const scene = gd._fullLayout[sName] ? gd._fullLayout[sName]._scene : null;
-            if (scene && scene.camera && scene.glplot) return scene;
-        }
-        return null;
-    }
-
-    function renderDirectCameraFrame(gd, eye, up, center) {
-        const scene = getPlotlyGlScene(gd);
-        if (scene && typeof scene.setViewport === 'function' && scene.glplot && typeof scene.glplot.redraw === 'function') {
-            try {
-                scene.setViewport({
-                    camera: {
-                        eye: eye,
-                        center: center,
-                        up: up,
-                        projection: { type: 'perspective' }
-                    },
-                    aspectratio: (scene.fullSceneLayout && scene.fullSceneLayout.aspectratio) ? scene.fullSceneLayout.aspectratio : { x: 1, y: 1, z: 1 }
-                });
-                scene.glplot.redraw();
-                return true;
-            } catch (err) {
-                return false;
-            }
-        }
-        return false;
-    }
-
-    function dispatchCameraRelayout(gd, eye, up, center, dragmode) {
-        const update = {
-            'scene.camera.eye': eye,
-            'scene.camera.up': up,
-            'scene.camera.center': center
-        };
-        if (dragmode) update['scene.dragmode'] = dragmode;
-
-        if (isRelayoutBusy) {
-            pendingRelayoutData = update;
-            return;
-        }
-
-        isRelayoutBusy = true;
-        pendingRelayoutData = null;
-        Plotly.relayout(gd, update).then(() => {
-            isRelayoutBusy = false;
-            if (pendingRelayoutData) {
-                const next = pendingRelayoutData;
-                pendingRelayoutData = null;
-                dispatchCameraRelayout(gd, next['scene.camera.eye'], next['scene.camera.up'], next['scene.camera.center'], next['scene.dragmode']);
-            }
-        }).catch(() => {
-            isRelayoutBusy = false;
-        });
-    }
-
-    function setupCameraRelayoutWatcher(gd) {
-        if (!gd || gd._cameraRelayoutWatcherHooked) return;
-        gd._cameraRelayoutWatcherHooked = true;
-
-        if (typeof gd.on === 'function') {
-            gd.on('plotly_relayout', function(eventData) {
-                if (isProgrammaticCameraChange || cinemaModeActive || (performance.now() - lastProgrammaticChangeTime < 350)) return;
-                if (eventData && (
-                    eventData['scene.camera'] !== undefined ||
-                    eventData['scene.camera.eye'] !== undefined ||
-                    eventData['scene.camera.center'] !== undefined ||
-                    eventData['scene.camera.up'] !== undefined ||
-                    Object.keys(eventData).some(k => k.startsWith('scene.camera'))
-                )) {
-                    currentSideIndex = -1;
-                    activeCameraEye = null;
-                    activeCameraUp = null;
-                    activeCameraCenter = null;
-                }
-            });
-        }
-
-        // Pointer/drag watcher on graph container: physical user drag resets side view index
-        gd.addEventListener('pointerdown', function(e) {
-            if (e.target && e.target.closest && e.target.closest('#camera-controls, .glass-panel, button, input')) return;
-            const startX = e.clientX;
-            const startY = e.clientY;
-
-            function onPointerMove(moveEvent) {
-                if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 5) {
-                    currentSideIndex = -1;
-                    activeCameraEye = null;
-                    activeCameraUp = null;
-                    activeCameraCenter = null;
-                }
-            }
-
-            function onPointerUp() {
-                window.removeEventListener('pointermove', onPointerMove);
-                window.removeEventListener('pointerup', onPointerUp);
-            }
-
-            window.addEventListener('pointermove', onPointerMove);
-            window.addEventListener('pointerup', onPointerUp);
-        });
-
-        // Wheel zoom watcher on 3D graph container
-        gd.addEventListener('wheel', function() {
-            currentSideIndex = -1;
-            activeCameraEye = null;
-            activeCameraUp = null;
-            activeCameraCenter = null;
-        }, { passive: true });
-    }
-
-    function updatePasteButtonState() {
-        const pasteBtn = document.getElementById('btn-cam-paste');
-        if (!pasteBtn) return;
-        let hasSaved = false;
-        try {
-            const item = localStorage.getItem(CAMERA_STORAGE_KEY);
-            if (item) {
-                const parsed = JSON.parse(item);
-                if (parsed && parsed.eye) hasSaved = true;
-            }
-        } catch (e) {
-            hasSaved = false;
-        }
-
-        if (hasSaved) {
-            pasteBtn.disabled = false;
-            pasteBtn.classList.remove('disabled');
-            pasteBtn.title = 'Paste Saved Camera Orientation';
-        } else {
-            pasteBtn.disabled = true;
-            pasteBtn.classList.add('disabled');
-            pasteBtn.title = 'Paste Saved Camera Orientation (No orientation saved)';
-        }
-    }
-
-    window.addEventListener('storage', function(e) {
-        if (e.key === CAMERA_STORAGE_KEY) {
-            updatePasteButtonState();
-        }
-    });
-
-    function smoothAnimateCamera(targetEye, targetUp, targetCenter) {
-        if (!plotlyId) findPlotlyGraph();
-        const gd = document.getElementById(plotlyId);
-        if (!gd || !gd.layout || !gd.layout.scene) return Promise.resolve();
-
-        if (smoothCameraReqId) {
-            cancelAnimationFrame(smoothCameraReqId);
-            smoothCameraReqId = null;
-        }
-
-        let cam = gd.layout.scene.camera || {};
-        let startEye = activeCameraEye ? { ...activeCameraEye } : (cam.eye ? { ...cam.eye } : { x: 1.25, y: 1.25, z: 1.25 });
-        let startUp  = activeCameraUp  ? { ...activeCameraUp }  : (cam.up  ? { ...cam.up }  : { x: 0, y: 0, z: 1 });
-        let startCenter = activeCameraCenter ? { ...activeCameraCenter } : (cam.center ? { ...cam.center } : { x: 0, y: 0, z: 0 });
-
-        // Spherical orbit interpolation around vertical axis
-        const rXY1 = Math.hypot(startEye.x, startEye.y);
-        const rXY2 = Math.hypot(targetEye.x, targetEye.y);
-        let theta1 = Math.atan2(startEye.y, startEye.x);
-        let theta2 = Math.atan2(targetEye.y, targetEye.x);
-        let dTheta = 0;
-
-        if (rXY1 >= 0.001 && rXY2 >= 0.001) {
-            dTheta = theta2 - theta1;
-            while (dTheta > Math.PI) dTheta -= 2 * Math.PI;
-            while (dTheta < -Math.PI) dTheta += 2 * Math.PI;
-        } else if (rXY1 < 0.001) {
-            theta1 = theta2;
-            dTheta = 0;
-        } else {
-            theta2 = theta1;
-            dTheta = 0;
-        }
-
-        const duration = 450; // Balanced 450ms duration with sinusoidal ease-in-out
-        const startTime = performance.now();
-        isProgrammaticCameraChange = true;
-        lastProgrammaticChangeTime = startTime;
-
-        return new Promise((resolve) => {
-            function step(now) {
-                const elapsed = now - startTime;
-                const t = Math.min(elapsed / duration, 1);
-                // Sinusoidal ease-in-out: zero start jolt, natural smooth orbit curve and velvety landing
-                const ease = (1 - Math.cos(t * Math.PI)) / 2;
-
-                let currentEye;
-                if (rXY1 >= 0.001 || rXY2 >= 0.001) {
-                    const currentR = rXY1 + (rXY2 - rXY1) * ease;
-                    const currentTheta = theta1 + dTheta * ease;
-                    currentEye = {
-                        x: currentR * Math.cos(currentTheta),
-                        y: currentR * Math.sin(currentTheta),
-                        z: startEye.z + (targetEye.z - startEye.z) * ease
-                    };
-                } else {
-                    currentEye = {
-                        x: startEye.x + (targetEye.x - startEye.x) * ease,
-                        y: startEye.y + (targetEye.y - startEye.y) * ease,
-                        z: startEye.z + (targetEye.z - startEye.z) * ease
-                    };
-                }
-
-                const currentUp = {
-                    x: startUp.x + (targetUp.x - startUp.x) * ease,
-                    y: startUp.y + (targetUp.y - startUp.y) * ease,
-                    z: startUp.z + (targetUp.z - startUp.z) * ease
-                };
-                const currentCenter = {
-                    x: startCenter.x + (targetCenter.x - startCenter.x) * ease,
-                    y: startCenter.y + (targetCenter.y - startCenter.y) * ease,
-                    z: startCenter.z + (targetCenter.z - startCenter.z) * ease
-                };
-
-                activeCameraEye = currentEye;
-                activeCameraUp = currentUp;
-                activeCameraCenter = currentCenter;
-
-                if (t >= 1) {
-                    smoothCameraReqId = null;
-                    activeCameraEye = { ...targetEye };
-                    activeCameraUp = { ...targetUp };
-                    activeCameraCenter = { ...targetCenter };
-
-                    lastProgrammaticChangeTime = performance.now();
-                    Plotly.relayout(gd, {
-                        'scene.camera.eye': targetEye,
-                        'scene.camera.up': targetUp,
-                        'scene.camera.center': targetCenter
-                    }).then(() => {
-                        setTimeout(() => {
-                            isProgrammaticCameraChange = false;
-                        }, 120);
-                        resolve();
-                    }).catch(() => {
-                        isProgrammaticCameraChange = false;
-                        resolve();
-                    });
-                } else {
-                    const renderedDirectly = renderDirectCameraFrame(gd, currentEye, currentUp, currentCenter);
-                    if (!renderedDirectly) {
-                        dispatchCameraRelayout(gd, currentEye, currentUp, currentCenter);
-                    }
-                    smoothCameraReqId = requestAnimationFrame(step);
-                }
-            }
-
-            smoothCameraReqId = requestAnimationFrame(step);
-        });
     }
 
     function snapToView(view) {
-        if (cinemaModeActive && view !== 'reset' && view !== 'cinema_reset') toggleCinemaMode(); // Stop cinema mode on manual snap
-        if (!plotlyId) findPlotlyGraph();
-        const gd = document.getElementById(plotlyId);
-        if (!gd || !gd.layout) return Promise.resolve();
-
-        // 2D Mapbox / Map layout support
-        const mapLayout = gd.layout.mapbox || gd.layout.map;
-        if (mapLayout) {
-            currentSideIndex = -1;
-            activeCameraEye = null;
-            if (view === 'reset') {
-                const initView = window._initial2DMapboxView;
-                if (initView) {
-                    const update = gd.layout.mapbox ? {
-                        'mapbox.center': initView.center,
-                        'mapbox.zoom': initView.zoom,
-                        'mapbox.pitch': 0,
-                        'mapbox.bearing': 0
-                    } : {
-                        'map.center': initView.center,
-                        'map.zoom': initView.zoom,
-                        'map.pitch': 0,
-                        'map.bearing': 0
-                    };
-                    return Plotly.relayout(gd, update);
-                }
-            } else if (view === 'top') {
-                const update = gd.layout.mapbox ? {
-                    'mapbox.pitch': 0,
-                    'mapbox.bearing': 0
-                } : {
-                    'map.pitch': 0,
-                    'map.bearing': 0
-                };
-                return Plotly.relayout(gd, update);
-            }
-            return Promise.resolve();
+        if (window.SeismicCamera && window.SeismicCamera.snapToView) {
+            return window.SeismicCamera.snapToView(view);
         }
-
-        if (!gd.layout.scene) return Promise.resolve();
-
-        let targetEye = { x: 1.25, y: 1.25, z: 1.25 };
-        let targetUp = { x: 0, y: 0, z: 1 };
-        let targetCenter = { x: 0, y: 0, z: 0 };
-
-        if (view === 'top') {
-            currentSideIndex = -1;
-            targetEye = { x: 0, y: -0.01, z: 2.1 };
-        } else if (view === 'side') {
-            if (currentSideIndex < 0 || currentSideIndex >= SIDE_VIEWS.length) {
-                currentSideIndex = 0;
-            } else {
-                currentSideIndex = (currentSideIndex + 1) % SIDE_VIEWS.length;
-            }
-            const sideCfg = SIDE_VIEWS[currentSideIndex];
-            targetEye = sideCfg.eye;
-            targetUp = sideCfg.up;
-            targetCenter = sideCfg.center;
-        } else if (view === 'cinema_reset') {
-            currentSideIndex = -1;
-            targetEye = { x: 1.27, y: 1.27, z: 1.0 };
-        } else if (view === 'reset') {
-            currentSideIndex = -1;
-            targetEye = { x: 1.25, y: 1.25, z: 1.25 };
-        }
-
-        return smoothAnimateCamera(targetEye, targetUp, targetCenter);
+        return Promise.resolve();
     }
 
     function copyCameraOrientation() {
-        if (!plotlyId) findPlotlyGraph();
-        const gd = document.getElementById(plotlyId);
-        if (!gd || !gd.layout || !gd.layout.scene) return;
-
-        const cam = gd.layout.scene.camera;
-        if (!cam) return;
-
-        const eyeToSave = activeCameraEye ? { ...activeCameraEye } : (cam.eye ? { x: cam.eye.x, y: cam.eye.y, z: cam.eye.z } : { x: 1.25, y: 1.25, z: 1.25 });
-        const upToSave = activeCameraUp ? { ...activeCameraUp } : (cam.up ? { x: cam.up.x, y: cam.up.y, z: cam.up.z } : { x: 0, y: 0, z: 1 });
-        const centerToSave = activeCameraCenter ? { ...activeCameraCenter } : (cam.center ? { x: cam.center.x, y: cam.center.y, z: cam.center.z } : { x: 0, y: 0, z: 0 });
-
-        const savedOrientation = {
-            eye: eyeToSave,
-            up: upToSave,
-            center: centerToSave
-        };
-
-        try {
-            localStorage.setItem(CAMERA_STORAGE_KEY, JSON.stringify(savedOrientation));
-            updatePasteButtonState();
-        } catch (e) {
-            console.warn('Could not save camera orientation to localStorage:', e);
+        if (window.SeismicCamera && window.SeismicCamera.copyCameraOrientation) {
+            return window.SeismicCamera.copyCameraOrientation();
         }
     }
 
     function pasteCameraOrientation() {
-        let savedOrientation = null;
-        try {
-            const str = localStorage.getItem(CAMERA_STORAGE_KEY);
-            if (str) savedOrientation = JSON.parse(str);
-        } catch (e) {
-            console.error('Failed to read saved camera orientation:', e);
+        if (window.SeismicCamera && window.SeismicCamera.pasteCameraOrientation) {
+            return window.SeismicCamera.pasteCameraOrientation();
         }
-        if (!savedOrientation || !savedOrientation.eye) return Promise.resolve();
+        return Promise.resolve();
+    }
 
-        if (cinemaModeActive) toggleCinemaMode();
-        currentSideIndex = -1;
+    function updatePasteButtonState() {
+        if (window.SeismicCamera && window.SeismicCamera.updatePasteButtonState) {
+            return window.SeismicCamera.updatePasteButtonState();
+        }
+    }
 
-        return smoothAnimateCamera(
-            savedOrientation.eye,
-            savedOrientation.up || { x: 0, y: 0, z: 1 },
-            savedOrientation.center || { x: 0, y: 0, z: 0 }
-        );
+    function setupCameraRelayoutWatcher(gd) {
+        if (window.SeismicCamera && window.SeismicCamera.setupCameraRelayoutWatcher) {
+            return window.SeismicCamera.setupCameraRelayoutWatcher(gd);
+        }
     }
 
     window.copyCameraOrientation = copyCameraOrientation;
     window.pasteCameraOrientation = pasteCameraOrientation;
     window.updatePasteButtonState = updatePasteButtonState;
     window.snapToView = snapToView;
-
-    function setGlobalInterfaceLock(locked) {
-        const panels = ['camera-controls', 'back-btn', 'settings-bar'];
-
-        panels.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                if (locked) el.classList.add('locked');
-                else el.classList.remove('locked');
-            }
-        });
-
-        if (locked && cinemaModeActive) toggleCinemaMode();
-
-        // Also lock/unlock 3D rotation on the graph
-        if (!plotlyId) findPlotlyGraph();
-        const gd = document.getElementById(plotlyId);
-        if (gd && gd.layout && gd.layout.scene) {
-            Plotly.relayout(gd, { 'scene.dragmode': locked ? false : 'turntable' });
-        }
-    }
-
-
-    // Auto-detect plot and show UI controls immediately
-    plotlyPollInterval = setInterval(findPlotlyGraph, 500);
+    window.toggleCinemaMode = toggleCinemaMode;
     findPlotlyGraph();
     if (window.SeismicUI && typeof window.SeismicUI.initLegendScaleMenu === 'function') {
         window.SeismicUI.initLegendScaleMenu();

@@ -203,7 +203,7 @@
             Take Screenshot (.PNG)
         </button>
         <button class="layer-apply-btn" id="btn-export-clusters" onclick="SeismicUI.exportClustersCSV()" style="margin-top: 0.25rem;">
-            Export Clusters (.CSV / .ZIP)
+            Export Clusters (.CSV / .GeoJSON)
         </button>
         <button class="layer-apply-btn" id="btn-export-swarm-chart" onclick="SeismicUI.openSwarmChartDialog()" style="display: none; margin-top: 0.25rem;">
             Export Swarm Chart (.PNG)
@@ -262,10 +262,16 @@
         <div class="export-preview-modal cluster-csv-modal" onclick="event.stopPropagation()">
             <div class="export-preview-header">
                 <div>
-                    <span id="cluster-csv-dialog-title" style="font-size: 0.95rem; font-weight: 700; color: #fff;">Clusters CSV Export Preview</span>
-                    <div id="cluster-csv-dialog-sub" style="font-size: 0.72rem; color: rgba(255,255,255,0.6); margin-top: 0.15rem;">Review cluster datasets before saving to disk</div>
+                    <span id="cluster-csv-dialog-title" style="font-size: 0.95rem; font-weight: 700; color: #fff;">Cluster Export Preview</span>
+                    <div id="cluster-csv-dialog-sub" style="font-size: 0.72rem; color: rgba(255,255,255,0.6); margin-top: 0.15rem;">Review cluster datasets and select format before saving to disk</div>
                 </div>
-                <button type="button" onclick="SeismicUI.closeClusterCsvDialog()" style="background: transparent; border: none; color: rgba(255,255,255,0.6); font-size: 1.25rem; cursor: pointer; padding: 0.25rem 0.5rem; border-radius: 0.35rem; line-height: 1; transition: color 0.15s ease;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">✕</button>
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                    <div style="display: inline-flex; background: rgba(255,255,255,0.06); padding: 0.15rem; border-radius: 0.45rem; border: 1px solid rgba(255,255,255,0.12);">
+                        <button type="button" id="fmt-csv-btn" class="format-toggle-btn active" onclick="SeismicUI.setExportFormat('csv')" style="padding: 0.25rem 0.65rem; font-size: 0.7rem; font-weight: 600; border-radius: 0.35rem; border: 1px solid rgba(16,185,129,0.5); cursor: pointer; transition: all 0.2s; background: rgba(16,185,129,0.3); color: #fff;">CSV</button>
+                        <button type="button" id="fmt-geojson-btn" class="format-toggle-btn" onclick="SeismicUI.setExportFormat('geojson')" style="padding: 0.25rem 0.65rem; font-size: 0.7rem; font-weight: 600; border-radius: 0.35rem; border: 1px solid transparent; cursor: pointer; transition: all 0.2s; background: transparent; color: rgba(255,255,255,0.65);">GeoJSON</button>
+                    </div>
+                    <button type="button" onclick="SeismicUI.closeClusterCsvDialog()" style="background: transparent; border: none; color: rgba(255,255,255,0.6); font-size: 1.25rem; cursor: pointer; padding: 0.25rem 0.5rem; border-radius: 0.35rem; line-height: 1; transition: color 0.15s ease;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">✕</button>
+                </div>
             </div>
             <div id="cluster-csv-nav" class="cluster-csv-tabs-bar"></div>
             <div class="cluster-csv-info-row">
@@ -360,4 +366,6 @@
 
 <div id="toast-container"></div>
 
+<script src="/assets/viz_camera.js"></script>
+<script src="/assets/viz_export.js"></script>
 <script src="/assets/viz_common.js"></script>

@@ -729,6 +729,17 @@
             const overlay = document.getElementById('overlay');
             if (this._revealTimeout) clearTimeout(this._revealTimeout);
 
+            // Cleanly purge any active WebGL / Plotly context from previous view
+            if (frame && frame.src && frame.src !== 'about:blank') {
+                try {
+                    const win = frame.contentWindow;
+                    if (win && win.Plotly) {
+                        const plots = win.document.querySelectorAll('.js-plotly-plot, .plotly-graph-div');
+                        plots.forEach(p => win.Plotly.purge(p));
+                    }
+                } catch(e) {}
+            }
+
             // Keep overlay visible and dark during transition
             if (overlay) overlay.classList.add('show');
             
@@ -770,6 +781,14 @@
             const overlay = document.getElementById('overlay');
             if (frame) {
                 frame.style.opacity = '0';
+                // Cleanly purge WebGL context before detachment to prevent WebKit context leaks
+                try {
+                    const win = frame.contentWindow;
+                    if (win && win.Plotly) {
+                        const plots = win.document.querySelectorAll('.js-plotly-plot, .plotly-graph-div');
+                        plots.forEach(p => win.Plotly.purge(p));
+                    }
+                } catch(e) {}
             }
             setTimeout(() => {
                 if (frame) {

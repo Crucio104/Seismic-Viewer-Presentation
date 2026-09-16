@@ -56,6 +56,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 currentDisplayMode = quakeData.clustering_params.display_mode;
             }
 
+            // Snapshot baseline auto-tune parameters from backend
+            const initialAutoTuneParams = JSON.parse(JSON.stringify(quakeData.clustering_params || {}));
+            const initialMethod = currentMethod;
+
             // Parameter Inputs
 
             const kmParams = document.getElementById('kmeans-params');
@@ -341,6 +345,62 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             const [depMinVal, depMaxVal] = getArrayMinMax(quakeData.depth.map(Math.abs));
             depMin.value = 0;
             depMax.value = Math.ceil(depMaxVal);
+
+            const resetBtn = document.getElementById('reset-filters-btn');
+            if (resetBtn) {
+                resetBtn.onclick = (e) => {
+                    e.preventDefault();
+                    const cp = initialAutoTuneParams;
+                    
+                    // 1. Restore clustering method
+                    if (cp.clustering_method && methodLabelMap[cp.clustering_method]) {
+                        currentMethod = cp.clustering_method;
+                        methodToggle.textContent = (methodLabelMap[currentMethod] || 'DBSCAN') + ' ▾';
+                        methodMenu.querySelectorAll('.menu-item').forEach(i => {
+                            i.classList.toggle('active', i.dataset.val === currentMethod);
+                        });
+                        syncParamVisibility();
+                    }
+
+                    // 2. Restore auto-tuned clustering parameters
+                    pClusters.value = cp.kmeans_clusters || 3;
+                    pDist.value = cp.kmeans_max_dist !== undefined ? cp.kmeans_max_dist : 0;
+                    pEps.value = cp.dbscan_eps || 500;
+                    pMin.value = cp.dbscan_min_samples || 5;
+                    if (pHdbMinCluster) pHdbMinCluster.value = cp.hdbscan_min_cluster_size || 5;
+                    if (pHdbMinSamples) pHdbMinSamples.value = cp.hdbscan_min_samples || 3;
+                    if (pHdbEps) pHdbEps.value = cp.hdbscan_cluster_selection_epsilon !== undefined ? cp.hdbscan_cluster_selection_epsilon : (cp.hdbscan_eps || 0);
+
+                    if (pUseTime) {
+                        pUseTime.checked = Boolean(cp.use_time);
+                        if (spatiotemporalParams) spatiotemporalParams.style.display = pUseTime.checked ? 'block' : 'none';
+                    }
+                    if (pTimeWindow) {
+                        pTimeWindow.value = cp.time_window_hours || cp.time_window || (cp.time_window_days ? Math.round(cp.time_window_days * 24 * 10) / 10 : 72);
+                    }
+
+                    // 3. Reset filters (magnitude, depth, dates) to full dataset bounds
+                    if (magMin) magMin.value = '';
+                    if (magMax) magMax.value = '';
+                    if (depMin) depMin.value = 0;
+                    if (depMax) depMax.value = Math.ceil(depMaxVal);
+                    if (uniqueDates.length > 0) {
+                        startInput.value = uniqueDates[0];
+                        endInput.value = uniqueDates[uniqueDates.length - 1];
+                    }
+
+                    const showPlanesEl = document.getElementById('show-planes');
+                    if (showPlanesEl) {
+                        showPlanesEl.checked = Boolean(cp.show_cluster_planes);
+                    }
+
+                    if (typeof showStatusToast === 'function') {
+                        showStatusToast("Parameters reset to auto-tuned defaults", true);
+                    }
+
+                    applyCombinedFilters();
+                };
+            }
 
             /**
              * applyDisplayMode()

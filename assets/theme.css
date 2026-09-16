@@ -117,15 +117,6 @@ body {
     font-family: var(--system-font);
 }
 
-.loader-ring {
-    width: 4rem;
-    height: 4rem;
-    border: 0.188rem solid rgba(255, 255, 255, 0.1);
-    border-top-color: var(--accent-indigo);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
 .loader-text {
     margin-top: 0;
     margin-bottom: 1.15rem;

@@ -213,6 +213,43 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             }
             window.applyFilterWithLoader = applyFilterWithLoader;
 
+            const resetBtn = document.getElementById('reset-filters-btn');
+            if (resetBtn) {
+                resetBtn.onclick = (e) => {
+                    e.preventDefault();
+                    if (quakeData.mag_range && quakeData.mag_range.length >= 2) {
+                        magMin.value = quakeData.mag_range[0].toFixed(1);
+                        magMax.value = quakeData.mag_range[1].toFixed(1);
+                    } else {
+                        magMin.value = '';
+                        magMax.value = '';
+                    }
+
+                    if (quakeData.dep_range && quakeData.dep_range.length >= 2) {
+                        depMin.value = 0;
+                        depMax.value = Math.ceil(Math.max(Math.abs(quakeData.dep_range[0]), Math.abs(quakeData.dep_range[1])));
+                    } else {
+                        depMin.value = 0;
+                        depMax.value = 100;
+                    }
+
+                    if (uniqueDates.length > 0) {
+                        startInput.value = uniqueDates[0];
+                        endInput.value = uniqueDates[uniqueDates.length - 1];
+                    }
+
+                    if (typeof showStatusToast === 'function') {
+                        showStatusToast("Filters reset to default bounds", true);
+                    }
+
+                    if (is3D) {
+                        applyFilterWithLoader();
+                    } else {
+                        applyFilter();
+                    }
+                };
+            }
+
             if (is3D) {
                 applyBtn.onclick = applyFilterWithLoader;
                 // Initial filter run to sync filtered state and vectors

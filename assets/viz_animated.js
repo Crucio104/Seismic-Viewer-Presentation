@@ -1890,6 +1890,52 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             document.getElementById('apply-all-btn').onclick = applyAllChanges;
 
+            const resetAllBtn = document.getElementById('reset-all-btn');
+            if (resetAllBtn) {
+                resetAllBtn.onclick = async (e) => {
+                    e.preventDefault();
+                    document.getElementById('anim-mag-min').value = '-10.0';
+                    document.getElementById('anim-mag-max').value = '10.0';
+                    document.getElementById('anim-dep-min').value = '-100';
+                    document.getElementById('anim-dep-max').value = '1000';
+
+                    const pRad = document.getElementById('plane-radius');
+                    if (pRad) pRad.value = '0.5';
+                    const pMinPts = document.getElementById('plane-min-pts');
+                    if (pMinPts) pMinPts.value = '4';
+                    const pAcc = document.getElementById('accumulate-planes');
+                    if (pAcc) pAcc.checked = false;
+
+                    const animEps = document.getElementById('anim-param-eps');
+                    if (animEps) animEps.value = '500';
+                    const animMinSamp = document.getElementById('anim-param-min-samples');
+                    if (animMinSamp) animMinSamp.value = '5';
+                    const animHdbMinClust = document.getElementById('anim-param-hdb-min-cluster');
+                    if (animHdbMinClust) animHdbMinClust.value = '5';
+                    const animHdbMinSamp = document.getElementById('anim-param-hdb-min-samples');
+                    if (animHdbMinSamp) animHdbMinSamp.value = '3';
+                    const animHdbEps = document.getElementById('anim-param-hdb-eps');
+                    if (animHdbEps) animHdbEps.value = '0';
+                    const animKmClust = document.getElementById('anim-param-clusters');
+                    if (animKmClust) animKmClust.value = '3';
+                    const animKmDist = document.getElementById('anim-param-dist');
+                    if (animKmDist) animKmDist.value = '0';
+
+                    if (showPlanesCheck) showPlanesCheck.checked = false;
+                    if (showAnimClustCheck) showAnimClustCheck.checked = false;
+                    const planeCtrl = document.getElementById('plane-controls');
+                    if (planeCtrl) planeCtrl.style.display = 'none';
+                    const clustCtrl = document.getElementById('anim-clustering-controls');
+                    if (clustCtrl) clustCtrl.style.display = 'none';
+
+                    if (typeof showStatusToast === 'function') {
+                        showStatusToast("Animation parameters reset to defaults", true);
+                    }
+
+                    await applyAllChanges();
+                };
+            }
+
             // Ensure Plane Trace (Trace 4) is present if not already added by Python
             if (gd.data.length < 5) {
                 Plotly.addTraces(gd, {

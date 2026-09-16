@@ -1,6 +1,5 @@
 import bisect
-import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 import logging
 import os
@@ -548,7 +547,7 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
         n_workers = min(os.cpu_count() or 4, 8)
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
             futures = [executor.submit(_process_frame_worker, i, worker_data) for i in range(len(date_indices))]
-            for future in concurrent.futures.as_completed(futures):
+            for future in as_completed(futures):
                 res = future.result()
                 frame_results[res[0]] = res
 

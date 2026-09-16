@@ -24,7 +24,7 @@ from core.history import get_recent_files, save_recent_file, clear_history as cl
 from core.online_importer import fetch_ingv_dataframe
 from core.geo_utils import build_map_mesh
 from core.layer_utils import process_tomography_data, process_uplift_data, process_stations_data
-from core.exporter import write_single_cluster_csv, write_clusters_zip, collect_cluster_export_items
+from core.exporter import write_single_cluster_csv, write_single_cluster_geojson, write_clusters_zip, collect_cluster_export_items
 from core import engine
 
 logger = logging.getLogger(__name__)
@@ -720,15 +720,20 @@ class Api:
             return {'error': str(e)}
 
     def export_single_cluster_csv(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Export a single selected cluster as a CSV file via native Save dialog."""
+        """Export a single selected cluster as a CSV or GeoJSON file via native Save dialog."""
         try:
             if not self._data:
                 return {'status': 'error', 'message': 'No dataset loaded'}
 
             payload = payload or {}
-            filename = payload.get('filename', 'cluster.csv')
-            if not filename.lower().endswith('.csv'):
-                filename += '.csv'
+            fmt = str(payload.get('format', 'csv')).lower()
+            is_geojson = fmt in ('geojson', 'json')
+            ext = '.geojson' if is_geojson else '.csv'
+            file_types = ('GeoJSON Files (*.geojson)',) if is_geojson else ('CSV Files (*.csv)',)
+
+            filename = payload.get('filename', 'cluster')
+            stem = Path(filename).stem
+            save_default = f"{stem}{ext}"
 
             idx_list = payload.get('indices', [])
             if not idx_list and payload.get('clusters'):
@@ -743,23 +748,29 @@ class Api:
             result = self._window().create_file_dialog(
                 webview.FileDialog.SAVE,
                 directory=str(Path.home()),
-                save_filename=filename,
-                file_types=('CSV Files (*.csv)',),
+                save_filename=save_default,
+                file_types=file_types,
             )
 
             if not result:
                 return {'status': 'cancelled'}
 
             save_path = Path(result[0] if isinstance(result, (list, tuple)) else result)
-            write_single_cluster_csv(self._data, save_path, idx_list, method, params)
+            if save_path.suffix.lower() != ext:
+                save_path = save_path.with_suffix(ext)
 
-            return {'status': 'success', 'filename': save_path.name, 'path': str(save_path)}
+            if is_geojson:
+                write_single_cluster_geojson(self._data, save_path, idx_list, method, params, cluster_name=save_path.stem)
+            else:
+                write_single_cluster_csv(self._data, save_path, idx_list, method, params)
+
+            return {'status': 'success', 'filename': save_path.name, 'path': str(save_path), 'format': fmt}
         except Exception as e:
-            logger.exception("Error exporting single cluster CSV")
+            logger.exception("Error exporting single cluster")
             return {'status': 'error', 'message': str(e)}
 
     def export_clusters_zip(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Export all cluster CSV files packaged into a single ZIP file via native Save dialog."""
+        """Export all cluster files (CSV or GeoJSON) packaged into a single ZIP file via native Save dialog."""
         try:
             if not self._data:
                 return {'status': 'error', 'message': 'No dataset loaded'}
@@ -768,10 +779,14 @@ class Api:
             if not export_items:
                 return {'status': 'error', 'message': 'No cluster data available to export.'}
 
+            payload = payload or {}
+            fmt = str(payload.get('format', 'csv')).lower()
+            default_zip = "seismic_clusters_geojson.zip" if fmt == 'geojson' else "seismic_clusters_csv.zip"
+
             result = self._window().create_file_dialog(
                 webview.FileDialog.SAVE,
                 directory=str(Path.home()),
-                save_filename="seismic_clusters.zip",
+                save_filename=default_zip,
                 file_types=('ZIP Archives (*.zip)',),
             )
 
@@ -782,9 +797,9 @@ class Api:
             if not str(save_path).lower().endswith('.zip'):
                 save_path = save_path.with_suffix('.zip')
 
-            exported_count = write_clusters_zip(self._data, save_path, export_items, method, params)
+            exported_count = write_clusters_zip(self._data, save_path, export_items, method, params, file_format=fmt)
 
-            return {'status': 'success', 'count': exported_count, 'path': str(save_path)}
+            return {'status': 'success', 'count': exported_count, 'path': str(save_path), 'format': fmt}
         except Exception as e:
             logger.exception("Error exporting clusters ZIP")
             return {'status': 'error', 'message': str(e)}
