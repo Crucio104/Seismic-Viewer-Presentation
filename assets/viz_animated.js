@@ -315,6 +315,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 }
 
                 if (!isChecked) {
+                    if (window._vectorsAlreadyDisabled) return;
                     if (lineIdx !== -1 && gd.data[lineIdx].visible !== false) {
                         Plotly.restyle(gd, { visible: false }, [lineIdx]);
                     }
@@ -341,8 +342,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                             window.SeismicUI.updateSwapLegendVisibility();
                         }
                     }
+                    window._vectorsAlreadyDisabled = true;
                     return;
                 }
+                window._vectorsAlreadyDisabled = false;
 
                 const totalSwarmCount = (isSwarmMode && currentSwarm) ? currentSwarm.event_count : (quakeData.lon ? quakeData.lon.length : 1);
                 const maxSwarmVectors = Math.max(1, totalSwarmCount - 1);
@@ -574,7 +577,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     if (pendingUpdateIdx !== null && !isPlaying) {
                         const nextIdx = pendingUpdateIdx;
                         pendingUpdateIdx = null;
-                        return updateView(nextIdx);
+                        requestAnimationFrame(() => updateView(nextIdx));
                     }
                 }
             }
@@ -585,9 +588,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 if (totalFrames > 0 && idx >= totalFrames) idx = totalFrames - 1;
                 
                 let start = 0, end = 0;
-                let activeIndices = [];
-                let swarmLocalIndices = [];
-                if (isSwarmMode && currentSwarm) {
+                const isSwarm = isSwarmMode && currentSwarm;
+                let activeIndices = isSwarm ? [] : null;
+                let swarmLocalIndices = isSwarm ? [] : null;
+                if (isSwarm) {
                     for (let s = 0; s <= idx; s++) {
                         const gIdx = currentSwarm.indices[s];
                         if (gIdx !== undefined && gIdx >= 0 && gIdx < quakeData.lon.length) {
@@ -599,10 +603,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     const range = getActiveRange(idx);
                     start = range[0];
                     end = range[1];
-                    for (let i = start; i < end; i++) {
-                        activeIndices.push(i);
-                        swarmLocalIndices.push(i - start);
-                    }
                 }
 
                 const magMin = appliedMagMin;
@@ -614,16 +614,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 window.appliedDepMin = appliedDepMin;
                 window.appliedDepMax = appliedDepMax;
 
-                const sliceLon = [];
-                const sliceLat = [];
-                const sliceDep = [];
-                const sliceMag = [];
-                const sliceDnum = [];
-                const sliceHover = [];
-                const filteredLabels = [];
-                const sliceEventIdx = [];
-                const sliceDatasetIndices = [];
-                
                 // Fallback for missing hover data (stripped for optimization)
                 if (!quakeData.hover || quakeData.hover.length === 0) {
                     quakeData.hover = new Array(quakeData.lon.length).fill("");
@@ -635,43 +625,73 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     clusterData = animClustersMap[dates[idx]];
                 }
 
-                const startD = new Date(quakeData.start_date || '2000-01-01');
-                const startTimestamp = startD.getTime();
-                if (!window._animDateCache) window._animDateCache = new Map();
-                const animDateCache = window._animDateCache;
+                let sliceLon, sliceLat, sliceDep, sliceMag, sliceDnum, sliceHover;
+                let filteredLabels = [];
+                let sliceEventIdx = [];
+                let sliceDatasetIndices = [];
 
-                for (let k = 0; k < activeIndices.length; k++) {
-                    const i = activeIndices[k];
-                    const m = quakeData.mag[i];
-                    const d = quakeData.dep[i];
-                    const absD = Math.abs(d);
-                    if (m >= magMin && m <= magMax && absD >= depMin && absD <= depMax) {
-                        sliceLon.push(quakeData.lon[i]);
-                        sliceLat.push(quakeData.lat[i]);
-                        sliceDep.push(d);
-                        sliceMag.push(m);
-                        sliceDnum.push(quakeData.dnum[i]);
-                        sliceEventIdx.push(swarmLocalIndices[k]);
-                        sliceDatasetIndices.push(i);
+                const defaultMag = quakeData.mag_range || quakeData.mag_limit || [-10, 10];
+                const defaultDep = quakeData.dep_range || quakeData.dep_limit || [0, 999];
+                const isFastPath = !isSwarm && !animClusteringEnabled && !appliedEventVectorsEnabled &&
+                    magMin <= defaultMag[0] && magMax >= defaultMag[1] &&
+                    depMin <= 0 && depMax >= Math.ceil(Math.max(Math.abs(defaultDep[0]), Math.abs(defaultDep[1])));
 
-                        let hText = quakeData.hover ? quakeData.hover[i] : "";
-                        if (!hText) {
-                            const dayInt = Math.round(quakeData.dnum[i]);
-                            let dStr = animDateCache.get(dayInt);
-                            if (!dStr) {
-                                const dt = new Date(startTimestamp + dayInt * 86400000);
-                                dStr = `${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getDate()).padStart(2, '0')}/${dt.getFullYear()}`;
-                                animDateCache.set(dayInt, dStr);
+                if (isFastPath) {
+                    sliceLon = quakeData.lon.subarray ? quakeData.lon.subarray(start, end) : quakeData.lon.slice(start, end);
+                    sliceLat = quakeData.lat.subarray ? quakeData.lat.subarray(start, end) : quakeData.lat.slice(start, end);
+                    sliceDep = quakeData.dep.subarray ? quakeData.dep.subarray(start, end) : quakeData.dep.slice(start, end);
+                    sliceMag = quakeData.mag.subarray ? quakeData.mag.subarray(start, end) : quakeData.mag.slice(start, end);
+                    sliceDnum = quakeData.dnum.subarray ? quakeData.dnum.subarray(start, end) : quakeData.dnum.slice(start, end);
+                    sliceHover = quakeData.hover ? quakeData.hover.slice(start, end) : [];
+                } else {
+                    sliceLon = [];
+                    sliceLat = [];
+                    sliceDep = [];
+                    sliceMag = [];
+                    sliceDnum = [];
+                    sliceHover = [];
+
+                    const startD = new Date(quakeData.start_date || '2000-01-01');
+                    const startTimestamp = startD.getTime();
+                    if (!window._animDateCache) window._animDateCache = new Map();
+                    const animDateCache = window._animDateCache;
+
+                    const totalActive = isSwarm ? activeIndices.length : (end - start);
+                    for (let k = 0; k < totalActive; k++) {
+                        const i = isSwarm ? activeIndices[k] : (start + k);
+                        const sLocal = isSwarm ? swarmLocalIndices[k] : k;
+                        const m = quakeData.mag[i];
+                        const d = quakeData.dep[i];
+                        const absD = Math.abs(d);
+                        if (m >= magMin && m <= magMax && absD >= depMin && absD <= depMax) {
+                            sliceLon.push(quakeData.lon[i]);
+                            sliceLat.push(quakeData.lat[i]);
+                            sliceDep.push(d);
+                            sliceMag.push(m);
+                            sliceDnum.push(quakeData.dnum[i]);
+                            sliceEventIdx.push(sLocal);
+                            sliceDatasetIndices.push(i);
+
+                            let hText = (quakeData.hover && quakeData.hover[i]) ? quakeData.hover[i] : "";
+                            if (!hText) {
+                                const dayInt = Math.round(quakeData.dnum[i]);
+                                let dStr = animDateCache.get(dayInt);
+                                if (!dStr) {
+                                    const dt = new Date(startTimestamp + dayInt * 86400000);
+                                    dStr = `${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getDate()).padStart(2, '0')}/${dt.getFullYear()}`;
+                                    animDateCache.set(dayInt, dStr);
+                                }
+                                hText = `Date: ${dStr}<br>Mag: ${m.toFixed(1)}<br>Dep: ${absD.toFixed(1)} km`;
+                                if (quakeData.hover) quakeData.hover[i] = hText;
                             }
-                            hText = `Date: ${dStr}<br>Mag: ${m.toFixed(1)}<br>Dep: ${absD.toFixed(1)} km`;
-                        }
 
-                        let lbl = -1;
-                        if (clusterData && clusterData.labels) {
-                            lbl = clusterData.labels[k];
+                            let lbl = -1;
+                            if (clusterData && clusterData.labels) {
+                                lbl = clusterData.labels[k];
+                            }
+                            filteredLabels.push(lbl);
+                            sliceHover.push(hText);
                         }
-                        filteredLabels.push(lbl);
-                        sliceHover.push(hText);
                     }
                 }
 
@@ -761,10 +781,12 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 };
 
                 // --- 4. Populate Hover Text ---
-                for (let j = 0; j < sliceHover.length; j++) {
-                    const lbl = filteredLabels[j];
-                    if (lbl >= 0) {
-                        sliceHover[j] += `<br><b>${formatClusterDisplayLabel(lbl, globalUniqueLabels)}</b>`;
+                if (filteredLabels.length > 0) {
+                    for (let j = 0; j < sliceHover.length; j++) {
+                        const lbl = filteredLabels[j];
+                        if (lbl >= 0) {
+                            sliceHover[j] += `<br><b>${formatClusterDisplayLabel(lbl, globalUniqueLabels)}</b>`;
+                        }
                     }
                 }
 
@@ -787,6 +809,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     barTitle = 'Depth (KM)';
                 }
 
+                const pScale = (typeof window.getPlotlyScale === 'function' ? window.getPlotlyScale(currentColorScale) : (typeof getPlotlyScale === 'function' ? getPlotlyScale(currentColorScale) : 'Viridis'));
                 const markerSizes = currentSizeMode === 'magnitude' ? sliceMag.map(m => Math.max(8, Math.pow(Math.max(0, m), 2) * 1.5)) : 5;
 
                 // --- Optimized Multi-Trace Update ---
@@ -796,7 +819,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     z: [sliceDep],
                     'marker.size': [markerSizes],
                     'marker.color': [sliceColor],
-                    'marker.colorscale': [getPlotlyScale(currentColorScale)],
+                    'marker.colorscale': [pScale],
                     'marker.reversescale': [invertScale],
                     'marker.cmin': [limits[0]],
                     'marker.cmax': [limits[1]],
@@ -806,6 +829,17 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     visible: [true]
                 };
                 const traceIndices = [visibleTraceIdx];
+
+                if (gd.data[visibleTraceIdx] && gd.data[visibleTraceIdx].marker) {
+                    gd.data[visibleTraceIdx].marker.colorscale = pScale;
+                    gd.data[visibleTraceIdx].marker.reversescale = invertScale;
+                }
+                for (let t = 1; t <= 3; t++) {
+                    if (t !== visibleTraceIdx && gd.data[t] && gd.data[t].visible !== false) {
+                        gd.data[t].visible = false;
+                        try { Plotly.restyle(gd, { visible: false }, [t]); } catch (e) {}
+                    }
+                }
 
                 if (animClusteringEnabled && filteredLabels.length > 0) {
                     const labels = filteredLabels;
@@ -1038,10 +1072,39 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             }
 
             function updateHUD(windowStart, windowEnd, frameStart, frameEnd) {
-                const sliceMagWindow = quakeData.mag.slice(windowStart, windowEnd);
-                const sliceDepWindow = quakeData.dep.slice(windowStart, windowEnd);
-                const sliceMagFrame = quakeData.mag.slice(frameStart, frameEnd);
-                updateHUDArrays(sliceMagWindow, sliceDepWindow, sliceMagFrame);
+                const count = Math.max(0, windowEnd - windowStart);
+                if (count === 0) {
+                    document.getElementById('stat-count').textContent = '0';
+                    document.getElementById('stat-max-mag').textContent = '0.0';
+                    document.getElementById('stat-avg-dep').textContent = '0.0 km';
+                    document.getElementById('stat-energy').textContent = '0.0';
+                    return;
+                }
+
+                let maxMag = -Infinity;
+                let sumDep = 0;
+                const mags = quakeData.mag;
+                const deps = quakeData.dep;
+                for (let j = windowStart; j < windowEnd; j++) {
+                    const mVal = mags[j];
+                    if (mVal > maxMag) maxMag = mVal;
+                    sumDep += Math.abs(deps[j]);
+                }
+                const avgDep = count > 0 ? (sumDep / count) : 0;
+                if (maxMag === -Infinity) maxMag = 0;
+
+                let totalEnergy = 0;
+                for (let k = frameStart; k < frameEnd; k++) {
+                    totalEnergy += Math.pow(10, 1.8 + 1.5 * mags[k]);
+                }
+
+                let energyStr = totalEnergy.toExponential(1);
+                if (totalEnergy < 1e6) energyStr = Math.round(totalEnergy).toLocaleString();
+
+                document.getElementById('stat-count').textContent = count.toLocaleString();
+                document.getElementById('stat-max-mag').textContent = maxMag.toFixed(1);
+                document.getElementById('stat-avg-dep').textContent = `${Math.abs(avgDep).toFixed(1)} km`;
+                document.getElementById('stat-energy').textContent = energyStr + ' kJ';
             }
 
             function updateHUDArrays(sliceMagWindow, sliceDepWindow, sliceMagFrame) {
@@ -1485,24 +1548,42 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     return;
                 }
 
+                const now = performance.now();
                 if (!lastFrameTime) {
-                    lastFrameTime = performance.now();
+                    lastFrameTime = now;
                 }
 
+                const mult = (typeof speedMult === 'number' && speedMult > 0) ? speedMult : 1;
                 let durationMs = 1000;
-                let step = Math.max(1, Math.round(speedMult));
+                let step = 1;
 
                 if (isSwarmMode) {
-                    durationMs = Math.max(80, Math.round(500 / speedMult));
+                    durationMs = Math.max(40, Math.round(500 / mult));
                     step = 1;
                 } else if (quakeData.anim_mode === 'block') {
                     const secPerFrameInput = document.getElementById('sec-per-frame');
-                    durationMs = (secPerFrameInput && parseFloat(secPerFrameInput.value)) ? parseFloat(secPerFrameInput.value) * 1000 : 1000;
+                    const baseSec = (secPerFrameInput && parseFloat(secPerFrameInput.value)) ? parseFloat(secPerFrameInput.value) : 1.0;
+                    durationMs = Math.max(40, Math.round((baseSec * 1000) / mult));
                     step = 1;
+                } else {
+                    const targetMs = 1000 / mult;
+                    if (targetMs >= 40) {
+                        durationMs = Math.round(targetMs);
+                        step = 1;
+                    } else {
+                        durationMs = 40;
+                        step = Math.max(1, Math.round(40 / targetMs));
+                    }
                 }
 
                 const totalFrames = (isSwarmMode && currentSwarm) ? currentSwarm.event_count : dates.length;
-                if (performance.now() - lastFrameTime >= durationMs) {
+                if (now - lastFrameTime >= durationMs) {
+                    if (now - lastFrameTime > durationMs * 2) {
+                        lastFrameTime = now;
+                    } else {
+                        lastFrameTime += durationMs;
+                    }
+
                     let targetIdx = currentStepIdx + step;
                     
                     if (targetIdx < totalFrames) {
@@ -1510,8 +1591,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                             await updateView(targetIdx);
                         } catch (e) {
                             console.error("Animation loop error:", e);
-                        } finally {
-                            lastFrameTime = performance.now();
                         }
                         slider.value = currentStepIdx;
                     } else {
@@ -1611,9 +1690,15 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 return window._currentFrameClusterExportData || null;
             };
 
+            let sliderRafId = null;
             slider.oninput = () => {
                 pause();
-                updateView(parseInt(slider.value));
+                const targetIdx = parseInt(slider.value, 10);
+                if (sliderRafId) cancelAnimationFrame(sliderRafId);
+                sliderRafId = requestAnimationFrame(() => {
+                    sliderRafId = null;
+                    updateView(targetIdx);
+                });
             };
 
             // Menus
@@ -1647,12 +1732,26 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             SeismicUI.bindMenu(colorMenu, (item) => {
                 currentMode = item.dataset.mode;
                 colorToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
+                if (typeof updateView === 'function') {
+                    updateView(currentStepIdx);
+                }
             });
 
             window.setEarthquakeScale = function(scale) {
                 currentColorScale = scale;
                 if (window.SeismicUI && window.SeismicUI._layerScales) {
                     window.SeismicUI._layerScales.earthquakes = scale;
+                }
+                const gd = document.getElementById('plot') || document.querySelector('.plotly-graph-div');
+                const pScale = (typeof window.getPlotlyScale === 'function' ? window.getPlotlyScale(currentColorScale) : (typeof getPlotlyScale === 'function' ? getPlotlyScale(currentColorScale) : 'Viridis'));
+                if (gd && gd.data) {
+                    for (let i = 1; i <= 3; i++) {
+                        if (gd.data[i] && gd.data[i].marker) {
+                            gd.data[i].marker.colorscale = pScale;
+                            gd.data[i].marker.reversescale = invertScale;
+                        }
+                    }
+                    try { Plotly.redraw(gd); } catch (e) {}
                 }
                 if (typeof updateView === 'function') {
                     updateView(currentStepIdx);
@@ -1662,6 +1761,18 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             if (invertCheck) {
                 invertCheck.addEventListener('change', () => {
                     invertScale = invertCheck.checked;
+                    if (window.SeismicUI && window.SeismicUI._layerInverts) {
+                        window.SeismicUI._layerInverts.earthquakes = invertScale;
+                    }
+                    const gd = document.getElementById('plot') || document.querySelector('.plotly-graph-div');
+                    if (gd && gd.data) {
+                        for (let i = 1; i <= 3; i++) {
+                            if (gd.data[i] && gd.data[i].marker) {
+                                gd.data[i].marker.reversescale = invertScale;
+                            }
+                        }
+                        try { Plotly.redraw(gd); } catch (e) {}
+                    }
                     if (typeof updateView === 'function') updateView(currentStepIdx);
                 });
             }

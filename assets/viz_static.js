@@ -120,28 +120,39 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             function applyColorRestyleOnly() {
                 const gd = document.getElementById('plot') || document.querySelector('.plotly-graph-div');
                 if (!gd || !gd.data) return;
-                const scale = getPlotlyScale(currentColorScale);
+                const pScale = (typeof window.getPlotlyScale === 'function') ? window.getPlotlyScale(currentColorScale) : getPlotlyScale(currentColorScale);
+                
+                let curTitle = 'Depth (KM)';
+                let curLimits = quakeData.dep_limit || quakeData.dep_range || [0, 10];
+                if (currentColorMode === 'mag') {
+                    curTitle = 'Magnitude';
+                    curLimits = quakeData.mag_limit || quakeData.mag_range || [0, 10];
+                } else if (currentColorMode === 'date') {
+                    curTitle = 'Date';
+                    curLimits = quakeData.date_limit || quakeData.date_range || [0, 1];
+                }
+
                 if (is3D) {
-                    let depthIdx = -1, dateIdx = -1;
                     for (let i = 0; i < gd.data.length; i++) {
                         const tr = gd.data[i];
                         if (!tr) continue;
                         const name = tr.name || '';
-                        if (name === 'Earthquakes (Depth)' || (tr.type === 'scatter3d' && i === 1 && !name.includes('Date') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia'))) {
-                            depthIdx = i;
-                        } else if (name === 'Earthquakes (Date)' || (tr.type === 'scatter3d' && i === 2 && !name.includes('Depth') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia'))) {
-                            dateIdx = i;
+                        if (tr.type === 'scatter3d' && (
+                            name.includes('Earthquakes') || name === 'Depth' || name === 'Date' || name === 'Magnitude' ||
+                            (!name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia') && !name.includes('Vectors') && !name.includes('Arrow') && !name.includes('Terrain') && !name.includes('Mesh'))
+                        )) {
+                            if (!tr.marker) tr.marker = {};
+                            tr.marker.colorscale = pScale;
+                            tr.marker.reversescale = invertScale;
+                            try {
+                                Plotly.restyle(gd, {
+                                    'marker.colorscale': [pScale],
+                                    'marker.reversescale': [invertScale]
+                                }, [i]);
+                            } catch (e) {}
                         }
                     }
-                    const activeIdx = (currentColorMode === 'date') ? (dateIdx !== -1 ? dateIdx : 2) : (depthIdx !== -1 ? depthIdx : 1);
-                    if (activeIdx !== -1 && activeIdx < gd.data.length) {
-                        try {
-                            Plotly.restyle(gd, {
-                                'marker.colorscale': [scale],
-                                'marker.reversescale': [invertScale]
-                            }, [activeIdx]);
-                        } catch (e) {}
-                    }
+                    try { Plotly.redraw(gd); } catch (e) { try { Plotly.react(gd, gd.data, gd.layout); } catch (e2) {} }
                 } else {
                     const isHeatmap = (currentViewMode === 'heatmap');
                     for (let i = 0; i < gd.data.length; i++) {
@@ -150,28 +161,34 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                         const name = tr.name || '';
                         const isDensity = (tr.type === 'densitymapbox' || tr.type === 'densitymap');
                         if (isHeatmap && (name === 'Earthquakes Heatmap' || isDensity)) {
+                            tr.colorscale = pScale;
+                            tr.reversescale = invertScale;
                             try {
                                 Plotly.restyle(gd, {
-                                    'colorscale': [scale],
+                                    'colorscale': [pScale],
                                     'reversescale': [invertScale]
                                 }, [i]);
                             } catch (e) {}
                         } else if (!isHeatmap && (name === 'Earthquakes' || ((tr.type === 'scattermapbox' || tr.type === 'scattermap') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia')))) {
+                            if (!tr.marker) tr.marker = {};
+                            tr.marker.colorscale = pScale;
+                            tr.marker.reversescale = invertScale;
                             try {
                                 Plotly.restyle(gd, {
-                                    'marker.colorscale': [scale],
+                                    'marker.colorscale': [pScale],
                                     'marker.reversescale': [invertScale]
                                 }, [i]);
                             } catch (e) {}
                         }
                     }
+                    try { Plotly.redraw(gd); } catch (e) { try { Plotly.react(gd, gd.data, gd.layout); } catch (e2) {} }
                 }
                 updateGlassLegend(
                     currentViewMode !== 'heatmap',
-                    currentBarTitle,
+                    curTitle,
                     currentColorScale,
                     invertScale,
-                    currentLimits,
+                    curLimits,
                     { startDate: quakeData.start_date }
                 );
             }
@@ -352,14 +369,17 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     if (dateMatch && magMatch && depMatch) indices.push(i);
                 }
 
+                const allMatch = (indices.length === dates.length);
                 const filtered = {
-                    lon: indices.map(i => quakeData.longitude[i]),
-                    lat: indices.map(i => quakeData.latitude[i]),
-                    mag: indices.map(i => quakeData.magnitude[i]),
-                    dep: indices.map(i => quakeData.depth[i]),
-                    times: indices.map(i => quakeData.times[i]),
-                    dnum: indices.map(i => quakeData.dates_num[i]),
-                    hover: indices.map(i => (quakeData.hover && quakeData.hover[i]) ? quakeData.hover[i] : `Date: ${quakeData.times ? quakeData.times[i] : ''}<br>Magnitude: ${quakeData.magnitude[i].toFixed(1)}<br>Depth: ${Math.abs(quakeData.depth[i]).toFixed(1)} km`)
+                    lon: allMatch ? quakeData.longitude : indices.map(i => quakeData.longitude[i]),
+                    lat: allMatch ? quakeData.latitude : indices.map(i => quakeData.latitude[i]),
+                    mag: allMatch ? quakeData.magnitude : indices.map(i => quakeData.magnitude[i]),
+                    dep: allMatch ? quakeData.depth : indices.map(i => quakeData.depth[i]),
+                    times: allMatch ? quakeData.times : indices.map(i => quakeData.times[i]),
+                    dnum: allMatch ? quakeData.dates_num : indices.map(i => quakeData.dates_num[i]),
+                    hover: (allMatch && quakeData.hover && quakeData.hover.length === dates.length)
+                        ? quakeData.hover
+                        : indices.map(i => (quakeData.hover && quakeData.hover[i]) ? quakeData.hover[i] : `Date: ${quakeData.times ? quakeData.times[i] : ''}<br>Magnitude: ${quakeData.magnitude[i].toFixed(1)}<br>Depth: ${Math.abs(quakeData.depth[i]).toFixed(1)} km`)
                 };
 
                 window.currentFilteredData = {

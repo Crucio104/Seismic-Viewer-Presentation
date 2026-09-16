@@ -314,6 +314,11 @@ window.getClusterColor = function(lbl) {
             const menu = document.getElementById('legend-scale-menu');
             if (!btn || !menu) return;
 
+            // Move menu to document.body so it isn't trapped or clipped by #glass-legend's overflow:hidden or containing block
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+
             btn.onclick = (e) => {
                 e.stopPropagation();
                 const wasShowing = menu.classList.contains('show');
@@ -325,10 +330,11 @@ window.getClusterColor = function(lbl) {
                     const legend = document.getElementById('glass-legend');
                     const legendRect = legend ? legend.getBoundingClientRect() : rect;
                     menu.style.position = 'fixed';
+                    menu.style.zIndex = '9999999';
                     const menuHeight = 280;
                     const topPos = Math.max(10, Math.min(window.innerHeight - menuHeight - 10, rect.top - 40));
                     menu.style.top = topPos + 'px';
-                    let rightDist = (window.innerWidth - legendRect.left) + 6;
+                    let rightDist = (window.innerWidth - legendRect.left) + 8;
                     if (rightDist + 120 > window.innerWidth - 8) {
                         rightDist = Math.max(10, window.innerWidth - 120 - 8);
                     }
@@ -347,7 +353,7 @@ window.getClusterColor = function(lbl) {
                     btn.title = 'Color scale: ' + scaleName;
                     const swatch = document.getElementById('legend-scale-swatch');
                     if (swatch) {
-                        const sColors = (typeof COLORS_MAP !== 'undefined' && COLORS_MAP[scaleName]) ? COLORS_MAP[scaleName] : ['#440154', '#fde725'];
+                        const sColors = (window.COLORS_MAP && window.COLORS_MAP[scaleName]) ? window.COLORS_MAP[scaleName] : ['#440154', '#fde725'];
                         swatch.style.background = `linear-gradient(to top, ${sColors.join(',')})`;
                     }
                     menu.classList.remove('show');
@@ -375,13 +381,15 @@ window.getClusterColor = function(lbl) {
                 };
             }
             this._layerScales[currentMode] = scaleName;
+            if (window.SeismicUI) window.SeismicUI._layerScales = this._layerScales;
+            if (window.SeismicLayers) window.SeismicLayers._layerScales = this._layerScales;
 
             const btn = document.getElementById('legend-scale-toggle');
             if (btn) {
                 btn.title = 'Color scale: ' + scaleName;
                 const swatch = document.getElementById('legend-scale-swatch');
                 if (swatch) {
-                    const sColors = (typeof COLORS_MAP !== 'undefined' && COLORS_MAP[scaleName]) ? COLORS_MAP[scaleName] : ['#440154', '#fde725'];
+                    const sColors = (window.COLORS_MAP && window.COLORS_MAP[scaleName]) ? window.COLORS_MAP[scaleName] : (typeof COLORS_MAP !== 'undefined' && COLORS_MAP[scaleName] ? COLORS_MAP[scaleName] : ['#440154', '#fde725']);
                     swatch.style.background = `linear-gradient(to top, ${sColors.join(',')})`;
                 }
             }
@@ -398,30 +406,66 @@ window.getClusterColor = function(lbl) {
             setTimeout(() => {
                 try {
                     const gd = document.querySelector('.plotly-graph-div') || (window.plotlyId ? document.getElementById(window.plotlyId) : null) || document.getElementById('plotly-div') || document.getElementById('plot');
-                    const pScale = getPlotlyScale(scaleName);
+                    const pScale = (typeof window.getPlotlyScale === 'function') ? window.getPlotlyScale(scaleName) : (typeof getPlotlyScale === 'function' ? getPlotlyScale(scaleName) : 'Viridis');
+                    const inv = (this._layerInverts && this._layerInverts[currentMode]) || false;
 
                     if (currentMode === 'earthquakes') {
+                        if (window._earthquakeLegendState) {
+                            window._earthquakeLegendState.scaleName = scaleName;
+                        }
                         if (typeof window.setEarthquakeScale === 'function') {
                             window.setEarthquakeScale(scaleName);
-                        } else {
-                            if (window._earthquakeLegendState) {
-                                window._earthquakeLegendState.scaleName = scaleName;
-                                const s = window._earthquakeLegendState;
-                                updateGlassLegendInternal(s.show, s.title, scaleName, s.invert, s.limits, s.dateInfo);
-                            }
-                            if (gd && gd.data) {
-                                for (let i = 0; i < gd.data.length; i++) {
-                                    const tr = gd.data[i];
-                                    if (!tr) continue;
-                                    const name = tr.name || '';
-                                    if (tr.type === 'scatter3d' && (name === 'Depth' || name === 'Date' || name === 'Magnitude' || name === 'Earthquakes' || (!name.includes('Vectors') && !name.includes('Arrow') && !name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
-                                        if (tr.marker) tr.marker.colorscale = pScale;
-                                    } else if ((tr.type === 'scattermapbox' || tr.type === 'scattermap') && (name.includes('Earthquakes') || (!name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
-                                        if (tr.marker) tr.marker.colorscale = pScale;
-                                    }
+                        }
+                        if (gd && gd.data) {
+                            let updatedAny = false;
+                            for (let i = 0; i < gd.data.length; i++) {
+                                const tr = gd.data[i];
+                                if (!tr) continue;
+                                const name = tr.name || '';
+                                if (tr.type === 'scatter3d' && (
+                                    name.includes('Earthquakes') || name.includes('Color:') || name === 'Depth' || name === 'Date' || name === 'Magnitude' ||
+                                    (!name.includes('Vectors') && !name.includes('Arrow') && !name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Structural') && !name.includes('Terrain') && !name.includes('Mesh'))
+                                )) {
+                                    if (!tr.marker) tr.marker = {};
+                                    tr.marker.colorscale = pScale;
+                                    tr.marker.reversescale = inv;
+                                    try {
+                                        Plotly.restyle(gd, {
+                                            'marker.colorscale': [pScale],
+                                            'marker.reversescale': [inv]
+                                        }, [i]);
+                                    } catch (e) {}
+                                    updatedAny = true;
+                                } else if ((tr.type === 'scattermapbox' || tr.type === 'scattermap') && (name.includes('Earthquakes') || (!name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
+                                    if (!tr.marker) tr.marker = {};
+                                    tr.marker.colorscale = pScale;
+                                    tr.marker.reversescale = inv;
+                                    try {
+                                        Plotly.restyle(gd, {
+                                            'marker.colorscale': [pScale],
+                                            'marker.reversescale': [inv]
+                                        }, [i]);
+                                    } catch (e) {}
+                                    updatedAny = true;
+                                } else if ((tr.type === 'densitymapbox' || tr.type === 'densitymap') && (name.includes('Heatmap') || name.includes('Earthquakes'))) {
+                                    tr.colorscale = pScale;
+                                    tr.reversescale = inv;
+                                    try {
+                                        Plotly.restyle(gd, {
+                                            'colorscale': [pScale],
+                                            'reversescale': [inv]
+                                        }, [i]);
+                                    } catch (e) {}
+                                    updatedAny = true;
                                 }
-                                try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
                             }
+                            if (updatedAny) {
+                                try { Plotly.redraw(gd); } catch (e) { try { Plotly.react(gd, gd.data, gd.layout); } catch (e2) {} }
+                            }
+                        }
+                        if (window._earthquakeLegendState) {
+                            const s = window._earthquakeLegendState;
+                            updateGlassLegendInternal(s.show, s.title, scaleName, s.invert, s.limits, s.dateInfo);
                         }
                     } else if (currentMode === 'vectors') {
                         if (gd && gd.data) {
@@ -431,13 +475,16 @@ window.getClusterColor = function(lbl) {
                                 if (tr.name === 'Consecutive Event Vectors') {
                                     if (!tr.line) tr.line = {};
                                     tr.line.colorscale = pScale;
+                                    tr.line.reversescale = inv;
+                                    try { Plotly.restyle(gd, { 'line.colorscale': [pScale], 'line.reversescale': [inv] }, [i]); } catch (e) {}
                                 } else if (tr.name === 'Event Arrowheads') {
                                     tr.colorscale = pScale;
+                                    tr.reversescale = inv;
+                                    try { Plotly.restyle(gd, { 'colorscale': [pScale], 'reversescale': [inv] }, [i]); } catch (e) {}
                                 }
                             }
-                            try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
+                            try { Plotly.redraw(gd); } catch (e) { try { Plotly.react(gd, gd.data, gd.layout); } catch (e2) {} }
                         }
-                        const inv = (this._layerInverts && this._layerInverts[currentMode]) || false;
                         const maxV = this._consecutiveVectorCount || 100;
                         updateGlassLegendInternal(true, 'VECTOR N°', scaleName, inv, [1, maxV], null);
                     } else if (currentMode === 'tomo') {
@@ -450,11 +497,12 @@ window.getClusterColor = function(lbl) {
                                 const isTomo = name.toLowerCase().includes('tomography') || name.includes('Vp/Vs') || name.includes('Tomografia') || tr.type === 'volume';
                                 if (isTomo) {
                                     tr.colorscale = pScale;
+                                    tr.reversescale = inv;
+                                    try { Plotly.restyle(gd, { 'colorscale': [pScale], 'reversescale': [inv] }, [i]); } catch (e) {}
                                 }
                             }
-                            try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
+                            try { Plotly.redraw(gd); } catch (e) { try { Plotly.react(gd, gd.data, gd.layout); } catch (e2) {} }
                         }
-                        const inv = (this._layerInverts && this._layerInverts[currentMode]) || false;
                         updateGlassLegendInternal(true, 'Tomo Vp/Vs', scaleName, inv, [1.15, 2.35], null);
                     } else if (currentMode === 'uplift') {
                         let minVal = 0, maxVal = 80;
@@ -475,11 +523,12 @@ window.getClusterColor = function(lbl) {
                                 const name = tr.name || '';
                                 if (name.includes('Uplift') && (tr.type === 'surface' || tr.type === 'densitymapbox' || tr.type === 'densitymap' || tr.type === 'choroplethmapbox' || tr.type === 'choroplethmap')) {
                                     tr.colorscale = pScale;
+                                    tr.reversescale = inv;
+                                    try { Plotly.restyle(gd, { 'colorscale': [pScale], 'reversescale': [inv] }, [i]); } catch (e) {}
                                 }
                             }
-                            try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
+                            try { Plotly.redraw(gd); } catch (e) { try { Plotly.react(gd, gd.data, gd.layout); } catch (e2) {} }
                         }
-                        const inv = (this._layerInverts && this._layerInverts[currentMode]) || false;
                         updateGlassLegendInternal(true, 'Uplift (mm)', scaleName, inv, [minVal, maxVal], null);
                     }
                 } catch (err) {
@@ -1333,22 +1382,24 @@ window.getClusterColor = function(lbl) {
         'Uplift': ['rgb(255, 255, 0)', 'rgb(255, 140, 0)', 'rgb(180, 0, 0)'],
         'Vectors': ['#440154', '#482878', '#3e4989', '#31688e', '#26828e', '#1f9e89', '#6ece58', '#b5de2b', '#fde725']
     };
-
+    window.COLORS_MAP = COLORS_MAP;
 
     function getPlotlyScale(name) {
+        if (Array.isArray(name)) return name;
         const colors = COLORS_MAP[name] || COLORS_MAP['Viridis'];
         return colors.map((c, i) => [i / (colors.length - 1), c]);
     }
+    window.getPlotlyScale = getPlotlyScale;
 
 
     function updateGlassLegend(show, title, scaleName, invert, limits, dateInfo) {
         if (title === 'Depth' || (typeof title === 'string' && title.toLowerCase() === 'depth')) title = 'Depth (KM)';
-        if (window.SeismicUI && window.SeismicUI._layerScales) {
-            if (!window.SeismicUI._layerScales.earthquakes) {
-                window.SeismicUI._layerScales.earthquakes = scaleName;
-            } else {
-                scaleName = window.SeismicUI._layerScales.earthquakes;
-            }
+        if (scaleName) {
+            if (!window.SeismicUI) window.SeismicUI = {};
+            if (!window.SeismicUI._layerScales) window.SeismicUI._layerScales = {};
+            window.SeismicUI._layerScales.earthquakes = scaleName;
+        } else if (window.SeismicUI && window.SeismicUI._layerScales && window.SeismicUI._layerScales.earthquakes) {
+            scaleName = window.SeismicUI._layerScales.earthquakes;
         }
         window._earthquakeLegendState = { show, title, scaleName, invert, limits, dateInfo };
         if (!window._currentLegendMode || window._currentLegendMode === 'earthquakes') {

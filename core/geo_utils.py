@@ -93,16 +93,22 @@ def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] 
         x_count = xmax - xmin + 1
         y_count = ymax - ymin + 1
 
-        logger.info(f"Downloading OSM map tiles: zoom {z}, grid {x_count}x{y_count} ({x_count*y_count} tiles)...")
-
         tile_cache_dir = MAP_CACHE_DIR / 'tiles'
         tile_cache_dir.mkdir(parents=True, exist_ok=True)
 
         composite = Image.new('RGB', (x_count * TILE_SIZE, y_count * TILE_SIZE), (25, 25, 35))
         tasks = []
+        missing_count = 0
         for x in range(xmin, xmax + 1):
             for y in range(ymin, ymax + 1):
                 tasks.append((z, x, y))
+                if not (tile_cache_dir / f"{z}_{x}_{y}.png").exists():
+                    missing_count += 1
+
+        if missing_count > 0:
+            logger.info(f"Downloading OSM map tiles: zoom {z}, grid {x_count}x{y_count} ({missing_count}/{len(tasks)} new tiles)...")
+        else:
+            logger.info(f"Loading OSM map tiles from disk cache: zoom {z}, grid {x_count}x{y_count} ({len(tasks)} tiles)...")
 
         success_count = 0
         with requests.Session() as s:
