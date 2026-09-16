@@ -320,7 +320,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             [startInput, endInput, magMin, magMax, depMin, depMax].forEach(input => {
                 if (input) {
-                    input.addEventListener('change', applyCombinedFilters);
                     input.addEventListener('keydown', (e) => {
                         if (e.key === 'Enter') applyCombinedFilters();
                     });
@@ -343,59 +342,93 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             }
 
             const [depMinVal, depMaxVal] = getArrayMinMax(quakeData.depth.map(Math.abs));
-            depMin.value = 0;
-            depMax.value = Math.ceil(depMaxVal);
+            if (quakeData.clustering_params && quakeData.clustering_params.dep_min !== undefined) {
+                depMin.value = quakeData.clustering_params.dep_min;
+            } else if (!depMin.value) {
+                depMin.value = 0;
+            }
+            if (quakeData.clustering_params && quakeData.clustering_params.dep_max !== undefined) {
+                depMax.value = quakeData.clustering_params.dep_max;
+            } else if (!depMax.value) {
+                depMax.value = Math.ceil(depMaxVal);
+            }
+
+            // Snapshot baseline defaults from when this specific cluster visualization opened
+            const initialClusterDefaults = {
+                method: currentMethod,
+                displayMode: currentDisplayMode,
+                kmeansClusters: pClusters ? pClusters.value : '3',
+                kmeansDist: pDist ? pDist.value : '0',
+                dbscanEps: pEps ? pEps.value : '500',
+                dbscanMinSamples: pMin ? pMin.value : '5',
+                hdbMinCluster: pHdbMinCluster ? pHdbMinCluster.value : '5',
+                hdbMinSamples: pHdbMinSamples ? pHdbMinSamples.value : '3',
+                hdbEps: pHdbEps ? pHdbEps.value : '0',
+                useTime: pUseTime ? pUseTime.checked : false,
+                timeWindow: pTimeWindow ? pTimeWindow.value : '72',
+                magMin: magMin ? magMin.value : '',
+                magMax: magMax ? magMax.value : '',
+                depMin: depMin ? depMin.value : '0',
+                depMax: depMax ? depMax.value : '',
+                startDate: startInput ? startInput.value : '',
+                endDate: endInput ? endInput.value : '',
+                showPlanes: document.getElementById('show-planes') ? document.getElementById('show-planes').checked : false,
+                showContextPoints: document.getElementById('show-context-points') ? document.getElementById('show-context-points').checked : true,
+                eventVectors: document.getElementById('event-vectors-check') ? document.getElementById('event-vectors-check').checked : false
+            };
 
             const resetBtn = document.getElementById('reset-filters-btn');
             if (resetBtn) {
                 resetBtn.onclick = (e) => {
                     e.preventDefault();
-                    const cp = initialAutoTuneParams;
                     
                     // 1. Restore clustering method
-                    if (cp.clustering_method && methodLabelMap[cp.clustering_method]) {
-                        currentMethod = cp.clustering_method;
-                        methodToggle.textContent = (methodLabelMap[currentMethod] || 'DBSCAN') + ' ▾';
-                        methodMenu.querySelectorAll('.menu-item').forEach(i => {
-                            i.classList.toggle('active', i.dataset.val === currentMethod);
-                        });
-                        syncParamVisibility();
-                    }
+                    currentMethod = initialClusterDefaults.method;
+                    methodToggle.textContent = (methodLabelMap[currentMethod] || 'DBSCAN') + ' ▾';
+                    methodMenu.querySelectorAll('.menu-item').forEach(i => {
+                        i.classList.toggle('active', i.dataset.val === currentMethod);
+                    });
+                    syncParamVisibility();
 
-                    // 2. Restore auto-tuned clustering parameters
-                    pClusters.value = cp.kmeans_clusters || 3;
-                    pDist.value = cp.kmeans_max_dist !== undefined ? cp.kmeans_max_dist : 0;
-                    pEps.value = cp.dbscan_eps || 500;
-                    pMin.value = cp.dbscan_min_samples || 5;
-                    if (pHdbMinCluster) pHdbMinCluster.value = cp.hdbscan_min_cluster_size || 5;
-                    if (pHdbMinSamples) pHdbMinSamples.value = cp.hdbscan_min_samples || 3;
-                    if (pHdbEps) pHdbEps.value = cp.hdbscan_cluster_selection_epsilon !== undefined ? cp.hdbscan_cluster_selection_epsilon : (cp.hdbscan_eps || 0);
+                    // 2. Restore auto-tuned / initial clustering parameters
+                    if (pClusters) pClusters.value = initialClusterDefaults.kmeansClusters;
+                    if (pDist) pDist.value = initialClusterDefaults.kmeansDist;
+                    if (pEps) pEps.value = initialClusterDefaults.dbscanEps;
+                    if (pMin) pMin.value = initialClusterDefaults.dbscanMinSamples;
+                    if (pHdbMinCluster) pHdbMinCluster.value = initialClusterDefaults.hdbMinCluster;
+                    if (pHdbMinSamples) pHdbMinSamples.value = initialClusterDefaults.hdbMinSamples;
+                    if (pHdbEps) pHdbEps.value = initialClusterDefaults.hdbEps;
 
                     if (pUseTime) {
-                        pUseTime.checked = Boolean(cp.use_time);
+                        pUseTime.checked = initialClusterDefaults.useTime;
                         if (spatiotemporalParams) spatiotemporalParams.style.display = pUseTime.checked ? 'block' : 'none';
                     }
-                    if (pTimeWindow) {
-                        pTimeWindow.value = cp.time_window_hours || cp.time_window || (cp.time_window_days ? Math.round(cp.time_window_days * 24 * 10) / 10 : 72);
-                    }
+                    if (pTimeWindow) pTimeWindow.value = initialClusterDefaults.timeWindow;
 
-                    // 3. Reset filters (magnitude, depth, dates) to full dataset bounds
-                    if (magMin) magMin.value = '';
-                    if (magMax) magMax.value = '';
-                    if (depMin) depMin.value = 0;
-                    if (depMax) depMax.value = Math.ceil(depMaxVal);
-                    if (uniqueDates.length > 0) {
-                        startInput.value = uniqueDates[0];
-                        endInput.value = uniqueDates[uniqueDates.length - 1];
-                    }
+                    // 3. Restore filters to exact initial bounds of this visualization
+                    if (magMin) magMin.value = initialClusterDefaults.magMin;
+                    if (magMax) magMax.value = initialClusterDefaults.magMax;
+                    if (depMin) depMin.value = initialClusterDefaults.depMin;
+                    if (depMax) depMax.value = initialClusterDefaults.depMax;
+                    if (startInput) startInput.value = initialClusterDefaults.startDate;
+                    if (endInput) endInput.value = initialClusterDefaults.endDate;
 
                     const showPlanesEl = document.getElementById('show-planes');
-                    if (showPlanesEl) {
-                        showPlanesEl.checked = Boolean(cp.show_cluster_planes);
+                    if (showPlanesEl) showPlanesEl.checked = initialClusterDefaults.showPlanes;
+
+                    const showCtxEl = document.getElementById('show-context-points');
+                    if (showCtxEl) showCtxEl.checked = initialClusterDefaults.showContextPoints;
+
+                    const evCheck = document.getElementById('event-vectors-check');
+                    if (evCheck) {
+                        evCheck.checked = initialClusterDefaults.eventVectors;
+                        if (window.SeismicUI && typeof window.SeismicUI.toggleConsecutiveArrows === 'function') {
+                            window.SeismicUI.toggleConsecutiveArrows(initialClusterDefaults.eventVectors);
+                        }
                     }
 
                     if (typeof showStatusToast === 'function') {
-                        showStatusToast("Parameters reset to auto-tuned defaults", true);
+                        showStatusToast("Parameters reset to default values", true);
                     }
 
                     applyCombinedFilters();
@@ -729,11 +762,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             const evCheckInit = document.getElementById('event-vectors-check');
             if (evCheckInit && !evCheckInit._hooked) {
                 evCheckInit._hooked = true;
-                evCheckInit.addEventListener('change', () => {
-                    if (window.SeismicUI && typeof window.SeismicUI.toggleConsecutiveArrows === 'function') {
-                        window.SeismicUI.toggleConsecutiveArrows(evCheckInit.checked);
-                    }
-                });
+                // In cluster 3D view, event vectors are applied only when clicking Apply Changes
             }
 
             // Finally hide the loader once everything is ready

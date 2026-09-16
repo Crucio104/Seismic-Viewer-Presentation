@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "checkJs": false,
+    "target": "ES2022"
+  },
+  "exclude": [
+    "assets/plotly.min.js",
+    "resources/.map_cache",
+    "resources/.ingv_cache",
+    "temp",
+    "cache",
+    ".venv",
+    "node_modules"
+  ]
+}

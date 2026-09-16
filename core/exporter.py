@@ -174,6 +174,44 @@ def write_single_cluster_csv(data: dict[str, Any] | None, save_path: Path, idx_l
         f.write(csv_text)
 
 
+def build_cluster_json_text(data: dict[str, Any] | None, idx_list: list[int], method: str, params: Any, cluster_name: str = "cluster") -> str:
+    """Generate structured JSON text for a cluster of earthquake events."""
+    times = data.get('times', []) if data else []
+    lats = data.get('latitude', []) if data else []
+    lons = data.get('longitude', []) if data else []
+    deps = data.get('depth', []) if data else []
+    mags = data.get('magnitude', []) if data else []
+    n_events = len(lons)
+
+    valid_indices = [int(i) for i in idx_list if 0 <= int(i) < n_events]
+    events = []
+    for i in valid_indices:
+        lon = float(lons[i])
+        lat = float(lats[i])
+        depth = abs(float(deps[i])) if i < len(deps) else 0.0
+
+        events.append({
+            "event_index": i,
+            "time": str(times[i]) if i < len(times) else "",
+            "latitude": round(lat, 6),
+            "longitude": round(lon, 6),
+            "depth_km": round(depth, 4),
+            "magnitude": round(float(mags[i]), 2) if i < len(mags) else 0.0,
+            "cluster": cluster_name
+        })
+
+    json_obj = {
+        "cluster_name": cluster_name,
+        "metadata": {
+            "clustering_method": str(method).upper(),
+            "clustering_parameters": params if isinstance(params, dict) else str(params),
+            "total_events": len(events)
+        },
+        "events": events
+    }
+    return json.dumps(json_obj, indent=2)
+
+
 def write_single_cluster_geojson(data: dict[str, Any] | None, save_path: Path, idx_list: list[int], method: str, params: Any, cluster_name: str = "cluster") -> None:
     """Write a single cluster GeoJSON to the designated path."""
     save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -182,19 +220,30 @@ def write_single_cluster_geojson(data: dict[str, Any] | None, save_path: Path, i
         f.write(geojson_text)
 
 
+def write_single_cluster_json(data: dict[str, Any] | None, save_path: Path, idx_list: list[int], method: str, params: Any, cluster_name: str = "cluster") -> None:
+    """Write a single cluster JSON to the designated path."""
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    json_text = build_cluster_json_text(data, idx_list, method, params, cluster_name)
+    with open(save_path, 'w', encoding='utf-8') as f:
+        f.write(json_text)
+
+
 def write_clusters_zip(data: dict[str, Any] | None, save_path: Path, export_items: list[tuple[str, list[int]]], method: str, params: Any, file_format: str = "csv") -> int:
-    """Write multiple cluster files (CSV or GeoJSON) into a compressed ZIP archive. Returns the number of exported clusters."""
+    """Write multiple cluster files (CSV, GeoJSON, or JSON) into a compressed ZIP archive. Returns the number of exported clusters."""
     save_path.parent.mkdir(parents=True, exist_ok=True)
     header_comment = get_cluster_header_comment(method, params)
     exported_count = 0
-    is_geojson = str(file_format).lower() == 'geojson'
+    fmt = str(file_format).lower().strip()
 
     with zipfile.ZipFile(save_path, 'w', compression=zipfile.ZIP_DEFLATED) as zip_file:
         for file_name, idx_list in export_items:
             base_stem = Path(file_name).stem
-            if is_geojson:
+            if fmt == 'geojson':
                 entry_name = f"{base_stem}.geojson"
                 content = build_cluster_geojson_text(data, idx_list, method, params, cluster_name=base_stem)
+            elif fmt == 'json':
+                entry_name = f"{base_stem}.json"
+                content = build_cluster_json_text(data, idx_list, method, params, cluster_name=base_stem)
             else:
                 entry_name = f"{base_stem}.csv"
                 content = build_cluster_csv_text(data, idx_list, header_comment)

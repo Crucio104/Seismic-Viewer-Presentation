@@ -106,13 +106,13 @@
                 </div>
             </div>
             <div class="hub-actions">
-                <button class="hub-btn-export" id="export-csv-btn" onclick="saveCurrentCsvJS()" title="Save CSV dataset locally">
+                <button class="hub-btn-export" id="export-csv-btn" onclick="saveCurrentCsvJS()" title="Save dataset locally">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="7 10 12 15 17 10"></polyline>
                         <line x1="12" y1="15" x2="12" y2="3"></line>
                     </svg>
-                    <span>Download CSV</span>
+                    <span>Download Dataset</span>
                 </button>
                 <div class="change-link" onclick="changeFileJS()">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -235,7 +235,7 @@
     <div id="overlay">
         <p class="loader-text" id="overlay-msg">Loading...</p>
         <div class="overlay-progress-bar">
-            <div class="overlay-progress-fill"></div>
+            <div class="overlay-progress-fill overlay-progress-track"></div>
         </div>
     </div>
 
@@ -288,8 +288,8 @@
             <h2 style="color:#fff; text-align:center;">Import Online (GOSSIP)</h2>
             <p style="margin-bottom: 1.500rem; font-size: 0.812rem; text-align:center;">Download data from terremoti.ov.ingv.it/gossip</p>
             
-            <div class="setting-group" style="display: flex; gap: 1rem;">
-                <div style="flex: 1;">
+            <div class="setting-group" style="display: flex; gap: 0.75rem;">
+                <div style="flex: 1.1;">
                     <label for="online-area-toggle" style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Area:</label>
                     <div class="dropdown-container">
                         <button class="settings-btn" id="online-area-toggle" onclick="toggleDropdown(event, 'online-area-menu')">Select an area</button>
@@ -302,7 +302,7 @@
                         <input type="hidden" id="online-area" value="">
                     </div>
                 </div>
-                <div style="flex: 1;">
+                <div style="flex: 0.9;">
                     <label for="online-livello-toggle" style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Event Level:</label>
                     <div class="dropdown-container">
                         <button class="settings-btn" id="online-livello-toggle" onclick="toggleDropdown(event, 'online-livello-menu')">All</button>
@@ -312,6 +312,18 @@
                             <div class="menu-item" onclick="selectOption('online-livello', '2', 'Bulletin', 'online-livello-toggle', 'online-livello-menu')">Bulletin</div>
                         </div>
                         <input type="hidden" id="online-livello" value="0">
+                    </div>
+                </div>
+                <div style="flex: 1;">
+                    <label for="online-format-toggle" style="font-size:0.812rem; color:#cbd5e1; display:block; margin-bottom:0.500rem; font-weight:500;">Format:</label>
+                    <div class="dropdown-container">
+                        <button class="settings-btn" id="online-format-toggle" onclick="toggleDropdown(event, 'online-format-menu')">CSV (.csv)</button>
+                        <div class="glass-menu" id="online-format-menu">
+                            <div class="menu-item active" onclick="selectOption('online-format', 'csv', 'CSV (.csv)', 'online-format-toggle', 'online-format-menu')">CSV (.csv)</div>
+                            <div class="menu-item" onclick="selectOption('online-format', 'geojson', 'GeoJSON (.geojson)', 'online-format-toggle', 'online-format-menu')">GeoJSON (.geojson)</div>
+                            <div class="menu-item" onclick="selectOption('online-format', 'json', 'JSON (.json)', 'online-format-toggle', 'online-format-menu')">JSON (.json)</div>
+                        </div>
+                        <input type="hidden" id="online-format" value="csv">
                     </div>
                 </div>
             </div>

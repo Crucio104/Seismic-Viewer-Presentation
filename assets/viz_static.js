@@ -63,6 +63,17 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             let invertScale = false;
 
+            // Snapshot baseline defaults from when this specific visualization opened
+            const initialStaticDefaults = {
+                startDate: startInput ? startInput.value : '',
+                endDate: endInput ? endInput.value : '',
+                magMin: magMin ? magMin.value : '',
+                magMax: magMax ? magMax.value : '',
+                depMin: depMin ? depMin.value : '',
+                depMax: depMax ? depMax.value : '',
+                eventVectors: eventVectorsCheck ? eventVectorsCheck.checked : false
+            };
+
             const is3D = (gd.layout.scene !== undefined);
             if (!is3D && gd.data.length > 1) viewModeGroup.style.display = 'block';
             if (!is3D && eventVectorsGroup) {
@@ -73,11 +84,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 }
             } else if (is3D && eventVectorsCheck && !eventVectorsCheck._hooked) {
                 eventVectorsCheck._hooked = true;
-                eventVectorsCheck.addEventListener('change', () => {
-                    if (window.SeismicUI && typeof window.SeismicUI.toggleConsecutiveArrows === 'function') {
-                        window.SeismicUI.toggleConsecutiveArrows(eventVectorsCheck.checked);
-                    }
-                });
+                // In 3D views, event vectors are applied only when clicking Apply Filters
             }
 
             if (!is3D) {
@@ -107,12 +114,74 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 applyFilterWithLoader();
             });
 
+            let currentBarTitle = 'Depth (KM)';
+            let currentLimits = quakeData.dep_limit || quakeData.dep_range || [0, 10];
+
+            function applyColorRestyleOnly() {
+                const gd = document.getElementById('plot') || document.querySelector('.plotly-graph-div');
+                if (!gd || !gd.data) return;
+                const scale = getPlotlyScale(currentColorScale);
+                if (is3D) {
+                    let depthIdx = -1, dateIdx = -1;
+                    for (let i = 0; i < gd.data.length; i++) {
+                        const tr = gd.data[i];
+                        if (!tr) continue;
+                        const name = tr.name || '';
+                        if (name === 'Earthquakes (Depth)' || (tr.type === 'scatter3d' && i === 1 && !name.includes('Date') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia'))) {
+                            depthIdx = i;
+                        } else if (name === 'Earthquakes (Date)' || (tr.type === 'scatter3d' && i === 2 && !name.includes('Depth') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia'))) {
+                            dateIdx = i;
+                        }
+                    }
+                    const activeIdx = (currentColorMode === 'date') ? (dateIdx !== -1 ? dateIdx : 2) : (depthIdx !== -1 ? depthIdx : 1);
+                    if (activeIdx !== -1 && activeIdx < gd.data.length) {
+                        try {
+                            Plotly.restyle(gd, {
+                                'marker.colorscale': [scale],
+                                'marker.reversescale': [invertScale]
+                            }, [activeIdx]);
+                        } catch (e) {}
+                    }
+                } else {
+                    const isHeatmap = (currentViewMode === 'heatmap');
+                    for (let i = 0; i < gd.data.length; i++) {
+                        const tr = gd.data[i];
+                        if (!tr) continue;
+                        const name = tr.name || '';
+                        const isDensity = (tr.type === 'densitymapbox' || tr.type === 'densitymap');
+                        if (isHeatmap && (name === 'Earthquakes Heatmap' || isDensity)) {
+                            try {
+                                Plotly.restyle(gd, {
+                                    'colorscale': [scale],
+                                    'reversescale': [invertScale]
+                                }, [i]);
+                            } catch (e) {}
+                        } else if (!isHeatmap && (name === 'Earthquakes' || ((tr.type === 'scattermapbox' || tr.type === 'scattermap') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia')))) {
+                            try {
+                                Plotly.restyle(gd, {
+                                    'marker.colorscale': [scale],
+                                    'marker.reversescale': [invertScale]
+                                }, [i]);
+                            } catch (e) {}
+                        }
+                    }
+                }
+                updateGlassLegend(
+                    currentViewMode !== 'heatmap',
+                    currentBarTitle,
+                    currentColorScale,
+                    invertScale,
+                    currentLimits,
+                    { startDate: quakeData.start_date }
+                );
+            }
+
             window.setEarthquakeScale = function(scale) {
                 currentColorScale = scale;
                 if (window.SeismicUI && window.SeismicUI._layerScales) {
                     window.SeismicUI._layerScales.earthquakes = scale;
                 }
-                applyFilterWithLoader();
+                applyColorRestyleOnly();
             };
 
             if (viewModeMenu) {
@@ -157,7 +226,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             if (invertCheck) {
                 invertCheck.addEventListener('change', () => {
                     invertScale = invertCheck.checked;
-                    applyFilterWithLoader();
+                    applyColorRestyleOnly();
                 });
             }
 
@@ -169,17 +238,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
              const filterLoader = document.getElementById('filter-loader');
 
-            // Real-time updates for sliders/inputs (only for 3D view; 2D view uses the Apply button as in previous repo commits)
+            // Filter inputs trigger on Enter key or clicking the Apply Filters button
             if (is3D) {
                 [startInput, endInput, magMin, magMax, depMin, depMax].forEach(input => {
                     if (input) {
-                        input.addEventListener('change', () => {
-                            if ((input === startInput || input === endInput) && !window._userExplicitColorSelection) {
-                                currentColorMode = 'date';
-                                if (colorToggle) colorToggle.textContent = 'Date ▾';
-                            }
-                            applyFilterWithLoader();
-                        });
                         input.addEventListener('keydown', (e) => {
                             if (e.key === 'Enter') {
                                 if ((input === startInput || input === endInput) && !window._userExplicitColorSelection) {
@@ -224,29 +286,22 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             if (resetBtn) {
                 resetBtn.onclick = (e) => {
                     e.preventDefault();
-                    if (quakeData.mag_range && quakeData.mag_range.length >= 2) {
-                        magMin.value = quakeData.mag_range[0].toFixed(1);
-                        magMax.value = quakeData.mag_range[1].toFixed(1);
-                    } else {
-                        magMin.value = '';
-                        magMax.value = '';
-                    }
+                    if (startInput) startInput.value = initialStaticDefaults.startDate;
+                    if (endInput) endInput.value = initialStaticDefaults.endDate;
+                    if (magMin) magMin.value = initialStaticDefaults.magMin;
+                    if (magMax) magMax.value = initialStaticDefaults.magMax;
+                    if (depMin) depMin.value = initialStaticDefaults.depMin;
+                    if (depMax) depMax.value = initialStaticDefaults.depMax;
 
-                    if (quakeData.dep_range && quakeData.dep_range.length >= 2) {
-                        depMin.value = 0;
-                        depMax.value = Math.ceil(Math.max(Math.abs(quakeData.dep_range[0]), Math.abs(quakeData.dep_range[1])));
-                    } else {
-                        depMin.value = 0;
-                        depMax.value = 100;
-                    }
-
-                    if (uniqueDates.length > 0) {
-                        startInput.value = uniqueDates[0];
-                        endInput.value = uniqueDates[uniqueDates.length - 1];
+                    if (eventVectorsCheck) {
+                        eventVectorsCheck.checked = initialStaticDefaults.eventVectors;
+                        if (window.SeismicUI && typeof window.SeismicUI.toggleConsecutiveArrows === 'function') {
+                            window.SeismicUI.toggleConsecutiveArrows(initialStaticDefaults.eventVectors);
+                        }
                     }
 
                     if (typeof showStatusToast === 'function') {
-                        showStatusToast("Filters reset to default bounds", true);
+                        showStatusToast("Filters reset to default values", true);
                     }
 
                     if (is3D) {
@@ -258,6 +313,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             }
 
             if (is3D) {
+                applyBtn.style.display = 'flex';
                 applyBtn.onclick = applyFilterWithLoader;
                 // Initial filter run to sync filtered state and vectors
                 await applyFilter();
@@ -474,6 +530,9 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 }
 
                 
+                currentBarTitle = barTitle;
+                currentLimits = limits;
+
                 // Update Glass Legend
                 updateGlassLegend(
                     currentViewMode !== 'heatmap',

@@ -94,7 +94,7 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
         vp_vs = df[vpvs_col].to_numpy(dtype=np.float32, copy=False)
         count_rows = len(df)
         
-        # Only interpolate calibrated points (VP != 0) for clean volumes
+        # Only keep calibrated points (VP != 0) for clean volumes and lightweight payloads
         vp_col = next((c for c in df.columns if c == 'VP' or 'V_P' in c or 'P_VEL' in c), None)
         if vp_col is not None:
             mask = (df[vp_col].to_numpy() != 0) & np.isfinite(vp_vs)
@@ -104,17 +104,25 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
         # Free heavy pandas DataFrame immediately
         del df
 
-        logger.info(f"Processed {count_rows} tomography points from {path.name}")
+        if np.any(mask):
+            lons = lons[mask]
+            lats = lats[mask]
+            depths = depths[mask]
+            vp_vs = vp_vs[mask]
+
+        unique_depths = sorted([round(float(d), 2) for d in np.unique(np.round(np.abs(depths), 1))])
+
+        logger.info(f"Processed {count_rows} raw tomography rows -> {len(lons)} calibrated points across {len(unique_depths)} depth slices from {path.name}")
         
         # Build a regular 3D grid for volumetric rendering (server-side continuous IDW in metric UTM space)
         iso_grid = None
         try:
             from scipy.spatial import cKDTree
             
-            cal_lons = lons[mask]
-            cal_lats = lats[mask]
-            cal_depths = depths[mask]  # Already -abs(utmz)
-            cal_vpvs = vp_vs[mask]
+            cal_lons = lons
+            cal_lats = lats
+            cal_depths = depths  # Already -abs(utmz)
+            cal_vpvs = vp_vs
             
             if len(cal_vpvs) > 0:
                 # Metric scaling: 1 deg lat = KM_PER_DEGREE km, 1 deg lon = KM_PER_DEGREE * cos(mean_lat) km
@@ -192,13 +200,14 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
             'status': 'success',
             'type': 'tomography',
             'filename': path.name,
-            'count': count_rows,
+            'count': len(lons),
+            'unique_depths': unique_depths,
             'x': np.round(lons, 4).tolist(),
             'y': np.round(lats, 4).tolist(),
             'z': np.round(depths, 2).tolist(),
             'vp_vs': np.round(vp_vs, 2).tolist(),
-            'min_vp_vs': float(np.min(vp_vs)),
-            'max_vp_vs': float(np.max(vp_vs))
+            'min_vp_vs': float(np.min(vp_vs)) if len(vp_vs) > 0 else 0.0,
+            'max_vp_vs': float(np.max(vp_vs)) if len(vp_vs) > 0 else 0.0
         }
         if iso_grid:
             result['iso_grid'] = iso_grid

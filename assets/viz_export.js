@@ -6,36 +6,33 @@
         _activeScreenshotDataUrl: null,
         _pendingClusterPayload: null,
         _activeClusterTabIdx: 0,
-        _exportFormat: 'csv', // 'csv' or 'geojson'
+        _exportFormat: 'csv', // 'csv', 'geojson', or 'json'
 
         setExportFormat(fmt) {
-            this._exportFormat = fmt === 'geojson' ? 'geojson' : 'csv';
+            this._exportFormat = (fmt === 'geojson' || fmt === 'json') ? fmt : 'csv';
             
             const btnCsv = document.getElementById('fmt-csv-btn');
             const btnGeo = document.getElementById('fmt-geojson-btn');
-            if (btnCsv && btnGeo) {
-                if (this._exportFormat === 'geojson') {
-                    btnGeo.classList.add('active');
-                    btnGeo.style.background = 'rgba(16,185,129,0.3)';
-                    btnGeo.style.color = '#fff';
-                    btnGeo.style.border = '1px solid rgba(16,185,129,0.5)';
-
-                    btnCsv.classList.remove('active');
-                    btnCsv.style.background = 'transparent';
-                    btnCsv.style.color = 'rgba(255,255,255,0.65)';
-                    btnCsv.style.border = '1px solid transparent';
+            const btnJson = document.getElementById('fmt-json-btn');
+            
+            [
+                { btn: btnCsv, id: 'csv' },
+                { btn: btnGeo, id: 'geojson' },
+                { btn: btnJson, id: 'json' }
+            ].forEach(({ btn, id }) => {
+                if (!btn) return;
+                if (this._exportFormat === id) {
+                    btn.classList.add('active');
+                    btn.style.background = 'rgba(16,185,129,0.3)';
+                    btn.style.color = '#fff';
+                    btn.style.border = '1px solid rgba(16,185,129,0.5)';
                 } else {
-                    btnCsv.classList.add('active');
-                    btnCsv.style.background = 'rgba(16,185,129,0.3)';
-                    btnCsv.style.color = '#fff';
-                    btnCsv.style.border = '1px solid rgba(16,185,129,0.5)';
-
-                    btnGeo.classList.remove('active');
-                    btnGeo.style.background = 'transparent';
-                    btnGeo.style.color = 'rgba(255,255,255,0.65)';
-                    btnGeo.style.border = '1px solid transparent';
+                    btn.classList.remove('active');
+                    btn.style.background = 'transparent';
+                    btn.style.color = 'rgba(255,255,255,0.65)';
+                    btn.style.border = '1px solid transparent';
                 }
-            }
+            });
 
             this.updateClusterExportButtons();
             this.renderClusterPreviewTable();
@@ -254,7 +251,7 @@
             const clusters = this._pendingClusterPayload.clusters;
             const currentCluster = clusters[this._activeClusterTabIdx];
             const selLabel = document.getElementById('btn-download-selected-label');
-            const ext = this._exportFormat === 'geojson' ? '.geojson' : '.csv';
+            const ext = this._exportFormat === 'geojson' ? '.geojson' : (this._exportFormat === 'json' ? '.json' : '.csv');
 
             if (selLabel && currentCluster) {
                 const baseName = (currentCluster.name || `cluster_${this._activeClusterTabIdx + 1}`).toLowerCase().replace(/\s+/g, '_');
@@ -281,7 +278,7 @@
             const indices = currentCluster.indices || [];
 
             const metaEl = document.getElementById('cluster-csv-meta');
-            const ext = this._exportFormat === 'geojson' ? '.geojson' : '.csv';
+            const ext = this._exportFormat === 'geojson' ? '.geojson' : (this._exportFormat === 'json' ? '.json' : '.csv');
             const baseName = (currentCluster.name || `cluster_${this._activeClusterTabIdx + 1}`).toLowerCase().replace(/\s+/g, '_');
 
             if (metaEl) {
@@ -354,7 +351,7 @@
                 return;
             }
             try {
-                const ext = this._exportFormat === 'geojson' ? '.geojson' : '.csv';
+                const ext = this._exportFormat === 'geojson' ? '.geojson' : (this._exportFormat === 'json' ? '.json' : '.csv');
                 const baseName = (currentCluster.name || `cluster_${this._activeClusterTabIdx + 1}`).toLowerCase().replace(/\s+/g, '_');
                 const payload = {
                     filename: `${baseName}${ext}`,

@@ -256,33 +256,99 @@ def fetch_ingv_dataframe(params: dict[str, Any], on_progress: Callable[[str], No
         'mag': [x['mag'] for x in filtered_items]
     })
 
-    # Persist canonical CSV to temp directory for exports
+    # Persist dataset to temp directory for exports in requested format
+    export_format = str(params.get('format', 'csv')).lower().strip()
     TEMP_DIR.mkdir(parents=True, exist_ok=True)
-    filename = f"ingv_{network}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
-    filepath = TEMP_DIR / filename
+    ts_str = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
 
-    with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(CSV_CANONICAL_HEADER)
+    if export_format == 'geojson':
+        filename = f"ingv_{network}_{ts_str}.geojson"
+        filepath = TEMP_DIR / filename
+        features = []
         for item in filtered_items:
             e = item['raw']
             loc = item['loc']
             md = item['md']
-            row = [
-                e.get('id', ''),
-                e.get('date', ''), 
-                _fmt_num(loc.get('latitude'), 6),
-                _fmt_num(loc.get('longitude'), 6),
-                _fmt_num(loc.get('depth'), 2),
-                _fmt_num(md.get('value'), 2),
-                _fmt_num(md.get('error', 0.3), 2),
-                e.get('area', ''),
-                e.get('type', ''),
-                e.get('level', '')
-            ]
-            writer.writerow(row)
+            lat = item['lat']
+            lon = item['lon']
+            depth = item['depth']
+            mag = item['mag']
+            features.append({
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [lon, lat, -depth if depth != MISSING_DEPTH_VALUE else 0.0]
+                },
+                "properties": {
+                    "id": str(e.get('id', '')),
+                    "time": e.get('date', ''),
+                    "magnitude": mag if mag != MISSING_MAG_VALUE else None,
+                    "depth": depth if depth != MISSING_DEPTH_VALUE else None,
+                    "mag_error": md.get('error', 0.3),
+                    "area": e.get('area', ''),
+                    "type": e.get('type', ''),
+                    "level": e.get('level', '')
+                }
+            })
+        geojson_data = {
+            "type": "FeatureCollection",
+            "metadata": {
+                "generated": datetime.now(timezone.utc).isoformat(),
+                "count": len(features),
+                "network": network
+            },
+            "features": features
+        }
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(geojson_data, f, indent=2)
 
-    # Keep at most 4 most recent temporary CSV files
+    elif export_format == 'json':
+        filename = f"ingv_{network}_{ts_str}.json"
+        filepath = TEMP_DIR / filename
+        json_events = []
+        for item in filtered_items:
+            e = item['raw']
+            md = item['md']
+            json_events.append({
+                "id": str(e.get('id', '')),
+                "time": e.get('date', ''),
+                "lat": item['lat'],
+                "lon": item['lon'],
+                "depth": item['depth'] if item['depth'] != MISSING_DEPTH_VALUE else None,
+                "mag": item['mag'] if item['mag'] != MISSING_MAG_VALUE else None,
+                "mag_error": md.get('error', 0.3),
+                "area": e.get('area', ''),
+                "type": e.get('type', ''),
+                "level": e.get('level', '')
+            })
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump({"events": json_events, "count": len(json_events), "network": network}, f, indent=2)
+
+    else:
+        filename = f"ingv_{network}_{ts_str}.csv"
+        filepath = TEMP_DIR / filename
+        with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(CSV_CANONICAL_HEADER)
+            for item in filtered_items:
+                e = item['raw']
+                loc = item['loc']
+                md = item['md']
+                row = [
+                    e.get('id', ''),
+                    e.get('date', ''), 
+                    _fmt_num(loc.get('latitude'), 6),
+                    _fmt_num(loc.get('longitude'), 6),
+                    _fmt_num(loc.get('depth'), 2),
+                    _fmt_num(md.get('value'), 2),
+                    _fmt_num(md.get('error', 0.3), 2),
+                    e.get('area', ''),
+                    e.get('type', ''),
+                    e.get('level', '')
+                ]
+                writer.writerow(row)
+
+    # Keep at most 4 most recent temporary dataset files
     enforce_temp_dir_limit()
 
     return df, str(filepath)

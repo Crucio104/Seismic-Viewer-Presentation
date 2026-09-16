@@ -62,8 +62,198 @@ def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
         'total_days': int((df['time_dt'].max() - df['time_dt'].min()).days) + 1,
     }
 
-def load_csv(source_file: str) -> dict[str, Any]:
-    """Parse a seismic CSV and return extracted data arrays."""
+import json
+from pathlib import Path
+
+try:
+    import orjson  # type: ignore
+    def _parse_json_file(source_file: str | Path) -> Any:
+        with open(source_file, 'rb') as f:
+            return orjson.loads(f.read())
+except ImportError:
+    try:
+        import ujson  # type: ignore
+        def _parse_json_file(source_file: str | Path) -> Any:
+            with open(source_file, 'r', encoding='utf-8', errors='ignore') as f:
+                return ujson.load(f)
+    except ImportError:
+        def _parse_json_file(source_file: str | Path) -> Any:
+            with open(source_file, 'r', encoding='utf-8', errors='ignore') as f:
+                return json.load(f)
+
+
+def _load_geojson(source_file: str | Path) -> pd.DataFrame:
+    """Parse a GeoJSON FeatureCollection or geometry feature list into a seismic DataFrame."""
+    try:
+        gj = _parse_json_file(source_file)
+
+        features = []
+        if isinstance(gj, dict):
+            features = gj.get('features', [])
+            if not features and 'type' in gj and gj['type'] == 'Feature':
+                features = [gj]
+        elif isinstance(gj, list):
+            features = gj
+
+        rows: list[dict[str, Any]] = []
+        for feat in features:
+            if not isinstance(feat, dict):
+                continue
+            props = feat.get('properties', {}) or {}
+            geom = feat.get('geometry', {}) or {}
+            coords = geom.get('coordinates', []) or []
+
+            lon = None
+            lat = None
+            depth = None
+
+            if isinstance(coords, (list, tuple)) and len(coords) >= 2:
+                lon = float(coords[0])
+                lat = float(coords[1])
+                if len(coords) >= 3 and coords[2] is not None:
+                    # In GeoJSON elevation is in meters or depth in km
+                    depth = abs(float(coords[2]))
+
+            # Prioritize explicit property keys matching schema aliases
+            for k, v in props.items():
+                if v is None:
+                    continue
+                kl = str(k).strip().lower()
+                if kl in ('lon', 'longitude') and lon is None:
+                    try: lon = float(v)
+                    except: pass
+                elif kl in ('lat', 'latitude') and lat is None:
+                    try: lat = float(v)
+                    except: pass
+                elif kl in ('depth', 'depth/km', 'depth(km)', 'profondità', 'profondita'):
+                    try: depth = abs(float(v))
+                    except: pass
+
+            time_val = None
+            for k, v in props.items():
+                if v is None:
+                    continue
+                kl = str(k).strip().lower()
+                if kl in ('time', 'timeutc', 'datetime', 'date', 'origintime', 'eventtime', 'ot'):
+                    time_val = str(v)
+                    break
+
+            mag_val = None
+            for k, v in props.items():
+                if v is None:
+                    continue
+                kl = str(k).strip().lower()
+                if kl in ('mag', 'magnitude', 'magvalue', 'md', 'ml', 'mw'):
+                    try:
+                        mag_val = float(v)
+                        break
+                    except:
+                        pass
+
+            if lat is not None and lon is not None:
+                rows.append({
+                    'time': time_val,
+                    'lat': lat,
+                    'lon': lon,
+                    'depth': depth,
+                    'mag': mag_val
+                })
+
+        return pd.DataFrame(rows)
+    except Exception as e:
+        logger.error(f"Failed to read GeoJSON: {e}", exc_info=True)
+        raise ValueError(f"Failed to read GeoJSON: {e}")
+
+
+def _load_json(source_file: str | Path) -> pd.DataFrame:
+    """Parse a generic or INGV GOSSIP JSON into a seismic DataFrame."""
+    try:
+        raw_data = _parse_json_file(source_file)
+
+        if isinstance(raw_data, dict):
+            if 'features' in raw_data and isinstance(raw_data['features'], list):
+                return _load_geojson(source_file)
+            elif 'events' in raw_data and isinstance(raw_data['events'], list):
+                items = raw_data['events']
+            elif 'data' in raw_data and isinstance(raw_data['data'], list):
+                items = raw_data['data']
+            else:
+                items = [raw_data]
+        elif isinstance(raw_data, list):
+            items = raw_data
+        else:
+            raise ValueError("Invalid JSON format for seismic dataset.")
+
+        rows: list[dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+
+            # Check if this is INGV GOSSIP structure: {"date": ..., "location": {...}, "magnitudos": [...]}
+            loc = item.get('location')
+            if isinstance(loc, dict):
+                lat = loc.get('latitude')
+                lon = loc.get('longitude')
+                depth = loc.get('depth')
+                time_val = item.get('date') or item.get('time')
+                mags = item.get('magnitudos')
+                mag_val = None
+                if isinstance(mags, list) and len(mags) > 0:
+                    md = next((m for m in mags if isinstance(m, dict) and m.get('type') == 'D'), mags[0])
+                    if isinstance(md, dict):
+                        mag_val = md.get('value')
+                rows.append({
+                    'time': str(time_val) if time_val is not None else None,
+                    'lat': float(lat) if lat is not None else None,
+                    'lon': float(lon) if lon is not None else None,
+                    'depth': abs(float(depth)) if depth is not None else None,
+                    'mag': float(mag_val) if mag_val is not None else None
+                })
+                continue
+
+            # Flat dict format
+            lat = None
+            lon = None
+            depth = None
+            mag_val = None
+            time_val = None
+
+            for k, v in item.items():
+                if v is None:
+                    continue
+                kl = str(k).strip().lower()
+                if kl in ('lat', 'latitude') and lat is None:
+                    try: lat = float(v)
+                    except: pass
+                elif kl in ('lon', 'longitude') and lon is None:
+                    try: lon = float(v)
+                    except: pass
+                elif kl in ('depth', 'depth/km', 'depth(km)', 'profondità', 'profondita') and depth is None:
+                    try: depth = abs(float(v))
+                    except: pass
+                elif kl in ('mag', 'magnitude', 'magvalue', 'md', 'ml', 'mw') and mag_val is None:
+                    try: mag_val = float(v)
+                    except: pass
+                elif kl in ('time', 'timeutc', 'datetime', 'date', 'origintime', 'eventtime', 'ot') and time_val is None:
+                    time_val = str(v)
+
+            if lat is not None and lon is not None:
+                rows.append({
+                    'time': time_val,
+                    'lat': lat,
+                    'lon': lon,
+                    'depth': depth,
+                    'mag': mag_val
+                })
+
+        return pd.DataFrame(rows)
+    except Exception as e:
+        logger.error(f"Failed to read JSON: {e}", exc_info=True)
+        raise ValueError(f"Failed to read JSON: {e}")
+
+
+def _load_csv_internal(source_file: str) -> pd.DataFrame:
+    """Internal CSV parsing logic."""
     try:
         with open(source_file, 'r', encoding='utf-8', errors='ignore') as f:
             first_line = f.readline()
@@ -85,14 +275,11 @@ def load_csv(source_file: str) -> dict[str, Any]:
         
         # If we found all 5 columns by name, use them for optimized read
         if len(found_mapping) == 5:
-            # Re-read ONLY the necessary columns to save memory
             df = pd.read_csv(source_file, sep=sep, usecols=list(found_mapping.values()))
-            # Rename for internal consistency
             rename_map = {v: k for k, v in found_mapping.items()}
             df = df.rename(columns=rename_map)
         else:
             # Fallback to positional indices if names don't match
-            # Expecting: [1]Time, [2]Lat, [3]Lon, [4]Depth, [5]Mag
             logger.warning("Column names not recognized, falling back to positional indices.")
             df = pd.read_csv(
                 source_file, 
@@ -101,13 +288,60 @@ def load_csv(source_file: str) -> dict[str, Any]:
                 names=['time', 'lat', 'lon', 'depth', 'mag'],
                 header=0
             )
-        essential_cols = ['lat', 'lon', 'time']
-        df = df.dropna(subset=[c for c in essential_cols if c in df.columns])
+        return df
     except Exception as e:
         logger.error(f"Failed to read CSV: {e}")
         raise ValueError(f"Failed to read CSV: {e}")
 
+
+def load_dataset(source_file: str) -> dict[str, Any]:
+    """Parse a seismic dataset (CSV, GeoJSON, or JSON) and return extracted data arrays."""
+    p = Path(source_file)
+    suffix = p.suffix.lower()
+
+    if suffix == '.geojson':
+        df = _load_geojson(source_file)
+    elif suffix == '.json':
+        try:
+            with open(source_file, 'r', encoding='utf-8', errors='ignore') as f:
+                head = f.read(512)
+            if '"FeatureCollection"' in head or '"Feature"' in head:
+                df = _load_geojson(source_file)
+            else:
+                df = _load_json(source_file)
+        except Exception:
+            df = _load_json(source_file)
+    else:
+        # Check if content is actually JSON / GeoJSON despite missing or differing extension
+        is_json_content = False
+        try:
+            with open(source_file, 'r', encoding='utf-8', errors='ignore') as f:
+                first_chars = f.read(10).strip()
+                if first_chars.startswith('{') or first_chars.startswith('['):
+                    is_json_content = True
+        except Exception:
+            pass
+
+        if is_json_content:
+            try:
+                with open(source_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    head = f.read(512)
+                if '"FeatureCollection"' in head or '"Feature"' in head:
+                    df = _load_geojson(source_file)
+                else:
+                    df = _load_json(source_file)
+            except Exception:
+                df = _load_csv_internal(source_file)
+        else:
+            df = _load_csv_internal(source_file)
+
+    essential_cols = ['lat', 'lon', 'time']
+    df = df.dropna(subset=[c for c in essential_cols if c in df.columns])
     return process_seismic_dataframe(df)
+
+
+# Backward-compatible alias for existing codebase callers
+load_csv = load_dataset
 
 
 def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:

@@ -475,6 +475,7 @@
     async function submitOnlineImport() {
         const params = {
             network: document.getElementById('online-area').value,
+            format: document.getElementById('online-format')?.value || 'csv',
             minmag: document.getElementById('online-mag-min').value || 0.0,
             maxmag: document.getElementById('online-mag-max').value || 10.0,
             startdate: document.getElementById('online-date-start').value,
@@ -714,6 +715,41 @@
         }
     });
 
+    function purgeFrameContext(frame) {
+        if (!frame || !frame.contentWindow) return;
+        try {
+            const win = frame.contentWindow;
+            // 1. Destroy socket connection & cancel reconnect timers
+            if (win.seismicSocket && typeof win.seismicSocket.destroy === 'function') {
+                win.seismicSocket.destroy();
+            }
+            // 2. Purge Plotly graph instances
+            if (win.Plotly) {
+                const plots = win.document.querySelectorAll('.js-plotly-plot, .plotly-graph-div');
+                plots.forEach(p => {
+                    try { win.Plotly.purge(p); } catch(e) {}
+                });
+            }
+            // 3. Forcibly release WebGL hardware contexts via WEBGL_lose_context
+            const canvases = win.document.querySelectorAll('canvas');
+            canvases.forEach(c => {
+                try {
+                    const gl = c.getContext('webgl') || c.getContext('webgl2') || c.getContext('experimental-webgl');
+                    if (gl) {
+                        const loseExt = gl.getExtension('WEBGL_lose_context');
+                        if (loseExt) loseExt.loseContext();
+                    }
+                } catch(e) {}
+            });
+            // 4. Clear any registered requestAnimationFrames or body nodes
+            try {
+                if (win.document && win.document.body) {
+                    win.document.body.innerHTML = '';
+                }
+            } catch(e) {}
+        } catch(e) {}
+    }
+
     /* ─── SPA Window Controller ─── */
     window.SeismicApp = {
         _revealTimeout: null,
@@ -729,15 +765,9 @@
             const overlay = document.getElementById('overlay');
             if (this._revealTimeout) clearTimeout(this._revealTimeout);
 
-            // Cleanly purge any active WebGL / Plotly context from previous view
+            // Cleanly purge any active WebGL / Plotly / Socket context from previous view
             if (frame && frame.src && frame.src !== 'about:blank') {
-                try {
-                    const win = frame.contentWindow;
-                    if (win && win.Plotly) {
-                        const plots = win.document.querySelectorAll('.js-plotly-plot, .plotly-graph-div');
-                        plots.forEach(p => win.Plotly.purge(p));
-                    }
-                } catch(e) {}
+                purgeFrameContext(frame);
             }
 
             // Keep overlay visible and dark during transition
@@ -781,14 +811,7 @@
             const overlay = document.getElementById('overlay');
             if (frame) {
                 frame.style.opacity = '0';
-                // Cleanly purge WebGL context before detachment to prevent WebKit context leaks
-                try {
-                    const win = frame.contentWindow;
-                    if (win && win.Plotly) {
-                        const plots = win.document.querySelectorAll('.js-plotly-plot, .plotly-graph-div');
-                        plots.forEach(p => win.Plotly.purge(p));
-                    }
-                } catch(e) {}
+                purgeFrameContext(frame);
             }
             setTimeout(() => {
                 if (frame) {
@@ -843,8 +866,9 @@
             if (!files || files.length === 0) return;
 
             const file = files[0];
-            if (!file.name.toLowerCase().endsWith('.csv')) {
-                showToast('Please drop a valid .csv file', 'error');
+            const lowerName = file.name.toLowerCase();
+            if (!lowerName.endsWith('.csv') && !lowerName.endsWith('.geojson') && !lowerName.endsWith('.json')) {
+                showToast('Please drop a valid dataset file (.csv, .geojson, .json)', 'error');
                 return;
             }
 
@@ -876,14 +900,14 @@
 
             // 2. Fallback via file text content (100% reliable)
             if (!result || result.error) {
-                updateProgress('Importing CSV content...');
+                updateProgress('Importing dataset content...');
                 const text = await file.text();
                 result = await pywebview.api.load_csv_content(file.name, text);
             }
 
             if (!result || result.error) {
                 status.className = 'status-msg status-error';
-                status.textContent = result?.error || 'Failed to process dropped CSV file.';
+                status.textContent = result?.error || 'Failed to process dropped dataset file.';
                 btn.disabled = false;
                 loader.style.display = 'none';
                 document.getElementById('recent-files-section').style.display = 'block';

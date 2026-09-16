@@ -9,3 +9,4 @@ scikit-learn>=1.3.0
 fastapi
 uvicorn[standard]
 requests
+orjson>=3.10.0

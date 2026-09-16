@@ -1,6 +1,19 @@
 const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__DATA_URL__';
         window.quakeData = null;
 
+        function formatClusterDisplayLabel(lbl, uniqueLabelsList = []) {
+            if (lbl >= 100) {
+                const cyl = Math.floor(lbl / 1000) || Math.floor(lbl / 100);
+                const rem = lbl % 1000;
+                const dep = Math.floor(rem / 100);
+                const grp = rem % 100;
+                if (lbl >= 1000) return `Cyl ${cyl} - D${dep} - Gr ${grp}`;
+                return `Cyl ${Math.floor(lbl / 100)} - Gr ${lbl % 100}`;
+            }
+            const index = Array.isArray(uniqueLabelsList) ? uniqueLabelsList.indexOf(lbl) : -1;
+            return index >= 0 ? `Cluster ${index + 1}` : (lbl >= 0 ? `Cluster ${lbl + 1}` : `Cluster ?`);
+        }
+
         async function initAnimation() {
             window.quakeData = await fetchAndUnpackSeismicData(DATA_URL);
             quakeData.lon = quakeData.longitude;
@@ -185,6 +198,19 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             const magMinInput = document.getElementById('anim-mag-min');
             const magMaxInput = document.getElementById('anim-mag-max');
             if (magMinInput && magMaxInput) {
+                if (quakeData.mag_range && quakeData.mag_range.length >= 2) {
+                    magMinInput.value = quakeData.mag_range[0].toFixed(1);
+                    magMaxInput.value = quakeData.mag_range[1].toFixed(1);
+                } else if (quakeData.mag && quakeData.mag.length > 0) {
+                    let minM = Infinity, maxM = -Infinity;
+                    for (let i = 0; i < quakeData.mag.length; i++) {
+                        const m = quakeData.mag[i];
+                        if (m < minM) minM = m;
+                        if (m > maxM) maxM = m;
+                    }
+                    magMinInput.value = (minM !== Infinity ? minM : 0).toFixed(1);
+                    magMaxInput.value = (maxM !== -Infinity ? maxM : 10).toFixed(1);
+                }
                 const mV1 = parseFloat(magMinInput.value);
                 const mV2 = parseFloat(magMaxInput.value);
                 if (!isNaN(mV1)) appliedMagMin = mV1;
@@ -734,24 +760,11 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     clusters: frameClusters
                 };
 
-                function getDisplayLabel(lbl) {
-                    if (lbl >= 100) {
-                        const cyl = Math.floor(lbl / 1000) || Math.floor(lbl / 100);
-                        const rem = lbl % 1000;
-                        const dep = Math.floor(rem / 100);
-                        const grp = rem % 100;
-                        if (lbl >= 1000) return `Cyl ${cyl} - D${dep} - Gr ${grp}`;
-                        return `Cyl ${Math.floor(lbl/100)} - Gr ${lbl%100}`;
-                    }
-                    const index = globalUniqueLabels.indexOf(lbl);
-                    return index >= 0 ? `Cluster ${index + 1}` : `Cluster ?`;
-                }
-
                 // --- 4. Populate Hover Text ---
                 for (let j = 0; j < sliceHover.length; j++) {
                     const lbl = filteredLabels[j];
                     if (lbl >= 0) {
-                        sliceHover[j] += `<br><b>${getDisplayLabel(lbl)}</b>`;
+                        sliceHover[j] += `<br><b>${formatClusterDisplayLabel(lbl, globalUniqueLabels)}</b>`;
                     }
                 }
 
@@ -1278,12 +1291,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     .filter(l => l !== -1 && l !== undefined && l !== null)
                     .sort((a, b) => a - b);
                     
-                function getDisplayLabel(lbl) {
-                    if (lbl >= 100) return `Cluster ${lbl}`;
-                    const index = uniqueLabels.indexOf(lbl);
-                    return index >= 0 ? `Cluster ${index + 1}` : `Cluster ?`;
-                }
-
                 const traces = [];
 
                 planes.forEach(p => {
@@ -1313,7 +1320,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     let title;
                     if (p.grid_id.startsWith('cluster_')) {
                         const rawId = parseInt(p.grid_id.split('_')[1]);
-                        title = `${getDisplayLabel(rawId)} Plane`;
+                        title = `${formatClusterDisplayLabel(rawId, uniqueLabels)} Plane`;
                     } else {
                         title = `Structural Plane (${dateFmt})`;
                     }
@@ -1890,46 +1897,97 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             document.getElementById('apply-all-btn').onclick = applyAllChanges;
 
+            // Snapshot baseline defaults from when this animated visualization opened
+            const initialAnimDefaults = {
+                magMin: magMinInput ? magMinInput.value : '',
+                magMax: magMaxInput ? magMaxInput.value : '',
+                depMin: depMinInput ? depMinInput.value : '',
+                depMax: depMaxInput ? depMaxInput.value : '',
+                planeRadius: planeRadius ? planeRadius.value : '0.5',
+                planeMinPts: planeMinPts ? planeMinPts.value : '4',
+                accumulatePlanes: false,
+                showPlanes: false,
+                showClustering: false,
+                clusterMethod: 'dbscan',
+                dbscanEps: pEpsAnim ? pEpsAnim.value : '500',
+                dbscanMinSamples: pMinAnim ? pMinAnim.value : '5',
+                hdbMinCluster: pHdbMinClusterAnim ? pHdbMinClusterAnim.value : '5',
+                hdbMinSamples: pHdbMinSamplesAnim ? pHdbMinSamplesAnim.value : '3',
+                hdbEps: pHdbEpsAnim ? pHdbEpsAnim.value : '0',
+                kmeansClusters: pClustersAnim ? pClustersAnim.value : '3',
+                kmeansDist: pDistAnim ? pDistAnim.value : '0',
+                displayMode: 'wireframe',
+                showClusterPlanes: false,
+                calcFrames: calcFramesAnim ? calcFramesAnim.value : '5',
+                useCylinders: false,
+                cylinderRadius: pCylinderRadius ? pCylinderRadius.value : '0.5',
+                cylinderDepth: document.getElementById('anim-cylinder-depth') ? document.getElementById('anim-cylinder-depth').value : '0',
+                eventVectors: false
+            };
+
             const resetAllBtn = document.getElementById('reset-all-btn');
             if (resetAllBtn) {
                 resetAllBtn.onclick = async (e) => {
                     e.preventDefault();
-                    document.getElementById('anim-mag-min').value = '-10.0';
-                    document.getElementById('anim-mag-max').value = '10.0';
-                    document.getElementById('anim-dep-min').value = '-100';
-                    document.getElementById('anim-dep-max').value = '1000';
+                    if (magMinInput) magMinInput.value = initialAnimDefaults.magMin;
+                    if (magMaxInput) magMaxInput.value = initialAnimDefaults.magMax;
+                    if (depMinInput) depMinInput.value = initialAnimDefaults.depMin;
+                    if (depMaxInput) depMaxInput.value = initialAnimDefaults.depMax;
 
-                    const pRad = document.getElementById('plane-radius');
-                    if (pRad) pRad.value = '0.5';
-                    const pMinPts = document.getElementById('plane-min-pts');
-                    if (pMinPts) pMinPts.value = '4';
+                    if (planeRadius) planeRadius.value = initialAnimDefaults.planeRadius;
+                    if (planeMinPts) planeMinPts.value = initialAnimDefaults.planeMinPts;
                     const pAcc = document.getElementById('accumulate-planes');
-                    if (pAcc) pAcc.checked = false;
+                    if (pAcc) pAcc.checked = initialAnimDefaults.accumulatePlanes;
+                    if (animAccumulatePlanesCheck) animAccumulatePlanesCheck.checked = initialAnimDefaults.accumulatePlanes;
+                    accumulatePlanes = initialAnimDefaults.accumulatePlanes;
 
-                    const animEps = document.getElementById('anim-param-eps');
-                    if (animEps) animEps.value = '500';
-                    const animMinSamp = document.getElementById('anim-param-min-samples');
-                    if (animMinSamp) animMinSamp.value = '5';
-                    const animHdbMinClust = document.getElementById('anim-param-hdb-min-cluster');
-                    if (animHdbMinClust) animHdbMinClust.value = '5';
-                    const animHdbMinSamp = document.getElementById('anim-param-hdb-min-samples');
-                    if (animHdbMinSamp) animHdbMinSamp.value = '3';
-                    const animHdbEps = document.getElementById('anim-param-hdb-eps');
-                    if (animHdbEps) animHdbEps.value = '0';
-                    const animKmClust = document.getElementById('anim-param-clusters');
-                    if (animKmClust) animKmClust.value = '3';
-                    const animKmDist = document.getElementById('anim-param-dist');
-                    if (animKmDist) animKmDist.value = '0';
+                    // Clustering parameters
+                    currentAnimClustMethod = initialAnimDefaults.clusterMethod;
+                    if (animMethodToggle) animMethodToggle.textContent = 'DBSCAN ▾';
+                    if (animMethodMenu) {
+                        animMethodMenu.querySelectorAll('.menu-item').forEach(i => {
+                            i.classList.toggle('active', i.dataset.val === 'dbscan');
+                        });
+                    }
+                    if (animKmeansParams) animKmeansParams.style.display = 'none';
+                    if (animDbscanParams) animDbscanParams.style.display = 'block';
+                    if (animHdbscanParams) animHdbscanParams.style.display = 'none';
 
-                    if (showPlanesCheck) showPlanesCheck.checked = false;
-                    if (showAnimClustCheck) showAnimClustCheck.checked = false;
+                    if (pEpsAnim) pEpsAnim.value = initialAnimDefaults.dbscanEps;
+                    if (pMinAnim) pMinAnim.value = initialAnimDefaults.dbscanMinSamples;
+                    if (pHdbMinClusterAnim) pHdbMinClusterAnim.value = initialAnimDefaults.hdbMinCluster;
+                    if (pHdbMinSamplesAnim) pHdbMinSamplesAnim.value = initialAnimDefaults.hdbMinSamples;
+                    if (pHdbEpsAnim) pHdbEpsAnim.value = initialAnimDefaults.hdbEps;
+                    if (pClustersAnim) pClustersAnim.value = initialAnimDefaults.kmeansClusters;
+                    if (pDistAnim) pDistAnim.value = initialAnimDefaults.kmeansDist;
+
+                    if (showAnimPlanesCheck) {
+                        showAnimPlanesCheck.checked = initialAnimDefaults.showClusterPlanes;
+                        showAnimPlanesCheck.onchange();
+                    }
+                    if (calcFramesAnim) calcFramesAnim.value = initialAnimDefaults.calcFrames;
+
+                    if (useCylindersCheck) {
+                        useCylindersCheck.checked = initialAnimDefaults.useCylinders;
+                        useCylindersCheck.onchange();
+                    }
+                    if (pCylinderRadius) pCylinderRadius.value = initialAnimDefaults.cylinderRadius;
+                    const pCylDepth = document.getElementById('anim-cylinder-depth');
+                    if (pCylDepth) pCylDepth.value = initialAnimDefaults.cylinderDepth;
+
+                    if (showPlanesCheck) showPlanesCheck.checked = initialAnimDefaults.showPlanes;
+                    if (showAnimClustCheck) showAnimClustCheck.checked = initialAnimDefaults.showClustering;
+
                     const planeCtrl = document.getElementById('plane-controls');
-                    if (planeCtrl) planeCtrl.style.display = 'none';
+                    if (planeCtrl) planeCtrl.style.display = initialAnimDefaults.showPlanes ? 'block' : 'none';
                     const clustCtrl = document.getElementById('anim-clustering-controls');
-                    if (clustCtrl) clustCtrl.style.display = 'none';
+                    if (clustCtrl) clustCtrl.style.display = initialAnimDefaults.showClustering ? 'block' : 'none';
+
+                    const evCheck = document.getElementById('event-vectors-check');
+                    if (evCheck) evCheck.checked = initialAnimDefaults.eventVectors;
 
                     if (typeof showStatusToast === 'function') {
-                        showStatusToast("Animation parameters reset to defaults", true);
+                        showStatusToast("Parameters reset to default values", true);
                     }
 
                     await applyAllChanges();
@@ -1987,26 +2045,21 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             const eventVectorsCheck = document.getElementById('event-vectors-check');
             if (eventVectorsCheck && !eventVectorsCheck._hooked) {
                 eventVectorsCheck._hooked = true;
-                eventVectorsCheck.addEventListener('change', () => {
-                    appliedEventVectorsEnabled = eventVectorsCheck.checked;
-                    updateAnimatedVectors(
-                        window._lastSliceLon || [],
-                        window._lastSliceLat || [],
-                        window._lastSliceDep || [],
-                        window._lastSliceEventIdx || []
-                    );
-                });
+                // In animated 3D view, event vectors are applied only when clicking Apply Changes
             }
 
-            // Keyboard shortcut 'V' for animated event vectors
-            window.addEventListener('keydown', (e) => {
-                if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement.tagName !== 'INPUT') {
+            // Override SeismicUI.toggleConsecutiveArrows for animated view to route through Apply Changes
+            if (window.SeismicUI) {
+                window.SeismicUI.toggleConsecutiveArrows = function(forceState = null) {
                     const chk = document.getElementById('event-vectors-check');
-                    if (chk) {
-                        e.stopImmediatePropagation();
-                        e.preventDefault();
-                        chk.checked = !chk.checked;
-                        appliedEventVectorsEnabled = chk.checked;
+                    if (!chk) return;
+                    const targetState = (forceState !== null) ? forceState : !chk.checked;
+                    chk.checked = targetState;
+                    const applyBtn = document.getElementById('apply-all-btn');
+                    if (applyBtn) {
+                        applyBtn.click();
+                    } else {
+                        appliedEventVectorsEnabled = targetState;
                         updateAnimatedVectors(
                             window._lastSliceLon || [],
                             window._lastSliceLat || [],
@@ -2014,23 +2067,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                             window._lastSliceEventIdx || []
                         );
                     }
-                }
-            }, true);
-
-            // Override SeismicUI.toggleConsecutiveArrows for animated view
-            if (window.SeismicUI) {
-                window.SeismicUI.toggleConsecutiveArrows = function(forceState = null) {
-                    const chk = document.getElementById('event-vectors-check');
-                    if (!chk) return;
-                    const targetState = (forceState !== null) ? forceState : !chk.checked;
-                    chk.checked = targetState;
-                    appliedEventVectorsEnabled = targetState;
-                    updateAnimatedVectors(
-                        window._lastSliceLon || [],
-                        window._lastSliceLat || [],
-                        window._lastSliceDep || [],
-                        window._lastSliceEventIdx || []
-                    );
                 };
             }
 

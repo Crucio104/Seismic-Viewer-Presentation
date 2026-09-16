@@ -271,12 +271,21 @@
         position: absolute;
         inset: 0;
         background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.4) 50%, transparent 100%);
-        transform: translateX(-100%);
+        will-change: transform;
+        -webkit-transform: translate3d(-100%, 0, 0);
+        transform: translate3d(-100%, 0, 0);
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+        -webkit-animation: barShimmer 1.5s infinite linear;
         animation: barShimmer 1.5s infinite linear;
     }
+    @-webkit-keyframes barShimmer {
+        0% { -webkit-transform: translate3d(-100%, 0, 0); transform: translate3d(-100%, 0, 0); }
+        100% { -webkit-transform: translate3d(200%, 0, 0); transform: translate3d(200%, 0, 0); }
+    }
     @keyframes barShimmer {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(200%); }
+        0% { -webkit-transform: translate3d(-100%, 0, 0); transform: translate3d(-100%, 0, 0); }
+        100% { -webkit-transform: translate3d(200%, 0, 0); transform: translate3d(200%, 0, 0); }
     }
 
     /* =========================================
@@ -646,25 +655,57 @@
 
     .overlay-progress-bar {
         width: 14rem;
-        height: 3px;
+        height: 4px;
         background: rgba(255, 255, 255, 0.08);
         border-radius: 99px;
         overflow: hidden;
         position: relative;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 16px rgba(16, 185, 129, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
+        will-change: transform;
+        contain: paint;
     }
-    .overlay-progress-fill {
+    .overlay-progress-fill,
+    .overlay-progress-track {
         position: absolute;
         top: 0;
         left: 0;
         height: 100%;
-        width: 40%;
-        background: linear-gradient(90deg, transparent, #10b981, #6ee7b7, transparent);
+        width: 45%;
+        background: linear-gradient(90deg, transparent, #059669, #10b981, #34d399, #6ee7b7, #10b981, transparent);
         border-radius: 99px;
-        animation: overlayTrack 1.5s infinite ease-in-out;
+        box-shadow: 0 0 14px #10b981, 0 0 28px rgba(52, 211, 153, 0.85), 0 0 42px rgba(16, 185, 129, 0.5);
+        filter: drop-shadow(0 0 6px #34d399);
+        -webkit-filter: drop-shadow(0 0 6px #34d399);
+        will-change: transform;
+        -webkit-transform: translate3d(-100%, 0, 0);
+        transform: translate3d(-100%, 0, 0);
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+        -webkit-animation: overlayTrack 1.35s infinite cubic-bezier(0.4, 0, 0.2, 1);
+        animation: overlayTrack 1.35s infinite cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    @-webkit-keyframes overlayTrack {
+        0% {
+            -webkit-transform: translate3d(-100%, 0, 0);
+            transform: translate3d(-100%, 0, 0);
+        }
+        100% {
+            -webkit-transform: translate3d(350%, 0, 0);
+            transform: translate3d(350%, 0, 0);
+        }
     }
     @keyframes overlayTrack {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(350%); }
+        0% {
+            -webkit-transform: translate3d(-100%, 0, 0);
+            transform: translate3d(-100%, 0, 0);
+        }
+        100% {
+            -webkit-transform: translate3d(350%, 0, 0);
+            transform: translate3d(350%, 0, 0);
+        }
     }
 
     .glass-modal {

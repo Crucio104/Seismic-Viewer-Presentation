@@ -9,6 +9,7 @@ BASE_DIR = CORE_DIR.parent
 
 INDEX_REL = Path('assets/index.html')
 TEMP_DIR = BASE_DIR / 'temp'
+DROPPED_FILES_DIR = BASE_DIR / 'cache' / 'dropped_files'
 HISTORY_FILE = Path.home() / ".seismic_viewer_history.json"
 
 # ─── CSV Schema ──────────────────────────────────────────────────────
@@ -91,7 +92,7 @@ def cleanup_temp_files(max_keep: int = 0) -> None:
     if TEMP_DIR.exists():
         try:
             temp_files = sorted(
-                TEMP_DIR.glob("ingv_*.csv"),
+                [f for f in TEMP_DIR.glob("ingv_*") if f.is_file()],
                 key=lambda f: f.stat().st_mtime,
                 reverse=True
             )
@@ -107,6 +108,27 @@ def cleanup_temp_files(max_keep: int = 0) -> None:
 def enforce_temp_dir_limit(max_keep: int = MAX_TEMP_FILES) -> None:
     """Ensure the temp directory holds at most max_keep recent files."""
     cleanup_temp_files(max_keep=max_keep)
+
+def cleanup_dropped_files(max_keep: int = MAX_TEMP_FILES) -> None:
+    """
+    Keep at most `max_keep` most recently modified dropped files in cache/dropped_files/.
+    If max_keep == 0, deletes all dropped cache files.
+    """
+    if DROPPED_FILES_DIR.exists():
+        try:
+            files = sorted(
+                [f for f in DROPPED_FILES_DIR.iterdir() if f.is_file()],
+                key=lambda f: f.stat().st_mtime,
+                reverse=True
+            )
+            to_delete = files[max_keep:] if max_keep > 0 else files
+            for f in to_delete:
+                try:
+                    f.unlink()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
 def clear_session_data() -> None:
     """Clear all stored session data and free memory."""

@@ -18,13 +18,20 @@ import webview
 from core.config import (
     BASE_DIR, get_http_port, 
     clear_session_data, store_viz_html,
-    MAP_CACHE_DIR, INGV_CACHE_DIR, get_session_data, cleanup_temp_files
+    MAP_CACHE_DIR, INGV_CACHE_DIR, get_session_data, cleanup_temp_files,
+    DROPPED_FILES_DIR, cleanup_dropped_files
 )
 from core.history import get_recent_files, save_recent_file, clear_history as clear_history_file
 from core.online_importer import fetch_ingv_dataframe
 from core.geo_utils import build_map_mesh
 from core.layer_utils import process_tomography_data, process_uplift_data, process_stations_data
-from core.exporter import write_single_cluster_csv, write_single_cluster_geojson, write_clusters_zip, collect_cluster_export_items
+from core.exporter import (
+    write_single_cluster_csv,
+    write_single_cluster_geojson,
+    write_single_cluster_json,
+    write_clusters_zip,
+    collect_cluster_export_items
+)
 from core import engine
 
 logger = logging.getLogger(__name__)
@@ -119,13 +126,19 @@ class Api:
     # --- File Operations ---
 
     def select_csv(self) -> dict[str, Any] | None:
-        """Open native file dialog to select a CSV."""
+        """Open native file dialog to select a dataset (CSV, GeoJSON, JSON)."""
         try:
             result = self._window().create_file_dialog(
                 webview.FileDialog.OPEN,
                 directory=str(BASE_DIR),
                 allow_multiple=False,
-                file_types=('CSV Files (*.csv)',),
+                file_types=(
+                    'Supported Datasets (*.csv;*.geojson;*.json)',
+                    'CSV Files (*.csv)',
+                    'GeoJSON Files (*.geojson)',
+                    'JSON Files (*.json)',
+                    'All Files (*.*)'
+                ),
             )
             if not result:
                 return None
@@ -165,20 +178,30 @@ class Api:
             return {'error': str(e)}
 
     def save_current_csv(self) -> dict[str, Any]:
-        """Open native save dialog and save a copy of the currently loaded dataset CSV."""
+        """Open native save dialog and save a copy of the currently loaded dataset in its original format."""
         try:
             if not self._csv_path or not Path(self._csv_path).exists():
                 return {'error': 'No dataset loaded or file not found.'}
 
-            original_filename = Path(self._csv_path).name
-            if not original_filename.lower().endswith('.csv'):
-                original_filename += '.csv'
+            original_path = Path(self._csv_path)
+            original_filename = original_path.name
+            suffix = original_path.suffix.lower()
+
+            if suffix == '.geojson':
+                file_types = ('GeoJSON Files (*.geojson)', 'All Files (*.*)')
+            elif suffix == '.json':
+                file_types = ('JSON Files (*.json)', 'All Files (*.*)')
+            else:
+                suffix = '.csv'
+                if not original_filename.lower().endswith('.csv'):
+                    original_filename += '.csv'
+                file_types = ('CSV Files (*.csv)', 'All Files (*.*)')
 
             result = self._window().create_file_dialog(
                 webview.FileDialog.SAVE,
                 directory=str(Path.home()),
                 save_filename=original_filename,
-                file_types=('CSV Files (*.csv)',),
+                file_types=file_types,
             )
 
             if not result:
@@ -186,8 +209,8 @@ class Api:
 
             save_path = result[0] if isinstance(result, (list, tuple)) else result
             save_path = str(save_path)
-            if not save_path.lower().endswith('.csv'):
-                save_path += '.csv'
+            if not save_path.lower().endswith(suffix):
+                save_path += suffix
 
             shutil.copy2(self._csv_path, save_path)
             logger.info(f"Dataset successfully saved to: {save_path}")
@@ -246,13 +269,14 @@ class Api:
     def load_csv_content(self, filename: str, content: str) -> dict[str, Any]:
         """Load a CSV directly from file text content (used for Drag & Drop)."""
         try:
-            temp_dir = BASE_DIR / 'cache' / 'dropped_files'
-            temp_dir.mkdir(parents=True, exist_ok=True)
+            DROPPED_FILES_DIR.mkdir(parents=True, exist_ok=True)
             safe_name = Path(filename).name
-            if not safe_name.lower().endswith('.csv'):
+            lower_name = safe_name.lower()
+            if not (lower_name.endswith('.csv') or lower_name.endswith('.geojson') or lower_name.endswith('.json')):
                 safe_name += '.csv'
-            target_path = temp_dir / safe_name
+            target_path = DROPPED_FILES_DIR / safe_name
             target_path.write_text(content, encoding='utf-8')
+            cleanup_dropped_files(max_keep=4)
             return self._process_csv_load(str(target_path))
         except Exception as e:
             logger.error(f"Failed to load dropped CSV: {filename}", exc_info=True)
@@ -275,6 +299,7 @@ class Api:
         try:
             clear_history_file()
             cleanup_temp_files()
+            cleanup_dropped_files(max_keep=0)
             logger.info("Recent history and temporary INGV CSV files cleared.")
             return {'status': 'success'}
         except Exception as e:
@@ -717,7 +742,7 @@ class Api:
             return res
         except Exception as e:
             logger.error("Error in apply_external_layers", exc_info=True)
-            return {'error': str(e)}
+            return {'status': 'error', 'error': str(e), 'message': str(e)}
 
     def export_single_cluster_csv(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         """Export a single selected cluster as a CSV or GeoJSON file via native Save dialog."""
@@ -726,10 +751,17 @@ class Api:
                 return {'status': 'error', 'message': 'No dataset loaded'}
 
             payload = payload or {}
-            fmt = str(payload.get('format', 'csv')).lower()
-            is_geojson = fmt in ('geojson', 'json')
-            ext = '.geojson' if is_geojson else '.csv'
-            file_types = ('GeoJSON Files (*.geojson)',) if is_geojson else ('CSV Files (*.csv)',)
+            fmt = str(payload.get('format', 'csv')).lower().strip()
+            if fmt == 'geojson':
+                ext = '.geojson'
+                file_types = ('GeoJSON Files (*.geojson)',)
+            elif fmt == 'json':
+                ext = '.json'
+                file_types = ('JSON Files (*.json)',)
+            else:
+                fmt = 'csv'
+                ext = '.csv'
+                file_types = ('CSV Files (*.csv)',)
 
             filename = payload.get('filename', 'cluster')
             stem = Path(filename).stem
@@ -759,8 +791,10 @@ class Api:
             if save_path.suffix.lower() != ext:
                 save_path = save_path.with_suffix(ext)
 
-            if is_geojson:
+            if fmt == 'geojson':
                 write_single_cluster_geojson(self._data, save_path, idx_list, method, params, cluster_name=save_path.stem)
+            elif fmt == 'json':
+                write_single_cluster_json(self._data, save_path, idx_list, method, params, cluster_name=save_path.stem)
             else:
                 write_single_cluster_csv(self._data, save_path, idx_list, method, params)
 
@@ -770,7 +804,7 @@ class Api:
             return {'status': 'error', 'message': str(e)}
 
     def export_clusters_zip(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Export all cluster files (CSV or GeoJSON) packaged into a single ZIP file via native Save dialog."""
+        """Export all cluster files (CSV, GeoJSON, or JSON) packaged into a single ZIP file via native Save dialog."""
         try:
             if not self._data:
                 return {'status': 'error', 'message': 'No dataset loaded'}
@@ -780,8 +814,14 @@ class Api:
                 return {'status': 'error', 'message': 'No cluster data available to export.'}
 
             payload = payload or {}
-            fmt = str(payload.get('format', 'csv')).lower()
-            default_zip = "seismic_clusters_geojson.zip" if fmt == 'geojson' else "seismic_clusters_csv.zip"
+            fmt = str(payload.get('format', 'csv')).lower().strip()
+            if fmt == 'geojson':
+                default_zip = "seismic_clusters_geojson.zip"
+            elif fmt == 'json':
+                default_zip = "seismic_clusters_json.zip"
+            else:
+                fmt = 'csv'
+                default_zip = "seismic_clusters_csv.zip"
 
             result = self._window().create_file_dialog(
                 webview.FileDialog.SAVE,
