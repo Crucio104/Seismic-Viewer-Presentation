@@ -35,6 +35,20 @@ def _extract_md_obj(magnitudos: list[dict[str, Any]]) -> dict[str, Any]:
         return {}
     return next((m for m in magnitudos if m.get('type') == 'D'), magnitudos[0])
 
+try:
+    import orjson  # type: ignore
+    def _parse_json_bytes(content: bytes | bytearray) -> Any:
+        return orjson.loads(content)
+    def _read_json_file(file_path: Path) -> Any:
+        with open(file_path, 'rb') as f:
+            return orjson.loads(f.read())
+except ImportError:
+    def _parse_json_bytes(content: bytes | bytearray) -> Any:
+        return json.loads(content)
+    def _read_json_file(file_path: Path) -> Any:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
 def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | None = None) -> list[dict[str, Any]]:
     """
     Fetch annual events.json from INGV with streaming, local disk caching and conditional ETag.
@@ -49,18 +63,17 @@ def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | No
     # Past years are immutable: load directly from local cache if present
     if is_past_year and cache_file.exists():
         try:
-            with open(cache_file, 'r', encoding='utf-8') as f:
-                logger.info(f"Loaded year {year} ({network}) from local cache: {cache_file}")
-                if on_progress:
-                    on_progress(f"Caricamento anno {year} dalla cache locale...")
-                return json.load(f)
+            logger.info(f"Loaded year {year} ({network}) from local cache: {cache_file}")
+            if on_progress:
+                on_progress(f"Loading year {year} from local cache...")
+            return _read_json_file(cache_file)
         except Exception as e:
             logger.warning(f"Failed to read local cache {cache_file}: {e}")
 
     url = f"{GOSSIP_BASE_URL}/{network}/{year}/events.json"
     logger.info(f"Fetching data from: {url}")
     if on_progress:
-        on_progress(f"Connessione a INGV per l'anno {year}...")
+        on_progress(f"Connecting to INGV for year {year}...")
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -70,12 +83,11 @@ def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | No
     # Conditional HTTP request using ETag for current year
     if cache_file.exists() and meta_file.exists():
         try:
-            with open(meta_file, 'r', encoding='utf-8') as f:
-                meta = json.load(f)
-                etag = meta.get('etag')
-                if etag:
-                    headers['If-None-Match'] = etag
-        except (OSError, json.JSONDecodeError) as e:
+            meta = _read_json_file(meta_file)
+            etag = meta.get('etag')
+            if etag:
+                headers['If-None-Match'] = etag
+        except Exception as e:
             logger.debug(f"Failed to read INGV meta cache {meta_file}: {e}")
 
     try:
@@ -86,9 +98,8 @@ def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | No
             if resp.status_code == 304 and cache_file.exists():
                 logger.info(f"INGV data for year {year} is unchanged (304 Not Modified). Using local cache.")
                 if on_progress:
-                    on_progress(f"Dati INGV {year} aggiornati, uso cache...")
-                with open(cache_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    on_progress(f"INGV {year} data up to date, using local cache...")
+                return _read_json_file(cache_file)
 
             if resp.status_code == 200:
                 total_bytes = int(resp.headers.get('Content-Length', 0))
@@ -104,11 +115,11 @@ def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | No
                             dl_mb = len(content) / (1024 * 1024)
                             if total_bytes > 0:
                                 tot_mb = total_bytes / (1024 * 1024)
-                                on_progress(f"Download INGV {year}: {dl_mb:.1f}MB / {tot_mb:.1f}MB...")
+                                on_progress(f"Downloading INGV {year}: {dl_mb:.1f}MB / {tot_mb:.1f}MB...")
                             else:
-                                on_progress(f"Download INGV {year}: {dl_mb:.1f}MB...")
+                                on_progress(f"Downloading INGV {year}: {dl_mb:.1f}MB...")
 
-                data = json.loads(content)
+                data = _parse_json_bytes(content)
 
                 # Persist to local cache
                 try:
@@ -127,24 +138,22 @@ def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | No
                 return []
             else:
                 logger.warning(f"Failed to fetch data for year {year}: HTTP {resp.status_code}")
-                raise RuntimeError(f"Il server INGV ha restituito errore HTTP {resp.status_code} per l'anno {year}.")
+                raise RuntimeError(f"INGV server returned HTTP error {resp.status_code} for year {year}.")
     except requests.exceptions.Timeout as te:
         if cache_file.exists():
             logger.warning(f"Timeout on year {year}, falling back to local cache: {te}")
             if on_progress:
-                on_progress(f"Server INGV lento: uso cache locale per {year}...")
-            with open(cache_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                on_progress(f"INGV server slow: using local cache for {year}...")
+            return _read_json_file(cache_file)
         logger.error(f"Timeout fetching data for year {year}: {te}")
         raise TimeoutError(
-            f"Il server INGV (terremoti.ov.ingv.it) ha impiegato troppo tempo a rispondere per l'anno {year}. "
-            "Il server dell'Osservatorio è momentaneamente lento o sovraccarico; riprova tra poco."
+            f"INGV server (terremoti.ov.ingv.it) timed out for year {year}. "
+            "The observatory server is temporarily slow or overloaded; please retry shortly."
         ) from te
     except Exception as e:
         if cache_file.exists():
             logger.warning(f"Error on year {year}, falling back to local cache: {e}")
-            with open(cache_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
+            return _read_json_file(cache_file)
         logger.error(f"Error fetching data for year {year}: {e}")
         raise
 

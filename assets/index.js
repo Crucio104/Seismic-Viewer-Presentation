@@ -743,6 +743,8 @@
             });
             // 4. Clear any registered requestAnimationFrames or body nodes
             try {
+                if (win.animInterval) win.clearInterval(win.animInterval);
+                if (win.cinemaInterval) win.clearInterval(win.cinemaInterval);
                 if (win.document && win.document.body) {
                     win.document.body.innerHTML = '';
                 }

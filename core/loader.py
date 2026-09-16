@@ -7,6 +7,7 @@ from core.config import (
     MIN_MAGNITUDE, MISSING_MAG_VALUE, MISSING_DEPTH_VALUE, CSV_SCHEMA, SECONDS_PER_DAY
 )
 from core.swarm_detector import detect_ingv_swarms
+from core.utils import parse_seismic_date_series
 
 
 logger = logging.getLogger(__name__)
@@ -351,13 +352,7 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
 
     # Ensure chronological order - CRITICAL for animation slicing
     if 'time_dt' not in df.columns and 'time' in df.columns:
-        if df['time'].astype(str).str.match(r'^\d+(\.\d+)?$').all():
-            df['time_dt'] = pd.to_datetime(pd.to_numeric(df['time']), origin='1899-12-30', unit='D')
-        else:
-            try:
-                df['time_dt'] = pd.to_datetime(df['time'], format='ISO8601')
-            except Exception:
-                df['time_dt'] = pd.to_datetime(df['time'], errors='coerce', format='mixed')
+        df['time_dt'] = parse_seismic_date_series(df['time'])
     
     if 'time_dt' in df.columns:
         if hasattr(df['time_dt'].dt, 'tz') and df['time_dt'].dt.tz is not None:

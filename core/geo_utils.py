@@ -1,59 +1,128 @@
+import math
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import hashlib
 import pickle
-import threading
 import numpy as np
-import smopy
-import urllib.request
-import urllib.error
-import ssl
+import requests
 import PIL.Image
 import logging
 import io
-import contextlib
 from functools import lru_cache
 from typing import Any
 from core.config import PALETTE_COLORS, MAP_CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
+TILE_SIZE = 256
+OSM_TILE_SERVER = "https://tile.openstreetmap.org"
+USER_AGENT = "SeismicViewer/1.0 (academic-research; contact: seismic-viewer@local)"
+
+def _deg2num(lat_deg: float, lon_deg: float, zoom: int) -> tuple[float, float]:
+    """Convert latitude/longitude in degrees to tile float coordinates in Web Mercator."""
+    lat_rad = math.radians(lat_deg)
+    n = 2.0 ** zoom
+    xtile = (lon_deg + 180.0) / 360.0 * n
+    ytile = (1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n
+    return xtile, ytile
+
+def _determine_zoom(min_lat: float, min_lon: float, max_lat: float, max_lon: float, max_tiles: int = 16) -> int:
+    """Calculate the optimal zoom level ensuring total tiles stay under max_tiles limit."""
+    for z in range(15, 8, -1):
+        x0, y1 = _deg2num(min_lat, min_lon, z)
+        x1, y0 = _deg2num(max_lat, max_lon, z)
+        x_span = int(math.floor(x1)) - int(math.floor(x0)) + 1
+        y_span = int(math.floor(y1)) - int(math.floor(y0)) + 1
+        if x_span * y_span <= max_tiles:
+            return z
+    return 9
+
 # --- Helper for Map Tiles Fetching ---
 def _get_cache_path(bbox: tuple[float, float, float, float], resolution: int) -> Path:
     """Generate a deterministic cache path from the bounding box and resolution."""
-    # Round bbox to 5 decimal places to avoid tiny float differences breaking cache
     rounded_bbox: tuple[float, float, float, float] = tuple(round(v, 5) for v in bbox)
     key_str = f"{rounded_bbox}_{resolution}"
     key = hashlib.md5(key_str.encode()).hexdigest()
     return MAP_CACHE_DIR / f'mesh_{key}.pkl'
 
+def _fetch_single_tile(z: int, x: int, y: int, session: requests.Session, tile_cache_dir: Path) -> tuple[int, int, PIL.Image.Image | None]:
+    """Download a single tile with on-disk caching, returning (x, y, Image)."""
+    tile_file = tile_cache_dir / f"{z}_{x}_{y}.png"
+    if tile_file.exists():
+        try:
+            with open(tile_file, 'rb') as f:
+                img = PIL.Image.open(io.BytesIO(f.read()))
+                img.load()
+                return x, y, img
+        except Exception:
+            pass
 
-_ssl_opener_lock = threading.Lock()
+    url = f"{OSM_TILE_SERVER}/{z}/{x}/{y}.png"
+    try:
+        resp = session.get(url, headers={'User-Agent': USER_AGENT}, timeout=5)
+        if resp.status_code == 200:
+            img = PIL.Image.open(io.BytesIO(resp.content))
+            img.load()
+            try:
+                with open(tile_file, 'wb') as f:
+                    f.write(resp.content)
+            except Exception:
+                pass
+            return x, y, img
+    except Exception as e:
+        logger.debug(f"Failed to download tile {z}/{x}/{y}: {e}")
+    return x, y, None
 
 def _fetch_tiles_raw(bbox: tuple[float, float, float, float]) -> dict[str, Any] | None:
-    """Low-level fetch from Smopy with error handling for offline usage."""
+    """Native OpenStreetMap tile downloader without legacy smopy dependency."""
     try:
-        logger.info(f"Downloading map tiles for area {bbox}...")
-        try:
-            with contextlib.redirect_stdout(io.StringIO()):
-                map_obj = smopy.Map(bbox)
-        except (ssl.SSLError, urllib.error.URLError) as ssl_err:
-            logger.warning(f"SSL certificate issue downloading tiles ({ssl_err}), retrying with local SSL fallback...")
-            with _ssl_opener_lock:
-                ctx = ssl._create_unverified_context() if hasattr(ssl, '_create_unverified_context') else None
-                unverified_opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
-                unverified_opener.addheaders = [('User-Agent', 'SeismicViewer/1.0')]
-                orig_opener = urllib.request._opener
-                urllib.request.install_opener(unverified_opener)
-                try:
-                    with contextlib.redirect_stdout(io.StringIO()):
-                        map_obj = smopy.Map(bbox)
-                finally:
-                    urllib.request.install_opener(orig_opener)
+        min_lat, min_lon, max_lat, max_lon = bbox
+        z = _determine_zoom(min_lat, min_lon, max_lat, max_lon, max_tiles=20)
+        
+        x0_f, y1_f = _deg2num(min_lat, min_lon, z)
+        x1_f, y0_f = _deg2num(max_lat, max_lon, z)
+
+        xmin = int(math.floor(min(x0_f, x1_f)))
+        xmax = int(math.floor(max(x0_f, x1_f)))
+        ymin = int(math.floor(min(y0_f, y1_f)))
+        ymax = int(math.floor(max(y0_f, y1_f)))
+
+        x_count = xmax - xmin + 1
+        y_count = ymax - ymin + 1
+
+        logger.info(f"Downloading OSM map tiles: zoom {z}, grid {x_count}x{y_count} ({x_count*y_count} tiles)...")
+
+        tile_cache_dir = MAP_CACHE_DIR / 'tiles'
+        tile_cache_dir.mkdir(parents=True, exist_ok=True)
+
+        composite = PIL.Image.new('RGB', (x_count * TILE_SIZE, y_count * TILE_SIZE), (25, 25, 35))
+        tasks = []
+        for x in range(xmin, xmax + 1):
+            for y in range(ymin, ymax + 1):
+                tasks.append((z, x, y))
+
+        success_count = 0
+        with requests.Session() as s:
+            with ThreadPoolExecutor(max_workers=min(len(tasks), 6)) as executor:
+                futures = [executor.submit(_fetch_single_tile, tz, tx, ty, s, tile_cache_dir) for tz, tx, ty in tasks]
+                for fut in futures:
+                    tx, ty, tile_img = fut.result()
+                    if tile_img is not None:
+                        px = (tx - xmin) * TILE_SIZE
+                        py = (ty - ymin) * TILE_SIZE
+                        composite.paste(tile_img, (px, py))
+                        success_count += 1
+
+        if success_count == 0:
+            logger.warning("No OSM tiles could be downloaded (offline).")
+            return None
 
         return {
-            'img': map_obj.to_pil(),
-            'xmin': map_obj.xmin, 'ymin': map_obj.ymin,
-            'z': map_obj.z, 'tilesize': map_obj.tilesize,
+            'img': composite,
+            'xmin': xmin,
+            'ymin': ymin,
+            'z': z,
+            'tilesize': TILE_SIZE,
         }
     except Exception as e:
         logger.error(f"Map download failed: {e}")

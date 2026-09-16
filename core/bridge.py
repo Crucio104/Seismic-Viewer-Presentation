@@ -32,6 +32,7 @@ from core.exporter import (
     write_clusters_zip,
     collect_cluster_export_items
 )
+from core.loader import load_csv, process_seismic_dataframe
 from core import engine
 
 logger = logging.getLogger(__name__)
@@ -226,7 +227,7 @@ class Api:
             self._push_progress("Connecting to INGV servers...")
             df, csv_path = fetch_ingv_dataframe(params, on_progress=self._push_progress)
             self._push_progress("Packaging downloaded data...")
-            data = engine.process_seismic_dataframe(df)
+            data = process_seismic_dataframe(df)
             self._csv_path, self._data = csv_path, data
             self._stored_layer_paths = {'stations': None, 'uplift': None, 'tomography': None}
             self._csv_info = {
@@ -251,7 +252,7 @@ class Api:
             if self._csv_path is not None and self._csv_path != path:
                 self._stored_layer_paths = {'stations': None, 'uplift': None, 'tomography': None}
 
-            data = engine.load_csv(path)
+            data = load_csv(path)
             self._csv_path, self._data = path, data
             self._csv_info = {
                 'filename': Path(path).name,

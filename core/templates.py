@@ -121,9 +121,7 @@ def _inject_head_assets(html: str, is_subcluster: bool = False) -> str:
         '.in-spa #init-loader{display:none !important;}'
         '</style>'
         '<script src="/assets/plotly.min.js" charset="utf-8"></script>'
-        '<link rel="preconnect" href="https://fonts.googleapis.com">'
-        '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-        '<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">'
+        '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" media="print" onload="this.media=\'all\'">'
         '<link rel="stylesheet" href="/assets/style.css">'
     )
     return html.replace('<head>', f'<head>\n{head_css}')

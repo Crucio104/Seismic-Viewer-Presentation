@@ -167,9 +167,33 @@ def _create_fastapi_app(controller: ServerController) -> FastAPI:
     app.get("/viz/{viz_id}")(get_viz_handler)
     app.get("/api/data/{session_id}/bin")(get_data_binary_handler)
 
-    # Static files
+    # Static files with client-side caching & gzip pre-compression serving
+    class CachedStaticFiles(StaticFiles):
+        def file_response(self, *args, **kwargs) -> Response:
+            full_path = args[0] if args else kwargs.get("full_path")
+            scope = kwargs.get("scope")
+            headers = dict(scope.get("headers", [])) if scope else {}
+            accept_enc = headers.get(b"accept-encoding", b"").decode("latin1", errors="ignore")
+
+            if full_path and "gzip" in accept_enc:
+                gz_path = f"{full_path}.gz"
+                from pathlib import Path
+                if Path(gz_path).is_file():
+                    from fastapi.responses import FileResponse
+                    resp = FileResponse(gz_path, headers={"Content-Encoding": "gzip", "Vary": "Accept-Encoding"})
+                    resp.headers["Cache-Control"] = "public, max-age=86400"
+                    if str(full_path).endswith('.js'):
+                        resp.media_type = "application/javascript"
+                    elif str(full_path).endswith('.css'):
+                        resp.media_type = "text/css"
+                    return resp
+
+            resp = super().file_response(*args, **kwargs)
+            resp.headers["Cache-Control"] = "public, max-age=86400"
+            return resp
+
     assets_dir = BASE_DIR / 'assets'
-    app.mount("/assets", StaticFiles(directory=str(assets_dir), html=True), name="assets")
+    app.mount("/assets", CachedStaticFiles(directory=str(assets_dir), html=True), name="assets")
 
     return app
 

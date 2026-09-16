@@ -85,14 +85,14 @@ MAX_TEMP_FILES = 4
 
 def cleanup_temp_files(max_keep: int = 0) -> None:
     """
-    Clean up temporary files created during online imports.
+    Clean up temporary files created during imports and visualization exports.
     If max_keep > 0, keeps only the `max_keep` most recently modified files, deleting older ones.
-    If max_keep == 0, deletes all temporary import files.
+    If max_keep == 0, deletes all temporary files in TEMP_DIR.
     """
     if TEMP_DIR.exists():
         try:
             temp_files = sorted(
-                [f for f in TEMP_DIR.glob("ingv_*") if f.is_file()],
+                [f for f in TEMP_DIR.iterdir() if f.is_file() and not f.name.startswith('.')],
                 key=lambda f: f.stat().st_mtime,
                 reverse=True
             )
@@ -140,11 +140,11 @@ def clear_session_data() -> None:
 # ─── HTML View Store ───────────────────────────────────────────────
 
 def store_viz_html(viz_id: str, html: str) -> None:
-    """Store generated HTML for a view, evicting old entries."""
+    """Store generated HTML for the active view, immediately evicting old entries."""
     with _store_lock:
-        # Keep at most 3 views to bound memory usage (each 3D view HTML is ~12MB)
+        # Keep at most 1 active view to strictly bound memory usage (~12MB per view)
         evicted = False
-        while len(_html_store) >= 3:
+        while len(_html_store) >= 1:
             oldest_key = next(iter(_html_store))
             del _html_store[oldest_key]
             evicted = True
