@@ -15,7 +15,8 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
         }
 
         async function initAnimation() {
-            window.quakeData = await fetchAndUnpackSeismicData(DATA_URL);
+            const quakeData = await fetchAndUnpackSeismicData(DATA_URL);
+            window.quakeData = quakeData;
             quakeData.lon = quakeData.longitude;
             quakeData.lat = quakeData.latitude;
             quakeData.mag = quakeData.magnitude;

@@ -125,7 +125,8 @@ async def handle_websocket_messages(websocket: WebSocket, manager: ConnectionMan
                 await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
 
     except (WebSocketDisconnect, ConnectionResetError, OSError):
-        manager.disconnect(websocket)
+        pass
     except Exception as e:
         logger.error(f"WebSocket Error: {e}")
+    finally:
         manager.disconnect(websocket)

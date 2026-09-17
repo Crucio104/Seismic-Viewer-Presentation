@@ -115,11 +115,23 @@ def parse_seismic_date_series(series: pd.Series) -> pd.Series:
         return pd.Series(dtype='datetime64[ns]')
 
     # 1. Numeric serial dates
-    if pd.api.types.is_numeric_dtype(series) or series.astype(str).str.match(r'^\d+(\.\d+)?$').all():
+    if pd.api.types.is_numeric_dtype(series):
         try:
-            return pd.to_datetime(pd.to_numeric(series), origin='1899-12-30', unit='D')
+            return pd.to_datetime(series, origin='1899-12-30', unit='D')
         except Exception:
             pass
+    else:
+        # Sample first non-null element to check if it represents a string-encoded pure number
+        non_nulls = series.dropna()
+        if not non_nulls.empty:
+            first_val = str(non_nulls.iloc[0]).strip()
+            if first_val.replace('.', '', 1).isdigit():
+                try:
+                    num_series = pd.to_numeric(series, errors='coerce')
+                    if num_series.notna().sum() > 0.8 * len(series):
+                        return pd.to_datetime(num_series, origin='1899-12-30', unit='D')
+                except Exception:
+                    pass
 
     # 2. Fast ISO8601 path
     try:

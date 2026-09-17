@@ -421,9 +421,10 @@ class Api:
             if params and 'custom_labels' in params:
                 global_labels = np.array(params['custom_labels'])
             else:
+                hover_data = self._data.get('visual_pack', {}).get('hover', [])
                 res = engine.get_cluster_update_traces(
                     self._data['longitude'], self._data['latitude'], self._data['magnitude'],
-                    self._data['depth'], np.array(self._data['visual_pack']['hover']),
+                    self._data['depth'], np.array(hover_data) if hover_data else [],
                     method, params,
                     viz_mask=None,
                     origin_lat=self._data.get('origin_lat', 0),
@@ -594,12 +595,15 @@ class Api:
             dnums = np.array(d.get('dates_num', d.get('dnum', [])))
             f_dnums = dnums[start_idx:end_idx] if len(dnums) >= end_idx else None
 
+            hover_list = d.get('visual_pack', {}).get('hover', [])
+            f_hover = hover_list[start_idx:end_idx] if hover_list else []
+
             res = engine.get_cluster_update_traces(
                 longitude=d['longitude'][start_idx:end_idx],
                 latitude=d['latitude'][start_idx:end_idx],
                 magnitude=mags.tolist(),
                 depth=d['depth'][start_idx:end_idx],
-                hover=d['visual_pack']['hover'][start_idx:end_idx],
+                hover=f_hover,
                 clustering_method=method, clustering_params=params, viz_mask=viz_mask,
                 origin_lat=d.get('origin_lat'), origin_lon=d.get('origin_lon'),
                 subcluster_target_mask=target_mask,

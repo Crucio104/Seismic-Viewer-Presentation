@@ -1,4 +1,3 @@
-import json
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +18,17 @@ def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
     """Pre-calculate expensive data structures for visualizations with minimal memory footprint."""
     logger.info("Packaging visualization data...")
     
+    if df.empty:
+        return {
+            'unique_dates': [],
+            'date_to_cum': {},
+            'mag_range': [0.0, 10.0],
+            'dep_range': [0.0, 100.0],
+            'date_range': [0.0, 0.0],
+            'date_counts': [],
+            'total_days': 1,
+        }
+
     # Date grouping for animation (without allocating a temporary string column on full df)
     date_counts_series = df['time_dt'].dt.floor('D').value_counts().sort_index()
     unique_dates = [ts.strftime('%Y-%m-%d') for ts in date_counts_series.index]
@@ -30,9 +40,9 @@ def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
         'date_to_cum': date_to_cum,
         'mag_range': [float(df['mag'].min()), float(df['mag'].max())],
         'dep_range': [float((-df['depth']).min()), float((-df['depth']).max())],
-        'date_range': [float(df['dates_num'].min()), float(df['dates_num'].max())],
+        'date_range': [float(df['dates_num'].iloc[0]), float(df['dates_num'].iloc[-1])],
         'date_counts': date_counts,
-        'total_days': int((df['time_dt'].max() - df['time_dt'].min()).days) + 1,
+        'total_days': max(1, int((df['time_dt'].iloc[-1] - df['time_dt'].iloc[0]).days) + 1),
     }
 
 
@@ -255,37 +265,24 @@ def load_dataset(source_file: str) -> dict[str, Any]:
 
     if suffix == '.geojson':
         df = _load_geojson(source_file)
-    elif suffix == '.json':
+    else:
+        # Single-pass header inspection to avoid repeated disk reads
+        head = ""
         try:
             with open(source_file, encoding='utf-8', errors='ignore') as f:
                 head = f.read(512)
-            if '"FeatureCollection"' in head or '"Feature"' in head:
-                df = _load_geojson(source_file)
-            else:
-                df = _load_json(source_file)
-        except Exception:
-            df = _load_json(source_file)
-    else:
-        # Check if content is actually JSON / GeoJSON despite missing or differing extension
-        is_json_content = False
-        try:
-            with open(source_file, encoding='utf-8', errors='ignore') as f:
-                first_chars = f.read(10).strip()
-                if first_chars.startswith(('{', '[')):
-                    is_json_content = True
         except Exception:
             pass
 
-        if is_json_content:
-            try:
-                with open(source_file, encoding='utf-8', errors='ignore') as f:
-                    head = f.read(512)
-                if '"FeatureCollection"' in head or '"Feature"' in head:
-                    df = _load_geojson(source_file)
-                else:
+        stripped = head.strip()
+        if suffix == '.json' or stripped.startswith(('{', '[')):
+            if '"FeatureCollection"' in head or '"Feature"' in head:
+                df = _load_geojson(source_file)
+            else:
+                try:
                     df = _load_json(source_file)
-            except Exception:
-                df = _load_csv_internal(source_file)
+                except Exception:
+                    df = _load_csv_internal(source_file)
         else:
             df = _load_csv_internal(source_file)
 
@@ -397,6 +394,8 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
             'swarms_count': len(swarms),
         },
     }
+    # Expose lightweight precalculated metadata directly at the root for fast client access
+    result.update(visual_pack)
     result['binary_buffer'] = pack_seismic_binary(result)
     return result
 

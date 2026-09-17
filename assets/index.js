@@ -6,7 +6,16 @@
     let mouseY = 0;
     let rafPending = false;
 
+    function isVizActive() {
+        const v = document.getElementById('view-viz');
+        return v && v.classList.contains('active');
+    }
+
     function updateOrbs() {
+        if (isVizActive()) {
+            rafPending = false;
+            return;
+        }
         if (!orb1 || !orb2) {
             orb1 = document.querySelector('.orb-1');
             orb2 = document.querySelector('.orb-2');
@@ -21,6 +30,7 @@
     }
 
     window.addEventListener('mousemove', (e) => {
+        if (isVizActive()) return;
         mouseX = e.clientX;
         mouseY = e.clientY;
         if (!rafPending) {

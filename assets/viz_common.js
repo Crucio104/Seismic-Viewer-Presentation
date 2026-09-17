@@ -118,22 +118,42 @@ window.getClusterColor = function(lbl) {
     }
 
     async function checkHistoryStatus() {
+        const controls = document.getElementById('history-controls');
+        const backBtn = document.getElementById('history-back-btn');
+        const fwdBtn = document.getElementById('history-forward-btn');
+        if (!controls || !backBtn || !fwdBtn) return;
+
+        const isClusterView = Boolean(window.IS_CLUSTER_VIEW || (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.isCluster));
+
+        if (isClusterView) {
+            controls.style.display = 'flex';
+        }
+
         const api = getBridgeApi();
-        if (!api) return;
+        if (!api) {
+            if (isClusterView) {
+                backBtn.disabled = true;
+                fwdBtn.disabled = true;
+                backBtn.style.opacity = '0.35';
+                backBtn.style.cursor = 'not-allowed';
+                fwdBtn.style.opacity = '0.35';
+                fwdBtn.style.cursor = 'not-allowed';
+            }
+            return;
+        }
         try {
             const status = await api.get_history_status();
-            const controls = document.getElementById('history-controls');
-            const backBtn = document.getElementById('history-back-btn');
-            const fwdBtn = document.getElementById('history-forward-btn');
-            
-            if (status.can_go_back || status.can_go_forward) {
+            const canBack = Boolean(status && status.can_go_back);
+            const canFwd = Boolean(status && status.can_go_forward);
+
+            if (isClusterView || canBack || canFwd) {
                 controls.style.display = 'flex';
-                backBtn.disabled = !status.can_go_back;
-                fwdBtn.disabled = !status.can_go_forward;
-                backBtn.style.opacity = status.can_go_back ? '1' : '0.3';
-                backBtn.style.cursor = status.can_go_back ? 'pointer' : 'default';
-                fwdBtn.style.opacity = status.can_go_forward ? '1' : '0.3';
-                fwdBtn.style.cursor = status.can_go_forward ? 'pointer' : 'default';
+                backBtn.disabled = !canBack;
+                fwdBtn.disabled = !canFwd;
+                backBtn.style.opacity = canBack ? '1' : '0.35';
+                backBtn.style.cursor = canBack ? 'pointer' : 'not-allowed';
+                fwdBtn.style.opacity = canFwd ? '1' : '0.35';
+                fwdBtn.style.cursor = canFwd ? 'pointer' : 'not-allowed';
             } else {
                 controls.style.display = 'none';
             }
@@ -141,6 +161,7 @@ window.getClusterColor = function(lbl) {
             console.error('Failed to get history status:', e);
         }
     }
+    window.checkHistoryStatus = checkHistoryStatus;
 
     let initLoaderTimeout = null;
 
@@ -1715,6 +1736,7 @@ window.getClusterColor = function(lbl) {
         if (window.SeismicUI && typeof window.SeismicUI.initLegendScaleMenu === 'function') {
             window.SeismicUI.initLegendScaleMenu();
         }
+        checkHistoryStatus();
     }, 100); 
     if (window.IS_3D_VIEW === undefined) window.IS_3D_VIEW = true;
 
@@ -1734,6 +1756,7 @@ window.getClusterColor = function(lbl) {
         if (window.pywebview && window.pywebview.api && window.SeismicUI && typeof window.SeismicUI.restoreStoredLayers === 'function') {
             window.SeismicUI.restoreStoredLayers();
         }
+        checkHistoryStatus();
     }, 300);
 
     /* ─── Controls Side Panel Drawer Toggle ─── */
@@ -1944,6 +1967,11 @@ window.getClusterColor = function(lbl) {
                     d.classList.remove('show');
                     closedAny = true;
                 }
+            }
+            if (typeof SeismicUI !== 'undefined') {
+                if (SeismicUI.closeScreenshotPreview) SeismicUI.closeScreenshotPreview();
+                if (SeismicUI.closeClusterCsvDialog) SeismicUI.closeClusterCsvDialog();
+                if (SeismicUI.closeSwarmChartDialog) SeismicUI.closeSwarmChartDialog();
             }
             const activePopup = document.querySelector('#info-panel.show, .glass-menu.show');
             if (activePopup) {

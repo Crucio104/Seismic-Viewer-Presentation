@@ -1,7 +1,8 @@
 const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__DATA_URL__';
 
         async function initVisualization() {
-            window.quakeData = await fetchAndUnpackSeismicData(DATA_URL);
+            const quakeData = await fetchAndUnpackSeismicData(DATA_URL);
+            window.quakeData = quakeData;
 
             const gd = document.querySelector('.plotly-graph-div');
             const startInput = document.getElementById('filter-start');
@@ -22,19 +23,24 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             const applyBtn = document.getElementById('apply-filters-btn');
 
 
-            const dates = quakeData.times.map(t => t.slice(0, 10));
-            const uniqueDates = Array.from(new Set(dates)).sort();
+            const totalCount = quakeData.magnitude ? quakeData.magnitude.length : 0;
+            const dates = (quakeData.times && Array.isArray(quakeData.times))
+                ? quakeData.times.map(t => (t ? t.slice(0, 10) : ''))
+                : new Array(totalCount).fill('');
+            const uniqueDates = (quakeData.unique_dates && quakeData.unique_dates.length > 0)
+                ? quakeData.unique_dates
+                : Array.from(new Set(dates.filter(Boolean))).sort();
 
-            if (!quakeData.hover || quakeData.hover.length !== dates.length) {
+            if (!quakeData.hover || quakeData.hover.length !== totalCount) {
                 const qLon = quakeData.longitude;
                 const qLat = quakeData.latitude;
                 const qMag = quakeData.magnitude;
                 const qDep = quakeData.depth;
                 const qTimes = quakeData.times;
-                const N = dates.length;
+                const N = totalCount;
                 const hArr = new Array(N);
                 for (let i = 0; i < N; i++) {
-                    const d = (qTimes && qTimes[i]) ? qTimes[i] : dates[i];
+                    const d = (qTimes && qTimes[i]) ? qTimes[i] : '';
                     const m = (qMag && qMag[i] !== undefined) ? Number(qMag[i]).toFixed(1) : '';
                     const dp = (qDep && qDep[i] !== undefined) ? Math.abs(Number(qDep[i])).toFixed(1) : '';
                     const la = (qLat && qLat[i] !== undefined) ? Number(qLat[i]).toFixed(4) : '';
@@ -44,10 +50,18 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 quakeData.hover = hArr;
             }
 
-            startInput.min = endInput.min = uniqueDates[0];
-            startInput.max = endInput.max = uniqueDates[uniqueDates.length - 1];
-            startInput.value = uniqueDates[0];
-            endInput.value = uniqueDates[uniqueDates.length - 1];
+            if (uniqueDates.length > 0) {
+                if (startInput) {
+                    startInput.min = uniqueDates[0];
+                    startInput.max = uniqueDates[uniqueDates.length - 1];
+                    startInput.value = uniqueDates[0];
+                }
+                if (endInput) {
+                    endInput.min = uniqueDates[0];
+                    endInput.max = uniqueDates[uniqueDates.length - 1];
+                    endInput.value = uniqueDates[uniqueDates.length - 1];
+                }
+            }
 
             if (quakeData.mag_range && quakeData.mag_range.length >= 2) {
                 magMin.value = quakeData.mag_range[0].toFixed(1);
@@ -179,7 +193,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                         if (!tr) continue;
                         const name = tr.name || '';
                         const isDensity = (tr.type === 'densitymapbox' || tr.type === 'densitymap');
-                        if (isHeatmap && (name === 'Earthquakes Heatmap' || isDensity)) {
+                        if (isHeatmap && (name.includes('Heatmap') || isDensity)) {
                             tr.colorscale = pScale;
                             tr.reversescale = invertScale;
                             try {
@@ -188,7 +202,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                                     'reversescale': [invertScale]
                                 }, [i]);
                             } catch (e) {}
-                        } else if (!isHeatmap && (name === 'Earthquakes' || ((tr.type === 'scattermapbox' || tr.type === 'scattermap') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia')))) {
+                        } else if (!isHeatmap && (name.includes('Earthquakes') || ((tr.type === 'scattermapbox' || tr.type === 'scattermap') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia')))) {
                             if (!tr.marker) tr.marker = {};
                             tr.marker.colorscale = pScale;
                             tr.marker.reversescale = invertScale;
@@ -382,17 +396,18 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 const d1 = parseFloat(depMin.value) || 0, d2 = parseFloat(depMax.value) || 9999;
                 const indices = [];
 
-                for (let i = 0; i < dates.length; i++) {
-                    const dt = dates[i];
-                    const m = quakeData.magnitude[i];
-                    const d = Math.abs(quakeData.depth[i]);
-                    const dateMatch = (!start || dt >= start) && (!end || dt <= end);
+                const N_total = (dates && dates.length > 0) ? dates.length : totalCount;
+                for (let i = 0; i < N_total; i++) {
+                    const dt = (dates && dates.length > i) ? dates[i] : '';
+                    const m = quakeData.magnitude ? quakeData.magnitude[i] : 0;
+                    const d = quakeData.depth ? Math.abs(quakeData.depth[i]) : 0;
+                    const dateMatch = (!start || !dt || dt >= start) && (!end || !dt || dt <= end);
                     const magMatch = (m >= m1 && m <= m2);
                     const depMatch = (d >= d1 && d <= d2);
                     if (dateMatch && magMatch && depMatch) indices.push(i);
                 }
 
-                const allMatch = (indices.length === dates.length);
+                const allMatch = (indices.length === N_total);
                 let filtered;
                 if (allMatch) {
                     filtered = {
@@ -421,7 +436,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     const qDnum = quakeData.dates_num;
                     const qTimes = quakeData.times;
                     const qHover = quakeData.hover;
-                    const hasHover = qHover && qHover.length === dates.length;
+                    const hasHover = qHover && qHover.length === (qMag ? qMag.length : 0);
 
                     for (let k = 0; k < N; k++) {
                         const i = indices[k];
@@ -463,11 +478,11 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
                 let limits, colorArr, barTitle;
                 if (isDep) {
-                    limits = quakeData.dep_limit || quakeData.dep_range;
+                    limits = quakeData.dep_limit || quakeData.dep_range || [0, 10];
                     colorArr = filtered.dep;
                     barTitle = 'Depth (KM)';
                 } else if (isMag) {
-                    limits = quakeData.mag_limit || quakeData.mag_range;
+                    limits = quakeData.mag_limit || quakeData.mag_range || [0, 10];
                     colorArr = filtered.mag;
                     barTitle = 'Magnitude';
                 } else {
@@ -508,8 +523,8 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
                 const maxMag = filtered.mag.length > 0 ? filtered.mag.reduce((acc, m) => Math.max(acc, m), 0.1) : 1;
                 const markerSizes = currentSizeMode === 'magnitude' 
-                    ? (is3D ? filtered.mag.map(m => Math.max(8, Math.pow(Math.max(0, m), 2) * 1.5))
-                            : filtered.mag.map(m => Math.max(0.1, m)))
+                    ? (is3D ? Array.from(filtered.mag).map(m => Math.max(8, Math.pow(Math.max(0, m), 2) * 1.5))
+                            : Array.from(filtered.mag).map(m => Math.max(0.1, m)))
                     : (is3D ? 5 : 6);
 
                 if (is3D) {
@@ -560,9 +575,9 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                         if (!tr) continue;
                         const name = tr.name || '';
                         const isDensity = (tr.type === 'densitymapbox' || tr.type === 'densitymap');
-                        if (name === 'Earthquakes Heatmap' || isDensity) {
+                        if (name.includes('Heatmap') || isDensity) {
                             heatmapIdx = i;
-                        } else if (name === 'Earthquakes' || ((tr.type === 'scattermapbox' || tr.type === 'scattermap') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia'))) {
+                        } else if (name.includes('Earthquakes') || ((tr.type === 'scattermapbox' || tr.type === 'scattermap') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Tomografia'))) {
                             scatterIdx = i;
                         }
                     }

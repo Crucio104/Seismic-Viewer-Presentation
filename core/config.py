@@ -149,13 +149,13 @@ def clear_session_data() -> None:
     gc.collect()
 
 # ─── HTML View Store ───────────────────────────────────────────────
+_HTML_MAX_COUNT = 4
 
 def store_viz_html(viz_id: str, html: str) -> None:
-    """Store generated HTML for the active view, immediately evicting old entries."""
+    """Store generated HTML for active views, evicting oldest beyond capacity."""
     with _store_lock:
-        # Keep at most 1 active view to strictly bound memory usage (~12MB per view)
         evicted = False
-        while len(_html_store) >= 1:
+        while len(_html_store) >= _HTML_MAX_COUNT:
             oldest_key = next(iter(_html_store))
             del _html_store[oldest_key]
             evicted = True

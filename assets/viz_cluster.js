@@ -1,8 +1,8 @@
 const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__DATA_URL__';
 
         async function initCluster() {
-            window.IS_CLUSTER_VIEW = true;
-            window.quakeData = await fetchAndUnpackSeismicData(DATA_URL);
+            const quakeData = await fetchAndUnpackSeismicData(DATA_URL);
+            window.quakeData = quakeData;
 
 
             const gd = document.querySelector('.plotly-graph-div');
@@ -310,6 +310,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                         applyDisplayMode();
                     }
                     if(typeof hideInitLoader === 'function') hideInitLoader();
+                    if (typeof window.checkHistoryStatus === 'function') window.checkHistoryStatus();
                 }, 100);
             }
 
@@ -711,6 +712,9 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                         }
                     }
                     await pywebview.api.update_history_state(method, params, Object.keys(lockedMap).length > 0 ? lockedMap : null);
+                    if (typeof window.checkHistoryStatus === 'function') {
+                        await window.checkHistoryStatus();
+                    }
                 }
             };
             
@@ -778,6 +782,9 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             // Finally hide the loader once everything is ready
             hideInitLoader();
+            if (typeof window.checkHistoryStatus === 'function') {
+                window.checkHistoryStatus();
+            }
         }
 
         window.addEventListener('load', function() {
