@@ -3,6 +3,7 @@
 .plotly-graph-div {
     width: 100% !important;
     height: 100% !important;
+    contain: layout size;
 }
 
 body {

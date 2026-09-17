@@ -329,8 +329,8 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
     # --- SANITY CHECKS ---
     initial_count = len(df)
     
-    # 1. Geographic Bounds Check
-    df = df[(df['lat'].between(-90, 90)) & (df['lon'].between(-180, 180))]
+    # 1. Geographic Bounds Check (and filter unlocated Null Island 0.0, 0.0 events)
+    df = df[(df['lat'].between(-90, 90)) & (df['lon'].between(-180, 180)) & ~((df['lat'] == 0.0) & (df['lon'] == 0.0))]
     
     # 2. Temporal Bounds Check (No future dates beyond timezone discrepancy)
     df = df[df['time_dt'] <= datetime.now() + pd.Timedelta(days=1)]
@@ -340,7 +340,7 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
     
     removed = initial_count - len(df)
     if removed > 0:
-        logger.warning(f"Sanity check: removed {removed} invalid records (out of bounds, future dates, or impossible depth).")
+        logger.warning(f"Sanity check: removed {removed} invalid records (out of bounds, null island coordinates, future dates, or impossible depth).")
 
     # Sort for visualization consistency
     df = df.sort_values('time_dt').reset_index(drop=True)

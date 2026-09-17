@@ -164,6 +164,10 @@ class Api:
                 return {'status': 'cancelled'}
             
             save_path = result[0] if isinstance(result, (list, tuple)) else result
+            save_path_obj = Path(save_path)
+            if save_path_obj.suffix.lower() != '.png':
+                save_path_obj = save_path_obj.with_suffix('.png')
+            save_path = str(save_path_obj)
             
             # Decode base64 data
             _, encoded = base64_data.split(",", 1) if "," in base64_data else ("", base64_data)
@@ -471,7 +475,10 @@ class Api:
                 prev_view['kwargs']['clustering_params'] = {}
             prev_view['kwargs']['clustering_params']['custom_labels'] = global_labels.tolist()
             
-            threading.Thread(target=self._generate_and_navigate, args=(prev_view['view_style'],), kwargs=prev_view['kwargs'], daemon=True).start()
+            with self._nav_lock:
+                self._nav_generation += 1
+                gen = self._nav_generation
+            threading.Thread(target=self._generate_and_navigate, args=(prev_view['view_style'],), kwargs=dict(nav_gen=gen, **prev_view['kwargs']), daemon=True).start()
             return {'status': 'success'}
         except Exception as e:
             logger.error("Apply subclusters failed", exc_info=True)

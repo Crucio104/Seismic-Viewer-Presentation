@@ -117,9 +117,12 @@
             const dataUrl = this._activeSwarmChartDataUrl;
             const filename = this._activeSwarmChartFilename || 'swarm_magnitude_vs_time.png';
 
-            if (window.pywebview && window.pywebview.api && window.pywebview.api.save_screenshot) {
+            const api = (window.pywebview && window.pywebview.api) ||
+                        (window.parent && window.parent.pywebview && window.parent.pywebview.api);
+
+            if (api && typeof api.save_screenshot === 'function') {
                 try {
-                    const result = await window.pywebview.api.save_screenshot(dataUrl, filename);
+                    const result = await api.save_screenshot(dataUrl, filename);
                     if (result && result.status === 'success') {
                         if (typeof showStatusToast === 'function') {
                             showStatusToast('Swarm chart saved: ' + (result.path ? result.path.split(/[/\\]/).pop() : filename), true);
@@ -131,9 +134,8 @@
                         if (typeof showStatusToast === 'function') showStatusToast('Save failed: ' + result.error, false);
                     }
                 } catch (err) {
-                    console.error('[SwarmChart] Pywebview save failed, using fallback:', err);
-                    this._fallbackBrowserDownload(dataUrl, filename);
-                    this.closeSwarmChartDialog();
+                    console.error('[SwarmChart] Pywebview save failed:', err);
+                    if (typeof showStatusToast === 'function') showStatusToast('Save failed: ' + err.message, false);
                 }
             } else {
                 this._fallbackBrowserDownload(dataUrl, filename);

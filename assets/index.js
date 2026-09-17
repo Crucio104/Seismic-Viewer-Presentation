@@ -630,6 +630,9 @@
         if (loading) return;
         loading = true;
 
+        const cards = document.querySelectorAll('.vcard');
+        cards.forEach(c => c.style.pointerEvents = 'none');
+
         const overlay = document.getElementById('overlay');
         const overlayMsg = document.getElementById('overlay-msg');
         if (overlayMsg) {
@@ -643,15 +646,16 @@
 
         try {
             await pywebview.api.load_view(style, anim_mode, window_days, step_days, clustering_method);
-            // Hide overlay is not needed here as python will trigger a window load
-            // but in case it fails midway:
-            setTimeout(() => { loading = false; }, 3000); 
+            setTimeout(() => { 
+                loading = false; 
+                cards.forEach(c => c.style.pointerEvents = '');
+            }, 3000); 
         } catch(e) {
             if (overlay) overlay.classList.remove('show');
             loading = false;
+            cards.forEach(c => c.style.pointerEvents = '');
             showToast('Engine failure: ' + e, 'error');
         }
-
     }
 
     function toggleHubShortcuts(e, forceState = null) {

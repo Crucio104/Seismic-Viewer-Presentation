@@ -93,11 +93,8 @@
                     }
                 }
 
-                const rect = gd.getBoundingClientRect();
                 const dataUrl = await Plotly.toImage(gd, {
                     format: 'png',
-                    width: Math.round(rect.width || gd.clientWidth || window.innerWidth),
-                    height: Math.round(rect.height || gd.clientHeight || window.innerHeight),
                     scale: 2
                 });
 
@@ -128,12 +125,42 @@
 
         async downloadScreenshotPNG() {
             if (!this._activeScreenshotDataUrl) return;
-            const link = document.createElement('a');
-            link.download = `seismic_view_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
-            link.href = this._activeScreenshotDataUrl;
-            link.click();
-            if (typeof showStatusToast === 'function') showStatusToast('Screenshot saved successfully', true);
-            this.closeScreenshotPreview();
+            const filename = `seismic_view_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+            const api = (window.pywebview && window.pywebview.api) || 
+                        (window.parent && window.parent.pywebview && window.parent.pywebview.api);
+
+            if (api && typeof api.save_screenshot === 'function') {
+                try {
+                    const res = await api.save_screenshot(this._activeScreenshotDataUrl, filename);
+                    if (res && res.status === 'success') {
+                        const savedName = res.path ? res.path.split(/[/\\]/).pop() : filename;
+                        if (typeof showStatusToast === 'function') {
+                            showStatusToast(`Screenshot saved: ${savedName}`, true);
+                        }
+                        this.closeScreenshotPreview();
+                    } else if (res && res.status === 'cancelled') {
+                        // User cancelled file dialog - leave preview open
+                    } else if (res && res.error) {
+                        if (typeof showStatusToast === 'function') {
+                            showStatusToast('Failed to save screenshot: ' + res.error, false);
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error saving screenshot via pywebview:', err);
+                    if (typeof showStatusToast === 'function') {
+                        showStatusToast('Save error: ' + err.message, false);
+                    }
+                }
+            } else {
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = this._activeScreenshotDataUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                if (typeof showStatusToast === 'function') showStatusToast('Screenshot saved', true);
+                this.closeScreenshotPreview();
+            }
         },
 
         async exportClustersCSV() {

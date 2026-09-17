@@ -111,10 +111,9 @@ def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | No
 
                 data = _parse_json_bytes(content)
 
-                # Persist to local cache
+                # Persist to local cache directly as raw bytes (instantaneous I/O)
                 try:
-                    with open(cache_file, 'w', encoding='utf-8') as f:
-                        json.dump(data, f)
+                    cache_file.write_bytes(content)
                     new_etag = resp.headers.get('ETag')
                     if new_etag:
                         with open(meta_file, 'w', encoding='utf-8') as f:

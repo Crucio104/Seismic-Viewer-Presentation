@@ -2001,6 +2001,21 @@ window.getClusterColor = function(lbl) {
                 }
             }
         }
+        // I / i: Invert Color Scale
+        else if (e.key === 'i' || e.key === 'I') {
+            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                if (typeof SeismicUI !== 'undefined' && typeof SeismicUI.toggleInvertScale === 'function') {
+                    SeismicUI.toggleInvertScale();
+                } else {
+                    const inv = document.getElementById('invert-scale');
+                    if (inv) {
+                        inv.checked = !inv.checked;
+                        inv.dispatchEvent(new Event('change'));
+                    }
+                }
+            }
+        }
         // L / l: Toggle Legend Drawer
         else if (e.key === 'l' || e.key === 'L') {
             if (!e.ctrlKey && !e.metaKey && !e.altKey) {
