@@ -44,6 +44,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
 
             const gd = document.querySelector('.plotly-graph-div');
+            if (window.setupPassThroughTerrainHover) window.setupPassThroughTerrainHover(gd);
             const playBtn = document.getElementById('play-btn');
             const pauseBtn = document.getElementById('pause-btn');
             const slider = document.getElementById('time-slider');
@@ -55,7 +56,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             const sizeToggle = document.getElementById('size-toggle');
             const sizeMenu = document.getElementById('size-menu');
             let currentSizeMode = 'uniform';
-            const invertCheck = document.getElementById('invert-scale');
             const jumpBtn = document.getElementById('jump-btn');
             const jumpDate = document.getElementById('jump-date');
             const histogramMap = document.getElementById('histogram-map');
@@ -86,10 +86,8 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             let currentAnimClustMethod = 'dbscan';
             let showAnimClusterPlanes = false;
             
-            let baseDelay = 1000; 
             let speedMult = 1;
             
-            let startTime = 0;
             let startIdx = 0;
             let animId = null;
 

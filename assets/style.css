@@ -1515,15 +1515,6 @@ body {
     transform: translateY(0);
 }
 
-#stats-hud {
-    padding: 0.6rem 1rem;
-    z-index: 100000;
-    display: flex;
-    flex-direction: row;
-    gap: 0.8rem;
-    align-items: center;
-}
-
 .stats-divider {
     width: 1px;
     height: 1.2rem;

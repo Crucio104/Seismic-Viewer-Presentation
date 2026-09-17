@@ -710,8 +710,17 @@ def _get_cluster_marker_trace(lon: np.ndarray, lat: np.ndarray, dep: np.ndarray,
     else:
         sizes = 5
 
+    # If explicit hover is not provided, build descriptive fallback hover
+    if not hover or len(hover) != len(lon):
+        hover_list = [
+            f"<b>{'Cluster ' + str(int(lbl) + 1) if lbl >= 0 else 'Noise / Unclustered'}</b><br>Magnitude: {float(m):.1f}<br>Depth: {abs(float(d)):.1f} km<br>Lat: {float(la):.4f}°, Lon: {float(lo):.4f}°"
+            for lo, la, d, m, lbl in zip(lon, lat, dep, mag, labels)
+        ]
+    else:
+        hover_list = hover
+
     return go.Scatter3d(
-        x=lon.tolist(), y=lat.tolist(), z=dep.tolist(), mode='markers', hovertext=hover,
+        x=lon.tolist(), y=lat.tolist(), z=dep.tolist(), mode='markers', hovertext=hover_list,
         marker=dict(size=sizes, color=pt_colors, line=dict(width=1, color='rgba(50,50,50,0.8)'), opacity=0.9),
         name='Earthquakes', visible=True, showlegend=False, hovertemplate='%{hovertext}<extra></extra>'
     )
@@ -808,8 +817,6 @@ def get_3d_animated_figure(
     anim_data = {
         'longitude': longitude, 'latitude': latitude, 'depth': depth, 'magnitude': magnitude,
         'dates_num': data.get('dates_num', []) if data else [],
-        'lon': longitude, 'lat': latitude, 'dep': depth, 'mag': magnitude,
-        'dnum': data.get('dates_num', []) if data else [], 'hover': vpack.get('hover', []),
         'unique_dates': unique_dates, 'date_to_cum': vpack.get('date_to_cum', {}),
         'anim_mode': anim_mode, 'window_days': window_days, 'step_days': step_days, 'mag_range': mag_range,
         'date_range': date_range, 'dep_range': dep_range, 'start_date': times[0][:10] if times else "",

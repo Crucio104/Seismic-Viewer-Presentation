@@ -18,16 +18,10 @@ logger = logging.getLogger(__name__)
 
 # --- Worker Data Management ---
 _worker_data = {}
-_worker_clustering_data = {}
 
 def _init_worker(pts_km: np.ndarray) -> None:
     """Initialize worker process with shared data once to avoid per-task serialization."""
     _worker_data['pts_km'] = pts_km
-
-def _init_clustering_worker(data: dict[str, Any]) -> None:
-    """Initialize worker process with shared clustering data once."""
-    global _worker_clustering_data
-    _worker_clustering_data = data
 
 # --- Geological Math ---
 
@@ -99,7 +93,8 @@ def fit_plane_ransac(points: np.ndarray, threshold: float = 0.05, max_iterations
         normal /= norm_len
         
         # Calculate orthogonal distances to plane (vectorized BLAS)
-        dists = np.abs(np.dot(points, normal) - np.dot(sample[0], normal))
+        d0 = float(np.dot(sample[0], normal))
+        dists = np.abs(np.dot(points, normal) - d0)
         
         inliers = np.where(dists < threshold)[0]
         n_inliers = len(inliers)
@@ -168,8 +163,8 @@ def _format_plane_geometry(
     ])
     
     # Convert to Lon/Lat/Depth
-    v_lon = (sq_verts_km[:, 0] / lon_to_km) + (c_lon - centroid_km[0]/lon_to_km)
-    v_lat = (sq_verts_km[:, 1] / KM_PER_DEGREE) + (c_lat - centroid_km[1]/KM_PER_DEGREE)
+    v_lon = c_lon + (sq_verts_km[:, 0] - centroid_km[0]) / lon_to_km
+    v_lat = c_lat + (sq_verts_km[:, 1] - centroid_km[1]) / KM_PER_DEGREE
     
     # Plane Equation: Ax + By + Cz + D = 0
     eq_a = normal[0] * lon_to_km
@@ -558,21 +553,17 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
 
     # 5. Execute Clustering with adaptive parallel/sequential execution
     frame_results = [None] * len(date_indices)
-    _init_clustering_worker(worker_data)
-    try:
-        if len(date_indices) <= 15 or len(pts_km) < 1500:
-            for i in range(len(date_indices)):
-                res = _process_frame_worker(i, worker_data)
+    if len(date_indices) <= 15 or len(pts_km) < 1500:
+        for i in range(len(date_indices)):
+            res = _process_frame_worker(i, worker_data)
+            frame_results[res[0]] = res
+    else:
+        n_workers = min(os.cpu_count() or 4, 8)
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            futures = [executor.submit(_process_frame_worker, i, worker_data) for i in range(len(date_indices))]
+            for future in as_completed(futures):
+                res = future.result()
                 frame_results[res[0]] = res
-        else:
-            n_workers = min(os.cpu_count() or 4, 8)
-            with ThreadPoolExecutor(max_workers=n_workers) as executor:
-                futures = [executor.submit(_process_frame_worker, i, worker_data) for i in range(len(date_indices))]
-                for future in as_completed(futures):
-                    res = future.result()
-                    frame_results[res[0]] = res
-    finally:
-        _worker_clustering_data.clear()
 
     # 6. Sequential Post-processing (Matching & Renaming Planes)
     results = {}
@@ -784,10 +775,8 @@ def _perform_cylinder_clustering(curr_pt_cylinder_map):
     valid_labels = labels[labels != -1]
     return labels, len(np.unique(valid_labels)) if len(valid_labels) > 0 else 0
 
-def _process_frame_worker(idx, data=None):
-    """Worker function for ProcessPoolExecutor."""
-    if data is None:
-        data = _worker_clustering_data
+def _process_frame_worker(idx: int, data: dict[str, Any]) -> tuple:
+    """Worker function executed in thread pool."""
     start_idx, end_idx = data['date_indices'][idx]
     pts_km = data['pts_km']
     mags = data['mags']

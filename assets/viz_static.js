@@ -5,6 +5,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             window.quakeData = quakeData;
 
             const gd = document.querySelector('.plotly-graph-div');
+            if (window.setupPassThroughTerrainHover) window.setupPassThroughTerrainHover(gd);
             const startInput = document.getElementById('filter-start');
             const endInput = document.getElementById('filter-end');
             const magMin = document.getElementById('mag-min');
@@ -48,6 +49,28 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     hArr[i] = `Date: ${d}<br>Magnitude: ${m}<br>Latitude: ${la}<br>Longitude: ${lo}<br>Depth: ${dp} km`;
                 }
                 quakeData.hover = hArr;
+            }
+
+            if (gd && gd.data && quakeData.hover) {
+                const eqIndices = [];
+                for (let i = 0; i < gd.data.length; i++) {
+                    const tr = gd.data[i];
+                    if (!tr) continue;
+                    const name = tr.name || '';
+                    if (name.includes('Earthquakes') ||
+                        (tr.type === 'scatter3d' && tr.type !== 'surface' && tr.type !== 'mesh3d' &&
+                         !name.includes('Stations') && !name.includes('Uplift') &&
+                         !name.includes('Tomography') && !name.includes('Tomografia') && !name.includes('Surface'))) {
+                        eqIndices.push(i);
+                    }
+                }
+                if (eqIndices.length > 0) {
+                    Plotly.restyle(gd, {
+                        hovertext: [quakeData.hover],
+                        text: [quakeData.hover],
+                        hovertemplate: '%{hovertext}<extra></extra>'
+                    }, eqIndices);
+                }
             }
 
             if (uniqueDates.length > 0) {

@@ -1,10 +1,17 @@
 import csv
 import json
 import logging
+import sys
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from collections.abc import Callable
+
+_BASE_DIR = Path(__file__).resolve().parents[1]
+if str(_BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(_BASE_DIR))
+
 import pandas as pd
 import requests
 from core.config import (
@@ -298,7 +305,7 @@ def fetch_ingv_dataframe(params: dict[str, Any], on_progress: Callable[[str], No
             "features": features
         }
         with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(geojson_data, f, indent=2)
+            json.dump(geojson_data, f, separators=(',', ':'))
 
     elif export_format == 'json':
         filename = f"ingv_{network}_{ts_str}.json"
@@ -320,7 +327,7 @@ def fetch_ingv_dataframe(params: dict[str, Any], on_progress: Callable[[str], No
                 "level": e.get('level', '')
             })
         with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump({"events": json_events, "count": len(json_events), "network": network}, f, indent=2)
+            json.dump({"events": json_events, "count": len(json_events), "network": network}, f, separators=(',', ':'))
 
     else:
         filename = f"ingv_{network}_{ts_str}.csv"

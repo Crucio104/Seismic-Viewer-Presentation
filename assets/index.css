@@ -960,10 +960,6 @@
         bottom: 1.875rem;
         right: 1.875rem;
     }
-    #overlay.show {
-        opacity: 1;
-        pointer-events: auto;
-    }
 
     #hub-shortcuts-btn {
         position: fixed;

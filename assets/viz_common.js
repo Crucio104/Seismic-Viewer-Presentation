@@ -1596,15 +1596,12 @@ window.getClusterColor = function(lbl) {
         }, timeout);
     }
 
-    /* ─── 3D Camera & Cinema Mode Logic ─── */
-    let cinemaModeActive = false;
-    let cinemaAngle = 0;
-    let cinemaReqId = null;
-    let plotlyId = null;
-
-    let plotlyPollInterval = null;
 
     /* ─── Pass-Through Mouse Raycasting for Map Terrain ─── */
+    let plotlyId = null;
+    let plotlyPollInterval = null;
+    let plotlyPollAttempts = 0;
+
     function setupPassThroughTerrainHover(gd) {
         if (!gd) return;
 
@@ -1614,9 +1611,40 @@ window.getClusterColor = function(lbl) {
             const gl3dList = (subplots && subplots.gl3d) ? subplots.gl3d : ['scene'];
 
             for (const sName of gl3dList) {
-                const scene = gd._fullLayout[sName] ? gd._fullLayout[sName]._scene : null;
+                const sceneLayout = gd._fullLayout[sName];
+                const scene = sceneLayout ? sceneLayout._scene : null;
                 if (!scene || !scene.glplot) continue;
 
+                // 1. Tag and disable picking on terrain traces via scene.traces
+                if (scene.traces) {
+                    for (const uid of Object.keys(scene.traces)) {
+                        const tr = scene.traces[uid];
+                        if (!tr) continue;
+                        const trData = tr.data || {};
+                        const name = trData.name || '';
+                        const type = trData.type || '';
+                        const hoverinfo = trData.hoverinfo || '';
+                        const isTerrain = name === 'Map Terrain' ||
+                                          name.toLowerCase().includes('terrain') ||
+                                          type === 'surface' ||
+                                          hoverinfo === 'skip';
+                        if (isTerrain) {
+                            if (tr.surface) {
+                                tr.surface._isTerrain = true;
+                                tr.surface.drawPick = function() {};
+                                tr.surface.pick = function() { return null; };
+                            }
+                            if (tr.mesh && hoverinfo === 'skip') {
+                                tr.mesh._isTerrain = true;
+                                tr.mesh.drawPick = function() {};
+                                tr.mesh.pick = function() { return null; };
+                            }
+                            tr.handlePick = function() { return false; };
+                        }
+                    }
+                }
+
+                // 2. Intercept glplot.drawPick to ensure terrain never renders into pick buffer
                 if (!scene.glplot._pickPatched) {
                     scene.glplot._pickPatched = true;
                     const origDrawPick = scene.glplot.drawPick;
@@ -1624,11 +1652,13 @@ window.getClusterColor = function(lbl) {
                         if (this.objects) {
                             for (let n = 0; n < this.objects.length; ++n) {
                                 const obj = this.objects[n];
-                                const traceData = (obj._trace && obj._trace.data) ? obj._trace.data : null;
-                                const isTerrain = (traceData && (traceData.name === 'Map Terrain' || traceData.hoverinfo === 'skip')) ||
-                                                  (obj._field !== undefined && (!traceData || traceData.name === 'Map Terrain'));
-                                if (isTerrain) {
-                                    obj.drawPick = function(id) { return id; };
+                                if (!obj) continue;
+                                const isSurface = obj._isTerrain ||
+                                                  (obj.field !== undefined) ||
+                                                  (obj.vertexCount !== undefined && obj.pickShader !== undefined && obj.highlight !== undefined);
+                                if (isSurface) {
+                                    obj._isTerrain = true;
+                                    obj.drawPick = function() {};
                                     obj.pick = function() { return null; };
                                 }
                             }
@@ -1637,14 +1667,17 @@ window.getClusterColor = function(lbl) {
                     };
                 }
 
+                // 3. Patch any existing objects in scene.glplot.objects right away
                 if (scene.glplot.objects) {
                     for (let n = 0; n < scene.glplot.objects.length; ++n) {
                         const obj = scene.glplot.objects[n];
-                        const traceData = (obj._trace && obj._trace.data) ? obj._trace.data : null;
-                        const isTerrain = (traceData && (traceData.name === 'Map Terrain' || traceData.hoverinfo === 'skip')) ||
-                                          (obj._field !== undefined && (!traceData || traceData.name === 'Map Terrain'));
-                        if (isTerrain) {
-                            obj.drawPick = function(id) { return id; };
+                        if (!obj) continue;
+                        const isSurface = obj._isTerrain ||
+                                          (obj.field !== undefined) ||
+                                          (obj.vertexCount !== undefined && obj.pickShader !== undefined && obj.highlight !== undefined);
+                        if (isSurface) {
+                            obj._isTerrain = true;
+                            obj.drawPick = function() {};
                             obj.pick = function() { return null; };
                         }
                     }
@@ -1657,12 +1690,15 @@ window.getClusterColor = function(lbl) {
             gd._terrainPassThroughHooked = true;
             gd.on('plotly_afterplot', applyTerrainPassThrough);
             gd.on('plotly_relayout', applyTerrainPassThrough);
+            gd.on('plotly_restyle', applyTerrainPassThrough);
+            gd.on('plotly_redraw', applyTerrainPassThrough);
+            gd.on('plotly_animatingframe', applyTerrainPassThrough);
         }
     }
 
     function findPlotlyGraph() {
         if (!plotlyId) {
-            const gd = document.querySelector('.plotly-graph-div');
+            const gd = document.querySelector('.plotly-graph-div') || document.getElementById('plot') || document.getElementById('plotly-div');
             if (gd && gd.id) {
                 plotlyId = gd.id;
             } else if (gd) {
@@ -1672,15 +1708,20 @@ window.getClusterColor = function(lbl) {
             }
         }
 
+        let isReady = false;
         if (plotlyId) {
             const gd = document.getElementById(plotlyId);
             if (gd) {
                 setupPassThroughTerrainHover(gd);
                 setupCameraRelayoutWatcher(gd);
+                if (gd._fullLayout && gd._fullLayout.scene && gd._fullLayout.scene._scene && gd._fullLayout.scene._scene.glplot) {
+                    isReady = true;
+                }
             }
         }
 
-        if (plotlyId && plotlyPollInterval) {
+        plotlyPollAttempts++;
+        if ((isReady || plotlyPollAttempts > 50) && plotlyPollInterval) {
             clearInterval(plotlyPollInterval);
             plotlyPollInterval = null;
         }
@@ -1721,7 +1762,13 @@ window.getClusterColor = function(lbl) {
     window.updatePasteButtonState = updatePasteButtonState;
     window.snapToView = snapToView;
     window.toggleCinemaMode = toggleCinemaMode;
+    window.setupPassThroughTerrainHover = setupPassThroughTerrainHover;
+    window.findPlotlyGraph = findPlotlyGraph;
+
     findPlotlyGraph();
+    if (!plotlyPollInterval) {
+        plotlyPollInterval = setInterval(findPlotlyGraph, 200);
+    }
     if (window.SeismicUI && typeof window.SeismicUI.initLegendScaleMenu === 'function') {
         window.SeismicUI.initLegendScaleMenu();
     }

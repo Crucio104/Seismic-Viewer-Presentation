@@ -6,6 +6,41 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
 
             const gd = document.querySelector('.plotly-graph-div');
+            if (window.setupPassThroughTerrainHover) window.setupPassThroughTerrainHover(gd);
+
+            function buildClusterHoverList(labels) {
+                const qLon = quakeData.longitude;
+                const qLat = quakeData.latitude;
+                const qMag = quakeData.magnitude;
+                const qDep = quakeData.depth;
+                const qTimes = quakeData.times;
+                const N = qLon ? qLon.length : 0;
+                const hArr = new Array(N);
+                for (let i = 0; i < N; i++) {
+                    const d = (qTimes && qTimes[i]) ? qTimes[i] : '';
+                    const m = (qMag && qMag[i] !== undefined) ? Number(qMag[i]).toFixed(1) : '';
+                    const dp = (qDep && qDep[i] !== undefined) ? Math.abs(Number(qDep[i])).toFixed(1) : '';
+                    const la = (qLat && qLat[i] !== undefined) ? Number(qLat[i]).toFixed(4) : '';
+                    const lo = (qLon && qLon[i] !== undefined) ? Number(qLon[i]).toFixed(4) : '';
+                    const lbl = (labels && labels[i] !== undefined) ? Number(labels[i]) : -1;
+                    const cLbl = (lbl >= 0) ? `Cluster ${lbl + 1}` : 'Noise / Unclustered';
+                    hArr[i] = `<b>${cLbl}</b><br>Date: ${d}<br>Magnitude: ${m}<br>Depth: ${dp} km<br>Lat: ${la}°, Lon: ${lo}°`;
+                }
+                return hArr;
+            }
+
+            // Populate hover on initial load and ensure Plotly trace has interactive hover
+            quakeData.hover = buildClusterHoverList(quakeData.cluster);
+            if (gd && gd.data) {
+                const initialEqIdx = gd.data.findIndex(t => t.name === 'Earthquakes');
+                if (initialEqIdx >= 0) {
+                    Plotly.restyle(gd, {
+                        hovertext: [quakeData.hover],
+                        hovertemplate: '%{hovertext}<extra></extra>'
+                    }, [initialEqIdx]);
+                }
+            }
+
             const startInput = document.getElementById('filter-start');
             const endInput = document.getElementById('filter-end');
             const magMin = document.getElementById('mag-min');
@@ -56,9 +91,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 currentDisplayMode = quakeData.clustering_params.display_mode;
             }
 
-            // Snapshot baseline auto-tune parameters from backend
-            const initialAutoTuneParams = JSON.parse(JSON.stringify(quakeData.clustering_params || {}));
-            const initialMethod = currentMethod;
 
             // Parameter Inputs
 
@@ -285,6 +317,15 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                                         depth: eqTr.z
                                     };
                                     if (window.quakeData) window.quakeData.filtered = window.currentFilteredData;
+                                    // Refresh hovertext on updated earthquakes trace
+                                    quakeData.hover = buildClusterHoverList(quakeData.cluster);
+                                    const newEqIdx = gd.data.findIndex(t => t.name === 'Earthquakes');
+                                    if (newEqIdx >= 0) {
+                                        Plotly.restyle(gd, {
+                                            hovertext: [quakeData.hover],
+                                            hovertemplate: '%{hovertext}<extra></extra>'
+                                        }, [newEqIdx]);
+                                    }
                                 }
 
                                 // Sync legend and display mode
@@ -306,8 +347,39 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                             console.error("Async Error:", err);
                         }
                     } else {
-                        // Fallback for dev
-                        applyDisplayMode();
+                        // Desktop fallback via pywebview API if WebSocket not connected
+                        const api = (window.pywebview && window.pywebview.api) || 
+                                    (window.parent && window.parent.pywebview && window.parent.pywebview.api);
+                        if (api && typeof api.get_cluster_update === 'function') {
+                            try {
+                                const res = await api.get_cluster_update(currentMethod, params);
+                                if (res && res.traces) {
+                                    const currentTraceCount = gd.data.length;
+                                    if (currentTraceCount > 1) {
+                                        const indices = Array.from({length: currentTraceCount - 1}, (_, i) => i + 1);
+                                        Plotly.deleteTraces(gd, indices);
+                                    }
+                                    Plotly.addTraces(gd, res.traces);
+                                    quakeData.n_clusters = res.n_clusters;
+                                    if (res.labels) quakeData.cluster = res.labels;
+                                    quakeData.hover = buildClusterHoverList(quakeData.cluster);
+                                    const newEqIdx = gd.data.findIndex(t => t.name === 'Earthquakes');
+                                    if (newEqIdx >= 0) {
+                                        Plotly.restyle(gd, {
+                                            hovertext: [quakeData.hover],
+                                            hovertemplate: '%{hovertext}<extra></extra>'
+                                        }, [newEqIdx]);
+                                    }
+                                    applyDisplayMode();
+                                    updateClusterLegend();
+                                }
+                            } catch (e) {
+                                console.error('pywebview fallback cluster error:', e);
+                                applyDisplayMode();
+                            }
+                        } else {
+                            applyDisplayMode();
+                        }
                     }
                     if(typeof hideInitLoader === 'function') hideInitLoader();
                     if (typeof window.checkHistoryStatus === 'function') window.checkHistoryStatus();
