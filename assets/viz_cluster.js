@@ -332,8 +332,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 });
             }
 
-            const dates = (quakeData.times && Array.isArray(quakeData.times)) ? quakeData.times.map(t => t.slice(0, 10)) : [];
-            const uniqueDates = Array.from(new Set(dates)).sort();
+            const uniqueDates = (quakeData.unique_dates && quakeData.unique_dates.length > 0)
+                ? quakeData.unique_dates
+                : ((quakeData.times && Array.isArray(quakeData.times)) ? Array.from(new Set(quakeData.times.map(t => t.slice(0, 10)))).sort() : []);
+
             if (uniqueDates.length > 0) {
                 startInput.min = endInput.min = uniqueDates[0];
                 startInput.max = endInput.max = uniqueDates[uniqueDates.length - 1];
@@ -341,7 +343,16 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 if (!endInput.value) endInput.value = uniqueDates[uniqueDates.length - 1];
             }
 
-            const [depMinVal, depMaxVal] = getArrayMinMax(quakeData.depth.map(Math.abs));
+            let depMaxVal = 0;
+            if (quakeData.dep_range && quakeData.dep_range.length >= 2) {
+                depMaxVal = Math.max(Math.abs(quakeData.dep_range[0]), Math.abs(quakeData.dep_range[1]));
+            } else if (quakeData.depth) {
+                for (let i = 0, len = quakeData.depth.length; i < len; i++) {
+                    const d = Math.abs(quakeData.depth[i]);
+                    if (d > depMaxVal) depMaxVal = d;
+                }
+            }
+
             if (quakeData.clustering_params && quakeData.clustering_params.dep_min !== undefined) {
                 depMin.value = quakeData.clustering_params.dep_min;
             } else if (!depMin.value) {

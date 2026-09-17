@@ -117,11 +117,14 @@ async def get_data_handler(session_id: str) -> Response:
         'lon', 'lat', 'mag', 'dep', 'dnum', 'visual_pack', 'hover', 'depth_is_missing'
     }
     has_orjson = 'orjson' in sys.modules
-    json_data = {
-        k: (v if (has_orjson or not isinstance(v, np.ndarray)) else v.tolist())
-        for k, v in data.items()
-        if k not in omit_keys and not isinstance(v, bytes)
-    }
+    if has_orjson:
+        json_data = {k: v for k, v in data.items() if k not in omit_keys and not isinstance(v, bytes)}
+    else:
+        json_data = {
+            k: (v.tolist() if isinstance(v, np.ndarray) else v)
+            for k, v in data.items()
+            if k not in omit_keys and not isinstance(v, bytes)
+        }
     content = await asyncio.to_thread(_fast_dumps, json_data)
     return Response(
         content=content,

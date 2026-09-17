@@ -1,9 +1,41 @@
+import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+try:
+    import orjson  # type: ignore
+
+    def parse_json_bytes_fast(content: bytes | bytearray) -> Any:
+        """Parse JSON bytes using ultra-fast SIMD-accelerated orjson."""
+        return orjson.loads(content)
+
+    def read_json_fast(file_path: str | Path) -> Any:
+        """Read and parse JSON from file using orjson."""
+        with open(file_path, 'rb') as f:
+            return orjson.loads(f.read())
+except ImportError:
+    try:
+        import ujson  # type: ignore
+
+        def parse_json_bytes_fast(content: bytes | bytearray) -> Any:
+            return ujson.loads(content)
+
+        def read_json_fast(file_path: str | Path) -> Any:
+            with open(file_path, encoding='utf-8', errors='ignore') as f:
+                return ujson.load(f)
+    except ImportError:
+        def parse_json_bytes_fast(content: bytes | bytearray) -> Any:
+            return json.loads(content)
+
+        def read_json_fast(file_path: str | Path) -> Any:
+            with open(file_path, encoding='utf-8', errors='ignore') as f:
+                return json.load(f)
+
 
 def parse_seismic_date(date_val: Any) -> datetime | None:
     """

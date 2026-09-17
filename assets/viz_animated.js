@@ -22,6 +22,25 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             quakeData.dep = quakeData.depth;
             quakeData.dnum = quakeData.dates_num;
 
+            if (!quakeData.hover || quakeData.hover.length !== quakeData.lon.length) {
+                const qLon = quakeData.lon;
+                const qLat = quakeData.lat;
+                const qMag = quakeData.mag;
+                const qDep = quakeData.dep;
+                const qTimes = quakeData.times;
+                const N = qLon.length;
+                const hArr = new Array(N);
+                for (let i = 0; i < N; i++) {
+                    const d = (qTimes && qTimes[i]) ? qTimes[i] : '';
+                    const m = (qMag && qMag[i] !== undefined) ? Number(qMag[i]).toFixed(1) : '';
+                    const dp = (qDep && qDep[i] !== undefined) ? Math.abs(Number(qDep[i])).toFixed(1) : '';
+                    const la = (qLat && qLat[i] !== undefined) ? Number(qLat[i]).toFixed(4) : '';
+                    const lo = (qLon && qLon[i] !== undefined) ? Number(qLon[i]).toFixed(4) : '';
+                    hArr[i] = `Date: ${d}<br>Magnitude: ${m}<br>Latitude: ${la}<br>Longitude: ${lo}<br>Depth: ${dp} km`;
+                }
+                quakeData.hover = hArr;
+            }
+
 
             const gd = document.querySelector('.plotly-graph-div');
             const playBtn = document.getElementById('play-btn');
@@ -972,8 +991,14 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
                     if (isSwarmMode && currentSwarm) {
                         const sIndices = currentSwarm.indices.slice(0, idx + 1);
-                        const curMag = sIndices.map(i => quakeData.mag[i]);
-                        const curDep = sIndices.map(i => quakeData.dep[i]);
+                        const sLen = sIndices.length;
+                        const curMag = new Float32Array(sLen);
+                        const curDep = new Float32Array(sLen);
+                        for (let k = 0; k < sLen; k++) {
+                            const i = sIndices[k];
+                            curMag[k] = quakeData.mag[i];
+                            curDep[k] = quakeData.dep[i];
+                        }
                         const lastMag = (idx >= 0 && idx < currentSwarm.mags.length) ? [currentSwarm.mags[idx]] : [];
                         updateHUDArrays(curMag, curDep, lastMag);
                     } else {
@@ -1758,24 +1783,22 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 }
             };
 
-            if (invertCheck) {
-                invertCheck.addEventListener('change', () => {
-                    invertScale = invertCheck.checked;
-                    if (window.SeismicUI && window.SeismicUI._layerInverts) {
-                        window.SeismicUI._layerInverts.earthquakes = invertScale;
-                    }
-                    const gd = document.getElementById('plot') || document.querySelector('.plotly-graph-div');
-                    if (gd && gd.data) {
-                        for (let i = 1; i <= 3; i++) {
-                            if (gd.data[i] && gd.data[i].marker) {
-                                gd.data[i].marker.reversescale = invertScale;
-                            }
+            window.setEarthquakeInvert = function(inv) {
+                invertScale = inv;
+                if (window.SeismicUI && window.SeismicUI._layerInverts) {
+                    window.SeismicUI._layerInverts.earthquakes = invertScale;
+                }
+                const gd = document.getElementById('plot') || document.querySelector('.plotly-graph-div');
+                if (gd && gd.data) {
+                    for (let i = 1; i <= 3; i++) {
+                        if (gd.data[i] && gd.data[i].marker) {
+                            gd.data[i].marker.reversescale = invertScale;
                         }
-                        try { Plotly.redraw(gd); } catch (e) {}
                     }
-                    if (typeof updateView === 'function') updateView(currentStepIdx);
-                });
-            }
+                    try { Plotly.redraw(gd); } catch (e) {}
+                }
+                if (typeof updateView === 'function') updateView(currentStepIdx);
+            };
             window.updateView = (idx) => updateView(typeof idx !== 'undefined' ? idx : currentStepIdx);
 
             jumpBtn.onclick = () => {

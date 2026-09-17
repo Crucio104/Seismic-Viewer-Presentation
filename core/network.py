@@ -37,8 +37,31 @@ def is_osm_online() -> bool:
     _osm_online_cache['status'] = online
     return online
 
+import numpy as np
+
+def _ws_json_default(obj: Any) -> Any:
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, (np.integer, np.floating)):
+        return obj.item()
+    if isinstance(obj, (bytes, bytearray)):
+        return obj.decode('utf-8', errors='replace')
+    return str(obj)
+
+try:
+    import orjson  # type: ignore
+
+    def _fast_ws_dumps(obj: Any) -> str:
+        try:
+            return orjson.dumps(obj, option=orjson.OPT_SERIALIZE_NUMPY).decode('utf-8')
+        except Exception:
+            return json.dumps(obj, default=_ws_json_default)
+except ImportError:
+    def _fast_ws_dumps(obj: Any) -> str:
+        return json.dumps(obj, default=_ws_json_default)
+
 class ConnectionManager:
-    """Manages active WebSocket connections and broadcasting."""
+    """Manages active WebSocket connections and broadcasting with high-speed serialization."""
     def __init__(self) -> None:
         self.active_connections: list[WebSocket] = []
 
@@ -53,15 +76,19 @@ class ConnectionManager:
             self.active_connections.remove(websocket)
 
     async def send_personal_message(self, message: dict[str, Any], websocket: WebSocket) -> None:
-        """Send message to a specific connection."""
-        await websocket.send_json(message)
+        """Send message to a specific connection using fast serialization."""
+        text = _fast_ws_dumps(message)
+        await websocket.send_text(text)
 
     async def broadcast(self, message: dict) -> None:
-        """Broadcast message to all active connections."""
+        """Broadcast message to all active connections using single-pass serialization."""
+        if not self.active_connections:
+            return
+        text = _fast_ws_dumps(message)
         stale: list[WebSocket] = []
         for connection in self.active_connections:
             try:
-                await connection.send_json(message)
+                await connection.send_text(text)
             except Exception:
                 # Connection might be stale
                 stale.append(connection)

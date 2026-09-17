@@ -25,6 +25,25 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             const dates = quakeData.times.map(t => t.slice(0, 10));
             const uniqueDates = Array.from(new Set(dates)).sort();
 
+            if (!quakeData.hover || quakeData.hover.length !== dates.length) {
+                const qLon = quakeData.longitude;
+                const qLat = quakeData.latitude;
+                const qMag = quakeData.magnitude;
+                const qDep = quakeData.depth;
+                const qTimes = quakeData.times;
+                const N = dates.length;
+                const hArr = new Array(N);
+                for (let i = 0; i < N; i++) {
+                    const d = (qTimes && qTimes[i]) ? qTimes[i] : dates[i];
+                    const m = (qMag && qMag[i] !== undefined) ? Number(qMag[i]).toFixed(1) : '';
+                    const dp = (qDep && qDep[i] !== undefined) ? Math.abs(Number(qDep[i])).toFixed(1) : '';
+                    const la = (qLat && qLat[i] !== undefined) ? Number(qLat[i]).toFixed(4) : '';
+                    const lo = (qLon && qLon[i] !== undefined) ? Number(qLon[i]).toFixed(4) : '';
+                    hArr[i] = `Date: ${d}<br>Magnitude: ${m}<br>Latitude: ${la}<br>Longitude: ${lo}<br>Depth: ${dp} km`;
+                }
+                quakeData.hover = hArr;
+            }
+
             startInput.min = endInput.min = uniqueDates[0];
             startInput.max = endInput.max = uniqueDates[uniqueDates.length - 1];
             startInput.value = uniqueDates[0];
@@ -201,6 +220,15 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 applyColorRestyleOnly();
             };
 
+            window.applyColorRestyleOnly = applyColorRestyleOnly;
+            window.setEarthquakeInvert = function(inv) {
+                invertScale = inv;
+                if (window.SeismicUI && window.SeismicUI._layerInverts) {
+                    window.SeismicUI._layerInverts.earthquakes = inv;
+                }
+                applyColorRestyleOnly();
+            };
+
             if (viewModeMenu) {
                 SeismicUI.bindMenu(viewModeMenu, (item) => {
                     currentViewMode = item.dataset.mode;
@@ -240,12 +268,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             const rangeApplyCallback = null;
 
-            if (invertCheck) {
-                invertCheck.addEventListener('change', () => {
-                    invertScale = invertCheck.checked;
-                    applyColorRestyleOnly();
-                });
-            }
+            // Invert scale change is handled globally by SeismicUI.toggleInvertScale -> window.setEarthquakeInvert
 
             // Range input sanitization
             SeismicUI.setupBoundsValidation(magMin, magMin.value, rangeApplyCallback);
@@ -370,17 +393,57 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 }
 
                 const allMatch = (indices.length === dates.length);
-                const filtered = {
-                    lon: allMatch ? quakeData.longitude : indices.map(i => quakeData.longitude[i]),
-                    lat: allMatch ? quakeData.latitude : indices.map(i => quakeData.latitude[i]),
-                    mag: allMatch ? quakeData.magnitude : indices.map(i => quakeData.magnitude[i]),
-                    dep: allMatch ? quakeData.depth : indices.map(i => quakeData.depth[i]),
-                    times: allMatch ? quakeData.times : indices.map(i => quakeData.times[i]),
-                    dnum: allMatch ? quakeData.dates_num : indices.map(i => quakeData.dates_num[i]),
-                    hover: (allMatch && quakeData.hover && quakeData.hover.length === dates.length)
-                        ? quakeData.hover
-                        : indices.map(i => (quakeData.hover && quakeData.hover[i]) ? quakeData.hover[i] : `Date: ${quakeData.times ? quakeData.times[i] : ''}<br>Magnitude: ${quakeData.magnitude[i].toFixed(1)}<br>Depth: ${Math.abs(quakeData.depth[i]).toFixed(1)} km`)
-                };
+                let filtered;
+                if (allMatch) {
+                    filtered = {
+                        lon: quakeData.longitude,
+                        lat: quakeData.latitude,
+                        mag: quakeData.magnitude,
+                        dep: quakeData.depth,
+                        times: quakeData.times,
+                        dnum: quakeData.dates_num,
+                        hover: quakeData.hover
+                    };
+                } else {
+                    const N = indices.length;
+                    const fLon = new Float32Array(N);
+                    const fLat = new Float32Array(N);
+                    const fMag = new Float32Array(N);
+                    const fDep = new Float32Array(N);
+                    const fDnum = new Float32Array(N);
+                    const fTimes = new Array(N);
+                    const fHover = new Array(N);
+
+                    const qLon = quakeData.longitude;
+                    const qLat = quakeData.latitude;
+                    const qMag = quakeData.magnitude;
+                    const qDep = quakeData.depth;
+                    const qDnum = quakeData.dates_num;
+                    const qTimes = quakeData.times;
+                    const qHover = quakeData.hover;
+                    const hasHover = qHover && qHover.length === dates.length;
+
+                    for (let k = 0; k < N; k++) {
+                        const i = indices[k];
+                        fLon[k] = qLon[i];
+                        fLat[k] = qLat[i];
+                        fMag[k] = qMag[i];
+                        fDep[k] = qDep[i];
+                        fDnum[k] = qDnum[i];
+                        if (qTimes) fTimes[k] = qTimes[i];
+                        fHover[k] = hasHover ? qHover[i] : `Date: ${qTimes ? qTimes[i] : ''}<br>Magnitude: ${qMag[i].toFixed(1)}<br>Depth: ${Math.abs(qDep[i]).toFixed(1)} km`;
+                    }
+
+                    filtered = {
+                        lon: fLon,
+                        lat: fLat,
+                        mag: fMag,
+                        dep: fDep,
+                        times: fTimes,
+                        dnum: fDnum,
+                        hover: fHover
+                    };
+                }
 
                 window.currentFilteredData = {
                     longitude: filtered.lon,
@@ -481,7 +544,11 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                                 'marker.colorscale': [getPlotlyScale(currentColorScale)],
                                 'marker.reversescale': [invertScale],
                                 'marker.showscale': [false],
-                                hovertext: [filtered.hover], visible: [true]
+                                hovertext: [filtered.hover],
+                                text: [filtered.hover],
+                                hovertemplate: ['%{hovertext}<extra></extra>'],
+                                hoverinfo: ['text'],
+                                visible: [true]
                             }, [traceIdx]);
                             if (pShow && typeof pShow.then === 'function') await pShow;
                         } catch (e) {}
@@ -508,6 +575,9 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                             gd.data[heatmapIdx].lon = filtered.lon;
                             gd.data[heatmapIdx].z = filtered.mag;
                             gd.data[heatmapIdx].hovertext = filtered.hover;
+                            gd.data[heatmapIdx].text = filtered.hover;
+                            gd.data[heatmapIdx].hovertemplate = '%{hovertext}<extra></extra>';
+                            gd.data[heatmapIdx].hoverinfo = 'text';
                             if (gd.data[heatmapIdx].colorscale !== undefined) {
                                 gd.data[heatmapIdx].colorscale = getPlotlyScale(currentColorScale);
                                 gd.data[heatmapIdx].reversescale = invertScale;
@@ -520,6 +590,9 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                             gd.data[scatterIdx].lat = filtered.lat;
                             gd.data[scatterIdx].lon = filtered.lon;
                             gd.data[scatterIdx].hovertext = filtered.hover;
+                            gd.data[scatterIdx].text = filtered.hover;
+                            gd.data[scatterIdx].hovertemplate = '%{hovertext}<extra></extra>';
+                            gd.data[scatterIdx].hoverinfo = 'text';
                             if (!gd.data[scatterIdx].marker) gd.data[scatterIdx].marker = {};
                             gd.data[scatterIdx].marker.size = markerSizes;
                             gd.data[scatterIdx].marker.color = colorArr;

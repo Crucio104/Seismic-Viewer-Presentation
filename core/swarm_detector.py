@@ -86,7 +86,7 @@ def detect_ingv_swarms(df: pd.DataFrame) -> list[dict[str, Any]]:
         
         start_str = pd.Timestamp(s_time).strftime('%Y-%m-%d %H:%M:%S')
         end_str = pd.Timestamp(e_time).strftime('%Y-%m-%d %H:%M:%S')
-        event_times = [pd.Timestamp(t).strftime('%Y-%m-%d %H:%M:%S') for t in times[i_idx:j_idx + 1]]
+        event_times = pd.to_datetime(times[i_idx:j_idx + 1]).strftime('%Y-%m-%d %H:%M:%S').tolist()
         
         swarms.append({
             'id': swarm_id,
@@ -97,7 +97,7 @@ def detect_ingv_swarms(df: pd.DataFrame) -> list[dict[str, Any]]:
             'min_mag': float(np.min(slice_mags)),
             'indices': dataset_indices,
             'times': event_times,
-            'mags': [float(m) for m in slice_mags],
+            'mags': slice_mags.tolist(),
         })
 
     logger.info(f"Detected {len(swarms)} INGV seismic swarms.")

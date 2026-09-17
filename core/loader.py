@@ -10,60 +10,22 @@ from core.config import (
     MIN_MAGNITUDE, MISSING_MAG_VALUE, MISSING_DEPTH_VALUE, CSV_SCHEMA, SECONDS_PER_DAY
 )
 from core.swarm_detector import detect_ingv_swarms
-from core.utils import parse_seismic_date_series
+from core.utils import parse_seismic_date_series, read_json_fast
 
 
 logger = logging.getLogger(__name__)
-
-def _make_hover(df: pd.DataFrame) -> list[str]:
-    """Generate descriptive hover text strings using vectorized NumPy string operations."""
-    dates = df['time_dt'].dt.strftime('%d-%m-%Y %H:%M').to_numpy()
-    lats = df['lat'].to_numpy(dtype=float)
-    lons = df['lon'].to_numpy(dtype=float)
-    deps = np.abs(df['depth'].to_numpy(dtype=float))
-    mags = df['mag'].to_numpy(dtype=float)
-
-    has_mag_missing = 'mag_is_missing' in df.columns
-    has_dep_missing = 'depth_is_missing' in df.columns
-    mag_miss = df['mag_is_missing'].to_numpy() if has_mag_missing else None
-    dep_miss = df['depth_is_missing'].to_numpy() if has_dep_missing else None
-
-    # Pre-format coordinate strings vectorized
-    lat_strs = np.array([f"{v:.4f}" for v in lats])
-    lon_strs = np.array([f"{v:.4f}" for v in lons])
-
-    # Pre-format magnitude and depth labels vectorized
-    if has_mag_missing and mag_miss is not None:
-        mag_labels = np.where(mag_miss, "N.D. (missing)", [f"{v:.2f}" for v in mags])
-    else:
-        mag_labels = np.array([f"{v:.2f}" for v in mags])
-
-    if has_dep_missing and dep_miss is not None:
-        dep_labels = np.where(dep_miss, "N.D. (missing)", [f"{v:.4f} km" for v in deps])
-    else:
-        dep_labels = np.array([f"{v:.4f} km" for v in deps])
-
-    # Build hover strings in a single vectorized pass
-    return [
-        f"Date: {d}<br>Magnitude: {m}<br>Latitude: {la}<br>Longitude: {lo}<br>Depth: {de}"
-        for d, m, la, lo, de in zip(dates, mag_labels, lat_strs, lon_strs, dep_labels, strict=True)
-    ]
 
 def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
     """Pre-calculate expensive data structures for visualizations with minimal memory footprint."""
     logger.info("Packaging visualization data...")
     
-    # 1. Hover Strings
-    all_hover = _make_hover(df)
-    
-    # 2. Date grouping for animation (without allocating a 50k temporary string column on df)
+    # Date grouping for animation (without allocating a temporary string column on full df)
     date_counts_series = df['time_dt'].dt.floor('D').value_counts().sort_index()
     unique_dates = [ts.strftime('%Y-%m-%d') for ts in date_counts_series.index]
     date_counts = date_counts_series.tolist()
     date_to_cum = dict(zip(unique_dates, date_counts_series.cumsum().tolist(), strict=True))
         
     return {
-        'hover': all_hover,
         'unique_dates': unique_dates,
         'date_to_cum': date_to_cum,
         'mag_range': [float(df['mag'].min()), float(df['mag'].max())],
@@ -73,27 +35,11 @@ def precompute_visual_data(df: pd.DataFrame) -> dict[str, Any]:
         'total_days': int((df['time_dt'].max() - df['time_dt'].min()).days) + 1,
     }
 
-try:
-    import orjson  # type: ignore
-    def _parse_json_file(source_file: str | Path) -> Any:
-        with open(source_file, 'rb') as f:
-            return orjson.loads(f.read())
-except ImportError:
-    try:
-        import ujson  # type: ignore
-        def _parse_json_file(source_file: str | Path) -> Any:
-            with open(source_file, encoding='utf-8', errors='ignore') as f:
-                return ujson.load(f)
-    except ImportError:
-        def _parse_json_file(source_file: str | Path) -> Any:
-            with open(source_file, encoding='utf-8', errors='ignore') as f:
-                return json.load(f)
-
 
 def _load_geojson(source_file: str | Path) -> pd.DataFrame:
     """Parse a GeoJSON FeatureCollection or geometry feature list into a seismic DataFrame."""
     try:
-        gj = _parse_json_file(source_file)
+        gj = read_json_fast(source_file)
 
         features = []
         if isinstance(gj, dict):
@@ -176,7 +122,7 @@ def _load_geojson(source_file: str | Path) -> pd.DataFrame:
 def _load_json(source_file: str | Path) -> pd.DataFrame:
     """Parse a generic or INGV GOSSIP JSON into a seismic DataFrame."""
     try:
-        raw_data = _parse_json_file(source_file)
+        raw_data = read_json_fast(source_file)
 
         if isinstance(raw_data, dict):
             if 'features' in raw_data and isinstance(raw_data['features'], list):

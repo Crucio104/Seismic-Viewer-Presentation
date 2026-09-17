@@ -88,11 +88,22 @@ window.getClusterColor = function(lbl) {
         }
     }
 
+    function purgeCurrentPlot() {
+        try {
+            const gd = document.querySelector('.plotly-graph-div') || document.getElementById('plot') || document.getElementById('plotly-div');
+            if (gd && window.Plotly) window.Plotly.purge(gd);
+        } catch(e) {}
+    }
+    window.purgeCurrentPlot = purgeCurrentPlot;
+    window.addEventListener('pagehide', purgeCurrentPlot);
+    window.addEventListener('beforeunload', purgeCurrentPlot);
+
     // --- History Navigation ---
     async function historyGoBack() {
         const api = getBridgeApi();
         if (!api) return;
         showInitLoader('Loading previous view...');
+        purgeCurrentPlot();
         if (typeof window.updateHistoryState === 'function') await window.updateHistoryState();
         await api.go_back();
     }
@@ -101,6 +112,7 @@ window.getClusterColor = function(lbl) {
         const api = getBridgeApi();
         if (!api) return;
         showInitLoader('Loading next view...');
+        purgeCurrentPlot();
         if (typeof window.updateHistoryState === 'function') await window.updateHistoryState();
         await api.go_forward();
     }
@@ -574,102 +586,117 @@ window.getClusterColor = function(lbl) {
             }
             loader.classList.add('show');
 
-            setTimeout(() => {
-                try {
-                    const gd = document.querySelector('.plotly-graph-div') || (window.plotlyId ? document.getElementById(window.plotlyId) : null) || document.getElementById('plotly-div') || document.getElementById('plot');
-                    if (currentMode === 'earthquakes') {
-                        if (typeof window.applyFilterWithLoader === 'function') {
-                            window.applyFilterWithLoader();
-                        } else if (typeof window.updateView === 'function') {
-                            window.updateView();
-                        } else if (window._earthquakeLegendState) {
-                            const s = window._earthquakeLegendState;
-                            s.invert = inv;
-                            updateGlassLegendInternal(s.show, s.title, s.scaleName, inv, s.limits, s.dateInfo);
-                            if (gd && gd.data) {
-                                for (let i = 0; i < gd.data.length; i++) {
-                                    const tr = gd.data[i];
-                                    if (!tr) continue;
-                                    const name = tr.name || '';
-                                    if (tr.type === 'scatter3d' && (name === 'Depth' || name === 'Date' || name === 'Magnitude' || name === 'Earthquakes' || (!name.includes('Vectors') && !name.includes('Arrow') && !name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
-                                        if (tr.marker) tr.marker.reversescale = inv;
-                                    } else if ((tr.type === 'scattermapbox' || tr.type === 'scattermap') && (name.includes('Earthquakes') || (!name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
-                                        if (tr.marker) tr.marker.reversescale = inv;
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        try {
+                            const gd = document.querySelector('.plotly-graph-div') || (window.plotlyId ? document.getElementById(window.plotlyId) : null) || document.getElementById('plotly-div') || document.getElementById('plot');
+                            if (currentMode === 'earthquakes') {
+                                if (typeof window.setEarthquakeInvert === 'function') {
+                                    window.setEarthquakeInvert(inv);
+                                } else if (typeof window.applyColorRestyleOnly === 'function') {
+                                    window.applyColorRestyleOnly();
+                                } else if (typeof window.applyFilterWithLoader === 'function') {
+                                    window.applyFilterWithLoader();
+                                } else if (typeof window.updateView === 'function') {
+                                    window.updateView();
+                                } else if (window._earthquakeLegendState) {
+                                    const s = window._earthquakeLegendState;
+                                    s.invert = inv;
+                                    updateGlassLegendInternal(s.show, s.title, s.scaleName, inv, s.limits, s.dateInfo);
+                                    if (gd && gd.data) {
+                                        for (let i = 0; i < gd.data.length; i++) {
+                                            const tr = gd.data[i];
+                                            if (!tr) continue;
+                                            const name = tr.name || '';
+                                            if (tr.type === 'scatter3d' && (name === 'Depth' || name === 'Date' || name === 'Magnitude' || name === 'Earthquakes' || (!name.includes('Vectors') && !name.includes('Arrow') && !name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
+                                                if (tr.marker) tr.marker.reversescale = inv;
+                                            } else if ((tr.type === 'scattermapbox' || tr.type === 'scattermap') && (name.includes('Earthquakes') || (!name.includes('Station') && !name.includes('Uplift') && !name.includes('Tomography')))) {
+                                                if (tr.marker) tr.marker.reversescale = inv;
+                                            }
+                                        }
+                                        try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
                                     }
                                 }
-                                try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
-                            }
-                        }
-                    } else if (currentMode === 'vectors') {
-                        if (gd && gd.data) {
-                            for (let i = 0; i < gd.data.length; i++) {
-                                const tr = gd.data[i];
-                                if (!tr) continue;
-                                if (tr.name === 'Consecutive Event Vectors') {
-                                    if (tr.line) tr.line.reversescale = inv;
-                                } else if (tr.name === 'Event Arrowheads') {
-                                    tr.reversescale = inv;
+                            } else if (currentMode === 'vectors') {
+                                if (gd && gd.data) {
+                                    for (let i = 0; i < gd.data.length; i++) {
+                                        const tr = gd.data[i];
+                                        if (!tr) continue;
+                                        if (tr.name === 'Consecutive Event Vectors') {
+                                            if (tr.line) tr.line.reversescale = inv;
+                                        } else if (tr.name === 'Event Arrowheads') {
+                                            tr.reversescale = inv;
+                                        }
+                                    }
+                                    try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
                                 }
-                            }
-                            try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
-                        }
-                        const maxV = this._consecutiveVectorCount || 100;
-                        const sc = (this._layerScales && this._layerScales.vectors) ? this._layerScales.vectors : 'Vectors';
-                        updateGlassLegendInternal(true, 'VECTOR N°', sc, inv, [1, maxV], null);
-                    } else if (currentMode === 'tomo') {
-                        if (gd && gd.data) {
-                            for (let i = 0; i < gd.data.length; i++) {
-                                const tr = gd.data[i];
-                                if (!tr) continue;
-                                const name = tr.name || '';
-                                if (tr.type === 'surface' || name.includes('Terrain') || name.includes('Map')) continue;
-                                const isTomo = name.toLowerCase().includes('tomography') || name.includes('Vp/Vs') || name.includes('Tomografia') || tr.type === 'volume';
-                                if (isTomo) {
-                                    tr.reversescale = inv;
+                                const maxV = this._consecutiveVectorCount || 100;
+                                const sc = (this._layerScales && this._layerScales.vectors) ? this._layerScales.vectors : 'Vectors';
+                                updateGlassLegendInternal(true, 'VECTOR N°', sc, inv, [1, maxV], null);
+                            } else if (currentMode === 'tomo') {
+                                if (gd && gd.data) {
+                                    for (let i = 0; i < gd.data.length; i++) {
+                                        const tr = gd.data[i];
+                                        if (!tr) continue;
+                                        const name = tr.name || '';
+                                        if (tr.type === 'surface' || name.includes('Terrain') || name.includes('Map')) continue;
+                                        const isTomo = name.toLowerCase().includes('tomography') || name.includes('Vp/Vs') || name.includes('Tomografia') || tr.type === 'volume';
+                                        if (isTomo) {
+                                            tr.reversescale = inv;
+                                        }
+                                    }
+                                    try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
                                 }
-                            }
-                            try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
-                        }
-                        const sc = (this._layerScales && this._layerScales.tomo) ? this._layerScales.tomo : 'Tomography';
-                        updateGlassLegendInternal(true, 'Tomo Vp/Vs', sc, inv, [1.15, 2.35], null);
-                    } else if (currentMode === 'uplift') {
-                        if (gd && gd.data) {
-                            for (let i = 0; i < gd.data.length; i++) {
-                                const tr = gd.data[i];
-                                if (!tr) continue;
-                                const name = tr.name || '';
-                                if (name.includes('Uplift') && (tr.type === 'surface' || tr.type === 'densitymapbox' || tr.type === 'densitymap' || tr.type === 'choroplethmapbox' || tr.type === 'choroplethmap')) {
-                                    tr.reversescale = inv;
+                                const sc = (this._layerScales && this._layerScales.tomo) ? this._layerScales.tomo : 'Tomography';
+                                updateGlassLegendInternal(true, 'Tomo Vp/Vs', sc, inv, [1.15, 2.35], null);
+                            } else if (currentMode === 'uplift') {
+                                if (gd && gd.data) {
+                                    for (let i = 0; i < gd.data.length; i++) {
+                                        const tr = gd.data[i];
+                                        if (!tr) continue;
+                                        const name = tr.name || '';
+                                        if (name.includes('Uplift') && (tr.type === 'surface' || tr.type === 'densitymapbox' || tr.type === 'densitymap' || tr.type === 'choroplethmapbox' || tr.type === 'choroplethmap')) {
+                                            tr.reversescale = inv;
+                                        }
+                                    }
+                                    try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
                                 }
+                                let minVal = 0, maxVal = 80;
+                                if (this._activeUpliftData) {
+                                    const u = this._activeUpliftData;
+                                    const vals = u.up_m || (u.interp_grid ? u.interp_grid.up_m : []) || [];
+                                    let minU = 9999, maxU = -9999;
+                                    for (let i = 0; i < vals.length; i++) {
+                                        if (vals[i] < minU) minU = vals[i];
+                                        if (vals[i] > maxU) maxU = vals[i];
+                                    }
+                                    if (minU !== 9999) { minVal = minU * 1000; maxVal = maxU * 1000; }
+                                }
+                                const sc = (this._layerScales && this._layerScales.uplift) ? this._layerScales.uplift : 'Uplift';
+                                updateGlassLegendInternal(true, 'Uplift (mm)', sc, inv, [minVal, maxVal], null);
                             }
-                            try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
+                        } catch (err) {
+                            console.error('Error toggling invert scale:', err);
+                        } finally {
+                            setTimeout(() => {
+                                if (loader) loader.classList.remove('show');
+                            }, 120);
                         }
-                        let minVal = 0, maxVal = 80;
-                        if (this._activeUpliftData) {
-                            const u = this._activeUpliftData;
-                            const vals = u.up_m || (u.interp_grid ? u.interp_grid.up_m : []) || [];
-                            let minU = 9999, maxU = -9999;
-                            for (let i = 0; i < vals.length; i++) {
-                                if (vals[i] < minU) minU = vals[i];
-                                if (vals[i] > maxU) maxU = vals[i];
-                            }
-                            if (minU !== 9999) { minVal = minU * 1000; maxVal = maxU * 1000; }
-                        }
-                        const sc = (this._layerScales && this._layerScales.uplift) ? this._layerScales.uplift : 'Uplift';
-                        updateGlassLegendInternal(true, 'Uplift (mm)', sc, inv, [minVal, maxVal], null);
-                    }
-                } catch (err) {
-                    console.error('Error toggling invert scale:', err);
-                } finally {
-                    setTimeout(() => {
-                        if (loader) loader.classList.remove('show');
-                    }, 100);
-                }
-            }, 30);
+                    }, 10);
+                });
+            });
         },
 
         initMenu(btn, menu) {
             if (!btn || !menu) return;
+
+            // Move menu to document.body so it isn't trapped or offset by containing blocks
+            // formed by backdrop-filter or will-change on ancestors like #left-panel-wrapper
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+
             btn.onclick = (e) => {
                 e.stopPropagation();
                 const wasShowing = menu.classList.contains('show');
@@ -679,8 +706,31 @@ window.getClusterColor = function(lbl) {
                 if (!wasShowing) {
                     const rect = btn.getBoundingClientRect();
                     menu.style.position = 'fixed';
-                    menu.style.top = rect.top + 'px';
-                    menu.style.left = (rect.right + 15) + 'px';
+                    menu.style.zIndex = '999999';
+                    menu.style.width = 'max-content';
+                    menu.style.minWidth = rect.width + 'px';
+                    menu.style.left = rect.left + 'px';
+
+                    // Temporarily display invisibly to read actual dimensions
+                    menu.style.visibility = 'hidden';
+                    menu.classList.add('show');
+                    const menuHeight = menu.offsetHeight || 140;
+                    const menuWidth = Math.max(rect.width, menu.offsetWidth || 140);
+                    menu.classList.remove('show');
+                    menu.style.visibility = '';
+
+                    // Position directly underneath the button, or flip above if near bottom edge
+                    if (rect.bottom + menuHeight + 12 > window.innerHeight && rect.top > menuHeight + 12) {
+                        menu.style.top = (rect.top - menuHeight - 4) + 'px';
+                    } else {
+                        menu.style.top = (rect.bottom + 4) + 'px';
+                    }
+
+                    // Prevent overflowing the right viewport edge
+                    if (rect.left + menuWidth > window.innerWidth - 12) {
+                        menu.style.left = Math.max(10, window.innerWidth - menuWidth - 12) + 'px';
+                    }
+
                     menu.classList.add('show');
                 }
             };
@@ -688,9 +738,11 @@ window.getClusterColor = function(lbl) {
         bindMenu(menu, callback) {
             if (!menu) return;
             menu.querySelectorAll('.menu-item').forEach(item => {
-                item.onclick = () => {
+                item.onclick = (e) => {
+                    if (e) e.stopPropagation();
                     menu.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
                     item.classList.add('active');
+                    menu.classList.remove('show');
                     if (callback) callback(item);
                 };
             });
@@ -1362,6 +1414,14 @@ window.getClusterColor = function(lbl) {
             if (clusterCsvDialog) clusterCsvDialog.classList.remove('active');
         }
     };
+
+    window.addEventListener('scroll', () => {
+        document.querySelectorAll('.glass-menu.show').forEach(m => m.classList.remove('show'));
+    }, true);
+
+    window.addEventListener('resize', () => {
+        document.querySelectorAll('.glass-menu.show').forEach(m => m.classList.remove('show'));
+    });
 
 
 

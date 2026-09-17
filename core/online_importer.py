@@ -19,7 +19,7 @@ from core.config import (
     MISSING_MAG_VALUE,
     enforce_temp_dir_limit
 )
-from core.utils import parse_seismic_date
+from core.utils import parse_seismic_date, read_json_fast, parse_json_bytes_fast
 
 logger = logging.getLogger(__name__)
 
@@ -36,19 +36,9 @@ def _extract_md_obj(magnitudos: list[dict[str, Any]]) -> dict[str, Any]:
         return {}
     return next((m for m in magnitudos if m.get('type') == 'D'), magnitudos[0])
 
-try:
-    import orjson  # type: ignore
-    def _parse_json_bytes(content: bytes | bytearray) -> Any:
-        return orjson.loads(content)
-    def _read_json_file(file_path: Path) -> Any:
-        with open(file_path, 'rb') as f:
-            return orjson.loads(f.read())
-except ImportError:
-    def _parse_json_bytes(content: bytes | bytearray) -> Any:
-        return json.loads(content)
-    def _read_json_file(file_path: Path) -> Any:
-        with open(file_path, encoding='utf-8') as f:
-            return json.load(f)
+# Fast JSON aliases
+_read_json_file = read_json_fast
+_parse_json_bytes = parse_json_bytes_fast
 
 def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | None = None) -> list[dict[str, Any]]:
     """

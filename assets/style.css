@@ -747,12 +747,13 @@ body {
     border-radius: 0; /* Remove rounded corners */
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.18s ease;
 }
 
 #filter-loader.show {
     opacity: 1;
     pointer-events: auto;
+    transition: opacity 0.05s ease;
 }
 
 #filter-loader .loader-text,
@@ -1116,6 +1117,12 @@ body {
     flex-shrink: 0;
 }
 
+.legend-invert-checkbox:active .invert-checkbox-box {
+    transform: scale(0.84) !important;
+    box-shadow: 0 0 12px rgba(52, 211, 153, 0.6);
+    transition: transform 0.06s ease, background 0.1s ease;
+}
+
 .legend-invert-checkbox input[type="checkbox"] {
     position: absolute;
     opacity: 0;
@@ -1135,7 +1142,7 @@ body {
     align-items: center;
     justify-content: center;
     color: rgba(255, 255, 255, 0.7);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .legend-invert-checkbox:hover .invert-checkbox-box {
@@ -1155,7 +1162,7 @@ body {
 .invert-checkbox-box svg {
     width: 1.05rem;
     height: 1.05rem;
-    transition: transform 0.25s ease;
+    transition: transform 0.18s cubic-bezier(0.34, 1.35, 0.64, 1);
 }
 
 .legend-invert-checkbox input[type="checkbox"]:checked + .invert-checkbox-box svg {
@@ -2017,10 +2024,22 @@ body {
     opacity: 1;
 }
 
+@keyframes dialogFlexZoomIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
 #swarm-chart-dialog.active .swarm-chart-modal,
 #screenshot-preview-dialog.active .export-preview-modal,
-#cluster-csv-dialog.active .cluster-csv-modal {
-    animation: modalCenterFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+#cluster-csv-dialog.active .cluster-csv-modal,
+#cluster-csv-dialog.active .export-preview-modal {
+    animation: dialogFlexZoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .swarm-chart-modal,
@@ -2037,7 +2056,8 @@ body {
     width: 95vw;
     max-height: 94vh;
     overflow: hidden;
-    animation: infoSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    margin: auto;
+    position: relative;
 }
 
 .swarm-chart-header,

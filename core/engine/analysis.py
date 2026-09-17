@@ -203,24 +203,31 @@ def calculate_structural_planes(
     start_idx, end_idx = valid_range if valid_range else (0, len(pts_km))
 
     for ix, iy, _cx, _cy, global_indices in active_grid:
-        valid_indices = [i for i in global_indices if start_idx <= i < end_idx]
-        
-        if len(valid_indices) >= min_pts:
-            subset = pts_km[valid_indices]
-            normal, centroid, planarity = fit_plane_ransac(subset, threshold=ransac_threshold, min_inliers=min_pts)
-                
-            if normal is None or centroid is None:
+        if isinstance(global_indices, np.ndarray):
+            left = int(np.searchsorted(global_indices, start_idx))
+            right = int(np.searchsorted(global_indices, end_idx))
+            if right - left < min_pts:
                 continue
+            valid_indices = global_indices[left:right]
+        else:
+            valid_indices = [i for i in global_indices if start_idx <= i < end_idx]
+            if len(valid_indices) < min_pts:
+                continue
+        
+        subset = pts_km[valid_indices]
+        normal, centroid, planarity = fit_plane_ransac(subset, threshold=ransac_threshold, min_inliers=min_pts)
+        if normal is None or centroid is None:
+            continue
 
-            c_lon = (centroid[0] / lon_to_km) + origin_lon
-            c_lat = (centroid[1] / KM_PER_DEGREE) + origin_lat 
+        c_lon = (centroid[0] / lon_to_km) + origin_lon
+        c_lat = (centroid[1] / KM_PER_DEGREE) + origin_lat 
 
-            plane_data = _format_plane_geometry(
-                normal, centroid, planarity, 
-                c_lon, c_lat, lon_to_km, radius_km
-            )
-            plane_data['grid_id'] = f"{ix}_{iy}_{date_tag}" if date_tag else f"{ix}_{iy}"
-            planes.append(plane_data)
+        plane_data = _format_plane_geometry(
+            normal, centroid, planarity, 
+            c_lon, c_lat, lon_to_km, radius_km
+        )
+        plane_data['grid_id'] = f"{ix}_{iy}_{date_tag}" if date_tag else f"{ix}_{iy}"
+        planes.append(plane_data)
     return planes
 
 def _worker_calculate_planes(args: tuple) -> tuple[str, list[dict[str, Any]]]:
@@ -261,7 +268,8 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
         for iy, cy in enumerate(grid_y):
             indices = tree.query_ball_point([cx, cy], radius_km)
             if len(indices) >= min_pts:
-                active_grid.append((ix, iy, cx, cy, indices))
+                sorted_idx = np.sort(np.asarray(indices, dtype=np.int32))
+                active_grid.append((ix, iy, cx, cy, sorted_idx))
     
     tasks = []
     
