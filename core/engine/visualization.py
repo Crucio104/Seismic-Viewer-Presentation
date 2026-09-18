@@ -168,8 +168,8 @@ def get_3d_static_figure(
 ) -> go.Figure:
     """Generate a high-quality 3D static view."""
     if bbox is None:
-        bbox = (min(latitude), min(longitude), max(latitude), max(longitude))
-    min_depth = np.floor(np.min(depth)) if len(depth) > 0 else 0
+        bbox = (float(np.min(latitude)), float(np.min(longitude)), float(np.max(latitude)), float(np.max(longitude)))
+    min_depth = float(np.floor(np.min(depth))) if len(depth) > 0 else 0
 
     if map_grids:
         x_grid, y_grid, z_grid, surfacecolor, colorscale, _ = map_grids
@@ -185,7 +185,7 @@ def get_3d_static_figure(
         x=longitude, y=latitude, z=depth, mode='markers', hovertext=all_hover,
         marker=dict(
             size=5, color=depth, colorscale='Viridis', showscale=False,
-            cmin=min(depth), cmax=max(depth),
+            cmin=float(np.min(depth)), cmax=float(np.max(depth)),
             line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
             opacity=0.9,
         ),
@@ -197,7 +197,7 @@ def get_3d_static_figure(
             x=longitude, y=latitude, z=depth, mode='markers', hovertext=all_hover,
             marker=dict(
                 size=5, color=dates_num, colorscale='Jet', showscale=False,
-                cmin=min(dates_num), cmax=max(dates_num),
+                cmin=float(np.min(dates_num)), cmax=float(np.max(dates_num)),
                 line=dict(width=1, color='rgba(50, 50, 50, 0.8)'),
                 opacity=0.9,
             ),
@@ -758,8 +758,8 @@ def get_3d_animated_figure(
     unique_dates = vpack.get('unique_dates', [])
 
     if bbox is None:
-        bbox = (min(latitude), min(longitude), max(latitude), max(longitude))
-    min_depth = np.floor(np.min(depth)) if len(depth) > 0 else 0
+        bbox = (float(np.min(latitude)), float(np.min(longitude)), float(np.max(latitude)), float(np.max(longitude)))
+    min_depth = float(np.floor(np.min(depth))) if len(depth) > 0 else 0.0
 
     if map_grids:
         x_high, y_high, z_high, mat_high, scale_high, _ = map_grids

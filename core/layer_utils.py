@@ -9,6 +9,17 @@ from core.config import BASE_DIR, KM_PER_DEGREE
 
 logger = logging.getLogger(__name__)
 
+# --- In-Memory Layer Caches ---
+_TOMOGRAPHY_CACHE: dict[tuple[str, float], dict[str, Any]] = {}
+_UPLIFT_CACHE: dict[tuple[str, float, str | None, str | None, float | None], dict[str, Any]] = {}
+_STATIONS_CACHE: dict[tuple[str, float], dict[str, Any]] = {}
+
+def clear_layer_caches() -> None:
+    """Clear all cached external layer data."""
+    _TOMOGRAPHY_CACHE.clear()
+    _UPLIFT_CACHE.clear()
+    _STATIONS_CACHE.clear()
+
 def utm33_to_latlon_numpy(x_km: np.ndarray | float, y_km: np.ndarray | float) -> tuple[np.ndarray | float, np.ndarray | float]:
     """
     Convert UTM Zone 33N coordinates (in km) to WGS84 Latitude and Longitude (in degrees).
@@ -70,9 +81,14 @@ def _read_csv_flexible(path: Path | str) -> pd.DataFrame:
 def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
     """Read tomography CSV, convert UTM coordinates, and extract Vp/Vs ratio."""
     try:
-        path = Path(csv_path)
+        path = Path(csv_path).resolve()
         if not path.exists():
             return {'error': f"File not found: {csv_path}"}
+        
+        mtime = path.stat().st_mtime
+        cache_key = (str(path), mtime)
+        if cache_key in _TOMOGRAPHY_CACHE:
+            return _TOMOGRAPHY_CACHE[cache_key]
         
         df = _read_csv_flexible(path)
             
@@ -218,6 +234,7 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
         }
         if iso_grid:
             result['iso_grid'] = iso_grid
+        _TOMOGRAPHY_CACHE[cache_key] = result
         return result
     except Exception as e:
         logger.error(f"Error during tomography processing: {e}", exc_info=True)
@@ -227,9 +244,16 @@ def process_tomography_data(csv_path: str | Path) -> dict[str, Any]:
 def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None, stations_path: str | Path | None = None) -> dict[str, Any]:
     """Read GNSS uplift CSV, match station coordinates, and extract latest/closest uplift values."""
     try:
-        path = Path(csv_path)
+        path = Path(csv_path).resolve()
         if not path.exists():
             return {'error': f"File not found: {csv_path}"}
+            
+        mtime = path.stat().st_mtime
+        st_res = str(Path(stations_path).resolve()) if stations_path else None
+        st_mtime = Path(stations_path).stat().st_mtime if stations_path and Path(stations_path).exists() else None
+        cache_key = (str(path), mtime, target_date_str, st_res, st_mtime)
+        if cache_key in _UPLIFT_CACHE:
+            return _UPLIFT_CACHE[cache_key]
             
         df = _read_csv_flexible(path)
             
@@ -408,7 +432,7 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
         del gc_pts, st_c, st_c_km, gc_pts_km, dists_km, weights, st_v_np, grid_up_vals, c_lats_mat, c_lons_mat, gc_cells, gc_cells_km, dists_cells_km, weights_cells
         logger.info(f"Elaborate {len(stations)} stazioni GNSS e generata superficie geografica continua da {path.name}")
         
-        return {
+        uplift_result = {
             'status': 'success',
             'type': 'uplift',
             'filename': path.name,
@@ -432,6 +456,8 @@ def process_uplift_data(csv_path: str | Path, target_date_str: str | None = None
             },
             'interp_grid': interp_grid
         }
+        _UPLIFT_CACHE[cache_key] = uplift_result
+        return uplift_result
     except Exception as e:
         logger.error(f"Error during uplift processing: {e}", exc_info=True)
         return {'error': f"Uplift processing error: {str(e)}"}
@@ -478,7 +504,15 @@ def _load_station_coordinates(search_dir: Path, stations_path: str | Path | None
 def process_stations_data(stations_path: str | Path) -> dict[str, Any]:
     """Load station coordinates and format them for visualization."""
     try:
-        p = Path(stations_path)
+        p = Path(stations_path).resolve()
+        if not p.exists():
+            return {'error': f"File not found: {stations_path}"}
+        
+        mtime = p.stat().st_mtime
+        cache_key = (str(p), mtime)
+        if cache_key in _STATIONS_CACHE:
+            return _STATIONS_CACHE[cache_key]
+        
         coord_map = _load_station_coordinates(p.parent if p.exists() else BASE_DIR, stations_path=stations_path)
         if not coord_map:
             return {'error': 'No station coordinates found in file.'}
@@ -493,7 +527,7 @@ def process_stations_data(stations_path: str | Path) -> dict[str, Any]:
             lons.append(lon)
             hover_texts.append(f"<b>Station: {name}</b><br>Lat: {lat:.5f}°<br>Lon: {lon:.5f}°")
             
-        return {
+        st_result = {
             'names': names,
             'lats': lats,
             'lons': lons,
@@ -501,6 +535,8 @@ def process_stations_data(stations_path: str | Path) -> dict[str, Any]:
             'hover': hover_texts,
             'count': len(names)
         }
+        _STATIONS_CACHE[cache_key] = st_result
+        return st_result
     except Exception as e:
         logger.error(f"Error processing station data: {e}", exc_info=True)
         return {'error': f"Error processing stations: {str(e)}"}

@@ -229,6 +229,11 @@ def _create_fastapi_app(controller: ServerController) -> FastAPI:
 def _cleanup() -> None:
     server_controller.stop()
     clear_session_data()
+    try:
+        from core.layer_utils import clear_layer_caches
+        clear_layer_caches()
+    except Exception:
+        pass
 
 atexit.register(_cleanup)
 
@@ -288,6 +293,8 @@ def main() -> None:
             webview.start(debug=False)
         except KeyboardInterrupt:
             pass
+    finally:
+        _cleanup()
 
 if __name__ == '__main__':
     main()
