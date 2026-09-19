@@ -5,13 +5,13 @@
 \chapter{Clustering and Structural Analysis Algorithms}
 \label{ch:algorithms}
 
-This chapter formalises the algorithms used in Seismic Viewer's analytical engine, presenting their mathematical formulations and optimization strategies.
+This chapter formalises the algorithms used in Seismic Viewer's analytical engine, presenting their mathematical formulations and optimisation strategies.
 
 \section{Coordinate Projection and Spatial Clustering Methods}
 \label{sec:projection}
 \label{sec:clustering-methods}
 
-To compute distances for spatial clustering, spherical coordinates ($\lambda, \phi$) are converted into a local Cartesian coordinate system in kilometres $(x, y, z)_\text{km}$ centered at the dataset mean $(\lambda_0, \phi_0)$. This projection \cite{snyder1987map} is defined as:
+To compute distances for spatial clustering, spherical coordinates ($\lambda, \phi$) are converted into a local Cartesian coordinate system in kilometres $(x, y, z)_\text{km}$ centred at the dataset mean $(\lambda_0, \phi_0)$. This projection \cite{snyder1987map} is defined as:
 \begin{equation}
     x = (\lambda - \lambda_0) \cdot K \cos(\phi_0), \quad
     y = (\phi - \phi_0) \cdot K, \quad
@@ -25,7 +25,7 @@ where $K = 111.32$~km/° represents the average length of one degree of latitude
 \label{sec:kmeans-impl}
 \label{sec:cylinder-clustering}
 
-Seismic Viewer implements three complementary clustering paradigms, building on machine learning techniques for seismic catalog analysis \cite{bergen2019machine} and provided by the scikit-learn library \cite{pedregosa2011sklearn} or developed as custom extensions:
+Seismic Viewer implements three complementary clustering paradigms, building on machine learning techniques for seismic catalogue analysis \cite{bergen2019machine} and provided by the scikit-learn library \cite{pedregosa2011sklearn} or developed as custom extensions:
 \begin{enumerate}
     \item \textbf{DBSCAN}: The density-based spatial clustering algorithm \cite{ester1996dbscan} (\texttt{DBSCAN}) isolates high-density seismogenic structures according to neighbourhood radius $\varepsilon_\text{km} = \varepsilon_\text{m}/1000$ and \texttt{MinSamples}. Points lacking sufficient density reachability are marked as noise (label $-1$).
     \item \textbf{MiniBatchKMeans}: For centroid partitioning, the MiniBatchKMeans variant \cite{lloyd1982kmeans} optimises $K$ clusters across random data subsets ($b=1024$), reducing iteration complexity from $O(NK)$ to $O(bK)$. To prevent outlier inclusion, a post-clustering distance filter reclassifies points exceeding $d_\text{max}$ from their centroid as noise:
@@ -37,7 +37,7 @@ if method == 'kmeans' and max_dist > 0:
         dists = np.sqrt(np.sum((pts_km[idx] - centroids[i])**2, axis=1))
         display_labels[np.where(idx)[0][dists > max_d]] = -1
     \end{lstlisting}
-    \item \textbf{Cylinder Partitioning}: To ensure stable cluster assignments during 4D temporal animations without color swapping, the study volume is partitioned into a regular grid of vertical cylinders. Events are assigned to the nearest cylinder centroid via KDTree query. Cylinders accumulating more than 5 events constitute stable, depth-resolved clusters across frames.
+    \item \textbf{Cylinder Partitioning}: To ensure stable cluster assignments during 4D temporal animations without colour swapping, the study volume is partitioned into a regular grid of vertical cylinders. Events are assigned to the nearest cylinder centroid via KDTree query. Cylinders accumulating more than 5 events constitute stable, depth-resolved clusters across frames.
 \end{enumerate}
 
 \begin{table}[htbp]
@@ -62,10 +62,10 @@ if method == 'kmeans' and max_dist > 0:
 \section{Automatic Parameter Tuning}
 \label{sec:auto-tuning}
 
-Parameter tuning is executed during \textit{Subcluster Analysis} to estimate parameters for unlocked clusters based on their spatial distribution. The method is based on the Kneedle algorithm \cite{satopaa2011kneedle}, which detects the point of maximum curvature in a sorted distance or inertia curve.
+Parameter tuning is executed during \textit{Subcluster Analysis} to estimate parameters for unlocked clusters based on their spatial distribution. The system uses a geometric knee-detection procedure inspired by the Kneedle algorithm \cite{satopaa2011kneedle}, which detects the point of maximum curvature in a sorted distance or inertia curve.
 
 \paragraph{DBSCAN Auto-$\varepsilon$.}
-Density-based clustering depends on two parameters: the search radius $\varepsilon$ and the minimum number of points $k = \text{MinSamples}$. Because these parameters depend on each other, the analytical engine determines both automatically. First, the minimum sample threshold is computed from the dataset size $N$ as $k = \max(3, \lfloor \ln N \rfloor)$, allowing the density requirement to adapt to the data volume. Next, using a nearest neighbor search, the algorithm calculates the distance $d_i^{(k)}$ from each earthquake to its $k$-th closest neighbor. Sorting these distances in ascending order yields the $k$-distance curve, denoted as points $\mathbf{p}_i = (i, d_i^{(k)})$ for $i = 0, \dots, N-1$.
+Density-based clustering depends on two parameters: the search radius $\varepsilon$ and the minimum number of points $k = \text{MinSamples}$. Because these parameters depend on each other, the analytical engine determines both automatically. First, the minimum sample threshold is computed from the dataset size $N$ as $k = \max(3, \lfloor \ln N \rfloor)$, allowing the density requirement to adapt to the data volume. Next, using a nearest neighbour search, the algorithm calculates the distance $d_i^{(k)}$ from each earthquake to its $k$-th closest neighbour. Sorting these distances in ascending order yields the $k$-distance curve, denoted as points $\mathbf{p}_i = (i, d_i^{(k)})$ for $i = 0, \dots, N-1$.
 
 In spatial clustering theory, points belonging to seismic clusters exhibit lower distances, whereas boundary events and noise cause the curve to rise. The search radius $\varepsilon^*$ corresponds to the knee point of this curve, which marks the transition between cluster density and noise. To identify this point, the system constructs a line between the first point $\mathbf{p}_0 = (0, d_0^{(k)})$ and the last point $\mathbf{p}_{N-1} = (N-1, d_{N-1}^{(k)})$, defining the direction vector $\mathbf{v} = \mathbf{p}_{N-1} - \mathbf{p}_0$. The algorithm calculates the distance from each curve point $\mathbf{p}_i$ to the line and selects the index $i^*$ that maximizes this distance:
 \begin{equation}
@@ -108,24 +108,25 @@ The software computes the centroid $(\bar{x}, \bar{y}, \bar{z})$ of all $n$ inli
 \end{equation}
 The decomposition factors $A$ into orthogonal vectors and singular values $\Sigma = \operatorname{diag}(\sigma_1, \sigma_2, \sigma_3)$, where $\sigma_1 \ge \sigma_2 \ge \sigma_3 \ge 0$. The singular vector corresponding to the smallest singular value $\sigma_3$ defines the normal vector $\vec{n}$ of the fitted plane.
 
-Beyond determining the plane orientation, the singular values provide direct insight into the geometric shape of the cluster. Following standard 3D point-cloud dimensionality metrics used in structural geology \cite{fernandez2005plane}, the analytical engine evaluates a normalized Planarity index $P$:
+Beyond determining the plane orientation, the singular values provide direct insight into the geometric shape of the cluster. In structural geology and point cloud processing, dimensionality metrics are classically defined on the eigenvalues $\lambda_1 \ge \lambda_2 \ge \lambda_3$ of the sample covariance matrix $C = \frac{1}{n-1} A^T A$ \cite{fernandez2005plane}, where planarity is given by $P_\text{cov} = (\lambda_2 - \lambda_3) / \lambda_1$. Because the covariance eigenvalues relate to the SVD singular values through $\lambda_i = \sigma_i^2 / (n-1)$, an equivalent formulation can be expressed using squared singular values. In Seismic Viewer, as a direct and computationally lightweight implementation choice, the analytical engine calculates the planarity score directly from the singular values without forming the covariance matrix or computing squares:
 \begin{equation}
     P = \frac{\sigma_2 - \sigma_3}{\sigma_1}
     \label{eq:planarity}
 \end{equation}
-A high planarity score ($P \to 1$) indicates a planar fault segment, whereas a low score ($P \to 0$) denotes an isotropic or linear dispersion of seismic hypocenters.
+A high planarity score ($P \to 1$) indicates a planar fault segment, whereas a low score ($P \to 0$) denotes an isotropic or linear dispersion of seismic hypocentres.
 
-To translate the normal vector $\vec{n} = [n_x, n_y, n_z]$ into standard geological angles, the vector is oriented downwards ($n_z \ge 0$). Trigonometric formulas then compute the orientation of the fault:
+To translate the normal vector $\vec{n} = [n_x, n_y, n_z]$ into standard geological angles, the vector is oriented upwards ($n_z \ge 0$) within the Cartesian elevation frame (where subterranean depth corresponds to $z \le 0$). Under this convention, the horizontal projection points along the azimuth of maximum downward slope. Trigonometric relations then compute the orientation of the fault:
 \begin{align}
     \text{Dip}: \quad & \delta = \arccos(n_z) \cdot \frac{180^\circ}{\pi} \label{eq:dip} \\
     \text{Dip Direction}: \quad & \theta_\text{DD} = \text{atan2}(n_x, n_y) \bmod 360^\circ \label{eq:dip-dir} \\
     \text{Strike}: \quad & \phi_s = (\theta_\text{DD} - 90^\circ) \bmod 360^\circ \label{eq:strike}
 \end{align}
-The Dip measures the tilt angle relative to the surface, the Dip Direction indicates the direction of the downward slope, and the Strike defines the orientation of the horizontal fault line. For 3D visualization, planes are rendered as triangulated grids along orthogonal basis vectors $\vec{u}, \vec{v}$:
+The Dip measures the tilt angle relative to the horizontal plane, the Dip Direction indicates the azimuth of the downward slope, and the Strike defines the orientation of the horizontal fault line. For 3D visualisation, planes are rendered as triangulated grids along orthogonal basis vectors $\vec{u}$ and $\vec{v}$:
 \begin{equation}
-    \vec{u} = \frac{\vec{n} \times \hat{z}}{\|\vec{n} \times \hat{z}\|}, \quad \vec{v} = \frac{\vec{n} \times \vec{u}}{\|\vec{n} \times \vec{u}\|}
+    \vec{u} = \begin{bmatrix} \sin(\phi_s) \\ \cos(\phi_s) \\ 0 \end{bmatrix}, \quad \vec{v} = \vec{u} \times \vec{n}
     \label{eq:basis-vectors}
 \end{equation}
+where $\vec{u}$ is the horizontal unit vector oriented along the strike azimuth, and $\vec{v}$ is the down-dip vector pointing along the maximum downward slope of the fault plane.
 
 \section{Temporal Stability, Parallel Execution, and Complexity}
 \label{sec:label-matching}
@@ -136,26 +137,26 @@ Computing structural models across temporal sequences requires visual consistenc
 \subsection{Temporal Stability via Global Label Matching}
 \enlargethispage{4\baselineskip}
 
-When running unsupervised clustering algorithms frame by frame during 4D animations, each time step evaluates an independent subset of seismic events. Because unsupervised algorithms assign cluster labels without historical context, the label of a fault structure can change between consecutive frames. In an animation, this causes color changes (known as color flickering), which prevents tracking how faults evolve over time.
+When running unsupervised clustering algorithms frame by frame during 4D animations, each time step evaluates an independent subset of seismic events. Because unsupervised algorithms assign cluster labels without historical context, the label of a fault structure can change between consecutive frames. In an animation, this causes colour changes, known as colour flickering, which prevents tracking how faults evolve over time.
 
-To maintain color continuity across frames, the engine uses a label matching algorithm. The system maintains an array recording the most recent label assigned to each earthquake. For every cluster detected in a new frame, the algorithm inspects the previous labels of its events and applies majority voting:
+To maintain colour continuity across frames, the engine uses a label matching algorithm. The system maintains an array recording the most recent label assigned to each earthquake. For every cluster detected in a new frame, the algorithm inspects the previous labels of its events and applies majority voting:
 \begin{equation}
     L_\text{assigned} = \arg\max_k \sum_{j \in S_c} \mathbb{I}(\text{global\_map}[j] = k)
     \label{eq:majority-voting}
 \end{equation}
-where $S_c$ is a sample of indices from the cluster (bounded to 200 events), and $\mathbb{I}$ is the indicator function. If a cluster contains only new events without previous history, the algorithm assigns a new label. The assigned label is applied to color the earthquakes in the active frame and saved in the global array so that subsequent frames reuse the same cluster identifier.
+where $S_c$ is a sample of indices from the cluster (bounded to 200 events), and $\mathbb{I}$ is the indicator function. If a cluster contains only new events without previous history, the algorithm assigns a new label. The assigned label is applied to colour the earthquakes in the active frame and saved in the global array so that subsequent frames reuse the same cluster identifier.
 
 \subsection{Parallel Execution Architecture}
 
-Calculating RANSAC inliers and SVD planes across animation frames involves separate mathematical steps for each time window. To prevent these calculations from slowing down the user interface, the backend distributes frame tasks across CPU cores using a process pool. The coordinate array is stored once in worker memory at startup, allowing worker processes to read coordinates directly without making copies.
+Calculating RANSAC inliers and SVD planes across animation frames involves separate mathematical steps for each time window. To prevent these calculations from slowing down the user interface, the backend distributes frame tasks across worker threads using a \texttt{ThreadPoolExecutor}. The coordinate array is stored once in shared memory, allowing worker threads to read coordinates directly without making copies. Furthermore, numerical routines in SciPy and NumPy release the Global Interpreter Lock during LAPACK SVD calls and distance calculations, enabling efficient parallel execution across CPU cores.
 
 \subsection{Asymptotic Complexity Analysis}
 
-\Cref{tab:complexity} summarizes the time and space complexity of each algorithm in the pipeline. Spatial neighbor searches in DBSCAN use a KD-Tree index to reduce query complexity to $O(N \log N)$, while MiniBatchKMeans scales with mini-batch size rather than full dataset dimensions. Plane fitting scales with the number of inliers per cluster, and label matching remains bounded by sampling.
+\Cref{tab:complexity} summarizes the typical time and space complexity of each algorithm in the pipeline under the operational assumptions of low spatial dimensionality ($d=3$) and balanced tree structures. Under these conditions, spatial neighbour searches in DBSCAN use a KD-Tree index to achieve an expected query complexity of $O(N \log N)$, whereas unindexed searches or degenerate distributions require $O(N^2)$. MiniBatchKMeans scales with mini-batch size $b$, cluster count $K$, spatial dimension $d=3$, and iterations $I$. Plane fitting scales with the number of inliers per cluster, and label matching remains bounded by sampling.
 
 \begin{table}[H]
 \centering
-\caption{Asymptotic time and space complexity of the analytical methods.}
+\caption{Typical asymptotic time and space complexity of the analytical methods under 3D spatial indexing assumptions.}
 \label{tab:complexity}
 \scriptsize
 \setlength{\tabcolsep}{2.5pt}
@@ -164,11 +165,11 @@ Calculating RANSAC inliers and SVD planes across animation frames involves separ
 \toprule
 \textbf{Algorithm / Method} & \textbf{Time Complexity} & \textbf{Space Complexity} & \textbf{Parameters \& Notation} \\
 \midrule
-DBSCAN (KD-Tree) & $O(N \log N)$ & $O(N)$ & $N$ events, $\varepsilon$ neighbourhood radius \\
-MiniBatchKMeans & $O(b \cdot K \cdot I)$ & $O(b \cdot K)$ & $b=1024$ batch, $K$ centroids, $I$ iterations \\
+DBSCAN (KD-Tree) & $O(N \log N)$ (expected) & $O(N)$ & $N$ events, $\varepsilon$ radius; worst case $O(N^2)$ without index \\
+MiniBatchKMeans & $O(b \cdot K \cdot d \cdot I)$ & $O(b \cdot K)$ & $b=1024$ batch, $K$ centroids, $d=3$, $I$ iterations \\
 Cylinder Partitioning & $O(N \log M)$ & $O(M + N)$ & $M$ grid cylinders ($60 \times 50$) \\
-Kneedle Auto-Tuning & $O(N \log k + K_\text{max} \cdot b)$ & $O(N)$ & $k$-NN ($k = \max(3, \lfloor \ln N \rfloor)$), $K \in [2, 10]$ \\
-RANSAC + SVD Fitting & $O(I_\text{ransac} \cdot N_\text{cluster} + d^3)$ & $O(N_\text{cluster})$ & $I_\text{ransac}=100$, dimension $d=3$ \\
+Knee-Detection Auto-Tuning & $O(N \log k + K_\text{max} \cdot b \cdot d)$ & $O(N)$ & Chord distance, $k$-NN ($k = \max(3, \lfloor \ln N \rfloor)$) \\
+RANSAC + SVD Fitting & $O(I_\text{ransac} \cdot N_\text{cluster} + d^3)$ & $O(N_\text{cluster})$ & $I_\text{ransac}=100$, spatial dimension $d=3$ \\
 Global Label Matching & $O(K \cdot \min(N_c, 200))$ & $O(N)$ & Majority voting with bounded sampling \\
 \bottomrule
 \end{tabularx}

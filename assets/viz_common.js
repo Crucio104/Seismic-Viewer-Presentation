@@ -908,11 +908,13 @@ window.getClusterColor = function(lbl) {
 
             const swarmBtn = document.getElementById('btn-export-swarm-chart');
             if (swarmBtn) {
-                const isSwarm = (typeof window.isSwarmMode !== 'undefined' && window.isSwarmMode) ||
-                                (window.quakeData && window.quakeData.anim_mode === 'swarm');
-                if (isSwarm) {
+                const hasSwarms = (window.quakeData && window.quakeData.swarms && window.quakeData.swarms.length > 0) ||
+                                  (window.swarmsList && window.swarmsList.length > 0) ||
+                                  (typeof window.isSwarmMode !== 'undefined' && window.isSwarmMode) ||
+                                  (window.quakeData && window.quakeData.anim_mode === 'swarm');
+                if (hasSwarms) {
                     swarmBtn.style.display = 'block';
-                    swarmBtn.title = 'Export Magnitude vs. Time chart of the active seismic swarm as a PNG image';
+                    swarmBtn.title = 'Export Magnitude vs. Time chart of seismic swarms as a PNG image';
                 } else {
                     swarmBtn.style.display = 'none';
                 }
@@ -1294,21 +1296,27 @@ window.getClusterColor = function(lbl) {
         },
 
         // Note: Swarms Subsystem methods are implemented in /assets/viz_swarms.js
-        openSwarmChartDialog() {
+        openSwarmChartDialog(swarmIndex) {
             if (window.SeismicSwarms && window.SeismicSwarms.openSwarmChartDialog) {
-                return window.SeismicSwarms.openSwarmChartDialog.apply(this, arguments);
+                return window.SeismicSwarms.openSwarmChartDialog.apply(window.SeismicSwarms, arguments);
             }
         },
 
         closeSwarmChartDialog() {
             if (window.SeismicSwarms && window.SeismicSwarms.closeSwarmChartDialog) {
-                return window.SeismicSwarms.closeSwarmChartDialog.apply(this, arguments);
+                return window.SeismicSwarms.closeSwarmChartDialog.apply(window.SeismicSwarms, arguments);
             }
         },
 
         downloadSwarmChart() {
             if (window.SeismicSwarms && window.SeismicSwarms.downloadSwarmChart) {
-                return window.SeismicSwarms.downloadSwarmChart.apply(this, arguments);
+                return window.SeismicSwarms.downloadSwarmChart.apply(window.SeismicSwarms, arguments);
+            }
+        },
+
+        navigateSwarmChart(direction) {
+            if (window.SeismicSwarms && window.SeismicSwarms.navigateSwarmChart) {
+                return window.SeismicSwarms.navigateSwarmChart.apply(window.SeismicSwarms, arguments);
             }
         },
 

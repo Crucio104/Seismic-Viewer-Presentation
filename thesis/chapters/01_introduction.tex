@@ -10,7 +10,7 @@
 
 Seismology is a data-intensive field within Earth sciences. Seismic networks continuously record events, producing datasets that describe subsurface processes such as tectonic stress and fluid movement. Interpreting earthquake data in real time is important for volcanic and seismic risk assessment.
 
-Traditionally, earthquake catalogs have been analyzed through two-dimensional maps, cross-sections, and time plots. These representations do not fully capture the spatial and temporal distribution of seismic events. An earthquake sequence moving along a fault at depth may look like a diffuse group in map view, but show a clear planar structure when examined in three dimensions and animated over time. This limitation of conventional tools motivated the development of \textbf{Seismic Viewer}.
+Traditionally, earthquake catalogues have been analysed through two-dimensional maps, cross-sections, and time plots. These representations do not fully capture the spatial and temporal distribution of seismic events. An earthquake sequence moving along a fault at depth may look like a diffuse group in map view, but show a clear planar structure when examined in three dimensions and animated over time. This limitation of conventional tools motivated the development of \textbf{Seismic Viewer}.
 
 The project was developed during an internship at the Istituto Nazionale di Geofisica e Vulcanologia (INGV). Researchers studying the Campi Flegrei area needed a tool to display spatial distributions, temporal evolution, and structural connections in an interactive desktop application.
 
@@ -20,7 +20,7 @@ The project was developed during an internship at the Istituto Nazionale di Geof
 Despite the availability of numerous Geographic Information System (GIS) platforms and seismological software packages, a significant technological gap persists. Existing tools generally fall into one of two categories:
 
 \begin{enumerate}[label=(\alph*)]
-    \item \textbf{General-purpose GIS platforms} (e.g., QGIS, ArcGIS): These offer geospatial analysis capabilities but are not designed for rendering dynamic 3D point clouds with seismic metadata in real time. Their architectures prioritize cartographic precision over interactivity, leading to delays when handling datasets with tens of thousands of hypocentres. From a software architecture perspective, traditional GIS tools often use synchronous data processing and text formats like JSON. When handling large datasets with tens of thousands of points, this causes the interface to freeze due to high memory use and parsing delays.
+    \item \textbf{General-purpose GIS platforms} (e.g. QGIS, ArcGIS): These offer comprehensive geospatial analysis capabilities, but their core designs prioritise static cartographic precision and 2D map layers over dynamic, high-framerate 3D point cloud manipulation. When handling large seismic catalogues with tens of thousands of hypocentres, adapting standard desktop GIS workflows to real-time 4D exploration and interactive clustering requires custom scripting and can result in noticeable rendering latency.
 
     \item \textbf{Specialised seismological software} (e.g., Seisan, GMT, ObsPy): These provide robust analytical functionality but typically produce static outputs, such as static figures for print rather than interactive explorations. The learning curve is steep, requiring command-line proficiency, and the visualisation paradigm remains fundamentally two-dimensional.
 \end{enumerate}
@@ -57,7 +57,7 @@ An iterative development approach was adopted, progressively expanding the softw
     \item \textbf{Phase 1}: Initial prototype, basic 3D visualisation, and local CSV ingestion.
     \item \textbf{Phase 2}: Implementation of K-Means clustering and connection with the web view bridge.
     \item \textbf{Phase 3}: Redesign of the user interface and integration of the INGV GOSSIP API for data import.
-    \item \textbf{Phase 4}: Optimization using binary data transfer, cylinder partitioning, sub-clustering, and automatic tuning of DBSCAN parameters with K-distance analysis.
+    \item \textbf{Phase 4}: Optimisation using binary data transfer, cylinder partitioning, sub-clustering, and automatic tuning of DBSCAN parameters with K-distance analysis.
     \item \textbf{Phase 5}: Integration of seismic tomography, ground uplift layers, and monitoring station positions.
     \item \textbf{Phase 6}: Modular refactoring of the package, setup of FastAPI and WebSockets, and automated tests.
 \end{itemize}
@@ -67,6 +67,6 @@ This collaborative and iterative feedback process proved essential for aligning 
 \section{Document Structure}
 \label{sec:structure}
 
-The remainder of this report is organised as follows. \Cref{ch:background} introduces the seismological background and existing tools. \Cref{ch:architecture} describes the system architecture and the communication between frontend and backend. \Cref{ch:data} explains data loading, processing, and optimizations. \Cref{ch:algorithms} details the clustering and fault plane fitting algorithms. \Cref{ch:visualisation} presents the visualisation modes and additional data layers. \Cref{ch:development} discusses the development process and the main challenges. \Cref{ch:conclusions} summarises the results and outlines future work. Finally, \Cref{app:technical_details} provides supplementary specifications of the input data formats, internal memory arrays, and network communication schemas.
+The remainder of this report is organised as follows. \Cref{ch:background} introduces the seismological background and existing tools. \Cref{ch:architecture} describes the system architecture and the communication between frontend and backend. \Cref{ch:data} explains data loading, processing, and optimisations. \Cref{ch:algorithms} details the clustering and fault plane fitting algorithms. \Cref{ch:visualisation} presents the visualisation modes and additional data layers. \Cref{ch:development} discusses the development process and the main challenges. \Cref{ch:conclusions} summarises the results and outlines future work. Finally, \Cref{app:technical_details} provides supplementary specifications of the input data formats, internal memory arrays, and network communication schemas.
 
 

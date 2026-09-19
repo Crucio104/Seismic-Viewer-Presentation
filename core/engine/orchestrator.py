@@ -233,6 +233,7 @@ def build_view_html(
         cluster_indices = dict(cluster_indices_dd)
 
         cluster_data = data.copy()
+        all_target_indices = sorted(list(set(target_indices) | locked_set)) if locked_set else list(target_indices)
         cluster_data.update({
             'cluster': full_labels.tolist(),
             'cluster_indices': cluster_indices,
@@ -244,7 +245,7 @@ def build_view_html(
             'n_clusters': n_clusters,
             'clustering_method': clustering_method,
             'clustering_params': clustering_params,
-            'subcluster_target_indices': target_indices,
+            'subcluster_target_indices': all_target_indices,
             'subcluster_context_indices': context_indices,
             'start_date': times[0][:10] if times else ""
         })

@@ -8,16 +8,16 @@
 \contentsline {figure}{\numberline {3.4}{\ignorespaces Sequence diagram of asynchronous execution and non-blocking streaming pipeline.}}{14}{figure.caption.22}%
 \contentsline {figure}{\numberline {3.5}{\ignorespaces Concurrency hierarchy linking UI, server thread, and analysis worker threads.}}{15}{figure.caption.24}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {4.1}{\ignorespaces Data ingestion pipeline of Seismic Viewer, showing data sources (Local CSV, INGV GOSSIP API, and Tomography or GNSS data), the validation pipeline, and data conversion into memory arrays and binary buffers.}}{17}{figure.caption.25}%
-\contentsline {figure}{\numberline {4.2}{\ignorespaces The INGV GOSSIP API import dialog for configuring network criteria, temporal bounds, and quality thresholds.}}{19}{figure.caption.26}%
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Data ingestion pipeline of Seismic Viewer, showing data sources (Local CSV, INGV GOSSIP API, and Tomography or GNSS data), the validation pipeline, and data conversion into memory arrays and binary buffers.}}{18}{figure.caption.25}%
+\contentsline {figure}{\numberline {4.2}{\ignorespaces The INGV GOSSIP API import dialog for configuring network criteria, temporal bounds, and quality thresholds.}}{20}{figure.caption.26}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {6.1}{\ignorespaces The 2D Geospatial Map View in the Seismic Viewer. This workspace allows users to filter earthquake data (\subref {fig:2d-viz}) and combine it with advanced geophysical overlays, such as tomographic velocity maps (\subref {fig:2d-viz-tomo}) and ground uplift measurements (\subref {fig:2d-viz-uplift}).}}{28}{figure.caption.33}%
-\contentsline {figure}{\numberline {6.2}{\ignorespaces The 3D Static View workspace. The user can explore the underground earthquake distribution (\subref {fig:3d-viz}) and combine it with 3D tomography models (\subref {fig:3d-viz-tomo}) and surface deformation data (\subref {fig:3d-viz-uplift}).}}{30}{figure.caption.36}%
-\contentsline {figure}{\numberline {6.3}{\ignorespaces The 4D Animated Spatio-Temporal View workflow. Users configure parameters via the dialog (\subref {fig:anim-menu}), explore time-evolving seismicity (\subref {fig:anim-viz}), and observe automated fault plane tracking (\subref {fig:anim-cylinder-planes}).}}{32}{figure.caption.39}%
-\contentsline {figure}{\numberline {6.4}{\ignorespaces Multi-scale static (\subref {fig:cluster-viz}) and animated (\subref {fig:anim-clustering-noplanes} to \subref {fig:anim-clustering-unified}) 3D/4D Cluster Analysis modes (Part 1).}}{34}{figure.caption.40}%
-\contentsline {figure}{\numberline {6.4}{\ignorespaces Multi-scale static (\subref {fig:cluster-viz}) and animated (\subref {fig:anim-clustering-noplanes} to \subref {fig:anim-clustering-unified}) 3D/4D Cluster Analysis modes (Part 2).}}{35}{figure.caption.41}%
+\contentsline {figure}{\numberline {6.1}{\ignorespaces The 2D Geospatial Map View in the Seismic Viewer. This workspace allows users to filter earthquake data (\subref {fig:2d-viz}) and combine it with advanced geophysical overlays, such as tomographic velocity maps (\subref {fig:2d-viz-tomo}) and ground uplift measurements (\subref {fig:2d-viz-uplift}).}}{30}{figure.caption.33}%
+\contentsline {figure}{\numberline {6.2}{\ignorespaces The 3D Static View workspace. The user can explore the underground earthquake distribution (\subref {fig:3d-viz}) and combine it with 3D tomography models (\subref {fig:3d-viz-tomo}) and surface deformation data (\subref {fig:3d-viz-uplift}).}}{32}{figure.caption.36}%
+\contentsline {figure}{\numberline {6.3}{\ignorespaces The 4D Animated Spatio-Temporal View workflow. Users configure parameters via the dialog (\subref {fig:anim-menu}), explore time-evolving seismicity (\subref {fig:anim-viz}), and observe automated fault plane tracking (\subref {fig:anim-cylinder-planes}).}}{34}{figure.caption.39}%
+\contentsline {figure}{\numberline {6.4}{\ignorespaces Multi-scale static (\subref {fig:cluster-viz}) and animated (\subref {fig:anim-clustering-noplanes} to \subref {fig:anim-clustering-unified}) 3D/4D Cluster Analysis modes (Part 1).}}{36}{figure.caption.40}%
+\contentsline {figure}{\numberline {6.4}{\ignorespaces Multi-scale static (\subref {fig:cluster-viz}) and animated (\subref {fig:anim-clustering-noplanes} to \subref {fig:anim-clustering-unified}) 3D/4D Cluster Analysis modes (Part 2).}}{37}{figure.caption.41}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {7.1}{\ignorespaces Development milestones highlighting the iterative implementation methodology.}}{38}{figure.caption.42}%
+\contentsline {figure}{\numberline {7.1}{\ignorespaces Development milestones highlighting the iterative implementation methodology.}}{40}{figure.caption.42}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }

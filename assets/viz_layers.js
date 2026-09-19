@@ -5,6 +5,7 @@
     const SeismicLayers = {
         _activeTomographyData: null,
         _activeUpliftData: null,
+        _activeStationsData: null,
         _pendingStationsPath: null,
         _pendingUpliftPath: null,
         _pendingTomoPath: null,
@@ -343,6 +344,9 @@
                         if (s && s.error) {
                             if (typeof showStatusToast === 'function') showStatusToast('Stations Error: ' + s.error, false);
                         } else if (s && s.lats && s.lons && s.lats.length > 0) {
+                            self._activeStationsData = s;
+                            if (window.SeismicLayers) window.SeismicLayers._activeStationsData = s;
+                            if (window.SeismicUI) window.SeismicUI._activeStationsData = s;
                             if (isMapbox) {
                                 const mapScatterType = (gd.layout && gd.layout.mapbox && !gd.layout.map) ? 'scattermapbox' : 'scattermap';
                                 newTraces.push({
@@ -383,7 +387,7 @@
                                     name: 'Stations Outline',
                                     x: s.lons,
                                     y: s.lats,
-                                    z: s.z || s.lats.map(() => 0),
+                                    z: s.z || s.lats.map(() => 0.05),
                                     mode: 'markers',
                                     hoverinfo: 'skip',
                                     visible: true,
@@ -399,7 +403,7 @@
                                     name: 'Stations',
                                     x: s.lons,
                                     y: s.lats,
-                                    z: s.z || s.lats.map(() => 0),
+                                    z: s.z || s.lats.map(() => 0.05),
                                     mode: 'markers',
                                     hovertext: s.hover || [],
                                     hovertemplate: '%{hovertext}<extra></extra>',
@@ -429,15 +433,11 @@
                                     }
                                 });
 
-                                if (indicesToDelete.length > 0) {
-                                    try {
-                                        Plotly.deleteTraces(gd, indicesToDelete);
-                                    } catch (delErr) {
-                                        console.warn('[LayerModal] Warning deleting traces:', delErr);
-                                    }
-                                }
+                                const deletePromise = (indicesToDelete.length > 0)
+                                    ? Promise.resolve(Plotly.deleteTraces(gd, indicesToDelete)).catch(delErr => console.warn('[LayerModal] Warning deleting traces:', delErr))
+                                    : Promise.resolve();
 
-                                Plotly.addTraces(gd, newTraces).then(() => {
+                                deletePromise.then(() => Plotly.addTraces(gd, newTraces)).then(() => {
                                     const bringFn = (self && typeof self.bringMarkersToFront === 'function')
                                         ? self.bringMarkersToFront.bind(self)
                                         : ((window.SeismicLayers && typeof window.SeismicLayers.bringMarkersToFront === 'function')
@@ -451,29 +451,56 @@
                                         if (typeof Plotly.Plots.resize === 'function') {
                                             Plotly.Plots.resize(gd);
                                         }
-                                    } else if (self._activeTomographyData) {
-                                        const terrainIdx = gd.data.findIndex(tr => tr && (tr.name === 'Map Terrain' || (tr.type === 'surface' && tr.name && tr.name.includes('Terrain'))));
-                                        if (terrainIdx !== -1) {
-                                            Plotly.restyle(gd, { opacity: 0.35 }, [terrainIdx]);
+                                    } else {
+                                        // 3D Scene adjustments for any added layer
+                                        const hasTomo = !!self._activeTomographyData;
+                                        if (hasTomo) {
+                                            const terrainIdx = gd.data.findIndex(tr => tr && (tr.name === 'Map Terrain' || (tr.type === 'surface' && tr.name && tr.name.includes('Terrain'))));
+                                            if (terrainIdx !== -1) {
+                                                Plotly.restyle(gd, { opacity: 0.35 }, [terrainIdx]);
+                                            }
                                         }
-                                        let maxZ = 0;
-                                        let minZ = 0;
+                                        let maxZ = -Infinity;
+                                        let minZ = Infinity;
+                                        let hasValidZ = false;
+
+                                        const scanValues = (val) => {
+                                            if (Array.isArray(val)) {
+                                                val.forEach(scanValues);
+                                            } else if (val !== null && val !== undefined && !isNaN(val) && typeof val === 'number') {
+                                                if (val > maxZ) maxZ = val;
+                                                if (val < minZ) minZ = val;
+                                                hasValidZ = true;
+                                            }
+                                        };
+
                                         if (gd.data) {
                                             gd.data.forEach(tr => {
-                                                if (tr.visible !== false && tr.z && Array.isArray(tr.z)) {
-                                                    tr.z.forEach(val => {
-                                                        if (val !== null && val !== undefined && !isNaN(val)) {
-                                                            if (val > maxZ) maxZ = val;
-                                                            if (val < minZ) minZ = val;
-                                                        }
-                                                    });
+                                                if (tr.visible !== false && tr.z) {
+                                                    scanValues(tr.z);
                                                 }
                                             });
                                         }
-                                        if (maxZ > 0 && gd.layout && gd.layout.scene && gd.layout.scene.zaxis) {
-                                            const currentMin = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[0] !== undefined)
+
+                                        if (hasValidZ && gd.layout && gd.layout.scene && gd.layout.scene.zaxis) {
+                                            let currentMin = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[0] !== undefined)
                                                 ? gd.layout.scene.zaxis.range[0] : minZ;
-                                            Plotly.relayout(gd, { 'scene.zaxis.range': [currentMin, Math.max(maxZ * 1.15, 0.5)] });
+                                            let currentMax = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[1] !== undefined)
+                                                ? gd.layout.scene.zaxis.range[1] : 0;
+
+                                            let targetMin = currentMin;
+                                            if (minZ < currentMin) {
+                                                targetMin = minZ * 1.05;
+                                            }
+
+                                            let targetMax = currentMax;
+                                            if (maxZ > 0) {
+                                                targetMax = Math.max(maxZ * 1.15, 0.5);
+                                            }
+
+                                            if (targetMin !== currentMin || targetMax !== currentMax) {
+                                                Plotly.relayout(gd, { 'scene.zaxis.range': [targetMin, targetMax] });
+                                            }
                                         }
                                     }
                                     if (typeof showStatusToast === 'function') showStatusToast('Layers applied successfully!', true);
@@ -698,7 +725,6 @@
                 z: cellVals,
                 zmin: minVal,
                 zmax: maxVal,
-                below: "",
                 hovertext: cellHovers,
                 hovertemplate: '%{hovertext}<extra></extra>',
                 visible: isVisible,
@@ -907,7 +933,6 @@
                     z: valsHigh,
                     zmin: neutralRef,
                     zmax: 2.35,
-                    below: "",
                     hovertext: hoverHigh,
                     hovertemplate: '%{hovertext}<extra></extra>',
                     opacity: 0.75,
@@ -930,7 +955,6 @@
                     z: valsLow,
                     zmin: 1.15,
                     zmax: neutralRef,
-                    below: "",
                     hovertext: hoverLow,
                     hovertemplate: '%{hovertext}<extra></extra>',
                     opacity: 0.75,
@@ -1131,10 +1155,11 @@
         toggleUpliftSurface() {
             const gd = document.querySelector('.plotly-graph-div');
             if (!gd || !gd.data) return;
+            const isMapbox = (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'choroplethmapbox' || tr.type === 'scattermap' || tr.type === 'choroplethmap')) || (gd.layout && (gd.layout.mapbox || gd.layout.map));
             const indices = [];
             for (let i = 0; i < gd.data.length; i++) {
                 const n = gd.data[i].name || '';
-                if (n === 'Uplift Interpolated Surface' || n === 'Uplift Surface' || n.includes('Colonnine') || n.includes('Superficie Uplift')) {
+                if (n === 'Uplift Interpolated Surface' || n === 'Uplift Surface' || n === 'GNSS Uplift Columns' || n === 'GNSS Uplift Stations' || n.includes('Colonnine') || n.includes('Superficie Uplift')) {
                     indices.push(i);
                 }
             }
@@ -1152,7 +1177,22 @@
                     gd.data[idx].visible = newVis;
                 });
 
-                Plotly.restyle(gd, { visible: newVis }, indices).catch(err => {
+                Plotly.restyle(gd, { visible: newVis }, indices).then(() => {
+                    if (newVis && !isMapbox && gd.layout && gd.layout.scene && gd.layout.scene.zaxis) {
+                        let maxZ = 0;
+                        const scan = (val) => {
+                            if (Array.isArray(val)) val.forEach(scan);
+                            else if (val !== null && val !== undefined && !isNaN(val) && typeof val === 'number' && val > maxZ) maxZ = val;
+                        };
+                        indices.forEach(idx => {
+                            if (gd.data[idx] && gd.data[idx].z) scan(gd.data[idx].z);
+                        });
+                        if (maxZ > 0) {
+                            const curMin = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[0] !== undefined) ? gd.layout.scene.zaxis.range[0] : -5;
+                            Plotly.relayout(gd, { 'scene.zaxis.range': [curMin, Math.max(maxZ * 1.15, 0.5)] });
+                        }
+                    }
+                }).catch(err => {
                     console.warn('Plotly restyle uplift warning:', err);
                     try { Plotly.redraw(gd); } catch (e) {}
                 });
@@ -1164,12 +1204,25 @@
                     window.SeismicUI.updateLegendSwapButtonVisibility();
                 }
             } else if (this._activeUpliftData) {
-                const isMapbox = (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'choroplethmapbox' || tr.type === 'scattermap' || tr.type === 'choroplethmap')) || (gd.layout && (gd.layout.mapbox || gd.layout.map));
                 let tracesToAdd = [];
                 if (isMapbox) {
                     tracesToAdd = this._buildUplift2DTraces(this._activeUpliftData, true);
                 } else {
                     const u = this._activeUpliftData;
+                    if (u.lines && (u.lines.x || u.lons)) {
+                        tracesToAdd.push({
+                            type: 'scatter3d',
+                            name: 'GNSS Uplift Columns',
+                            x: u.lines.x || u.lons,
+                            y: u.lines.y || u.lats,
+                            z: u.lines.z || u.z_scaled,
+                            mode: 'lines+markers',
+                            hovertext: u.lines.hover || [],
+                            hovertemplate: '%{hovertext}<extra></extra>',
+                            line: { color: '#ef4444', width: 8 },
+                            marker: { size: 6, color: '#ef4444' }
+                        });
+                    }
                     if (u.interp_grid && u.interp_grid.grid_lons_2d) {
                         tracesToAdd.push({
                             type: 'surface',
@@ -1192,6 +1245,18 @@
                         if (btn) {
                             btn.innerHTML = 'Toggle Uplift (ON)';
                             btn.classList.add('visible', 'active');
+                        }
+                        if (!isMapbox && gd.layout && gd.layout.scene && gd.layout.scene.zaxis) {
+                            let maxZ = 0;
+                            const scan = (val) => {
+                                if (Array.isArray(val)) val.forEach(scan);
+                                else if (val !== null && val !== undefined && !isNaN(val) && typeof val === 'number' && val > maxZ) maxZ = val;
+                            };
+                            tracesToAdd.forEach(tr => { if (tr.z) scan(tr.z); });
+                            if (maxZ > 0) {
+                                const curMin = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[0] !== undefined) ? gd.layout.scene.zaxis.range[0] : -5;
+                                Plotly.relayout(gd, { 'scene.zaxis.range': [curMin, Math.max(maxZ * 1.15, 0.5)] });
+                            }
                         }
                         if (typeof showStatusToast === 'function') showStatusToast('Uplift tiles activated (ON)', true);
                         if (typeof this.updateLegendSwapButtonVisibility === 'function') {
@@ -1351,6 +1416,7 @@
         toggleStations() {
             const gd = document.querySelector('.plotly-graph-div');
             if (!gd || !gd.data) return;
+            const isMapbox = (gd.data && gd.data.some(tr => tr.type === 'scattermapbox' || tr.type === 'choroplethmapbox' || tr.type === 'scattermap' || tr.type === 'choroplethmap')) || (gd.layout && (gd.layout.mapbox || gd.layout.map));
             const indices = [];
             for (let i = 0; i < gd.data.length; i++) {
                 const n = gd.data[i].name || '';
@@ -1367,9 +1433,87 @@
                         btn.innerHTML = newVis ? 'Toggle Stations (ON)' : 'Toggle Stations (OFF)';
                         if (newVis) btn.classList.add('active'); else btn.classList.remove('active');
                     }
+                    if (newVis && !isMapbox && gd.layout && gd.layout.scene && gd.layout.scene.zaxis) {
+                        const curMax = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[1] !== undefined) ? gd.layout.scene.zaxis.range[1] : 0;
+                        if (curMax < 0.5) {
+                            const curMin = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[0] !== undefined) ? gd.layout.scene.zaxis.range[0] : -5;
+                            Plotly.relayout(gd, { 'scene.zaxis.range': [curMin, 0.5] });
+                        }
+                    }
                     if (typeof showStatusToast === 'function') showStatusToast('Stations toggled ' + (newVis ? 'ON' : 'OFF'), true);
                 }).catch(err => {
                     console.error('Error restyling stations:', err);
+                });
+            } else if (this._activeStationsData) {
+                const s = this._activeStationsData;
+                const tracesToAdd = [];
+                if (isMapbox) {
+                    const mapScatterType = (gd.layout && gd.layout.mapbox && !gd.layout.map) ? 'scattermapbox' : 'scattermap';
+                    tracesToAdd.push({
+                        type: mapScatterType,
+                        name: 'Stations Outline',
+                        lat: s.lats,
+                        lon: s.lons,
+                        mode: 'markers',
+                        hoverinfo: 'skip',
+                        visible: true,
+                        opacity: 1.0,
+                        marker: { size: 18, color: '#000000', opacity: 1.0 }
+                    });
+                    tracesToAdd.push({
+                        type: mapScatterType,
+                        name: 'Stations',
+                        lat: s.lats,
+                        lon: s.lons,
+                        mode: 'markers',
+                        hovertext: s.hover || [],
+                        hovertemplate: '%{hovertext}<extra></extra>',
+                        visible: true,
+                        opacity: 1.0,
+                        marker: { size: 14, color: '#00ffcc', opacity: 1.0, line: { color: '#000000', width: 2 } }
+                    });
+                } else {
+                    tracesToAdd.push({
+                        type: 'scatter3d',
+                        name: 'Stations Outline',
+                        x: s.lons,
+                        y: s.lats,
+                        z: s.z || s.lats.map(() => 0.05),
+                        mode: 'markers',
+                        hoverinfo: 'skip',
+                        visible: true,
+                        opacity: 1.0,
+                        marker: { size: 8, color: '#000000', opacity: 1.0 }
+                    });
+                    tracesToAdd.push({
+                        type: 'scatter3d',
+                        name: 'Stations',
+                        x: s.lons,
+                        y: s.lats,
+                        z: s.z || s.lats.map(() => 0.05),
+                        mode: 'markers',
+                        hovertext: s.hover || [],
+                        hovertemplate: '%{hovertext}<extra></extra>',
+                        visible: true,
+                        marker: { size: 6, color: '#00ffcc', opacity: 1.0, line: { color: '#000000', width: 2 } }
+                    });
+                }
+                Plotly.addTraces(gd, tracesToAdd).then(() => {
+                    const btn = document.getElementById('btn-toggle-stations');
+                    if (btn) {
+                        btn.innerHTML = 'Toggle Stations (ON)';
+                        btn.classList.add('visible', 'active');
+                    }
+                    if (!isMapbox && gd.layout && gd.layout.scene && gd.layout.scene.zaxis) {
+                        const curMax = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[1] !== undefined) ? gd.layout.scene.zaxis.range[1] : 0;
+                        if (curMax < 0.5) {
+                            const curMin = (gd.layout.scene.zaxis.range && gd.layout.scene.zaxis.range[0] !== undefined) ? gd.layout.scene.zaxis.range[0] : -5;
+                            Plotly.relayout(gd, { 'scene.zaxis.range': [curMin, 0.5] });
+                        }
+                    }
+                    if (typeof showStatusToast === 'function') showStatusToast('Stations activated (ON)', true);
+                }).catch(err => {
+                    console.error('Error adding stations traces:', err);
                 });
             } else {
                 if (typeof showStatusToast === 'function') showStatusToast('No Stations layer loaded to toggle', false);

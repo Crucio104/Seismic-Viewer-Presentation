@@ -2,35 +2,55 @@
 (function() {
     'use strict';
 
+    function parseSwarmUtcDate(timeStr) {
+        if (!timeStr) return null;
+        if (timeStr instanceof Date) return isNaN(timeStr.getTime()) ? null : timeStr;
+        let s = String(timeStr).trim();
+        if (!s) return null;
+        if (!s.includes('T') && s.includes(' ')) {
+            s = s.replace(' ', 'T');
+        }
+        if (!s.endsWith('Z') && !s.includes('+') && !/[0-9]-[0-9]{2}:/.test(s)) {
+            s += 'Z';
+        }
+        const d = new Date(s);
+        return isNaN(d.getTime()) ? null : d;
+    }
+
     const SeismicSwarms = {
         _activeSwarmChartDataUrl: null,
         _activeSwarmChartFilename: 'seismic_swarm_magnitude_vs_time.png',
+        _currentChartSwarmIdx: 0,
 
-        openSwarmChartDialog() {
+        openSwarmChartDialog(swarmIndex) {
             if (window.SeismicUI && typeof window.SeismicUI.toggleExportModal === 'function') {
                 window.SeismicUI.toggleExportModal(true);
             }
 
-            // Verify swarm mode and active swarm data
-            const isSwarm = (typeof window.isSwarmMode !== 'undefined' && window.isSwarmMode) ||
-                            (window.quakeData && window.quakeData.anim_mode === 'swarm');
-            if (!isSwarm) {
+            const qd = window.quakeData || {};
+            const swarms = (qd.swarms && qd.swarms.length > 0) ? qd.swarms : (window.swarmsList || []);
+
+            if (!swarms || swarms.length === 0) {
                 if (typeof showStatusToast === 'function') {
-                    showStatusToast("Swarm chart is only available in Seismic Swarms mode.", false);
+                    showStatusToast("Nessuno sciame sismico rilevato nel dataset.", false);
                 }
                 return;
             }
 
-            const swarm = window.currentSwarm || (window.swarmsList && window.swarmsList[0]) || null;
+            let sIdx = (typeof swarmIndex === 'number') ? swarmIndex : (typeof window.currentSwarmIdx === 'number' ? window.currentSwarmIdx : this._currentChartSwarmIdx || 0);
+            if (sIdx < 0) sIdx = 0;
+            if (sIdx >= swarms.length) sIdx = swarms.length - 1;
+            this._currentChartSwarmIdx = sIdx;
+
+            const swarm = swarms[sIdx];
             if (!swarm || !swarm.indices || swarm.indices.length === 0) {
                 if (typeof showStatusToast === 'function') {
-                    showStatusToast("No active swarm data found to plot.", false);
+                    showStatusToast("Dati dello sciame non validi per la visualizzazione.", false);
                 }
                 return;
             }
 
             // Collect swarm earthquakes respecting current filters (on screen)
-            const qd = window.quakeData || {};
             const allDeps = qd.dep || qd.depth || [];
             const allMags = qd.mag || qd.magnitude || [];
             const allTimes = qd.times || [];
@@ -40,46 +60,57 @@
             const depMin = typeof window.appliedDepMin === 'number' ? window.appliedDepMin : -100;
             const depMax = typeof window.appliedDepMax === 'number' ? window.appliedDepMax : 1000;
 
-            const events = [];
+            const allEvents = [];
+            const filteredEvents = [];
+
             for (let k = 0; k < swarm.indices.length; k++) {
                 const idx = swarm.indices[k];
-                const mag = (allMags[idx] !== undefined) ? allMags[idx] : (swarm.mags ? swarm.mags[k] : 0);
-                const timeStr = (allTimes[idx] !== undefined) ? allTimes[idx] : (swarm.times ? swarm.times[k] : '');
-                const rawDep = (allDeps[idx] !== undefined) ? allDeps[idx] : 0;
+                const mag = (allMags && allMags[idx] !== undefined) ? allMags[idx] : (swarm.mags ? swarm.mags[k] : 0);
+                const timeStr = (allTimes && allTimes[idx] !== undefined) ? allTimes[idx] : (swarm.times ? swarm.times[k] : '');
+                const rawDep = (allDeps && allDeps[idx] !== undefined) ? allDeps[idx] : 0;
                 const posDep = Math.abs(rawDep);
 
-                // Filter check: magnitude and depth on screen
-                if (mag < magMin || mag > magMax) continue;
-                if (posDep < depMin || posDep > depMax) continue;
+                const dt = parseSwarmUtcDate(timeStr);
+                const timestamp = dt ? dt.getTime() : (k * 1000);
 
-                let dt = new Date(timeStr);
-                if (isNaN(dt.getTime())) {
-                    dt = new Date(timeStr.replace(' ', 'T'));
-                }
-                const timestamp = isNaN(dt.getTime()) ? (k * 1000) : dt.getTime();
-
-                events.push({
+                const ev = {
                     idx: idx,
                     k: k,
-                    mag: mag,
+                    mag: Number(mag),
                     timeStr: timeStr,
                     timestamp: timestamp
-                });
+                };
+
+                allEvents.push(ev);
+
+                // Filter check: magnitude and depth on screen
+                if (mag >= magMin && mag <= magMax && posDep >= depMin && posDep <= depMax) {
+                    filteredEvents.push(ev);
+                }
+            }
+
+            let events = filteredEvents;
+            if (events.length === 0) {
+                // If filter settings excluded all swarm events, fallback to all events in swarm
+                events = allEvents;
             }
 
             if (events.length === 0) {
                 if (typeof showStatusToast === 'function') {
-                    showStatusToast("No swarm earthquakes match the active filters.", false);
+                    showStatusToast("Nessun terremoto trovato per questo sciame.", false);
                 }
                 return;
             }
+
+            // Ensure chronological order
+            events.sort((a, b) => a.timestamp - b.timestamp);
 
             // Render chart canvas
             const canvas = this.generateSwarmChartCanvas(swarm, events);
             const dataUrl = canvas.toDataURL('image/png');
             this._activeSwarmChartDataUrl = dataUrl;
 
-            const swarmId = swarm.id || (typeof window.currentSwarmIdx === 'number' ? window.currentSwarmIdx + 1 : 1);
+            const swarmId = swarm.id || (sIdx + 1);
             this._activeSwarmChartFilename = `swarm_${swarmId}_magnitude_vs_time.png`;
 
             // Update modal UI elements
@@ -90,6 +121,16 @@
             const subEl = document.getElementById('swarm-chart-dialog-sub');
             if (subEl) {
                 subEl.textContent = `${events.length} of ${swarm.event_count} events on screen • Max Md ${swarm.max_mag.toFixed(1)}`;
+            }
+            const counterEl = document.getElementById('modal-swarm-counter');
+            const navEl = document.getElementById('modal-swarm-nav');
+            if (counterEl && navEl) {
+                if (swarms.length > 1) {
+                    navEl.style.display = 'flex';
+                    counterEl.textContent = `Swarm ${sIdx + 1} / ${swarms.length}`;
+                } else {
+                    navEl.style.display = 'none';
+                }
             }
             const imgEl = document.getElementById('swarm-chart-preview-img');
             if (imgEl) {
@@ -102,6 +143,19 @@
             }
         },
 
+        navigateSwarmChart(direction) {
+            const qd = window.quakeData || {};
+            const swarms = (qd.swarms && qd.swarms.length > 0) ? qd.swarms : (window.swarmsList || []);
+            if (!swarms || swarms.length <= 1) return;
+
+            const curr = typeof this._currentChartSwarmIdx === 'number' ? this._currentChartSwarmIdx : 0;
+            let next = curr + direction;
+            if (next < 0) next = swarms.length - 1;
+            if (next >= swarms.length) next = 0;
+
+            this.openSwarmChartDialog(next);
+        },
+
         closeSwarmChartDialog() {
             const dialog = document.getElementById('swarm-chart-dialog');
             if (dialog) {
@@ -110,14 +164,15 @@
         },
 
         async downloadSwarmChart() {
-            if (!this._activeSwarmChartDataUrl) {
-                if (typeof showStatusToast === 'function') showStatusToast("No generated chart to download.", false);
+            const dataUrl = this._activeSwarmChartDataUrl || SeismicSwarms._activeSwarmChartDataUrl;
+            if (!dataUrl) {
+                if (typeof showStatusToast === 'function') showStatusToast("Nessun grafico disponibile da scaricare.", false);
                 return;
             }
-            const dataUrl = this._activeSwarmChartDataUrl;
-            const filename = this._activeSwarmChartFilename || 'swarm_magnitude_vs_time.png';
+            const filename = this._activeSwarmChartFilename || SeismicSwarms._activeSwarmChartFilename || 'swarm_magnitude_vs_time.png';
 
-            const api = (window.pywebview && window.pywebview.api) ||
+            const api = (typeof getBridgeApi === 'function' ? getBridgeApi() : null) ||
+                        (window.pywebview && window.pywebview.api) ||
                         (window.parent && window.parent.pywebview && window.parent.pywebview.api);
 
             if (api && typeof api.save_screenshot === 'function') {
@@ -152,6 +207,25 @@
             document.body.removeChild(a);
             if (typeof showStatusToast === 'function') {
                 showStatusToast('Swarm chart downloaded: ' + filename, true);
+            }
+        },
+
+        _drawRoundRect(ctx, x, y, w, h, r) {
+            if (typeof ctx.roundRect === 'function') {
+                ctx.beginPath();
+                ctx.roundRect(x, y, w, h, r);
+            } else {
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.lineTo(x + w - r, y);
+                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+                ctx.lineTo(x + w, y + h - r);
+                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                ctx.lineTo(x + r, y + h);
+                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+                ctx.lineTo(x, y + r);
+                ctx.quadraticCurveTo(x, y, x + r, y);
+                ctx.closePath();
             }
         },
 
@@ -230,24 +304,29 @@
             }
 
             // Buffer time bounds
-            if (maxT === minT) {
+            let spanT = maxT - minT;
+            if (spanT <= 0) {
                 minT -= 30000;
                 maxT += 30000;
+                spanT = 60000;
             } else {
-                const spanT = maxT - minT;
                 minT -= spanT * 0.05;
                 maxT += spanT * 0.05;
+                spanT = maxT - minT;
             }
 
             // Buffer magnitude bounds
-            const yMin = Math.floor(Math.min(0, minM - 0.2) * 2) / 2;
-            const yMax = Math.ceil((maxM + 0.6) * 2) / 2;
+            let yMin = Math.floor(Math.min(0, minM - 0.2) * 2) / 2;
+            let yMax = Math.ceil((maxM + 0.6) * 2) / 2;
+            if (yMax <= yMin) {
+                yMax = yMin + 1.0;
+            }
 
             function getX(t) {
-                return marginLeft + ((t - minT) / (maxT - minT)) * plotW;
+                return marginLeft + ((t - minT) / (spanT || 1)) * plotW;
             }
             function getY(m) {
-                return marginTop + plotH - ((m - yMin) / (yMax - yMin)) * plotH;
+                return marginTop + plotH - ((m - yMin) / ((yMax - yMin) || 1)) * plotH;
             }
 
             // 2. Gridlines and Y-Axis ticks
@@ -337,8 +416,7 @@
             ctx.fillStyle = '#ffffff';
             ctx.strokeStyle = '#cbd5e1';
             ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(legendX, legendY, legendW, legendH, 6);
+            this._drawRoundRect(ctx, legendX, legendY, legendW, legendH, 6);
             ctx.fill();
             ctx.stroke();
 
@@ -438,8 +516,7 @@
                 ctx.fillStyle = '#ef4444';
                 ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+                this._drawRoundRect(ctx, badgeX, badgeY, badgeW, badgeH, 4);
                 ctx.fill();
                 ctx.stroke();
 

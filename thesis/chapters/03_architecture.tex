@@ -71,8 +71,8 @@ Seismic Viewer uses a client-server desktop architecture that combines a Python 
 The architecture divides tasks across three dedicated communication channels, balancing responsiveness and data transfer speed:
 \begin{enumerate}
     \item \textbf{Native Bridge}: Connects the user interface with the Python runtime for desktop actions. When the window opens, pywebview exposes methods of the Python \texttt{Api} class to JavaScript via \texttt{window.pywebview.api}. Actions such as selecting files or opening dialogs call these methods directly without network delay.
-    \item \textbf{HTTP REST Endpoints}: Handles data transfer between backend and frontend. Rather than embedding large datasets into HTML pages, the frontend requests catalogs asynchronously. Numerical coordinates are streamed as Float32 binary buffers via \texttt{/api/data/\{id\}/bin}, while catalog metadata and views are served with standard compression.
-    \item \textbf{WebSockets}: Manages live updates and streaming during long calculations. When running temporal animations or clustering routines, the backend streams progress notifications and frame updates directly to the client over an open connection, updating the interface without page reloads.
+    \item \textbf{HTTP REST Endpoints}: Handles data transfer between backend and frontend. Rather than embedding large datasets into HTML pages, the frontend requests catalogues asynchronously. Numerical coordinates are streamed as Float32 binary buffers via \texttt{/api/data/\{id\}/bin}, while catalogue metadata and views are served with standard compression.
+    \item \textbf{WebSocket Server}: Manages bidirectional communication via the \texttt{/ws} endpoint. It streams progress notifications from analytical tasks to the user interface, and receives clustering parameter updates without full page reloads.
 \end{enumerate}
 \Cref{tab:rest-api} lists the REST endpoints and WebSocket message types supported by the system. The full JSON schemas for these network messages are detailed in \Cref{sec:protocol_schemas} of \Cref{app:technical_details}.
 
@@ -90,7 +90,7 @@ REST (\texttt{GET}) & \texttt{/api/data/\{session\_id\}} & Retrieve session data
 REST (\texttt{GET}) & \texttt{/api/data/\{session\_id\}/bin} & Retrieve numerical data as Float32 binary buffer \\
 REST (\texttt{GET}) & \texttt{/viz/\{viz\_id\}} & Serve pre-rendered HTML visualisation page \\
 \midrule
-WebSocket & Client $\to$ Server & \texttt{ping}, \texttt{get\_cluster\_update}, \texttt{get\_structural\_planes}, \texttt{get\_animated\_clustering} \\
+WebSocket & Client $\to$ Server & \texttt{ping}, \texttt{get\_cluster\_update}, \texttt{get\_structural\_planes}, \texttt{get\_animated\_clustering}, \texttt{auto\_tune\_time\_window} \\
 WebSocket & Server $\to$ Client & \texttt{pong}, \texttt{rpc\_response}, \texttt{progress} (broadcast messages) \\
 \bottomrule
 \end{tabularx}
@@ -104,14 +104,14 @@ WebSocket & Server $\to$ Client & \texttt{pong}, \texttt{rpc\_response}, \texttt
 
 Once the application is running, the \texttt{Api} module acts as the central coordinator. Whenever the user interacts with the interface, such as selecting a file (\texttt{select\allowbreak\_csv()}), loading a 3D view (\texttt{load\allowbreak\_view()}), or exporting results (\texttt{export\allowbreak\_clusters\allowbreak\_csv()}), the frontend sends a request directly to this coordinator.
 
-These requests involve computationally intensive spatial analysis calculations on seismic events. To prevent blocking the graphical interface during execution, operations are delegated to background worker threads or process pools. A critical engineering challenge is safely transmitting live telemetry and progress notifications back to the frontend without causing race conditions or deadlocks between synchronous compute workers and the asynchronous network loop. The coordinator solves this by dispatching WebSocket broadcast coroutines onto the FastAPI event loop via \texttt{asyncio.run\_coroutine\_threadsafe()}. This pattern guarantees thread-safe message dispatching, ensuring the user interface receives real-time progress updates without locking the main window loop or corrupting socket state.
+These requests involve computationally intensive spatial analysis calculations on seismic events. To prevent blocking the graphical interface during execution, operations are delegated to background worker threads. A critical engineering challenge is safely transmitting live telemetry and progress notifications back to the frontend without causing race conditions or deadlocks between synchronous compute workers and the asynchronous network loop. The coordinator solves this by dispatching WebSocket broadcast coroutines onto the FastAPI event loop via \texttt{asyncio.run\_coroutine\_threadsafe()}. This pattern guarantees thread-safe message dispatching, ensuring the user interface receives real-time progress updates without locking the main window loop or corrupting socket state.
 
 \subsection{Session Store \& FastAPI Middleware}
 \label{sec:session-store}
 
 The system architecture requires a dedicated memory management layer to preserve state between user interactions and to serve data efficiently to the graphical frontend. This functionality is centralized within an internal configuration module (\texttt{core/config.py}), which orchestrates two separate in-memory caches: \texttt{\_data\_store} and \texttt{\_html\_store}.
 
-The \texttt{\_data\_store} structure retains the raw numerical arrays and metadata associated with each active analytical session. To guarantee that the application maintains a stable memory profile even during extensive analytical workflows, this cache is strictly limited to 30 concurrent sessions. In parallel, the \texttt{\_html\_store} caches up to 15 pre-rendered graphical views, allowing the frontend to load complex tridimensional scenes instantaneously. Both structures implement a First-In, First-Out (FIFO) eviction policy. To ensure safety during simultaneous operations, updates to these stores are synchronized, keeping application memory use low during long sessions.
+The \texttt{\_data\_store} structure retains the raw numerical arrays and metadata associated with each active analytical session. To guarantee that the application maintains a stable memory profile even during extensive analytical workflows, this cache is bounded to 5 concurrent sessions (\texttt{\_SESSION\_MAX\_COUNT = 5}). In parallel, the \texttt{\_html\_store} caches up to 4 pre-rendered graphical views (\texttt{\_HTML\_MAX\_COUNT = 4}), allowing the frontend to load complex tridimensional scenes instantaneously. Both structures implement a First-In, First-Out (FIFO) eviction policy. To ensure safety during simultaneous operations, updates to these stores are synchronized, keeping application memory use low during long sessions.
 
 Positioned between this caching layer and the client interface, the FastAPI server deploys specific middleware to optimize network throughput. An important optimization is the automatic application of GZip compression for any outgoing data payload larger than 500 bytes. Compressing the data prior to transmission accelerates the rendering process, particularly when transferring datasets containing tens of thousands of seismic events.
 
@@ -123,7 +123,7 @@ Positioned between this caching layer and the client interface, the FastAPI serv
 
 As illustrated in \Cref{fig:gui-hub}, the primary workflow begins at the landing screen (\subref{fig:start-page}). Here, the system exposes multiple data ingestion pathways, allowing researchers to import local csv files, query the INGV remote web services directly, or restore a previously interrupted session through local historical records.
 
-Once the imported dataset is validated, the software opens the visualization hub (\subref{fig:viz-hub}). This view provides menus to switch between the available display modes and clustering algorithms. In addition, it includes toggles to display extra data layers on the 3D map, such as seismic tomography, ground uplift, and monitoring stations.
+Once the imported dataset is validated, the software opens the visualisation hub (\subref{fig:viz-hub}). This view provides menus to switch between the available display modes and clustering algorithms. In addition, it includes toggles to display extra data layers on the 3D map, such as seismic tomography, ground uplift, and monitoring stations.
 
 The 3D graphics pipeline delegates rendering to WebGL through Plotly.js inside the native WebView component (WebKit or WebView2). This avoids the memory overhead of shipping a dedicated browser binary while providing access to hardware-accelerated 3D graphics. To preserve context during updates, the system retains the view angle and zoom level selected by the user. This prevents the camera from resetting when new data arrives, maintaining smooth interaction (\Cref{sec:challenge-camera}).
 
@@ -217,7 +217,11 @@ Once the backend processing is complete, the frontend retrieves the data through
 \subsection{Binary Data Transfer Protocol}
 \label{sec:binary-protocol}
 
-To eliminate JSON parsing overhead during large catalog transfers, the backend packs numerical coordinates into a contiguous Float32 buffer (\texttt{/api/data/\{id\}/bin}) structured as: header \texttt{[event\_count, cluster\_count]} followed sequentially by arrays for longitude, latitude, magnitude, depth, \texttt{dates\_num}, and cluster labels ($C$ floats), as summarized in \Cref{tab:binary-layout}. On the frontend, decoding via JavaScript's \texttt{Float32Array} directly over an \texttt{ArrayBuffer} completes in a few milliseconds even for large datasets, reducing transfer volume by approximately 80\% and avoiding JSON parsing delays.
+To eliminate JSON parsing overhead during large catalogue transfers, the backend packs numerical coordinates into a contiguous Float32 buffer (\texttt{/api/data/\{id\}/bin}). The buffer is structured with a two-element header \texttt{[event\_count, label\_count]}, denoted as $[N, L_c]$. 
+
+The first header field, $N$, represents the total count of earthquake events in the active catalogue. The second header field, $L_c \in \{0, N\}$, defines the length of the trailing cluster label array. In Seismic Viewer, unsupervised spatial clustering assigns an individual label to every seismic event. Consequently, when clustering has been computed, $L_c = N$, indicating that the buffer concludes with $N$ sequential label floats. Conversely, when the catalogue is transmitted without clustering, no labels are appended, and $L_c = 0$. The symbol $L_c$ denotes the count of per-event labels in the payload, distinguishing it from the number of discrete geological clusters ($K$).
+
+As summarised in \Cref{tab:binary-layout}, the header is followed sequentially by contiguous Float32 arrays for longitude, latitude, magnitude, depth, and \texttt{dates\_num} ($N$ floats each), followed by the cluster labels ($N$ floats) when $L_c = N$. On the frontend, decoding via JavaScript's \texttt{Float32Array} directly over an \texttt{ArrayBuffer} completes in less than one millisecond, achieving an 80\% size reduction compared to JSON and eliminating text parsing delays.
 
 \begin{table}[htbp]
 \centering
@@ -229,9 +233,9 @@ To eliminate JSON parsing overhead during large catalog transfers, the backend p
 \toprule
 \textbf{Offset} & \textbf{Content} & \textbf{Offset} & \textbf{Content} \\
 \midrule
-0 (2 floats) & Header: \texttt{[N, C]} & $2+3N$ ($N$ floats) & Depth array \\
+0 (2 floats) & Header: \texttt{[N, $L_c$]} & $2+3N$ ($N$ floats) & Depth array \\
 2 ($N$ floats) & Longitude array & $2+4N$ ($N$ floats) & Dates\_num array \\
-$2+N$ ($N$ floats) & Latitude array & $2+5N$ ($C$ floats) & Cluster labels (if present) \\
+$2+N$ ($N$ floats) & Latitude array & $2+5N$ ($N$ floats) & Cluster labels (if $L_c = N$) \\
 $2+2N$ ($N$ floats) & Magnitude array & & \\
 \bottomrule
 \end{tabular}
@@ -261,4 +265,4 @@ The concurrency architecture divides responsibilities across the \textbf{Main Th
 
 Because Python's standard \texttt{asyncio} event loop is not thread-safe, calling WebSocket functions directly from a background worker thread can cause conflicts and errors. To solve this, the backend sends notifications using \texttt{asyncio.run\_\allowbreak coroutine\_\allowbreak threadsafe(coroutine, loop)}. This function places the coroutine into a thread-safe queue. The Uvicorn server thread then sends the progress updates to the frontend without interrupting the data processing.
 
-For long calculations, such as animated clustering and plane tracking across multiple time windows, the engine uses a \texttt{ProcessPool\allowbreak Executor} with up to 8 worker processes. Running tasks across separate processes avoids Python Global Interpreter Lock limitations and utilizes multiple CPU cores. This keeps the application responsive while processing large datasets.
+For computationally demanding tasks, such as plane fitting across temporal animation frames, the analytical engine employs a \texttt{ThreadPool\allowbreak Executor} with up to 8 worker threads. In Python, numerical routines implemented in C and Fortran, such as SciPy LAPACK solvers for SVD, scikit-learn KD-Tree queries, and NumPy array operations, release the Global Interpreter Lock during heavy calculations. This design allows worker threads to execute in parallel across multiple CPU cores while sharing coordinate arrays directly in memory, avoiding the data serialization and memory copying overhead of multi-process architectures.

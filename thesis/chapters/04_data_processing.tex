@@ -5,14 +5,14 @@
 \chapter{Data Processing and Geospatial Engine}
 \label{ch:data}
 
-This chapter details the processing pipeline that transforms raw seismic observations (whether sourced from local catalogs or remote web services) into optimized, GPU-ready structures for interactive 3D and 4D visualization.
+This chapter details the processing pipeline that transforms raw seismic observations (whether sourced from local catalogues or remote web services) into optimised, GPU-ready structures for interactive 3D and 4D visualisation.
 
-\section{Pipeline Architecture and Multi-Source Ingestion}
+\section{Pipeline Overview}
 \label{sec:pipeline-overview}
 
-Seismic Viewer uses a unified data pipeline to import, validate, and convert seismological and geophysical data for 3D and 4D visualization. As illustrated in \Cref{fig:data-ingestion-pipeline}, the architecture consists of three main stages:
+Seismic Viewer uses a unified data pipeline to import, validate, and convert seismological and geophysical data for 3D and 4D visualisation. As illustrated in \Cref{fig:data-ingestion-pipeline}, the architecture consists of three main stages:
 \begin{enumerate}
-    \item \textbf{Multi-source ingestion}: The application receives seismic catalogs from local CSV files, queries the INGV GOSSIP API for remote datasets, and loads auxiliary geophysical layers such as seismic tomography grids and GNSS station coordinates.
+    \item \textbf{Multi-source ingestion}: The application receives seismic catalogues from local CSV files, queries the INGV GOSSIP API for remote datasets, and loads auxiliary geophysical layers such as seismic tomography grids and GNSS station coordinates.
     \item \textbf{Catalogue sanitisation}: Incoming earthquake records pass through a validation sequence that checks spatial fields, flags missing metadata, enforces coordinate and depth limits, removes future dates, and sorts events in chronological order.
     \item \textbf{Unified memory and streaming}: Validated records are converted into contiguous numerical arrays in memory and packed into Float32 binary buffers for hardware-accelerated rendering.
 \end{enumerate}
@@ -95,7 +95,7 @@ The following sections describe each component of this pipeline in detail.
 \section{CSV Ingestion and Schema Detection}
 \label{sec:csv-ingestion}
 
-The \texttt{core/loader.py} module handles different formats through an ingestion pipeline that checks the header line for comma or semicolon delimiters, supporting European standards (INGV) as well as international formats (USGS, ISC). The expected catalog schema is documented in \Cref{tab:csv-schema} of \Cref{app:technical_details}. To avoid manual formatting, \texttt{core/config.py} defines an alias dictionary:
+The \texttt{core/loader.py} module handles different formats through an ingestion pipeline that checks the header line for comma or semicolon delimiters, supporting European standards (INGV) as well as international formats (USGS, ISC). The expected catalogue schema is documented in \Cref{tab:csv-schema} of \Cref{app:technical_details}. To avoid manual formatting, \texttt{core/config.py} defines an alias dictionary:
 
 \begin{lstlisting}[language=Python, basicstyle=\ttfamily\footnotesize, aboveskip=5pt, belowskip=5pt, caption={Flexible column schema definition in \texttt{core/config.py}.}, label={lst:schema}]
 CSV_SCHEMA = {
@@ -115,9 +115,9 @@ The ingestion pipeline identifies data columns by reading their headers. It igno
 After ingestion, data records pass through a validation and cleaning sequence:
 \begin{enumerate}
     \item \textbf{Spatial requirement check}: Rows missing latitude, longitude, or timestamps are discarded immediately.
-    \item \textbf{Missing metadata flagging}: Catalogues occasionally omit depth or magnitude. In seismic analysis, estimating missing depths (such as using the mean value) is avoided because it groups points into artificial horizontal layers, distorting clustering and plane fitting results. Rather than dropping these records (which removes spatial density) or imputing synthetic values, missing fields are flagged via boolean indicators (\texttt{depth\_is\_missing}, \texttt{mag\_is\_missing}) and assigned sentinel defaults (0.0~km depth and magnitude 0.1). Events with magnitude below the minimum limit (\texttt{MIN\_MAGNITUDE}) are also removed. This threshold defaults to $-10.0$, which keeps all real seismic events. The user can raise it from the import dialog to filter out events below a chosen magnitude level.
+    \item \textbf{Missing metadata flagging}: Catalogues occasionally omit depth or magnitude. In seismic analysis, imputing missing depths by statistical averages is avoided because it artificially aligns hypocentres along horizontal layers, distorting clustering and plane fitting results. Rather than discarding these records entirely, which would reduce epicentral density on surface maps, the loader flags them with boolean indicators (\texttt{depth\_is\_missing}, \texttt{mag\_is\_missing}) and assigns sentinel defaults (0.0~km depth and magnitude 0.1). These records are preserved strictly for catalogue completeness and 2D map views. All events flagged with \texttt{depth\_is\_missing} are systematically excluded from 3D spatial calculations, clustering algorithms (DBSCAN and MiniBatchKMeans), and structural plane fitting (RANSAC and SVD), preventing artificial horizontal artefacts. Events with magnitude below the minimum limit (\texttt{MIN\_MAGNITUDE}, defaulting to $-10.0$) are also removed.
     \item \textbf{Geographic and depth bounds check}: The system excludes any event with mathematically invalid geographic coordinates (i.e., latitude outside the $\pm 90^\circ$ range or longitude outside the $\pm 180^\circ$ range). Additionally, it discards events with a depth falling outside the realistic geological range of $-10$~km to $800$~km, where negative values are specifically permitted to accommodate earthquakes occurring above sea level within mountains or volcanic edifices.
-    \item \textbf{Future date removal}: Events whose timestamp lies after the current date are discarded, as they indicate erroneous catalog entries.
+    \item \textbf{Future date removal}: Events whose timestamp lies after the current date are discarded, as they indicate erroneous catalogue entries.
     \item \textbf{Chronological sorting}: The remaining events are sorted in ascending time order to ensure correct slicing during animation and filtering operations.
 \end{enumerate}
 
@@ -156,14 +156,14 @@ Here, $\phi$ is the final converted latitude. The formula relies on several vari
 
 \subsection{Optimised Map Mesh and Caching Architecture}
 
-Terrain generation operates via a five-stage sequence: (1) bounding box squaring for uniform axis resolution, (2) deterministic cache lookup via MD5 hashing of rounded geographic bounds, (3) OpenStreetMap tile downloading via Smopy \cite{smopy} on cache misses, (4) palette-indexed downsampling to $1024 \times 1024$~px (256 colours), and (5) grid transformation via \Cref{eq:mercator}. Meshes are cached both in RAM (\texttt{@lru\_cache(maxsize=4)}) and disk (\texttt{.pkl}), guaranteeing sub-millisecond retrieval on subsequent loads.
+Terrain generation operates via a five-stage sequence: (1) bounding box squaring for uniform axis resolution, (2) deterministic cache lookup via MD5 hashing of rounded geographic bounds, (3) OpenStreetMap tile downloading via Smopy \cite{smopy} on cache misses, (4) palette-indexed bilinear downsampling to a maximum resolution of 384 pixels (\texttt{MESH\_HD\_SIZE = 384}, 256 colours via adaptive palette), and (5) grid transformation via \Cref{eq:mercator}. Meshes are cached both in RAM (\texttt{@lru\_cache(maxsize=2)}) and on disk (\texttt{.pkl}), guaranteeing sub-millisecond retrieval on subsequent loads.
 
 \section{Pre-computation and Memory Layout Transformation}
 \label{sec:precomputation}
 \label{sec:strip-data}
 \label{sec:binary-streaming}
 
-To keep the 3D view fast, the application calculates visual data in advance during data loading. The \texttt{precompute\_\allowbreak visual\_\allowbreak data()} function prepares popup texts and converts dates into numerical values (days from the first event). This allows quick color mapping over time without recalculating during user interaction.
+To keep the 3D view fast, the application calculates visual data in advance during data loading. The \texttt{precompute\_\allowbreak visual\_\allowbreak data()} function prepares popup texts and converts dates into numerical values (days from the first event). This allows quick colour mapping over time without recalculating during user interaction.
 
 The pipeline stores coordinates and depths into NumPy arrays (\texttt{np.float32}). Transmitting numbers as raw bytes instead of text JSON avoids conversion overhead and reduces data size.
 

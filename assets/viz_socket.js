@@ -49,6 +49,11 @@
                 console.warn("WebSocket disconnected.");
                 const ind = document.getElementById('ws-status');
                 if (ind) { ind.classList.remove('connected'); ind.title = 'Server Disconnected'; }
+                for (const [id, req] of this.requests.entries()) {
+                    if (req.timeoutId) clearTimeout(req.timeoutId);
+                    req.reject(new Error("WebSocket disconnected before response."));
+                }
+                this.requests.clear();
                 if (this._retryTimeout) clearTimeout(this._retryTimeout);
                 this._retryTimeout = setTimeout(() => {
                     if (!this._destroyed) this.init();
@@ -78,6 +83,10 @@
                 } catch (e) {}
                 this.socket = null;
             }
+            for (const [id, req] of this.requests.entries()) {
+                if (req.timeoutId) clearTimeout(req.timeoutId);
+                req.reject(new Error("Socket destroyed"));
+            }
             this.requests.clear();
             this.handlers.clear();
         }
@@ -89,10 +98,15 @@
                 const ind = document.getElementById('ws-status');
                 if (ind) { ind.classList.add('activity'); setTimeout(() => ind.classList.remove('activity'), 200); }
             } else if (data.type === 'rpc_response') {
-                const resolve = this.requests.get(data.id);
-                if (resolve) {
-                    resolve(data.result);
+                const req = this.requests.get(data.id);
+                if (req) {
                     this.requests.delete(data.id);
+                    if (req.timeoutId) clearTimeout(req.timeoutId);
+                    if (data.error) {
+                        req.reject(new Error(data.error));
+                    } else {
+                        req.resolve(data.result);
+                    }
                 }
             }
             // Custom handlers
@@ -103,29 +117,31 @@
         /**
          * Send an RPC-like request and await the response.
          */
-        sendRequest(type, params) {
+        sendRequest(type, params, maxConnectWaitMs = 3000) {
             return new Promise((resolve, reject) => {
                 if (this._destroyed) return reject(new Error("Socket destroyed"));
-                if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-                    // Try to wait a bit if connecting
-                    if (this.socket && this.socket.readyState === WebSocket.CONNECTING) {
-                        setTimeout(() => this.sendRequest(type, params).then(resolve).catch(reject), 500);
-                        return;
+
+                const trySend = (remainingWait) => {
+                    if (this._destroyed) return reject(new Error("Socket destroyed"));
+                    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+                        if (this.socket && this.socket.readyState === WebSocket.CONNECTING && remainingWait > 0) {
+                            setTimeout(() => trySend(remainingWait - 300), 300);
+                            return;
+                        }
+                        return reject(new Error("Socket not connected"));
                     }
-                    return reject(new Error("Socket not connected"));
-                }
-                const id = this.requestId++;
-                const timeoutId = setTimeout(() => {
-                    if (this.requests.has(id)) {
-                        this.requests.delete(id);
-                        reject(new Error(`Socket request '${type}' timed out.`));
-                    }
-                }, 30000);
-                this.requests.set(id, (result) => {
-                    clearTimeout(timeoutId);
-                    resolve(result);
-                });
-                this.socket.send(JSON.stringify({ type, id, params }));
+                    const id = this.requestId++;
+                    const timeoutId = setTimeout(() => {
+                        if (this.requests.has(id)) {
+                            this.requests.delete(id);
+                            reject(new Error(`Socket request '${type}' timed out.`));
+                        }
+                    }, 45000);
+                    this.requests.set(id, { resolve, reject, timeoutId });
+                    this.socket.send(JSON.stringify({ type, id, params }));
+                };
+
+                trySend(maxConnectWaitMs);
             });
         }
         

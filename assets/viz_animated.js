@@ -234,6 +234,11 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 if (!isNaN(mV1)) appliedMagMin = mV1;
                 if (!isNaN(mV2)) appliedMagMax = mV2;
             }
+            window.appliedMagMin = appliedMagMin;
+            window.appliedMagMax = appliedMagMax;
+            window.appliedDepMin = appliedDepMin;
+            window.appliedDepMax = appliedDepMax;
+
             if (SeismicUI && SeismicUI.setupBoundsValidation) {
                 SeismicUI.setupBoundsValidation(magMinInput, magMinInput?.value || -10, null);
                 SeismicUI.setupBoundsValidation(magMaxInput, magMaxInput?.value || 10, null);
@@ -1538,19 +1543,39 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 if (!planesEnabled) return;
                 
                 try {
-                    const result = await window.seismicSocket.sendRequest('get_structural_planes', {
+                    const reqData = {
                         radius_km: parseFloat(planeRadius.value),
                         min_pts: parseInt(planeMinPts.value),
                         window_days: quakeData.window_days,
                         step_days: quakeData.step_days,
                         anim_mode: quakeData.anim_mode
-                    });
+                    };
+                    let result = null;
+                    if (window.seismicSocket) {
+                        try {
+                            result = await window.seismicSocket.sendRequest('get_structural_planes', reqData);
+                        } catch (sErr) {
+                            console.warn("Socket structural planes failed, checking desktop API:", sErr);
+                        }
+                    }
+
+                    if (!result) {
+                        const api = (window.pywebview && window.pywebview.api) || 
+                                    (window.parent && window.parent.pywebview && window.parent.pywebview.api);
+                        if (api && typeof api.get_structural_planes === 'function') {
+                            try {
+                                result = await api.get_structural_planes(reqData.radius_km, reqData.min_pts, reqData.window_days, reqData.anim_mode, reqData.step_days);
+                            } catch (aErr) {
+                                console.error("Desktop API get_structural_planes failed:", aErr);
+                            }
+                        }
+                    }
                     
                     if (result && !result.error) {
                         structuralPlanes = result;
                         persistentPlanesMap.clear();
                         lastAccumIdx = -1;
-                        updateView(currentStepIdx);
+                        await updateView(currentStepIdx);
                     } else {
                         console.error("Plane Calculation Error:", result?.error);
                     }
@@ -1905,37 +1930,69 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             async function syncAnimatedClustering() {
                 try {
+                    const magMinVal = document.getElementById('anim-mag-min') ? document.getElementById('anim-mag-min').value : '-10';
+                    const magMaxVal = document.getElementById('anim-mag-max') ? document.getElementById('anim-mag-max').value : '10';
+                    const depMinVal = document.getElementById('anim-dep-min') ? document.getElementById('anim-dep-min').value : '-100';
+                    const depMaxVal = document.getElementById('anim-dep-max') ? document.getElementById('anim-dep-max').value : '1000';
+                    const cylDepthVal = document.getElementById('anim-cylinder-depth') ? document.getElementById('anim-cylinder-depth').value : '0';
+
                     const params = {
-                        anim_mode: quakeData.anim_mode,
-                        window_days: quakeData.window_days,
-                        step_days: quakeData.step_days,
-                        kmeans_clusters: pClustersAnim.value,
-                        kmeans_max_dist: pDistAnim.value,
-                        dbscan_eps: pEpsAnim.value,
-                        dbscan_min_samples: pMinAnim.value,
+                        anim_mode: quakeData.anim_mode || 'accumulation',
+                        window_days: quakeData.window_days || 30,
+                        step_days: quakeData.step_days || 7,
+                        kmeans_clusters: pClustersAnim ? pClustersAnim.value : 3,
+                        kmeans_max_dist: pDistAnim ? pDistAnim.value : 0,
+                        dbscan_eps: pEpsAnim ? pEpsAnim.value : 500,
+                        dbscan_min_samples: pMinAnim ? pMinAnim.value : 5,
                         hdbscan_min_cluster_size: pHdbMinClusterAnim ? pHdbMinClusterAnim.value : 5,
                         hdbscan_min_samples: pHdbMinSamplesAnim ? pHdbMinSamplesAnim.value : 3,
                         hdbscan_cluster_selection_epsilon: pHdbEpsAnim ? pHdbEpsAnim.value : 0,
                         hdbscan_eps: pHdbEpsAnim ? pHdbEpsAnim.value : 0,
                         show_cluster_planes: showAnimPlanesCheck.checked || (typeof currentAnimDisplayMode !== 'undefined' && currentAnimDisplayMode !== 'points'),
-                        mag_min: document.getElementById('anim-mag-min').value,
-                        mag_max: document.getElementById('anim-mag-max').value,
-                        dep_min: document.getElementById('anim-dep-min').value,
-                        dep_max: document.getElementById('anim-dep-max').value,
-                        use_cylinders: useCylindersCheck.checked,
-                        cylinder_radius: pCylinderRadius.value,
-                        cylinder_depth_step: document.getElementById('anim-cylinder-depth').value
+                        mag_min: magMinVal,
+                        mag_max: magMaxVal,
+                        dep_min: depMinVal,
+                        dep_max: depMaxVal,
+                        use_cylinders: useCylindersCheck ? useCylindersCheck.checked : false,
+                        cylinder_radius: pCylinderRadius ? pCylinderRadius.value : 0.5,
+                        cylinder_depth_step: cylDepthVal
                     };
-                    const res = await window.seismicSocket.sendRequest('get_animated_clustering', {
-                        method: currentAnimClustMethod,
-                        params: params,
-                        plane_step: parseInt(calcFramesAnim.value) || 5
-                    });
+                    const planeStep = parseInt(calcFramesAnim ? calcFramesAnim.value : 5) || 5;
+
+                    let res = null;
+                    if (window.seismicSocket) {
+                        try {
+                            res = await window.seismicSocket.sendRequest('get_animated_clustering', {
+                                method: currentAnimClustMethod,
+                                params: params,
+                                plane_step: planeStep
+                            });
+                        } catch (sErr) {
+                            console.warn("Socket animated clustering failed, checking desktop API fallback:", sErr);
+                        }
+                    }
+
+                    if (!res) {
+                        const api = (window.pywebview && window.pywebview.api) || 
+                                    (window.parent && window.parent.pywebview && window.parent.pywebview.api);
+                        if (api && typeof api.get_animated_clustering === 'function') {
+                            try {
+                                res = await api.get_animated_clustering(currentAnimClustMethod, params, planeStep);
+                            } catch (aErr) {
+                                console.error("Desktop API animated clustering failed:", aErr);
+                            }
+                        }
+                    }
+
                     if (res && !res.error) {
                         animClustersMap = res;
                         window.animClustersMap = res;
+                    } else if (res && res.error) {
+                        console.error("Clustering Error:", res.error);
+                        if (typeof showStatusToast === 'function') showStatusToast(res.error, false);
                     } else {
-                        console.error("Clustering Error:", res?.error);
+                        console.error("Clustering failed: no response received.");
+                        if (typeof showStatusToast === 'function') showStatusToast("Failed to calculate clustering.", false);
                     }
                 } catch (e) {
                     console.error("Bridge Error:", e);
@@ -2014,7 +2071,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                         }
 
                         // 4. Final render update
-                        updateView(currentStepIdx);
+                        await updateView(currentStepIdx);
                         if (window.SeismicUI && typeof window.SeismicUI.updateSwapLegendVisibility === 'function') {
                             window.SeismicUI.updateSwapLegendVisibility();
                         }

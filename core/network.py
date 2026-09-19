@@ -114,15 +114,19 @@ async def handle_websocket_messages(websocket: WebSocket, manager: ConnectionMan
                     await manager.send_personal_message({"type": "rpc_response", "id": request_id, "error": "API bridge not ready"}, websocket)
                     continue
                 p = message.get("params", {})
-                if msg_type == "get_cluster_update":
-                    result = await asyncio.to_thread(api_ref.get_cluster_update, p.get("method"), p.get("params"))
-                elif msg_type == "get_structural_planes":
-                    result = await asyncio.to_thread(api_ref.get_structural_planes, p.get("radius_km"), p.get("min_pts"), p.get("window_days"), p.get("anim_mode", "accumulation"), p.get("step_days", 7))
-                elif msg_type == "auto_tune_time_window":
-                    result = await asyncio.to_thread(api_ref.auto_tune_time_window)
-                else:  # get_animated_clustering
-                    result = await asyncio.to_thread(api_ref.get_animated_clustering, p.get("method"), p.get("params"), p.get("plane_step", 5))
-                await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
+                try:
+                    if msg_type == "get_cluster_update":
+                        result = await asyncio.to_thread(api_ref.get_cluster_update, p.get("method"), p.get("params"))
+                    elif msg_type == "get_structural_planes":
+                        result = await asyncio.to_thread(api_ref.get_structural_planes, p.get("radius_km"), p.get("min_pts"), p.get("window_days"), p.get("anim_mode", "accumulation"), p.get("step_days", 7))
+                    elif msg_type == "auto_tune_time_window":
+                        result = await asyncio.to_thread(api_ref.auto_tune_time_window)
+                    else:  # get_animated_clustering
+                        result = await asyncio.to_thread(api_ref.get_animated_clustering, p.get("method"), p.get("params"), p.get("plane_step", 5))
+                    await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)
+                except Exception as op_err:
+                    logger.error(f"Error handling RPC '{msg_type}': {op_err}")
+                    await manager.send_personal_message({"type": "rpc_response", "id": request_id, "error": str(op_err)}, websocket)
 
     except (WebSocketDisconnect, ConnectionResetError, OSError):
         pass

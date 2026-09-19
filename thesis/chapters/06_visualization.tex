@@ -10,13 +10,13 @@ Seismic Viewer provides four primary visualisation modes, each addressing a dist
 \section{2D Geospatial Map View}
 \label{sec:view-2d}
 
-The 2D view provides a plan-view representation of earthquake epicentres overlaid on OpenStreetMap \cite{openstreetmap} tiles, implemented through Plotly's \texttt{scatter\_mapbox} trace type. The map visualises seismic data using two distinct graphical layers:
+The 2D view provides a plan-view representation of earthquake epicentres overlaid on OpenStreetMap \cite{openstreetmap} tiles, implemented through Plotly's map interfaces (\texttt{scatter\_map} and \texttt{scatter\_mapbox}). The map visualises seismic data using two distinct graphical layers:
 \begin{itemize}
-    \item \textbf{Scatter Markers}: Each earthquake is represented by a circular marker. The visual properties of these circles can be mapped to different physical parameters depending on the analytical needs. By default, the size of the circle indicates the magnitude of the event (with a minimum size threshold to ensure extremely weak micro-earthquakes remain visible), and the color represents the hypocentral depth. However, these mappings are highly flexible, allowing users to visualize other variables, such as chronological progression. Users can interact with these markers by hovering over them to reveal detailed statistics.
-    \item \textbf{Density Heatmap}: A spatial density layer that visually aggregates tightly clustered earthquakes. By rendering a continuous color gradient over regions of high seismicity, this optional overlay allows researchers to intuitively identify active swarm locations and broader structural trends that might be difficult to perceive when analyzing individual scatter points alone.
+    \item \textbf{Scatter Markers}: Each earthquake is represented by a circular marker. The visual properties of these circles can be mapped to different physical parameters depending on analytical needs. By default, the size of the circle indicates the magnitude of the event (with a minimum size threshold to ensure micro-earthquakes remain visible), and the colour represents the hypocentral depth. These mappings are flexible, allowing users to visualise other variables, such as chronological progression. Users can interact with these markers by hovering over them to reveal detailed statistics.
+    \item \textbf{Density Heatmap}: A spatial density layer that visually aggregates tightly clustered earthquakes. By rendering a continuous colour gradient over regions of high seismicity, this optional overlay allows researchers to identify active swarm locations and broader structural trends that might be difficult to perceive when analysing individual scatter points alone.
 \end{itemize}
 
-To explore the dataset, users can apply filters based on magnitude, depth, and date ranges using dedicated input fields located on the left-hand panel. All filtering operations are processed directly within the user's web browser. This approach avoids sending new requests to the main server, guaranteeing that the map updates instantly whenever a parameter is changed.
+To explore the dataset, users can apply filters based on magnitude, depth, and date ranges using dedicated input fields located on the left-hand panel. All filtering operations are processed directly within the user's web browser. This approach avoids sending new requests to the main server, ensuring that the map updates promptly whenever a parameter is changed.
 
 \begin{figure}[H]
 \centering
@@ -52,7 +52,7 @@ To explore the dataset, users can apply filters based on magnitude, depth, and d
 \label{fig:2d-multi}
 \end{figure}
 
-As shown in \Cref{fig:2d-multi}, the 2D workspace offers three visualization options. The base view (\Cref{fig:2d-viz}) displays earthquake locations on an OpenStreetMap layer, while the side panel allows users to filter events by magnitude, depth, and date. In \Cref{fig:2d-viz-tomo}, a tomographic slice shows variations in the $V_p/V_s$ velocity ratio, indicating underground fluid bodies. Finally, in \Cref{fig:2d-viz-uplift}, the map combines monitoring stations with vertical ground movement, helping researchers observe if earthquakes match areas of surface uplift.
+As shown in \Cref{fig:2d-multi}, the 2D workspace offers three visualisation options. The base view (\Cref{fig:2d-viz}) displays earthquake locations on an OpenStreetMap layer, while the side panel allows users to filter events by magnitude, depth, and date. In \Cref{fig:2d-viz-tomo}, a tomographic slice shows variations in the $V_p/V_s$ velocity ratio, indicating underground fluid bodies. Finally, in \Cref{fig:2d-viz-uplift}, the map combines monitoring stations with vertical ground movement, helping researchers observe if earthquakes match areas of surface uplift.
 
 \section{3D Static View}
 \label{sec:view-3d-static}
@@ -110,9 +110,9 @@ As shown in \Cref{fig:3d-multi}, the 3D static workspace presents these data lay
 
 The animated view adds time as a fourth dimension to observe the spatio-temporal evolution of seismic sequences.
 
-The 4D visualisation engine offers three temporal modes to analyse seismic evolution: \textbf{Accumulation} (showing all events up to the current frame), \textbf{Sliding window} (displaying events within a moving time frame), and \textbf{Block mode} (rendering discrete, non-overlapping time intervals). To ensure smooth playback and avoid memory overload, the system precomputes temporal indices and updates the 3D scene dynamically without reloading the entire figure.
+The 4D visualisation engine offers four temporal modes to analyse seismic evolution: \textbf{Accumulation} (showing all events up to the current frame), \textbf{Sliding window} (displaying events within a moving time frame), \textbf{Block mode} (rendering discrete, non-overlapping time intervals), and \textbf{Seismic Swarms} (focusing on episodic bursts identified by automated detection according to INGV criteria, supported by timeline navigation and magnitude or depth charts). To ensure smooth playback and avoid memory overload, the system precomputes temporal indices and updates the 3D scene dynamically without reloading the entire figure.
 
-During 4D animations, the camera angle and zoom level must remain stable across updates. By default, Plotly reinitializes the view on coordinate changes. Setting \texttt{uirevision='constant'} in the layout preserves camera position and orientation across frames, allowing continuous interaction during playback.
+During 4D animations, the camera angle and zoom level must remain stable across updates. By default, Plotly reinitialises the view on coordinate changes. Setting \texttt{uirevision='constant'} in the layout preserves camera position and orientation across frames, allowing continuous interaction during playback.
 
 \enlargethispage{5cm}
 
@@ -150,30 +150,30 @@ During 4D animations, the camera angle and zoom level must remain stable across 
 \label{fig:anim-multi}
 \end{figure}
 
-Prior to starting the animation, the time parameters (such as step size and frame rate) are configured via a dedicated dialog window (\Cref{fig:anim-menu}). The resulting 4D view (\Cref{fig:anim-viz}) allows interactive exploration of the chronological sequence. In addition, the volume can be partitioned into a spatial grid of vertical cylinders (\Cref{fig:anim-cylinder-planes}). This subdivision was implemented to better understand the spatial distribution of the data, as partitioning the volume effectively isolates and subdivides the complex fault geometry into local, simpler planar segments. As earthquakes occur inside these cylinders, the system dynamically calculates and renders these local structural fault planes in real-time, allowing users to visualize how seismic events evolve over time across the identified planar structures.
+Prior to starting the animation, the time parameters (such as step size and frame rate) are configured via a dedicated dialog window (\Cref{fig:anim-menu}). The resulting 4D view (\Cref{fig:anim-viz}) allows interactive exploration of the chronological sequence. In addition, the volume can be partitioned into a spatial grid of vertical cylinders (\Cref{fig:anim-cylinder-planes}). This subdivision was implemented to better understand the spatial distribution of the data, as partitioning the volume isolates and subdivides the fault geometry into local, simpler planar segments. As earthquakes occur inside these cylinders, the system dynamically calculates and renders these local structural fault planes in real-time, allowing users to visualise how seismic events evolve over time across the identified planar structures.
 
 \section{3D Cluster Analysis View}
 \label{sec:view-cluster}
 
-The cluster analysis mode integrates spatial machine learning with structural geological modeling.
+The cluster analysis mode integrates spatial machine learning with structural geological modelling.
 
 \subsection{Cluster Visualisation and Interactive Tuning}
 
-To provide a comprehensive geometrical understanding of seismogenic structures, Seismic Viewer renders every identified cluster through four complementary representations within the 3D WebGL scene. These representations were chosen to address different analytical needs: boundary delineation, volumetric extent, structural orientation, and individual event membership. Together, they allow researchers to examine a cluster from multiple geometric perspectives simultaneously.
+To provide a comprehensive geometrical understanding of seismogenic structures, Seismic Viewer renders every identified cluster through four complementary representations within the 3D WebGL scene. These representations address different analytical needs: boundary delineation, volumetric extent, structural orientation, and individual event membership. Together, they allow researchers to examine a cluster from multiple geometric perspectives simultaneously.
 \begin{enumerate}
     \item \textbf{Wireframe Convex Hulls (\texttt{Scatter3d})}: Outer boundary envelopes highlighting the spatial footprint and volumetric extent of each distinct cluster.
     \item \textbf{Triangulated Solid Meshes} (\texttt{Mesh3d}, with \texttt{alphahull=0}): Smooth, semi-transparent volumetric convex hulls enclosing the clusters.
     \item \textbf{Structural Fault Planes (\texttt{Mesh3d})}: Planar surfaces calculated via RANSAC robust estimation coupled with Singular Value Decomposition (SVD) refinement. Each plane displays orientation vectors alongside precise geological strike and dip angles upon mouse hover.
-    \item \textbf{Clustered Event Spheres}: Discrete event spheres colored by cluster label using categorical palettes, with unclustered background noise explicitly assigned neutral grey.
+    \item \textbf{Clustered Event Spheres}: Discrete event spheres coloured by cluster label using categorical palettes, with unclustered background noise explicitly assigned neutral grey.
 \end{enumerate}
-When users interactively adjust spatial clustering hyperparameters, such as neighborhood radius $\varepsilon$, minimum samples threshold \texttt{min\_samples}, or cluster count $K$, via the side control panel, the frontend dispatches a \texttt{get\_cluster\_update} WebSocket message. The Python backend asynchronously recomputes cluster labels and structural planes without blocking the event loop, returning the newly generated Plotly trace definitions. The frontend then replaces the existing traces in the WebGL scene, thereby updating the visualization while preserving the user's current camera perspective.
+When users interactively adjust spatial clustering hyperparameters, such as neighbourhood radius $\varepsilon$, minimum samples threshold \texttt{min\_samples}, or cluster count $K$, via the side control panel, the frontend dispatches a \texttt{get\_cluster\_update} WebSocket message. The Python backend asynchronously recomputes cluster labels and structural planes without blocking the event loop, returning the newly generated Plotly trace definitions. The frontend then replaces the existing traces in the WebGL scene, thereby updating the visualisation while preserving the user's current camera perspective.
 
 \subsection{Sub-Clustering}
 \label{sec:sub-clustering}
 
-To analyze hierarchical structures, researchers can perform secondary sub-clustering on specific data subsets. By utilizing the \textbf{locked clusters} feature, users can preserve previously identified and validated groups. The algorithm will then selectively re-analyze and sub-divide all the remaining unlocked clusters simultaneously. The refined results can subsequently be applied back to merge cleanly into the parent view.
+To analyse hierarchical structures, researchers can perform secondary sub-clustering on specific data subsets. By utilizing the \textbf{locked clusters} feature, users can preserve previously identified and validated groups. The algorithm will then selectively re-analyse and sub-divide all the remaining unlocked clusters simultaneously. The refined results can subsequently be applied back to merge cleanly into the parent view.
 
-\Cref{fig:cluster-multi} provides a comprehensive overview of the clustering tools. \Cref{fig:cluster-viz} shows the standard 3D clustering interface. \Cref{fig:anim-clustering-noplanes} displays how clustering evolves over time. To ensure visual consistency, a tracking algorithm guarantees that each cluster maintains the same color across all animation frames. Finally, \Cref{fig:anim-clustering-planes} and \Cref{fig:anim-clustering-unified} combine the animated clusters with dynamically calculated fault planes and spatial cylinders. This combination allows researchers to easily observe how geological structures evolve and rotate over time.
+\Cref{fig:cluster-multi} provides an overview of the clustering tools. \Cref{fig:cluster-viz} shows the standard 3D clustering interface. \Cref{fig:anim-clustering-noplanes} displays how clustering evolves over time. To ensure visual consistency, a tracking algorithm guarantees that each cluster maintains the same colour across all animation frames. Finally, \Cref{fig:anim-clustering-planes} and \Cref{fig:anim-clustering-unified} combine the animated clusters with dynamically calculated fault planes and spatial cylinders. This combination allows researchers to observe how geological structures evolve and rotate over time.
 
 \begin{figure}[H]
 \centering
@@ -225,18 +225,18 @@ To analyze hierarchical structures, researchers can perform secondary sub-cluste
 
 Seismic Viewer integrates three auxiliary data layers, processed through the \texttt{core/\allowbreak layer\_utils.py} module:
 \begin{itemize}
-    \item \textbf{Seismic Tomography ($V_p/V_s$ Ratio)}: The raw tomographic data, originally provided in UTM Zone~33N coordinates, is converted to geographic coordinates and mapped onto a regular 3D grid. Because measurements only exist at specific surveyed points, the software must estimate the values for the surrounding empty space. It achieves this using \textit{Inverse Distance Weighting}, a spatial interpolation technique. The value of any unknown point is calculated as a weighted average of its $k=16$ nearest known neighbors. The closer a neighbor is, the stronger its influence on the final calculation, scaling inversely with the square of the distance ($p=2$):
+    \item \textbf{Seismic Tomography ($V_p/V_s$ Ratio)}: The raw tomographic data, originally provided in UTM Zone~33N coordinates, is converted to geographic coordinates and projected into physical metric kilometres $(x, y, z)_\text{km}$ using equatorial conversion factors ($k_x = K \cos(\bar{\phi})$, $k_y = K$, depths in km). Because measurements only exist at specific surveyed points, the software estimates values across a regular $30 \times 22 \times 16$ volumetric grid using \textit{Inverse Distance Weighting}. The value of any grid point is calculated as a weighted average of its $k=16$ nearest known neighbours in Euclidean distance ($d$, in physical kilometres), scaling inversely with the square of the distance ($p=2$):
     \begin{equation}
         V(\mathbf{x}) = \frac{\sum_{i=1}^{k} w_i \cdot V_i}{\sum_{i=1}^{k} w_i}, \quad w_i = \frac{1}{d(\mathbf{x}, \mathbf{x}_i)^2}
         \label{eq:idw}
     \end{equation}
-    However, Inverse Distance Weighting can produce unrealistic mathematical artifacts in empty regions located very far from actual measurement stations. To solve this, the system applies a \textit{distance-decay} function, which acts as a spatial fade-out effect. As the distance from the nearest station increases, this function smoothly blends the estimated value back into the standard natural background value of the Earth's crust ($1.75$):
+    To prevent mathematical artefacts in regions far from observation points, the system applies a distance-decay function. As the distance $d_\text{min}$ (in kilometres) to the nearest station increases, this function smoothly blends the estimated value back into the standard crustal background value ($1.75$):
     \begin{equation}
         V_\text{final}(\mathbf{x}) = \alpha(\mathbf{x}) \cdot V_\text{IDW}(\mathbf{x}) + (1 - \alpha(\mathbf{x})) \cdot 1.75
         \label{eq:gaussian-damping}
     \end{equation}
-    where $\alpha(\mathbf{x}) = \exp(-(d_\text{min}/\sigma)^2)$ with $\sigma = 0.15$ acts as the blending weight, decreasing smoothly from 1 (near known data) to 0 (far away). The value $\sigma = 0.15$~degrees (${\approx}17$~km) was chosen to match the typical distance between survey stations in the Campi Flegrei dataset, so that the fade-out occurs at the same scale as the station spacing.
-    \item \textbf{GNSS Ground Deformation (Uplift)}: To visualize ground movement, the system reads historical displacement records and matches them with the known locations of the monitoring stations. This provides the exact vertical movement at any given time. Because data is only available at these specific points, the software estimates the ground movement in the empty areas between them using the same distance-based averaging (IDW) described above. The final result is displayed on the map either as a colored 2D grid or as 3D columns rising from the surface.
+    where $\alpha(\mathbf{x}) = \exp(-(d_\text{min}/\sigma)^2)$ with characteristic decay radius $\sigma = 2.0$~km acts as the blending weight, decreasing smoothly from 1 (near known data) to 0 (far away), matching the station spacing of the volcanic network.
+    \item \textbf{GNSS Ground Deformation (Uplift)}: To visualise ground movement, the system reads historical displacement records and matches them with permanent monitoring stations. To estimate vertical displacement across the entire caldera, the software interpolates values onto a $30 \times 30$ surface grid in metric kilometre coordinates using an IDW weighting exponent of $p=2.5$, modeling the rapid spatial decay characteristic of elastic half-space deformation. The result is displayed on the map either as a coloured 2D surface or as 3D columns rising above the surface.
     \item \textbf{Monitoring Stations}: Permanent station positions are plotted as labelled markers, aiding spatial evaluation of catalogue completeness thresholds.
 \end{itemize}
 
@@ -245,4 +245,14 @@ These three auxiliary layers serve complementary roles in the interpretation wor
 \subsection{View Caching and Navigation}
 \label{sec:view-caching}
 
-To ensure faster navigation between complex workspaces, the backend bridge maintains an in-memory view cache (\texttt{\_html\_store}, max 15 entries) keyed by a composite tuple of file path, view style, animation/windowing parameters, clustering configuration, and locked cluster states. A navigation history stack (\texttt{\_history\_stack}) allows instantaneous back and forward navigation in the clustering view while preserving exact parameter context.
+To ensure faster navigation between complex workspaces, the backend bridge maintains an in-memory view cache (\texttt{\_html\_store}, bounded to 4 entries via FIFO eviction) keyed by a composite tuple of file path, view style, animation/windowing parameters, clustering configuration, and locked cluster states. A navigation history stack (\texttt{\_history\_stack}) allows instantaneous back and forward navigation in the clustering view while preserving exact parameter context.
+
+\subsection{Export Engine and Interoperability}
+\label{sec:export}
+
+To support external workflows and reporting, Seismic Viewer provides an export subsystem implemented across \texttt{core/exporter.py} and \texttt{assets/viz\_export.js}. Researchers can export filtered catalogues and identified cluster subsets into multiple formats:
+\begin{itemize}
+    \item \textbf{Structured CSV}: Exports hypocentral coordinates, magnitudes, and timestamps, prefixed with a metadata comment documenting the clustering algorithm and hyperparameters used.
+    \item \textbf{GeoJSON}: Formats cluster points into a standard \texttt{FeatureCollection} with geographic point geometries and properties, enabling direct import into external GIS applications such as QGIS.
+    \item \textbf{High-Resolution Graphics}: Captures the active WebGL canvas via \texttt{Plotly.\allowbreak toImage}, generating publication-quality PNG renderings.
+\end{itemize}

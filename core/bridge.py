@@ -585,6 +585,9 @@ class Api:
             if 'subcluster_target_indices' in params:
                 target_mask = np.zeros(len(d['longitude']), dtype=bool)
                 target_mask[params['subcluster_target_indices']] = True
+                if 'locked_clusters' in params and isinstance(params['locked_clusters'], dict):
+                    for l_idxs in params['locked_clusters'].values():
+                        target_mask[l_idxs] = True
                 target_mask = target_mask[start_idx:end_idx]
 
             context_mask = None

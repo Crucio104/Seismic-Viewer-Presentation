@@ -432,7 +432,10 @@ def get_cluster_update_traces(longitude: list[float], latitude: list[float], mag
     # actual_viz_mask indicates which points were clustered
     cluster_indices = {}
     if actual_viz_mask is not None:
-        global_idx = np.where(actual_viz_mask)[0]
+        if global_indices is not None and len(global_indices) == len(result['labels']):
+            global_idx = global_indices
+        else:
+            global_idx = np.where(actual_viz_mask)[0]
         for i, lbl in enumerate(result['labels']):
             lbl_int = int(lbl)
             if lbl_int not in cluster_indices:
@@ -443,7 +446,7 @@ def get_cluster_update_traces(longitude: list[float], latitude: list[float], mag
             lbl_int = int(lbl)
             if lbl_int not in cluster_indices:
                 cluster_indices[lbl_int] = []
-            cluster_indices[lbl_int].append(i)
+            cluster_indices[lbl_int].append(int(global_indices[i]) if global_indices is not None and i < len(global_indices) else i)
                 
     return {
         'traces': json_traces,

@@ -85,6 +85,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             let currentDisplayMode = 'wireframe';
             let currentMethod = quakeData.clustering_method || 'dbscan';
+            let appliedShowPlanes = (quakeData.clustering_params && quakeData.clustering_params.show_cluster_planes) ? true : false;
 
             // Recover previous display mode if set in params
             if (quakeData.clustering_params && quakeData.clustering_params.display_mode) {
@@ -139,7 +140,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 if (cp.dep_max) depMax.value = cp.dep_max;
                 if (cp.start_date) startInput.value = cp.start_date;
                 if (cp.end_date) endInput.value = cp.end_date;
-                if (cp.show_cluster_planes) document.getElementById('show-planes').checked = cp.show_cluster_planes;
+                if (cp.show_cluster_planes) {
+                    document.getElementById('show-planes').checked = cp.show_cluster_planes;
+                    appliedShowPlanes = !!cp.show_cluster_planes;
+                }
             }
 
             if (pUseTime && spatiotemporalParams) {
@@ -203,7 +207,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             SeismicUI.bindMenu(displayMenu, (item) => {
                 currentDisplayMode = item.dataset.mode;
                 displayToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
-                // Defer update: no call to applyDisplayMode() here
+                applyDisplayMode();
             });
 
 
@@ -220,6 +224,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
 
             function applyCombinedFilters() {
+                appliedShowPlanes = document.getElementById('show-planes') ? document.getElementById('show-planes').checked : false;
                 const params = {
                     kmeans_clusters: pClusters.value,
                     kmeans_max_dist: pDist.value,
@@ -234,7 +239,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     time_window: pTimeWindow ? (parseFloat(pTimeWindow.value) || 72.0) : 72.0,
                     time_window_days: pTimeWindow ? ((parseFloat(pTimeWindow.value) || 72.0) / 24.0) : 3.0,
                     display_mode: currentDisplayMode,
-                    show_cluster_planes: document.getElementById('show-planes').checked,
+                    show_cluster_planes: appliedShowPlanes,
                     point_size_mode: currentSizeMode,
                     mag_min: magMin ? magMin.value : 0,
                     mag_max: magMax ? magMax.value : 10,
@@ -284,10 +289,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                                 const currentTraceCount = gd.data.length;
                                 if (currentTraceCount > 1) {
                                     const indices = Array.from({length: currentTraceCount - 1}, (_, i) => i + 1);
-                                    Plotly.deleteTraces(gd, indices);
+                                    await Plotly.deleteTraces(gd, indices);
                                 }
                                 // Add new ones
-                                Plotly.addTraces(gd, res.traces);
+                                await Plotly.addTraces(gd, res.traces);
                                 
                                 // Update local state for legend
                                 quakeData.n_clusters = res.n_clusters;
@@ -295,7 +300,19 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                                 else quakeData.clustering_method = currentMethod;
                                 if (res.params) quakeData.clustering_params = res.params;
                                 else quakeData.clustering_params = params;
-                                if (res.cluster_indices) quakeData.cluster_indices = res.cluster_indices;
+                                if (res.cluster_indices) {
+                                    quakeData.cluster_indices = res.cluster_indices;
+                                    if (quakeData.cluster) {
+                                        for (const [lblStr, idxs] of Object.entries(res.cluster_indices)) {
+                                            const lbl = parseInt(lblStr, 10);
+                                            for (const idx of idxs) {
+                                                if (idx >= 0 && idx < quakeData.cluster.length) {
+                                                    quakeData.cluster[idx] = lbl;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                                 if (res.labels) {
                                     if (quakeData.subcluster_target_indices) {
                                         const targets = quakeData.subcluster_target_indices;
@@ -357,11 +374,23 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                                     const currentTraceCount = gd.data.length;
                                     if (currentTraceCount > 1) {
                                         const indices = Array.from({length: currentTraceCount - 1}, (_, i) => i + 1);
-                                        Plotly.deleteTraces(gd, indices);
+                                        await Plotly.deleteTraces(gd, indices);
                                     }
-                                    Plotly.addTraces(gd, res.traces);
+                                    await Plotly.addTraces(gd, res.traces);
                                     quakeData.n_clusters = res.n_clusters;
-                                    if (res.labels) quakeData.cluster = res.labels;
+                                    if (res.cluster_indices && quakeData.cluster) {
+                                        quakeData.cluster_indices = res.cluster_indices;
+                                        for (const [lblStr, idxs] of Object.entries(res.cluster_indices)) {
+                                            const lbl = parseInt(lblStr, 10);
+                                            for (const idx of idxs) {
+                                                if (idx >= 0 && idx < quakeData.cluster.length) {
+                                                    quakeData.cluster[idx] = lbl;
+                                                }
+                                            }
+                                        }
+                                    } else if (res.labels) {
+                                        quakeData.cluster = res.labels;
+                                    }
                                     quakeData.hover = buildClusterHoverList(quakeData.cluster);
                                     const newEqIdx = gd.data.findIndex(t => t.name === 'Earthquakes');
                                     if (newEqIdx >= 0) {
@@ -390,6 +419,13 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
 
             applyBtn.onclick = applyCombinedFilters;
+
+            const showContextCheck = document.getElementById('show-context-points');
+            if (showContextCheck) {
+                showContextCheck.addEventListener('change', () => {
+                    applyDisplayMode();
+                });
+            }
 
             [startInput, endInput, magMin, magMax, depMin, depMax].forEach(input => {
                 if (input) {
@@ -527,7 +563,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             function applyDisplayMode() {
                 const showWire = (currentDisplayMode === 'wireframe' || currentDisplayMode === 'both');
                 const showSolid = (currentDisplayMode === 'solid' || currentDisplayMode === 'both');
-                const showPlanes = document.getElementById('show-planes').checked;
+                const showPlanes = appliedShowPlanes;
                 const showContextPointsCheck = document.getElementById('show-context-points');
                 const showContextPoints = showContextPointsCheck ? showContextPointsCheck.checked : true;
 

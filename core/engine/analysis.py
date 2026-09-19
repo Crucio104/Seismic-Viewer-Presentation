@@ -488,10 +488,29 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     mags = np.array(data['magnitude'])
     dates_unique = data['visual_pack']['unique_dates']
     date_to_cum = data['visual_pack']['date_to_cum']
-    anim_mode = params.get('anim_mode', data.get('anim_mode', 'accumulation'))
-    window_days = int(params.get('window_days', data.get('window_days', 30)))
-    step_days = int(params.get('step_days', data.get('step_days', 7)))
+    params = params or {}
+    anim_mode = params.get('anim_mode') or data.get('anim_mode') or 'accumulation'
+    raw_win = params.get('window_days')
+    if raw_win is None:
+        raw_win = data.get('window_days', 30)
+    try:
+        window_days = max(1, int(raw_win))
+    except (ValueError, TypeError):
+        window_days = 30
+
+    raw_step = params.get('step_days')
+    if raw_step is None:
+        raw_step = data.get('step_days', 7)
+    try:
+        step_days = max(1, int(raw_step))
+    except (ValueError, TypeError):
+        step_days = 7
     
+    try:
+        plane_step = max(1, int(plane_step))
+    except (ValueError, TypeError):
+        plane_step = 5
+
     if anim_mode == 'block':
         plane_step = 1
     
@@ -507,7 +526,10 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
     grid_info = []
     pt_cylinder_map = None # Spatial assignment optimization
     if use_cylinders:
-        radius_km = float(params.get('cylinder_radius', 0.5))
+        try:
+            radius_km = float(params.get('cylinder_radius', 0.5))
+        except (ValueError, TypeError):
+            radius_km = 0.5
         overlap = 0.2
         spacing = radius_km * (2.0 - overlap)
         min_x, max_x = np.min(pts_km[:, 0]), np.max(pts_km[:, 0])
@@ -528,8 +550,22 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
             pt_cylinder_map[dists == np.inf] = -1 # Points too far from any cylinder
 
     # 4. Filter params
-    f_min_mag, f_max_mag = float(params.get('mag_min', -10)), float(params.get('mag_max', 10))
-    f_min_dep, f_max_dep = float(params.get('dep_min', -100)), float(params.get('dep_max', 1000))
+    try:
+        f_min_mag = float(params.get('mag_min', -10))
+    except (ValueError, TypeError):
+        f_min_mag = -10.0
+    try:
+        f_max_mag = float(params.get('mag_max', 10))
+    except (ValueError, TypeError):
+        f_max_mag = 10.0
+    try:
+        f_min_dep = float(params.get('dep_min', -100))
+    except (ValueError, TypeError):
+        f_min_dep = -100.0
+    try:
+        f_max_dep = float(params.get('dep_max', 1000))
+    except (ValueError, TypeError):
+        f_max_dep = 1000.0
 
     t0 = time.time()
     logger.info(f"Starting multi-process animated clustering ({len(dates_unique)} frames, method={method})...")
@@ -824,7 +860,8 @@ def _process_frame_worker(idx: int, data: dict[str, Any]) -> tuple:
         labels, _, centroids = perform_clustering(pts_subset, method, params, None)
         
     frame_planes = []
-    if (idx % plane_step == 0) and labels is not None:
+    show_planes = bool(params.get('show_cluster_planes', True))
+    if show_planes and (idx % plane_step == 0) and labels is not None:
         frame_planes = _calculate_frame_planes(labels, pts_subset, "TMP", origin_lon, origin_lat)
 
     return idx, labels, centroids, global_indices, mask, len(pts_raw), frame_planes

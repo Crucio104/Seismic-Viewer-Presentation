@@ -62,7 +62,7 @@ ObsPy is the standard open-source Python framework for seismological research, o
 Seisan is a widely used software suite for earthquake observatory workflows, including phase picking, hypocentre location, and seismic database management. While reliable for routine monitoring, its user interface and codebase are based on legacy terminal utilities and Fortran routines, presenting a steep learning curve and lacking modern, hardware-accelerated 3D/4D visual exploration capabilities.
 
 \paragraph{ParaView.}
-ParaView is an open-source scientific visualisation engine based on VTK, capable of rendering large 3D and 4D volumetric datasets, such as seismic tomography models and wave propagation simulations. However, ParaView is a general-purpose scientific visualisation tool: it requires complex data pipeline configurations and lacks domain-specific seismological features, such as direct online catalog ingestion (e.g., the INGV GOSSIP API), automated hypocentral clustering, and strike/dip fault plane extraction.
+ParaView is an open-source scientific visualisation engine based on VTK, capable of rendering large 3D and 4D volumetric datasets, such as seismic tomography models and wave propagation simulations. However, ParaView is a general-purpose scientific visualisation tool: it requires complex data pipeline configurations and lacks domain-specific seismological features, such as direct online catalogue ingestion (e.g., the INGV GOSSIP API), automated hypocentral clustering, and strike/dip fault plane extraction.
 
 \paragraph{GPlates.}
 GPlates is an interactive plate tectonics tool designed for reconstructing geological continental motions across global scales and deep geological time (millions of years). While it supports 3D spheres and time animation, it is designed for global plate kinematic models rather than high-resolution, local earthquake sequences or real-time volcano-seismic monitoring.
@@ -92,7 +92,7 @@ GPlates       & \checkmark & \checkmark & \texttimes & Partial    & \checkmark &
 \end{tabularx}
 \end{table}
 
-The comparison confirms that no existing software combines interactive 3D rendering, temporal 4D animation, automated machine learning clustering, real-time parameter tuning, and structural fault plane fitting within an accessible desktop application. Seismic Viewer was designed specifically to unify these capabilities.
+Among the tools evaluated in this work, and to the best of our knowledge, none unifies interactive 3D rendering, temporal 4D animation, automated clustering, real-time parameter tuning, and structural fault plane fitting within a single lightweight desktop application. Seismic Viewer was designed specifically to address this gap.
 
 \section{Machine Learning in Seismology}
 \label{sec:ml-seismology}
@@ -103,10 +103,10 @@ The application of machine learning to seismological data has grown substantiall
 The Density-Based Spatial Clustering of Applications with Noise (DBSCAN) algorithm \cite{ester1996dbscan} identifies clusters as areas of high point density separated by areas of low density. Unlike partitioning methods, DBSCAN does not require specifying the number of clusters in advance and can identify structures of arbitrary shape, which is useful when analysing non-planar fault zones. The algorithm uses two parameters: $\varepsilon$ (the search radius) and \texttt{MinSamples} (the minimum number of points required to form a dense group). Points outside these clusters are marked as noise, filtering out background events to isolate structural features.
 
 \paragraph{Centroid-Based Clustering: K-Means.}
-The K-Means algorithm \cite{lloyd1982kmeans} groups $N$ points into $K$ clusters by minimising the sum of squared distances to each cluster center. Seismic Viewer uses the \textbf{MiniBatchKMeans} variant, which processes random subsets (mini-batches) of data at each step. This reduces computation time and enables fast updates as the user adjusts parameters. K-Means is suitable when the number of target structures is known or when spherical partitions are desired.
+The K-Means algorithm \cite{lloyd1982kmeans} groups $N$ points into $K$ clusters by minimising the sum of squared distances to each cluster centre. Seismic Viewer uses the \textbf{MiniBatchKMeans} variant, which processes random subsets (mini-batches) of data at each step. This reduces computation time and enables fast updates as the user adjusts parameters. K-Means is suitable when the number of target structures is known or when spherical partitions are desired.
 
 \paragraph{Temporal Tracking: Cluster Label Switching.}
-When clustering point clouds over time, unsupervised algorithms run independently on each animation frame and may assign different labels (and colors) to the same physical structure across successive time steps. In an animation, this causes colors to change between frames. To preserve consistent colors across temporal sequences, the system uses a label matching algorithm, described in \Cref{sec:label-matching}.
+When clustering point clouds over time, unsupervised algorithms run independently on each animation frame and may assign different labels and colours to the same physical structure across successive time steps. In an animation, this causes colours to change between frames. To preserve consistent colours across temporal sequences, the system uses a label matching algorithm, described in \Cref{sec:label-matching}.
 
 \section{Technology Choices and Justifications}
 \label{sec:tech-choices}
@@ -143,10 +143,10 @@ In contrast, \textbf{pywebview} \cite{pywebview} uses the web component already 
 
 Rendering 3D earthquake datasets interactively requires GPU acceleration with WebGL. Low-level graphics engines like \textbf{Three.js} provide control over visual elements, but require writing 3D axes, projections, legends, and camera controls from scratch. Conversely, 2D charting tools like \textbf{D3.js} lack 3D WebGL support.
 
-\textbf{Plotly.js} \cite{plotlyjs} combines WebGL acceleration with built-in plotting features and interactive controls. By using Plotly's WebGL pipeline and preserving camera orientation during updates (\texttt{uirevision}), Seismic Viewer achieves smooth rendering for large earthquake catalogs without requiring a custom graphics engine.
+\textbf{Plotly.js} \cite{plotlyjs} combines WebGL acceleration with built-in plotting features and interactive controls. By using Plotly's WebGL pipeline and preserving camera orientation during updates (\texttt{uirevision}), Seismic Viewer achieves smooth rendering for large earthquake catalogues without requiring a custom graphics engine.
 
 \subsection{Backend Server Framework: FastAPI vs. Traditional Frameworks}
 
 The backend transfers binary data buffers and handles WebSocket messages alongside numerical calculations. Synchronous Python web frameworks like \textbf{Flask} or \textbf{Django} can block incoming requests during long calculations unless coupled with external task queues.
 
-\textbf{FastAPI} \cite{fastapi}, running on the \texttt{uvicorn} \cite{uvicorn} server, uses an asynchronous event loop via \texttt{asyncio}. This design supports WebSocket communication and HTTP endpoints within a single process. Calculations are offloaded to background threads or process pools, keeping the user interface responsive.
+\textbf{FastAPI} \cite{fastapi}, running on the \texttt{uvicorn} \cite{uvicorn} server, uses an asynchronous event loop via \texttt{asyncio}. This design supports WebSocket communication and HTTP endpoints within a single process. Calculations are offloaded to background worker threads, keeping the user interface responsive.

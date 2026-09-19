@@ -12,13 +12,13 @@ This appendix provides a formal specification of the data structures and the cor
 
 The design of Seismic Viewer places a strong emphasis on maintaining a clear separation between the external data representation and the internal state used for high-performance computation. This section outlines both formats in detail, illustrating how raw textual data is efficiently translated into numerical matrices.
 
-\subsection{Input Catalog Format}
+\subsection{Input Catalogue Format}
 
-Seismological data must be structured in a CSV following the specifications detailed in \cref{tab:csv-schema}. The schema requires specific temporal and spatial fields to ensure correct localization within the 3D WebGL environment. To accommodate the vast amount of data often recorded during seismic swarms, the format is kept as lightweight as possible. External catalogs, such as those provided by the INGV, must be pre-processed or mapped to this standard structure before ingestion. The mandatory fields include unique identifiers, precise origin timestamps, and geographical coordinates expressed in decimal degrees.
+Seismological data must be structured in a CSV following the specifications detailed in \cref{tab:csv-schema}. The schema requires specific temporal and spatial fields to ensure correct localization within the 3D WebGL environment. To accommodate the vast amount of data often recorded during seismic swarms, the format is kept as lightweight as possible. External catalogues, such as those provided by the INGV, must be pre-processed or mapped to this standard structure before ingestion. The mandatory fields include unique identifiers, precise origin timestamps, and geographical coordinates expressed in decimal degrees.
 
 \begin{table}[htbp]
 \centering
-\caption{Expected schema for input seismic catalogs.}
+\caption{Expected schema for input seismic catalogues.}
 \label{tab:csv-schema}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
@@ -28,9 +28,9 @@ Seismological data must be structured in a CSV following the specifications deta
 \midrule
 \texttt{id} & \texttt{string} & Unique identifier for the seismic event \\
 \texttt{time} & \texttt{ISO 8601 string} & Origin time of the event (e.g., 2024-01-01T12:00:00) \\
-\texttt{latitude} & \texttt{float} & Event epicenter latitude in WGS84 decimal degrees \\
-\texttt{longitude} & \texttt{float} & Event epicenter longitude in WGS84 decimal degrees \\
-\texttt{depth} & \texttt{float} & Hypocentral depth in kilometers \\
+\texttt{latitude} & \texttt{float} & Event epicentre latitude in WGS84 decimal degrees \\
+\texttt{longitude} & \texttt{float} & Event epicentre longitude in WGS84 decimal degrees \\
+\texttt{depth} & \texttt{float} & Hypocentral depth in kilometres \\
 \texttt{mag} & \texttt{float} & Magnitude of the event \\
 \bottomrule
 \end{tabularx}
@@ -38,7 +38,7 @@ Seismological data must be structured in a CSV following the specifications deta
 
 \subsection{Internal Application State}
 
-Once parsed by the Python backend, the catalog is transformed into an internal state object optimized for rendering and clustering algorithms. The data is held in memory as multi-dimensional \texttt{numpy} arrays to support the matrix operations required by DBSCAN and RANSAC. Transitioning from a row-based CSV structure to a column-based array format significantly improves memory locality and cache performance during heavy numerical computations. This design choice helps achieve interactive frame rates in the application's user interface.
+Once parsed by the Python backend, the catalogue is transformed into an internal state object optimised for rendering and clustering algorithms. The data is held in memory as multi-dimensional \texttt{numpy} arrays to support the matrix operations required by DBSCAN and RANSAC. Transitioning from a row-based CSV structure to a column-based array format significantly improves memory locality and cache performance during heavy numerical computations. This design choice helps achieve interactive frame rates in the application's user interface.
 
 \begin{table}[htbp]
 \centering
@@ -51,11 +51,12 @@ Once parsed by the Python backend, the catalog is transformed into an internal s
 \textbf{Variable} & \textbf{Type} & \textbf{Purpose} \\
 \midrule
 \texttt{longitude}, \texttt{latitude} & \texttt{numpy.ndarray (float32)} & Arrays of WGS84 coordinates in decimal degrees ($N$ events) \\
-\texttt{depth} & \texttt{numpy.ndarray (float32)} & Array of hypocentral depths in kilometers ($N$ events) \\
-\texttt{magnitude} & \texttt{numpy.ndarray} & An $N$-length array used for scaling the visual markers \\
+\texttt{depth} & \texttt{numpy.ndarray (float32)} & Array of hypocentral depths in kilometres ($N$ events) \\
+\texttt{depth\_is\_missing} & \texttt{numpy.ndarray (bool)} & Boolean flag indicating missing depth; excluded from 3D clustering and plane fitting \\
+\texttt{magnitude} & \texttt{numpy.ndarray (float32)} & An $N$-length array used for scaling the visual markers \\
 \texttt{dates\_num} & \texttt{numpy.ndarray (float32)} & Days elapsed from the first event, used for temporal filtering and animation \\
 \texttt{labels} & \texttt{numpy.ndarray} & Cluster assignments ($ -1 $ for noise, $ 0 \dots K $ for structural groups) \\
-\texttt{pts\_km} & \texttt{numpy.ndarray} & Array of Cartesian coordinates in kilometers ($N \times 3$), generated for clustering \\
+\texttt{pts\_km} & \texttt{numpy.ndarray} & Array of Cartesian coordinates in kilometres ($N \times 3$), generated for clustering \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -76,7 +77,7 @@ Messages sent by the client over the \texttt{/ws} WebSocket channel follow this 
     "properties": {
         "type": {
             "type": "string",
-            "enum": ["ping", "get_cluster_update", "get_structural_planes", "get_animated_clustering"]
+            "enum": ["ping", "get_cluster_update", "get_structural_planes", "get_animated_clustering", "auto_tune_time_window"]
         },
         "id": {"type": "string"},
         "params": {
@@ -124,12 +125,14 @@ Progress updates and task notifications sent by the server follow this structure
 \toprule
 \textbf{Configuration Key} & \textbf{Default Value} & \textbf{Description / Purpose} \\
 \midrule
-\texttt{MAX\_DATA\_SESSIONS} & 30 & Maximum concurrent in-memory dataset sessions (FIFO eviction) \\
-\texttt{MAX\_HTML\_SESSIONS} & 15 & Maximum cached pre-rendered HTML visualization views \\
-\texttt{DEFAULT\_DBSCAN\_EPS\_M} & 500.0 & Search radius $\varepsilon$ in meters \\
+\texttt{\_SESSION\_MAX\_COUNT} & 5 & Maximum concurrent in-memory dataset sessions (FIFO eviction) \\
+\texttt{\_HTML\_MAX\_COUNT} & 4 & Maximum cached pre-rendered HTML visualisation views \\
+\texttt{MESH\_HD\_SIZE} & 384 & Maximum pixel resolution for OpenStreetMap terrain mesh \\
+\texttt{PALETTE\_COLORS} & 256 & Quantised colour palette count for terrain texture \\
+\texttt{DEFAULT\_DBSCAN\_EPS\_M} & 500.0 & Search radius $\varepsilon$ in metres \\
 \texttt{DEFAULT\_DBSCAN\_MIN\_PTS} & 5 & Minimum points to define a cluster core \\
 \texttt{DEFAULT\_KMEANS\_CLUSTERS} & 3 & Initial cluster count for MiniBatchKMeans \\
-\texttt{CYLINDER\_GRID\_DIMS} & $(60, 50)$ & Longitudinal and latitudinal cell resolution for 4D tracking \\
+\texttt{CYLINDER\_RADIUS} & 0.5~km & Default radius for 4D vertical spatial cylinders (20\% overlap) \\
 \texttt{RANSAC\_MAX\_ITER} & 100 & Candidate triplet sampling iterations for plane fitting \\
 \texttt{RANSAC\_THRESHOLD} & Adaptive & $\max(0.02, r_{\text{km}} \times 0.1)$, proportional to cylinder radius \\
 \bottomrule
