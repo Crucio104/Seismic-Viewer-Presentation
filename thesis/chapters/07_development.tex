@@ -121,10 +121,10 @@ To evaluate the Float32 binary protocol against JSON, benchmarks were run across
 \toprule
 \textbf{Events ($N$)} & \textbf{JSON Size} & \textbf{Float32 Size} & \textbf{\revised{Size reduction}} & \textbf{JSON Parse} & \textbf{Float32 Parse} \\
 \midrule
-1{,}000   & 95.5~KB  & 19.5~KB & 79.5\% & 0.8~ms  & $<0.01$~ms \\
-10{,}000  & 954.3~KB & 195.3~KB & 79.5\% & 8.1~ms  & $<0.01$~ms \\
-30{,}000  & 2.80~MB  & 585.9~KB & 79.5\% & 24.1~ms & $<0.01$~ms \\
-50{,}000  & 4.66~MB  & 976.6~KB & 79.5\% & 40.9~ms & $<0.01$~ms \\
+1{,}000   & 95.1~KB  & 19.5~KB & 79.5\% & 0.8~ms  & $<0.01$~ms \\
+10{,}000  & 950.1~KB & 195.3~KB & 79.4\% & 8.1~ms  & $<0.01$~ms \\
+30{,}000  & 2.85~MB  & 585.9~KB & 79.4\% & 23.9~ms & $<0.01$~ms \\
+50{,}000  & 4.75~MB  & 976.6~KB & 79.4\% & 39.7~ms & $<0.01$~ms \\
 \bottomrule
 \end{tabular*}
 \end{table}
@@ -143,10 +143,10 @@ Execution times for the three clustering methods were measured across catalogue 
 \toprule
 \textbf{Events ($N$)} & \textbf{DBSCAN ($\varepsilon=300$m)} & \textbf{MiniBatchKMeans ($K=6$)} & \textbf{Cylinder Grid ($60\times50$)} \\
 \midrule
-1{,}000   & 80.4~ms   & 68.3~ms  & 1.0~ms \\
-10{,}000  & 94.9~ms   & 165.9~ms & 5.8~ms \\
-30{,}000  & 976.3~ms  & 83.0~ms  & 15.7~ms \\
-50{,}000  & 2{,}244.0~ms & 208.4~ms & 22.8~ms \\
+1{,}000   & 21.9~ms   & 130.2~ms & 35.1~ms \\
+10{,}000  & 54.1~ms   & 240.5~ms & 43.6~ms \\
+30{,}000  & 221.8~ms  & 286.4~ms & 59.7~ms \\
+50{,}000  & 404.4~ms  & 301.0~ms & 36.5~ms \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -155,7 +155,7 @@ Execution times for the three clustering methods were measured across catalogue 
 
 Because the true position and orientation of underground faults cannot be directly observed in natural systems, the plane fitting algorithms (RANSAC and SVD) were validated on synthetic benchmark datasets. \revised{For each noise configuration, 500 independent Monte Carlo trials were conducted.} In each trial, a planar structure with 1,000 hypocentres was generated with random strike $\phi_s \in [0^\circ, 360^\circ)$ and dip $\delta \in [10^\circ, 80^\circ)$, perturbed with zero-mean Gaussian positional noise $\sigma \in [10, 100]$~m and uniform outlier contamination up to 30\%.
 
-As reported in \Cref{tab:bench-synthetic}, the two-stage RANSAC and SVD pipeline estimates plane orientations accurately. \revised{Across all 500 trials per noise level, the Mean Absolute Error (MAE) remains below $0.44^\circ$ for dip and $0.59^\circ$ for strike even with 100~m noise and 30\% outliers.}
+As reported in \Cref{tab:bench-synthetic}, the two-stage RANSAC and SVD pipeline estimates plane orientations accurately. \revised{Across all 500 trials per noise level, the Mean Absolute Error (MAE) remains below $0.51^\circ$ for dip and $0.93^\circ$ for strike even with 100~m noise and 30\% outliers.}
 
 \begin{table}[htbp]
 \centering
@@ -167,15 +167,15 @@ As reported in \Cref{tab:bench-synthetic}, the two-stage RANSAC and SVD pipeline
 \toprule
 \textbf{Noise $\sigma$ (m)} & \textbf{Outliers (\%)} & \textbf{Dip MAE ($^\circ$)} & \textbf{Strike MAE ($^\circ$)} & \textbf{Planarity ($P$)} \\
 \midrule
-10~m   & 10\% & $0.03^\circ$ & $0.04^\circ$ & 0.94 \\
-25~m   & 15\% & $0.06^\circ$ & $0.11^\circ$ & 0.93 \\
-50~m   & 20\% & $0.15^\circ$ & $0.22^\circ$ & 0.90 \\
-100~m  & 30\% & $0.44^\circ$ & $0.59^\circ$ & 0.84 \\
+10~m   & 10\% & $0.02^\circ$ & $0.04^\circ$ & 0.95 \\
+25~m   & 15\% & $0.08^\circ$ & $0.15^\circ$ & 0.94 \\
+50~m   & 20\% & $0.18^\circ$ & $0.36^\circ$ & 0.91 \\
+100~m  & 30\% & $0.51^\circ$ & $0.93^\circ$ & 0.86 \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 In parallel, the global label matching algorithm (\Cref{sec:label-matching}) successfully eliminated temporal colour flickering across 4D animated cluster sequences while maintaining fast computation times, confirming its suitability for interactive exploration workflows.
 
-These angular errors are small relative to the uncertainty inherent in real earthquake catalogues. Standard hypocentral location methods typically produce positional errors in the range of 50 to 200~m \cite{shearer2019introduction}, which correspond to angular uncertainties of several degrees when fitting planes to shallow fault zones. The errors reported in \Cref{tab:bench-synthetic} ($<0.6^\circ$ for noise up to 100~m and 30\% outliers) therefore fall well within the precision required by geophysical applications, confirming that the RANSAC and SVD pipeline is suitable for fault characterisation at the scale of local seismic swarms.
+These angular errors are small relative to the uncertainty inherent in real earthquake catalogues. Standard hypocentral location methods typically produce positional errors in the range of 50 to 200~m \cite{shearer2019introduction}, which correspond to angular uncertainties of several degrees when fitting planes to shallow fault zones. The errors reported in \Cref{tab:bench-synthetic} ($<1.0^\circ$ for noise up to 100~m and 30\% outliers) therefore fall well within the precision required by geophysical applications, confirming that the RANSAC and SVD pipeline is suitable for fault characterisation at the scale of local seismic swarms.
 
