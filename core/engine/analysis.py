@@ -584,7 +584,8 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
         'f_dep': (f_min_dep, f_max_dep),
         'plane_step': plane_step,
         'origin_lon': origin_lon,
-        'origin_lat': origin_lat
+        'origin_lat': origin_lat,
+        'depth_is_missing': np.array(data['depth_is_missing'], dtype=bool) if ('depth_is_missing' in data and data['depth_is_missing'] is not None) else None
     }
 
     # 5. Execute Clustering with adaptive parallel/sequential execution
@@ -831,6 +832,9 @@ def _process_frame_worker(idx: int, data: dict[str, Any]) -> tuple:
     abs_dep = np.abs(dep[start_idx:end_idx])
     mask = (mags[start_idx:end_idx] >= f_mag[0]) & (mags[start_idx:end_idx] <= f_mag[1]) & \
            (abs_dep >= f_dep[0]) & (abs_dep <= f_dep[1])
+    dim = data.get('depth_is_missing')
+    if dim is not None:
+        mask = mask & (~dim[start_idx:end_idx])
     
     pts_subset = pts_raw[mask]
     global_indices = np.arange(start_idx, end_idx)[mask]

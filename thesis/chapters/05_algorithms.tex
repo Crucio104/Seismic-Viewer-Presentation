@@ -96,7 +96,7 @@ The algorithm counts how many points in the cluster lie within a distance thresh
 
 Although RANSAC removes outliers and isolates the inlier set, the candidate plane itself is defined by three sample points. To obtain the plane that accounts for all identified inliers, the engine applies Singular Value Decomposition (SVD).
 
-The software computes the centroid $(\bar{x}, \bar{y}, \bar{z})$ of all $n$ inliers and centers the coordinates at the origin, constructing the data matrix $A \in \mathbb{R}^{n \times 3}$:
+The software computes the centroid $(\bar{x}, \bar{y}, \bar{z})$ of all $n$ inliers and centres the coordinates at the origin, constructing the data matrix $A \in \mathbb{R}^{n \times 3}$:
 \begin{equation}
     A = \begin{bmatrix}
         x_1 - \bar{x} & y_1 - \bar{y} & z_1 - \bar{z} \\
