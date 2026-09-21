@@ -9,10 +9,10 @@
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \contentsline {table}{\numberline {5.1}{\ignorespaces Comparison of spatial clustering approaches in Seismic Viewer.}}{23}{table.caption.27}%
-\contentsline {table}{\numberline {5.2}{\ignorespaces Typical asymptotic time and space complexity of the analytical methods under 3D spatial indexing assumptions.}}{27}{table.caption.30}%
+\contentsline {table}{\numberline {5.2}{\ignorespaces \revised {Typical asymptotic time and space complexity of the analytical methods under 3D spatial indexing assumptions.}}}{27}{table.caption.30}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {7.1}{\ignorespaces Serialization benchmark: JSON vs. Float32 Binary buffer.}}{44}{table.caption.51}%
+\contentsline {table}{\numberline {7.1}{\ignorespaces Serialisation benchmark: JSON vs. Float32 Binary buffer.}}{44}{table.caption.51}%
 \contentsline {table}{\numberline {7.2}{\ignorespaces Clustering execution latency benchmark across dataset scales.}}{44}{table.caption.52}%
 \contentsline {table}{\numberline {7.3}{\ignorespaces Synthetic plane estimation accuracy under Gaussian positional noise.}}{45}{table.caption.53}%
 \addvspace {10\p@ }

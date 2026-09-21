@@ -12,17 +12,17 @@ First and foremost, I would like to express my gratitude to my academic supervis
 
 I am grateful to Giada and Rossella for their collaboration. Their constant readiness to share their knowledge and their moral support were a valuable help throughout this work.
 
-Special thanks go to Alessandro and all my friends from the ``bunker''. Thank you for being by my side through the many highs and lows of these past three years of my bachelor's degree. I also want to extend my sincere appreciation to Gianmaria for his patience and help during our countless hours of study together.
+\revised{Special thanks go to Alessandro and all my friends from the ``bunker''.} Thank you for being by my side through the many highs and lows of these past three years of my bachelor's degree. I also want to extend my sincere appreciation to Gianmaria for his patience and help during our countless hours of study together.
 
 Finally, my heartfelt gratitude goes to my family for their patience, emotional support, and for always believing in me.
 \end{acknowledgments}
 
 \begin{abstract}
-This internship report presents the design, implementation, and evaluation of \textbf{Seismic Viewer}, an interactive desktop application for the spatial and temporal visualisation of seismic data. The system was developed during an internship at the INGV to address a limitation of existing tools: the lack of software capable of displaying large earthquake datasets while integrating spatial clustering and geological plane estimation.
+This \revised{internship report} presents the design, implementation, and evaluation of \textbf{Seismic Viewer}, an interactive desktop application for the spatial and temporal \revised{visualisation} of seismic data. The system was developed during an internship at the INGV to address a limitation of existing tools: the lack of software capable of displaying large earthquake datasets while integrating spatial clustering and geological plane estimation.
 
 Traditional seismic analysis often relies on two-dimensional maps or static plots that do not show the evolution of earthquake sequences over time. Seismic Viewer addresses this limitation with an architecture that combines a Python backend for data processing with a WebGL frontend for 3D graphics in an interactive desktop window.
 
-The application provides four display modes: 2D maps, 3D static views, 4D animated sequences, and cluster analysis with fault plane estimation. It imports data from local CSV files, the INGV GOSSIP API, ground uplift measurements, and seismic tomography. Clustering algorithms, automatic parameter tuning, plane fitting, and a label matching method for colour stability over time help identify fault structures.
+The application provides four display modes: 2D maps, 3D static views, 4D animated sequences, and cluster analysis with fault plane estimation. It imports data from local CSV files, the INGV GOSSIP API, ground uplift measurements, and seismic tomography. Clustering algorithms, automatic parameter tuning, plane fitting, and a label matching method for \revised{colour} stability over time help identify fault structures.
 
-This report describes the complete development process from initial requirements to system architecture, testing, and optimisation. The application was tested with earthquake data from the Campi Flegrei area, maintaining interactive frame rates with large seismic catalogues. The binary streaming protocol achieved an 80\% size reduction compared to JSON, and the plane fitting pipeline estimated strike and dip angles with a mean error below $0.6^\circ$ under realistic noise conditions.
+This \revised{report} describes the complete development process from initial requirements to system architecture, testing, and \revised{optimisation}. The application was tested with earthquake data from the Campi Flegrei area, \revised{maintaining interactive frame rates with large seismic catalogues. The binary streaming protocol achieved an 80\% size reduction compared to JSON}, and the plane fitting pipeline estimated strike and dip angles with a mean error below $0.6^\circ$ under realistic noise conditions.
 \end{abstract}

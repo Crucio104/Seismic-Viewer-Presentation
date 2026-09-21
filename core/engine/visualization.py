@@ -270,14 +270,8 @@ def get_3d_subcluster_figure(
                     full_labels[int(idx)] = lbl_id
                     locked_mask[int(idx)] = True
 
-    dep_missing = depth_is_missing if depth_is_missing is not None else (clustering_params.get('depth_is_missing') if clustering_params else None)
-    dep_missing_arr = np.array(dep_missing, dtype=bool) if dep_missing is not None else None
-
-    # Only subcluster points in target_indices that are NOT locked and have valid depth
-    unlocked_targets = [
-        idx for idx in target_indices 
-        if 0 <= int(idx) < n_points and not locked_mask[int(idx)] and not (dep_missing_arr[int(idx)] if dep_missing_arr is not None else False)
-    ]
+    # Only subcluster points in target_indices that are NOT locked
+    unlocked_targets = [idx for idx in target_indices if 0 <= int(idx) < n_points and not locked_mask[int(idx)]]
 
     if len(unlocked_targets) > 0:
         sub_lon = np.asarray(longitude, dtype=float)[unlocked_targets]
@@ -536,14 +530,13 @@ def _generate_cluster_traces(longitude: list[float] | np.ndarray, latitude: list
                     locked_mask[j] = True
 
             dep_missing = depth_is_missing if depth_is_missing is not None else params.get('depth_is_missing')
-            dep_missing_arr = np.array(dep_missing, dtype=bool) if dep_missing is not None else None
-            if viz_mask is not None and dep_missing_arr is not None:
-                dep_missing_arr = dep_missing_arr[viz_mask]
+            dep_missing_arr = None
+            if dep_missing is not None:
+                dep_missing_arr = np.array(dep_missing)
+                if viz_mask is not None:
+                    dep_missing_arr = dep_missing_arr[viz_mask]
 
-            unlocked_indices = [
-                j for j in range(len(f_lon)) 
-                if not locked_mask[j] and not (dep_missing_arr[j] if dep_missing_arr is not None else False)
-            ]
+            unlocked_indices = [j for j in range(len(f_lon)) if not locked_mask[j] and (dep_missing_arr is None or not dep_missing_arr[j])]
             if len(unlocked_indices) > 0:
                 unlocked_dnum = f_dnum[unlocked_indices] if f_dnum is not None else None
                 local_labels, n_local, _ = perform_clustering(X_km[unlocked_indices], method, params, dates_num=unlocked_dnum)

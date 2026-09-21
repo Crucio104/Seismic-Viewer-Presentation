@@ -102,24 +102,24 @@ This modular organisation was not the original design. As discussed in \Cref{sec
 \section{Validation and Quantitative Performance Assessment}
 \label{sec:validation}
 
-The system was validated using the official INGV Campi Flegrei seismic catalogue \cite{ingv}, comprising 3,225 events recorded between 2014 and 2024, alongside synthetic benchmark datasets scaled up to 50,000 hypocentres for stress testing. Hardware measurements confirmed that Seismic Viewer maintains interactive rendering speeds between 55 and 60 frames per second in WebGL point cloud navigation with client-side buffer upload times below 1~ms.
+The system was validated using the official INGV Campi Flegrei seismic catalogue \cite{ingv}, comprising 3,225 events recorded between 2014 and 2024, alongside synthetic benchmark datasets scaled up to 50,000 hypocentres for stress testing. Hardware measurements confirmed that Seismic Viewer maintains interactive rendering speeds between \revised{55 and 60 frames per second} in WebGL point cloud navigation with client-side buffer upload times below 1~ms.
 
-All benchmark timings represent the average of $M=50$ independent runs, with standard deviations below 5\% of the reported mean values. The benchmarks were measured on a desktop workstation equipped with an Intel Core i9-13900K processor (24 cores, 32 threads, clock up to 5.8~GHz), 32~GB of RAM, and an NVIDIA GeForce RTX 4070 GPU on 64-bit Windows 11.
+\revised{All benchmark timings represent the average of $M=50$ independent runs, with standard deviations below 5\% of the reported mean values.} The benchmarks were measured on a desktop workstation equipped with an Intel Core i9-13900K processor (24 cores, 32 threads, clock up to 5.8~GHz), 32~GB of RAM, and an NVIDIA GeForce RTX 4070 GPU on 64-bit Windows 11.
 
-\subsection{Experimental Benchmarks: Serialization and Streaming}
+\subsection{Experimental Benchmarks: Serialisation and Streaming}
 
 To evaluate the Float32 binary protocol against JSON, benchmarks were run across multiple dataset scales. As reported in \Cref{tab:bench-serialization}, the Float32 format achieves an 80\% size reduction and significantly lowers decoding time, allowing fast data transfer even on large catalogues.
 
 \begin{table}[htbp]
 \centering
-\caption{Serialization benchmark: JSON vs. Float32 Binary buffer.}
+\caption{Serialisation benchmark: JSON vs. Float32 Binary buffer.}
 \label{tab:bench-serialization}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{4pt}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}rrrrrr@{}}
 \toprule
-\textbf{Events ($N$)} & \textbf{JSON Size} & \textbf{Float32 Size} & \textbf{Size reduction} & \textbf{JSON Parse} & \textbf{Float32 Parse} \\
+\textbf{Events ($N$)} & \textbf{JSON Size} & \textbf{Float32 Size} & \textbf{\revised{Size reduction}} & \textbf{JSON Parse} & \textbf{Float32 Parse} \\
 \midrule
 1{,}000   & 95.5~KB  & 19.5~KB & 79.5\% & 0.8~ms  & $<0.01$~ms \\
 10{,}000  & 954.3~KB & 195.3~KB & 79.5\% & 8.1~ms  & $<0.01$~ms \\
@@ -131,7 +131,7 @@ To evaluate the Float32 binary protocol against JSON, benchmarks were run across
 
 \subsection{Clustering Latency and Algorithmic Throughput}
 
-Execution times for the three clustering methods were measured across catalogue sizes from 1,000 to 50,000 events. For these benchmarks, hyperparameters were held fixed: DBSCAN used search radius $\varepsilon = 300$~m and $\text{min\_samples} = 5$; MiniBatchKMeans used cluster count $K=6$, mini-batch size $b=1024$, and maximum iterations $I=100$; cylinder grid partitioning used a fixed grid of $60 \times 50$ cells over the catalogue bounding box. As shown in \Cref{tab:bench-clustering}, MiniBatchKMeans and Cylinder Partitioning remain fast across all tested sizes, while DBSCAN takes longer as the number of events grows.
+Execution times for the three clustering methods were measured across catalogue sizes from 1,000 to 50,000 events. \revised{For these benchmarks, hyperparameters were held fixed: DBSCAN used search radius $\varepsilon = 300$~m and $\text{min\_samples} = 5$; MiniBatchKMeans used cluster count $K=6$, mini-batch size $b=1024$, and maximum iterations $I=100$; cylinder grid partitioning used a fixed grid of $60 \times 50$ cells over the catalogue bounding box.} As shown in \Cref{tab:bench-clustering}, MiniBatchKMeans and Cylinder Partitioning remain fast across all tested sizes, while DBSCAN takes longer as the number of events grows.
 
 \begin{table}[htbp]
 \centering
@@ -153,9 +153,9 @@ Execution times for the three clustering methods were measured across catalogue 
 
 \subsection{Synthetic Validation of Structural Plane Extraction}
 
-Because the true position and orientation of underground faults cannot be directly observed in natural systems, the plane fitting algorithms (RANSAC and SVD) were validated on synthetic benchmark datasets. For each noise configuration, 500 independent Monte Carlo trials were conducted. In each trial, a planar structure with 1,000 hypocentres was generated with random strike $\phi_s \in [0^\circ, 360^\circ)$ and dip $\delta \in [10^\circ, 80^\circ)$, perturbed with zero-mean Gaussian positional noise $\sigma \in [10, 100]$~m and uniform outlier contamination up to 30\%.
+Because the true position and orientation of underground faults cannot be directly observed in natural systems, the plane fitting algorithms (RANSAC and SVD) were validated on synthetic benchmark datasets. \revised{For each noise configuration, 500 independent Monte Carlo trials were conducted.} In each trial, a planar structure with 1,000 hypocentres was generated with random strike $\phi_s \in [0^\circ, 360^\circ)$ and dip $\delta \in [10^\circ, 80^\circ)$, perturbed with zero-mean Gaussian positional noise $\sigma \in [10, 100]$~m and uniform outlier contamination up to 30\%.
 
-As reported in \Cref{tab:bench-synthetic}, the two-stage RANSAC and SVD pipeline estimates plane orientations accurately. Across all 500 trials per noise level, the Mean Absolute Error (MAE) remains below $0.44^\circ$ for dip and $0.59^\circ$ for strike even with 100~m noise and 30\% outliers.
+As reported in \Cref{tab:bench-synthetic}, the two-stage RANSAC and SVD pipeline estimates plane orientations accurately. \revised{Across all 500 trials per noise level, the Mean Absolute Error (MAE) remains below $0.44^\circ$ for dip and $0.59^\circ$ for strike even with 100~m noise and 30\% outliers.}
 
 \begin{table}[htbp]
 \centering

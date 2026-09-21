@@ -25,7 +25,7 @@ The \textbf{strike} ($\phi_s$) is the compass direction of the fault line. It is
 
 The \textbf{dip} ($\delta$) is the steepness or inclination of the fault plane. It is the angle between the tilted plane and a horizontal surface, measured along the line of maximum slope perpendicular to the strike. The dip angle ranges from $0^\circ$ for a completely horizontal plane to $90^\circ$ for a vertical fault.
 
-The \textbf{dip direction} is the compass direction toward which the fault plane slopes downward into the subsurface. It is always perpendicular to the strike:
+The \textbf{dip direction} is the compass direction towards which the fault plane slopes downward into the subsurface. It is always perpendicular to the strike:
 \begin{equation}
     \text{Dip Direction} = (\phi_s + 90^\circ) \bmod 360^\circ
     \label{eq:dip-direction}
@@ -47,10 +47,10 @@ Studying subsurface processes at Campi Flegrei, such as fluid movement and fault
 \label{sec:related-tools}
 \label{sec:existing-tools}
 
-A variety of software tools are used in seismology, ranging from general Geographic Information Systems (GIS) to specialized geophysical software. However, existing solutions exhibit trade-offs between domain-specific functionality, interactivity, and ease of use.
+A variety of software tools are used in seismology, ranging from general Geographic Information Systems (GIS) to specialised geophysical software. However, existing solutions exhibit trade-offs between domain-specific functionality, interactivity, and ease of use.
 
 \paragraph{QGIS and ArcGIS.}
-These general-purpose GIS platforms excel at 2D cartography, spatial overlay analysis, and integrating seismic events with surface infrastructure and geological maps. However, their core architecture is designed for 2D raster and vector layers rather than dense, dynamic 3D point clouds. Although 3D views can be rendered natively or via plugins like Qgis2threejs, performance drops significantly when handling tens of thousands of hypocentres. In addition, they lack built-in tools for interactive 4D time-windowed playback and automated structural fault plane fitting.
+\revised{These general-purpose GIS platforms excel at 2D cartography, spatial overlay analysis, and integrating seismic events with surface infrastructure and geological maps. However, their core architecture is designed for 2D raster and vector layers rather than dense, dynamic 3D point clouds. Although 3D views can be rendered natively or via plugins like Qgis2threejs, performance drops significantly when handling tens of thousands of hypocentres. In addition, they lack built-in tools for interactive 4D time-windowed playback and automated structural fault plane fitting.}
 
 \paragraph{GMT and PyGMT.}
 The Generic Mapping Tools (GMT) and its Python interface (PyGMT) represent the standard choice for producing high-resolution static maps, cross-sections, and focal mechanism plots. However, GMT is fundamentally a batch-processing, script-driven tool that generates static image files (such as PostScript or PNG). It does not provide an interactive graphical environment where an analyst can rotate 3D scenes in real time, interactively adjust clustering parameters, or observe dynamic earthquake migrations.
@@ -80,7 +80,7 @@ GPlates is an interactive plate tectonics tool designed for reconstructing geolo
 \toprule
 \textbf{Tool} & \shortstack{\textbf{3D}\\\textbf{View}} & \shortstack{\textbf{4D}\\\textbf{Anim.}} & \textbf{Cluster} & \shortstack{\textbf{Real-}\\\textbf{time}} & \textbf{GUI} & \textbf{Primary Limitations} \\
 \midrule
-QGIS          & Limited    & \texttimes & Plugin     & \texttimes & \checkmark & General GIS, not optimised for dynamic 3D point clouds \\
+QGIS          & Limited    & \texttimes & Plugin     & \texttimes & \checkmark & \revised{General GIS, not optimised for dynamic 3D point clouds} \\
 GMT / PyGMT   & Static     & \texttimes & \texttimes & \texttimes & \texttimes & Static script-based outputs, 3D views are rendered as fixed images, not interactive scenes \\
 ObsPy         & Limited    & \texttimes & External   & \texttimes & \texttimes & Library framework, no interactive desktop GUI \\
 Seisan        & Limited    & \texttimes & \texttimes & \texttimes & Partial    & Legacy observatory suite, steep learning curve \\
@@ -92,7 +92,7 @@ GPlates       & \checkmark & \checkmark & \texttimes & Partial    & \checkmark &
 \end{tabularx}
 \end{table}
 
-Among the tools evaluated in this work, and to the best of our knowledge, none unifies interactive 3D rendering, temporal 4D animation, automated clustering, real-time parameter tuning, and structural fault plane fitting within a single lightweight desktop application. Seismic Viewer was designed specifically to address this gap.
+\revised{Among the tools evaluated in this work, and to the best of our knowledge, none unifies interactive 3D rendering, temporal 4D animation, automated clustering, real-time parameter tuning, and structural fault plane fitting within a single lightweight desktop application.} Seismic Viewer was designed specifically to address this gap.
 
 \section{Machine Learning in Seismology}
 \label{sec:ml-seismology}
@@ -127,7 +127,7 @@ Language & Python 3.10+ & Java, C++ & Rich ecosystem for data science, rapid pro
 Desktop Framework & pywebview \cite{pywebview} & Electron \cite{electron}, Qt & Lightweight memory footprint, native file dialogs, direct Python to JS bridge \\
 HTTP Server & FastAPI \cite{fastapi} & Flask, Django & Native async support, WebSockets, automatic API documentation, high throughput \\
 Rendering & Plotly.js \cite{plotlyjs} & D3.js, Three.js, CesiumJS & High-level 3D API, native WebGL acceleration, built-in interactivity \\
-Clustering & scikit-learn \cite{pedregosa2011sklearn} & Custom, R & Reliable and highly optimized implementations, includes MiniBatchKMeans and DBSCAN\\
+Clustering & scikit-learn \cite{pedregosa2011sklearn} & Custom, R & Reliable and highly optimised implementations, includes MiniBatchKMeans and DBSCAN\\
 Maps & Smopy \cite{smopy} (OSM \cite{openstreetmap}) & Mapbox, Google Maps & Free and open-source, requires no API key, supports offline caching \\
 \bottomrule
 \end{tabularx}

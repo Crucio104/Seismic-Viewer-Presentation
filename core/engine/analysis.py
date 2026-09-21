@@ -259,9 +259,13 @@ def get_animation_planes(data: dict[str, Any], radius_km: float, min_pts: int, w
     tree = KDTree(pts_km[:, :2])
     
     active_grid = []
+    dim_missing = data.get('depth_is_missing')
+    dim_arr = np.asarray(dim_missing, dtype=bool) if dim_missing is not None else None
     for ix, cx in enumerate(grid_x):
         for iy, cy in enumerate(grid_y):
             indices = tree.query_ball_point([cx, cy], radius_km)
+            if dim_arr is not None:
+                indices = [idx_pt for idx_pt in indices if not dim_arr[idx_pt]]
             if len(indices) >= min_pts:
                 sorted_idx = np.sort(np.asarray(indices, dtype=np.int32))
                 active_grid.append((ix, iy, cx, cy, sorted_idx))
@@ -582,10 +586,10 @@ def get_animation_clustering(data: dict[str, Any], method: str, params: dict[str
         'use_cylinders': use_cylinders,
         'f_mag': (f_min_mag, f_max_mag),
         'f_dep': (f_min_dep, f_max_dep),
+        'depth_is_missing': data.get('depth_is_missing'),
         'plane_step': plane_step,
         'origin_lon': origin_lon,
-        'origin_lat': origin_lat,
-        'depth_is_missing': np.array(data['depth_is_missing'], dtype=bool) if ('depth_is_missing' in data and data['depth_is_missing'] is not None) else None
+        'origin_lat': origin_lat
     }
 
     # 5. Execute Clustering with adaptive parallel/sequential execution
@@ -832,10 +836,11 @@ def _process_frame_worker(idx: int, data: dict[str, Any]) -> tuple:
     abs_dep = np.abs(dep[start_idx:end_idx])
     mask = (mags[start_idx:end_idx] >= f_mag[0]) & (mags[start_idx:end_idx] <= f_mag[1]) & \
            (abs_dep >= f_dep[0]) & (abs_dep <= f_dep[1])
-    dim = data.get('depth_is_missing')
-    if dim is not None:
-        mask = mask & (~dim[start_idx:end_idx])
     
+    if data.get('depth_is_missing') is not None:
+        dim = np.asarray(data['depth_is_missing'], dtype=bool)
+        mask = mask & (~dim[start_idx:end_idx])
+
     pts_subset = pts_raw[mask]
     global_indices = np.arange(start_idx, end_idx)[mask]
     

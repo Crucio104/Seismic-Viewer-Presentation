@@ -62,12 +62,12 @@ if method == 'kmeans' and max_dist > 0:
 \section{Automatic Parameter Tuning}
 \label{sec:auto-tuning}
 
-Parameter tuning is executed during \textit{Subcluster Analysis} to estimate parameters for unlocked clusters based on their spatial distribution. The system uses a geometric knee-detection procedure inspired by the Kneedle algorithm \cite{satopaa2011kneedle}, which detects the point of maximum curvature in a sorted distance or inertia curve.
+Parameter tuning is executed during \textit{Subcluster Analysis} to estimate parameters for unlocked clusters based on their spatial distribution. \revised{The system uses a geometric knee-detection procedure inspired by the Kneedle algorithm \cite{satopaa2011kneedle}, which detects the point of maximum curvature in a sorted distance or inertia curve.}
 
 \paragraph{DBSCAN Auto-$\varepsilon$.}
 Density-based clustering depends on two parameters: the search radius $\varepsilon$ and the minimum number of points $k = \text{MinSamples}$. Because these parameters depend on each other, the analytical engine determines both automatically. First, the minimum sample threshold is computed from the dataset size $N$ as $k = \max(3, \lfloor \ln N \rfloor)$, allowing the density requirement to adapt to the data volume. Next, using a nearest neighbour search, the algorithm calculates the distance $d_i^{(k)}$ from each earthquake to its $k$-th closest neighbour. Sorting these distances in ascending order yields the $k$-distance curve, denoted as points $\mathbf{p}_i = (i, d_i^{(k)})$ for $i = 0, \dots, N-1$.
 
-In spatial clustering theory, points belonging to seismic clusters exhibit lower distances, whereas boundary events and noise cause the curve to rise. The search radius $\varepsilon^*$ corresponds to the knee point of this curve, which marks the transition between cluster density and noise. To identify this point, the system constructs a line between the first point $\mathbf{p}_0 = (0, d_0^{(k)})$ and the last point $\mathbf{p}_{N-1} = (N-1, d_{N-1}^{(k)})$, defining the direction vector $\mathbf{v} = \mathbf{p}_{N-1} - \mathbf{p}_0$. The algorithm calculates the distance from each curve point $\mathbf{p}_i$ to the line and selects the index $i^*$ that maximizes this distance:
+In spatial clustering theory, points belonging to seismic clusters exhibit lower distances, whereas boundary events and noise cause the curve to rise. The search radius $\varepsilon^*$ corresponds to the knee point of this curve, which marks the transition between cluster density and noise. To identify this point, the system constructs a line between the first point $\mathbf{p}_0 = (0, d_0^{(k)})$ and the last point $\mathbf{p}_{N-1} = (N-1, d_{N-1}^{(k)})$, defining the direction vector $\mathbf{v} = \mathbf{p}_{N-1} - \mathbf{p}_0$. The algorithm calculates the distance from each curve point $\mathbf{p}_i$ to the line and selects the index $i^*$ that maximises this distance:
 \begin{equation}
     i^* = \arg\max_{0 \le i < N} \left\| (\mathbf{p}_i - \mathbf{p}_0) - \left( \frac{(\mathbf{p}_i - \mathbf{p}_0) \cdot \mathbf{v}}{\|\mathbf{v}\|^2} \right) \mathbf{v} \right\|
     \label{eq:max-curvature}
@@ -108,7 +108,7 @@ The software computes the centroid $(\bar{x}, \bar{y}, \bar{z})$ of all $n$ inli
 \end{equation}
 The decomposition factors $A$ into orthogonal vectors and singular values $\Sigma = \operatorname{diag}(\sigma_1, \sigma_2, \sigma_3)$, where $\sigma_1 \ge \sigma_2 \ge \sigma_3 \ge 0$. The singular vector corresponding to the smallest singular value $\sigma_3$ defines the normal vector $\vec{n}$ of the fitted plane.
 
-Beyond determining the plane orientation, the singular values provide direct insight into the geometric shape of the cluster. In structural geology and point cloud processing, dimensionality metrics are classically defined on the eigenvalues $\lambda_1 \ge \lambda_2 \ge \lambda_3$ of the sample covariance matrix $C = \frac{1}{n-1} A^T A$ \cite{fernandez2005plane}, where planarity is given by $P_\text{cov} = (\lambda_2 - \lambda_3) / \lambda_1$. Because the covariance eigenvalues relate to the SVD singular values through $\lambda_i = \sigma_i^2 / (n-1)$, an equivalent formulation can be expressed using squared singular values. In Seismic Viewer, as a direct and computationally lightweight implementation choice, the analytical engine calculates the planarity score directly from the singular values without forming the covariance matrix or computing squares:
+Beyond determining the plane orientation, the singular values provide direct insight into the geometric shape of the cluster. \revised{In structural geology and point cloud processing, dimensionality metrics are classically defined on the eigenvalues $\lambda_1 \ge \lambda_2 \ge \lambda_3$ of the sample covariance matrix $C = \frac{1}{n-1} A^T A$ \cite{fernandez2005plane}, where planarity is given by $P_\text{cov} = (\lambda_2 - \lambda_3) / \lambda_1$. Because the covariance eigenvalues relate to the SVD singular values through $\lambda_i = \sigma_i^2 / (n-1)$, an equivalent formulation can be expressed using squared singular values. In Seismic Viewer, as a direct and computationally lightweight implementation choice, the analytical engine calculates the planarity score directly from the singular values without forming the covariance matrix or computing squares:}
 \begin{equation}
     P = \frac{\sigma_2 - \sigma_3}{\sigma_1}
     \label{eq:planarity}
@@ -135,7 +135,6 @@ where $\vec{u}$ is the horizontal unit vector oriented along the strike azimuth,
 Computing structural models across temporal sequences requires visual consistency and computational efficiency. This section describes the temporal tracking mechanism, the parallel execution model, and the computational complexity of the analytical engine.
 
 \subsection{Temporal Stability via Global Label Matching}
-\enlargethispage{4\baselineskip}
 
 When running unsupervised clustering algorithms frame by frame during 4D animations, each time step evaluates an independent subset of seismic events. Because unsupervised algorithms assign cluster labels without historical context, the label of a fault structure can change between consecutive frames. In an animation, this causes colour changes, known as colour flickering, which prevents tracking how faults evolve over time.
 
@@ -150,27 +149,33 @@ where $S_c$ is a sample of indices from the cluster (bounded to 200 events), and
 
 Calculating RANSAC inliers and SVD planes across animation frames involves separate mathematical steps for each time window. To prevent these calculations from slowing down the user interface, the backend distributes frame tasks across worker threads using a \texttt{ThreadPoolExecutor}. The coordinate array is stored once in shared memory, allowing worker threads to read coordinates directly without making copies. Furthermore, numerical routines in SciPy and NumPy release the Global Interpreter Lock during LAPACK SVD calls and distance calculations, enabling efficient parallel execution across CPU cores.
 
+\newpage
 \subsection{Asymptotic Complexity Analysis}
 
-\Cref{tab:complexity} summarizes the typical time and space complexity of each algorithm in the pipeline under the operational assumptions of low spatial dimensionality ($d=3$) and balanced tree structures. Under these conditions, spatial neighbour searches in DBSCAN use a KD-Tree index to achieve an expected query complexity of $O(N \log N)$, whereas unindexed searches or degenerate distributions require $O(N^2)$. MiniBatchKMeans scales with mini-batch size $b$, cluster count $K$, spatial dimension $d=3$, and iterations $I$. Plane fitting scales with the number of inliers per cluster, and label matching remains bounded by sampling.
+\revised{\Cref{tab:complexity} summarises the typical time and space complexity of each algorithm in the pipeline under the operational assumptions of low spatial dimensionality ($d=3$) and balanced tree structures. Under these conditions, spatial neighbour searches in DBSCAN use a KD-Tree index to achieve an expected query complexity of $O(N \log N)$, whereas unindexed searches or degenerate distributions require $O(N^2)$. MiniBatchKMeans scales with mini-batch size $b$, cluster count $K$, spatial dimension $d=3$, and iterations $I$. Plane fitting scales with the number of inliers per cluster, and label matching remains bounded by sampling.}
 
 \begin{table}[H]
 \centering
-\caption{Typical asymptotic time and space complexity of the analytical methods under 3D spatial indexing assumptions.}
+\caption{\revised{Typical asymptotic time and space complexity of the analytical methods under 3D spatial indexing assumptions.}}
 \label{tab:complexity}
-\scriptsize
-\setlength{\tabcolsep}{2.5pt}
-\renewcommand{\arraystretch}{0.90}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.35}
 \begin{tabularx}{\textwidth}{@{}l l l >{\raggedright\arraybackslash}X@{}}
 \toprule
 \textbf{Algorithm / Method} & \textbf{Time Complexity} & \textbf{Space Complexity} & \textbf{Parameters \& Notation} \\
 \midrule
-DBSCAN (KD-Tree) & $O(N \log N)$ (expected) & $O(N)$ & $N$ events, $\varepsilon$ radius; worst case $O(N^2)$ without index \\
-MiniBatchKMeans & $O(b \cdot K \cdot d \cdot I)$ & $O(b \cdot K)$ & $b=1024$ batch, $K$ centroids, $d=3$, $I$ iterations \\
+\revised{DBSCAN (KD-Tree)} & \revised{$O(N \log N)$} & $O(N)$ & \revised{$N$ events, $\varepsilon$ radius; worst case $O(N^2)$} \\
+\addlinespace[8pt]
+\revised{MiniBatchKMeans} & \revised{$O(b \cdot K \cdot d \cdot I)$} & $O(b \cdot K)$ & \revised{$b=1024$ batch, $K$ centroids, $d=3$, $I$ iters} \\
+\addlinespace[8pt]
 Cylinder Partitioning & $O(N \log M)$ & $O(M + N)$ & $M$ grid cylinders ($60 \times 50$) \\
-Knee-Detection Auto-Tuning & $O(N \log k + K_\text{max} \cdot b \cdot d)$ & $O(N)$ & Chord distance, $k$-NN ($k = \max(3, \lfloor \ln N \rfloor)$) \\
-RANSAC + SVD Fitting & $O(I_\text{ransac} \cdot N_\text{cluster} + d^3)$ & $O(N_\text{cluster})$ & $I_\text{ransac}=100$, spatial dimension $d=3$ \\
-Global Label Matching & $O(K \cdot \min(N_c, 200))$ & $O(N)$ & Majority voting with bounded sampling \\
+\addlinespace[8pt]
+\revised{Kneedle Auto-Tuning} & \revised{$O(N \log k + K_\text{max} \cdot b \cdot d)$} & $O(N)$ & \revised{Chord distance, $k$-NN ($k \approx \ln N$)} \\
+\addlinespace[8pt]
+RANSAC + SVD Fitting & $O(I_\text{ransac} \cdot N_c + d^3)$ & $O(N_c)$ & \revised{$I_\text{ransac}=100$, $N_c$ inliers, $d=3$} \\
+\addlinespace[8pt]
+Global Label Matching & $O(K \cdot \min(N_c, 200))$ & $O(N)$ & Majority voting, bounded sampling \\
 \bottomrule
 \end{tabularx}
 \end{table}

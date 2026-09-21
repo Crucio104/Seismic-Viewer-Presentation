@@ -110,7 +110,7 @@ As shown in \Cref{fig:3d-multi}, the 3D static workspace presents these data lay
 
 The animated view adds time as a fourth dimension to observe the spatio-temporal evolution of seismic sequences.
 
-The 4D visualisation engine offers four temporal modes to analyse seismic evolution: \textbf{Accumulation} (showing all events up to the current frame), \textbf{Sliding window} (displaying events within a moving time frame), \textbf{Block mode} (rendering discrete, non-overlapping time intervals), and \textbf{Seismic Swarms} (focusing on episodic bursts identified by automated detection according to INGV criteria, supported by timeline navigation and magnitude or depth charts). To ensure smooth playback and avoid memory overload, the system precomputes temporal indices and updates the 3D scene dynamically without reloading the entire figure.
+The 4D visualisation engine offers \revised{three temporal modes to analyse seismic evolution: \textbf{Accumulation} (showing all events up to the current frame), \textbf{Sliding window} (displaying events within a moving time frame), and \textbf{Block mode} (rendering discrete, non-overlapping time intervals).} To ensure smooth playback and avoid memory overload, the system precomputes temporal indices and updates the 3D scene dynamically without reloading the entire figure.
 
 During 4D animations, the camera angle and zoom level must remain stable across updates. By default, Plotly reinitialises the view on coordinate changes. Setting \texttt{uirevision='constant'} in the layout preserves camera position and orientation across frames, allowing continuous interaction during playback.
 
@@ -171,7 +171,7 @@ When users interactively adjust spatial clustering hyperparameters, such as neig
 \subsection{Sub-Clustering}
 \label{sec:sub-clustering}
 
-To analyse hierarchical structures, researchers can perform secondary sub-clustering on specific data subsets. By utilizing the \textbf{locked clusters} feature, users can preserve previously identified and validated groups. The algorithm will then selectively re-analyse and sub-divide all the remaining unlocked clusters simultaneously. The refined results can subsequently be applied back to merge cleanly into the parent view.
+To analyse hierarchical structures, researchers can perform secondary sub-clustering on specific data subsets. By utilising the \textbf{locked clusters} feature, users can preserve previously identified and validated groups. The algorithm will then selectively re-analyse and sub-divide all the remaining unlocked clusters simultaneously. The refined results can subsequently be applied back to merge cleanly into the parent view.
 
 \Cref{fig:cluster-multi} provides an overview of the clustering tools. \Cref{fig:cluster-viz} shows the standard 3D clustering interface. \Cref{fig:anim-clustering-noplanes} displays how clustering evolves over time. To ensure visual consistency, a tracking algorithm guarantees that each cluster maintains the same colour across all animation frames. Finally, \Cref{fig:anim-clustering-planes} and \Cref{fig:anim-clustering-unified} combine the animated clusters with dynamically calculated fault planes and spatial cylinders. This combination allows researchers to observe how geological structures evolve and rotate over time.
 
@@ -236,7 +236,7 @@ Seismic Viewer integrates three auxiliary data layers, processed through the \te
         \label{eq:gaussian-damping}
     \end{equation}
     where $\alpha(\mathbf{x}) = \exp(-(d_\text{min}/\sigma)^2)$ with characteristic decay radius $\sigma = 2.0$~km acts as the blending weight, decreasing smoothly from 1 (near known data) to 0 (far away), matching the station spacing of the volcanic network.
-    \item \textbf{GNSS Ground Deformation (Uplift)}: To visualise ground movement, the system reads historical displacement records and matches them with permanent monitoring stations. To estimate vertical displacement across the entire caldera, the software interpolates values onto a $30 \times 30$ surface grid in metric kilometre coordinates using an IDW weighting exponent of $p=2.5$, modeling the rapid spatial decay characteristic of elastic half-space deformation. The result is displayed on the map either as a coloured 2D surface or as 3D columns rising above the surface.
+    \item \textbf{GNSS Ground Deformation (Uplift)}: To visualise ground movement, the system reads historical displacement records and matches them with permanent monitoring stations. To estimate vertical displacement across the entire caldera, the software interpolates values onto a $30 \times 30$ surface grid in metric kilometre coordinates using an IDW weighting exponent of $p=2.5$, modelling the rapid spatial decay characteristic of elastic half-space deformation. The result is displayed on the map either as a coloured 2D surface or as 3D columns rising above the surface.
     \item \textbf{Monitoring Stations}: Permanent station positions are plotted as labelled markers, aiding spatial evaluation of catalogue completeness thresholds.
 \end{itemize}
 

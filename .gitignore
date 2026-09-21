@@ -22,6 +22,9 @@ resources/.ingv_cache/
 *.out
 *.toc
 *.csv
+*.fdb_latexmk
+*.fls
+*.synctex.gz
 
 .DS_Store
 temp/
