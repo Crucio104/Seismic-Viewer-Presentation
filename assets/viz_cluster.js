@@ -93,22 +93,12 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             }
 
 
-            // Parameter Inputs
-
             const kmParams = document.getElementById('kmeans-params');
             const dbParams = document.getElementById('dbscan-params');
-            const hdbParams = document.getElementById('hdbscan-params');
             const pClusters = document.getElementById('param-clusters');
             const pDist = document.getElementById('param-dist');
             const pEps = document.getElementById('param-eps');
             const pMin = document.getElementById('param-min-samples');
-            const pHdbMinCluster = document.getElementById('param-hdb-min-cluster');
-            const pHdbMinSamples = document.getElementById('param-hdb-min-samples');
-            const pHdbEps = document.getElementById('param-hdb-eps');
-            const pUseTime = document.getElementById('param-use-time');
-            const pTimeWindow = document.getElementById('param-time-window');
-            const spatiotemporalParams = document.getElementById('spatiotemporal-params');
-            const btnAutotuneTime = document.getElementById('btn-autotune-time');
 
             // Initialize params from backend if they exist
             if (quakeData.clustering_params) {
@@ -117,21 +107,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 if (cp.kmeans_max_dist) pDist.value = cp.kmeans_max_dist;
                 if (cp.dbscan_eps) pEps.value = cp.dbscan_eps;
                 if (cp.dbscan_min_samples) pMin.value = cp.dbscan_min_samples;
-                if (cp.hdbscan_min_cluster_size && pHdbMinCluster) pHdbMinCluster.value = cp.hdbscan_min_cluster_size;
-                if (cp.hdbscan_min_samples && pHdbMinSamples) pHdbMinSamples.value = cp.hdbscan_min_samples;
-                if (cp.hdbscan_cluster_selection_epsilon !== undefined && pHdbEps) pHdbEps.value = cp.hdbscan_cluster_selection_epsilon;
-                else if (cp.hdbscan_eps !== undefined && pHdbEps) pHdbEps.value = cp.hdbscan_eps;
-                if (cp.use_time !== undefined && pUseTime) {
-                    pUseTime.checked = Boolean(cp.use_time);
-                    if (spatiotemporalParams) spatiotemporalParams.style.display = pUseTime.checked ? 'block' : 'none';
-                }
-                if (cp.time_window_hours && pTimeWindow) {
-                    pTimeWindow.value = cp.time_window_hours;
-                } else if (cp.time_window && pTimeWindow) {
-                    pTimeWindow.value = cp.time_window;
-                } else if (cp.time_window_days && pTimeWindow) {
-                    pTimeWindow.value = Math.round(cp.time_window_days * 24 * 10) / 10;
-                }
                 
                 // Restore Filters
                 if (cp.mag_min) magMin.value = cp.mag_min;
@@ -146,42 +121,15 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 }
             }
 
-            if (pUseTime && spatiotemporalParams) {
-                pUseTime.onchange = () => {
-                    spatiotemporalParams.style.display = pUseTime.checked ? 'block' : 'none';
-                };
-            }
-
-            if (btnAutotuneTime) {
-                btnAutotuneTime.onclick = async (e) => {
-                    e.preventDefault();
-                    try {
-                        let res = null;
-                        if (window.seismicSocket) {
-                            res = await window.seismicSocket.sendRequest('auto_tune_time_window', {});
-                        } else if (window.pywebview && window.pywebview.api && window.pywebview.api.auto_tune_time_window) {
-                            res = await window.pywebview.api.auto_tune_time_window();
-                        }
-                        if (res) {
-                            const hours = res.time_window_hours || (res.time_window_days ? Math.round(res.time_window_days * 24 * 10) / 10 : 72);
-                            if (pTimeWindow) pTimeWindow.value = hours;
-                            applyCombinedFilters();
-                        }
-                    } catch(err) {
-                        console.warn("Autotune time window error:", err);
-                    }
-                };
-            }
 
 
             function syncParamVisibility() {
                 kmParams.style.display = currentMethod === 'kmeans' ? 'block' : 'none';
                 dbParams.style.display = currentMethod === 'dbscan' ? 'block' : 'none';
-                if (hdbParams) hdbParams.style.display = currentMethod === 'hdbscan' ? 'block' : 'none';
             }
 
             // Set initial method toggle text
-            const methodLabelMap = { 'dbscan': 'DBSCAN', 'hdbscan': 'HDBSCAN', 'kmeans': 'K-Means' };
+            const methodLabelMap = { 'dbscan': 'DBSCAN', 'kmeans': 'K-Means' };
             methodToggle.textContent = (methodLabelMap[currentMethod] || 'DBSCAN') + ' ▾';
             methodMenu.querySelectorAll('.menu-item').forEach(i => {
                 i.classList.toggle('active', i.dataset.val === currentMethod);
@@ -230,14 +178,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     kmeans_max_dist: pDist.value,
                     dbscan_eps: pEps.value,
                     dbscan_min_samples: pMin.value,
-                    hdbscan_min_cluster_size: pHdbMinCluster ? pHdbMinCluster.value : 5,
-                    hdbscan_min_samples: pHdbMinSamples ? pHdbMinSamples.value : 3,
-                    hdbscan_cluster_selection_epsilon: pHdbEps ? pHdbEps.value : 0,
-                    hdbscan_eps: pHdbEps ? pHdbEps.value : 0,
-                    use_time: pUseTime ? pUseTime.checked : false,
-                    time_window_hours: pTimeWindow ? (parseFloat(pTimeWindow.value) || 72.0) : 72.0,
-                    time_window: pTimeWindow ? (parseFloat(pTimeWindow.value) || 72.0) : 72.0,
-                    time_window_days: pTimeWindow ? ((parseFloat(pTimeWindow.value) || 72.0) / 24.0) : 3.0,
                     display_mode: currentDisplayMode,
                     show_cluster_planes: appliedShowPlanes,
                     point_size_mode: currentSizeMode,
@@ -348,14 +288,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                                 // Sync legend and display mode
                                 applyDisplayMode();
                                 updateClusterLegend();
-                                const evCheck = document.getElementById('event-vectors-check');
-                                if (window.SeismicUI) {
-                                    if (evCheck && evCheck.checked) {
-                                        window.SeismicUI.toggleConsecutiveArrows(true);
-                                    } else if (window.SeismicUI._activeConsecutiveArrows) {
-                                        window.SeismicUI.toggleConsecutiveArrows(false);
-                                    }
-                                }
                             } else if (res && res.error) {
                                 console.error("Update Error:", res.error);
                                 if (typeof showStatusToast === 'function') showStatusToast(res.error, false);
@@ -435,12 +367,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 }
             });
 
-            if (pTimeWindow) {
-                pTimeWindow.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') applyCombinedFilters();
-                });
-            }
-
             const uniqueDates = (quakeData.unique_dates && quakeData.unique_dates.length > 0)
                 ? quakeData.unique_dates
                 : ((quakeData.times && Array.isArray(quakeData.times)) ? Array.from(new Set(quakeData.times.map(t => t.slice(0, 10)))).sort() : []);
@@ -481,11 +407,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 kmeansDist: pDist ? pDist.value : '0',
                 dbscanEps: pEps ? pEps.value : '500',
                 dbscanMinSamples: pMin ? pMin.value : '5',
-                hdbMinCluster: pHdbMinCluster ? pHdbMinCluster.value : '5',
-                hdbMinSamples: pHdbMinSamples ? pHdbMinSamples.value : '3',
-                hdbEps: pHdbEps ? pHdbEps.value : '0',
-                useTime: pUseTime ? pUseTime.checked : false,
-                timeWindow: pTimeWindow ? pTimeWindow.value : '72',
                 magMin: magMin ? magMin.value : '',
                 magMax: magMax ? magMax.value : '',
                 depMin: depMin ? depMin.value : '0',
@@ -493,8 +414,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 startDate: startInput ? startInput.value : '',
                 endDate: endInput ? endInput.value : '',
                 showPlanes: document.getElementById('show-planes') ? document.getElementById('show-planes').checked : false,
-                showContextPoints: document.getElementById('show-context-points') ? document.getElementById('show-context-points').checked : true,
-                eventVectors: document.getElementById('event-vectors-check') ? document.getElementById('event-vectors-check').checked : false
+                showContextPoints: document.getElementById('show-context-points') ? document.getElementById('show-context-points').checked : true
             };
 
             const resetBtn = document.getElementById('reset-filters-btn');
@@ -515,15 +435,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     if (pDist) pDist.value = initialClusterDefaults.kmeansDist;
                     if (pEps) pEps.value = initialClusterDefaults.dbscanEps;
                     if (pMin) pMin.value = initialClusterDefaults.dbscanMinSamples;
-                    if (pHdbMinCluster) pHdbMinCluster.value = initialClusterDefaults.hdbMinCluster;
-                    if (pHdbMinSamples) pHdbMinSamples.value = initialClusterDefaults.hdbMinSamples;
-                    if (pHdbEps) pHdbEps.value = initialClusterDefaults.hdbEps;
 
-                    if (pUseTime) {
-                        pUseTime.checked = initialClusterDefaults.useTime;
-                        if (spatiotemporalParams) spatiotemporalParams.style.display = pUseTime.checked ? 'block' : 'none';
-                    }
-                    if (pTimeWindow) pTimeWindow.value = initialClusterDefaults.timeWindow;
 
                     // 3. Restore filters to exact initial bounds of this visualization
                     if (magMin) magMin.value = initialClusterDefaults.magMin;
@@ -538,14 +450,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
                     const showCtxEl = document.getElementById('show-context-points');
                     if (showCtxEl) showCtxEl.checked = initialClusterDefaults.showContextPoints;
-
-                    const evCheck = document.getElementById('event-vectors-check');
-                    if (evCheck) {
-                        evCheck.checked = initialClusterDefaults.eventVectors;
-                        if (window.SeismicUI && typeof window.SeismicUI.toggleConsecutiveArrows === 'function') {
-                            window.SeismicUI.toggleConsecutiveArrows(initialClusterDefaults.eventVectors);
-                        }
-                    }
 
                     if (typeof showStatusToast === 'function') {
                         showStatusToast("Parameters reset to default values", true);
@@ -881,12 +785,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             applyDisplayMode();
             updateClusterLegend();
-
-            const evCheckInit = document.getElementById('event-vectors-check');
-            if (evCheckInit && !evCheckInit._hooked) {
-                evCheckInit._hooked = true;
-                // In cluster 3D view, event vectors are applied only when clicking Apply Changes
-            }
 
             // Finally hide the loader once everything is ready
             hideInitLoader();

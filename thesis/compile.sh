@@ -46,6 +46,15 @@ echo ""
 echo "[4/4] Third pdflatex pass (final)..."
 pdflatex -interaction=nonstopmode -halt-on-error main.tex
 
+# Apply signed title page if source exists
+if [ -f "L31_Curcio_internship.pdf" ] && command -v mutool &> /dev/null; then
+    echo ""
+    echo "[*] Applying signed title page from L31_Curcio_internship.pdf..."
+    mutool merge -o main_signed.pdf L31_Curcio_internship.pdf 1 main.pdf 2-N
+    mv main_signed.pdf main.pdf
+    echo "  [✓] Signed title page applied successfully!"
+fi
+
 echo ""
 echo "═══════════════════════════════════════════════════════"
 echo "  [✓] Compilation complete!"

@@ -8,7 +8,6 @@ import pandas as pd
 from core.config import (
     MIN_MAGNITUDE, MISSING_MAG_VALUE, MISSING_DEPTH_VALUE, CSV_SCHEMA, SECONDS_PER_DAY
 )
-from core.swarm_detector import detect_ingv_swarms
 from core.utils import parse_seismic_date_series, read_json_fast
 
 
@@ -358,9 +357,6 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
     # Pre-calculate visual pack
     visual_pack = precompute_visual_data(df)
 
-    # Detect INGV seismic swarms
-    swarms = detect_ingv_swarms(df)
-
     # Keep dense NumPy float32 arrays to save RAM (avoiding ~8x Python float wrapper overhead)
     latitude = lat_f32
     longitude = lon_f32
@@ -371,7 +367,7 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
 
     date_range = f"{df['time_dt'].iloc[0].strftime('%d-%m-%Y')} → {df['time_dt'].iloc[-1].strftime('%d-%m-%Y')}"
     bbox = (float(df['lat'].min()), float(df['lon'].min()), float(df['lat'].max()), float(df['lon'].max()))
-    logger.info(f"Loaded {len(df)} seismic events (M >= {MIN_MAGNITUDE}) and {len(swarms)} INGV swarms.")
+    logger.info(f"Loaded {len(df)} seismic events (M >= {MIN_MAGNITUDE}).")
 
     result = {
         'latitude': latitude,
@@ -385,13 +381,10 @@ def process_seismic_dataframe(df: pd.DataFrame) -> dict[str, Any]:
         'visual_pack': visual_pack,
         'origin_lat': float(df['lat'].mean()),
         'origin_lon': float(df['lon'].mean()),
-        'swarms': swarms,
-        'swarms_count': len(swarms),
         'summary': {
             'event_count': len(df),
             'date_range': date_range,
             'total_days': visual_pack['total_days'],
-            'swarms_count': len(swarms),
         },
     }
     # Expose lightweight precalculated metadata directly at the root for fast client access

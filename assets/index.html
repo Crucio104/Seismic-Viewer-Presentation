@@ -94,10 +94,6 @@
                         <span class="stat-chip-num" id="chip-events-val">0</span>
                         <span class="stat-chip-lbl">Events</span>
                     </div>
-                    <div class="stat-chip" id="chip-swarms" title="Detected seismic swarms">
-                        <span class="stat-chip-num" id="chip-swarms-val">0</span>
-                        <span class="stat-chip-lbl">Swarms</span>
-                    </div>
                     <div class="stat-chip" id="chip-days" title="Temporal catalog span">
                         <span class="stat-chip-num" id="chip-days-val">0</span>
                         <span class="stat-chip-lbl">Days</span>
@@ -173,7 +169,7 @@
                     </svg>
                 </div>
                 <h2>Cluster Analysis</h2>
-                <p>Identify seismic zones with DBSCAN, HDBSCAN, and K-Means spatial clustering.</p>
+                <p>Identify seismic zones with DBSCAN and K-Means spatial clustering.</p>
             </div>
         </div>
 
@@ -215,10 +211,6 @@
                 <span class="shortcut-key">4</span>
             </div>
             <div class="shortcut-row">
-                <span>Consecutive Event Vectors</span>
-                <span class="shortcut-key">V</span>
-            </div>
-            <div class="shortcut-row">
                 <span>Close Popup / Modal</span>
                 <span class="shortcut-key">Esc</span>
             </div>
@@ -254,11 +246,6 @@
                 <label class="radio-label">
                     <input type="radio" name="anim_mode" value="block" onchange="toggleWindowInput()">
                     <span>Blocks</span>
-                </label>
-                <label class="radio-label" id="swarm-radio-label">
-                    <input type="radio" name="anim_mode" value="swarm" id="anim-mode-swarm" onchange="toggleWindowInput()">
-                    <span>Seismic Swarms</span>
-                    <span id="swarm-badge" style="font-size:0.7rem; font-weight:600; padding:0.15rem 0.5rem; border-radius:1rem; margin-left:auto; background:rgba(5,150,105,0.25); color:#a7f3d0; border:1px solid rgba(16,185,129,0.4);">Checking...</span>
                 </label>
             </div>
             

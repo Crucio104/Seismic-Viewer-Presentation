@@ -239,7 +239,6 @@ class Api:
                 'event_count': data['summary']['event_count'],
                 'date_range': data['summary']['date_range'],
                 'total_days': data['summary'].get('total_days', 365),
-                'swarms_count': data['summary'].get('swarms_count', 0),
             }
             save_recent_file(csv_path)
             return self._csv_info
@@ -263,7 +262,6 @@ class Api:
                 'event_count': data['summary']['event_count'],
                 'date_range': data['summary']['date_range'],
                 'total_days': data['summary'].get('total_days', 365),
-                'swarms_count': data['summary'].get('swarms_count', 0),
             }
             save_recent_file(path)
             return self._csv_info
@@ -644,17 +642,6 @@ class Api:
         except Exception as e:
             logger.error("Cluster update failed", exc_info=True)
             return {'error': str(e)}
-
-    def auto_tune_time_window(self) -> dict[str, Any]:
-        """Auto-tune spatio-temporal correlation time window based on current catalog."""
-        if not self._data:
-            return {'time_window_hours': 72.0, 'time_window_days': 3.0}
-        dnums = self._data.get('dates_num', self._data.get('dnum'))
-        if dnums is not None and len(dnums) > 0:
-            dummy = {}
-            val_hours = engine.auto_tune_time_window(dnums, dummy)
-            return {'time_window_hours': val_hours, 'time_window_days': dummy.get('time_window_days', round(val_hours / 24.0, 2))}
-        return {'time_window_hours': 72.0, 'time_window_days': 3.0}
 
     def get_structural_planes(self, radius_km: float = 2.0, min_pts: int = 10, window_days: int = 30, anim_mode: str = 'accumulation', step_days: int = 7) -> dict[str, Any]:
         if not self._data:

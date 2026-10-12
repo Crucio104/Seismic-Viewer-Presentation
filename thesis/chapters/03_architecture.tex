@@ -155,12 +155,12 @@ To manage data processing and rendering, Seismic Viewer divides operations betwe
 
 \begin{figure}[htbp]
 \centering
-\begin{tikzpicture}[node distance=1.15cm, auto, scale=0.75, transform shape]
+\begin{tikzpicture}[node distance=1.26cm, auto, scale=0.75, transform shape]
     \node (input) [io] {CSV / INGV API};
     \node (loader) [process, below of=input] {Loader \& Sanitisation};
     \node (precomp) [process, below of=loader] {Visual Pre-computation};
     \node (decision) [decision, below of=precomp, yshift=-0.15cm] {View Style?};
-    \node (engine) [process, below of=decision, yshift=-0.3cm] {Engine (Viz/Analysis)};
+    \node (engine) [process, below of=decision, yshift=-0.35cm] {Engine (Viz/Analysis)};
     \node (template) [process, below of=engine] {HTML Template Assembly};
     \node (store) [io, below of=template] {Session Store + HTML Store};
     \node (render) [startstop, below of=store] {WebGL Rendering};

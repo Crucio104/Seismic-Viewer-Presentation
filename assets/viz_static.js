@@ -13,8 +13,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             const depMin = document.getElementById('dep-min');
             const depMax = document.getElementById('dep-max');
             const invertCheck = document.getElementById('invert-scale');
-            const eventVectorsCheck = document.getElementById('event-vectors-check');
-            const eventVectorsGroup = document.getElementById('event-vectors-group');
             
             const colorToggle = document.getElementById('color-toggle');
             const colorMenu = document.getElementById('color-menu');
@@ -126,22 +124,11 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 magMin: magMin ? magMin.value : '',
                 magMax: magMax ? magMax.value : '',
                 depMin: depMin ? depMin.value : '',
-                depMax: depMax ? depMax.value : '',
-                eventVectors: eventVectorsCheck ? eventVectorsCheck.checked : false
+                depMax: depMax ? depMax.value : ''
             };
 
             const is3D = (gd.layout.scene !== undefined);
             if (!is3D && gd.data.length > 1) viewModeGroup.style.display = 'block';
-            if (!is3D && eventVectorsGroup) {
-                eventVectorsGroup.style.display = 'none';
-                if (eventVectorsCheck) {
-                    eventVectorsCheck.checked = false;
-                    eventVectorsCheck.disabled = true;
-                }
-            } else if (is3D && eventVectorsCheck && !eventVectorsCheck._hooked) {
-                eventVectorsCheck._hooked = true;
-                // In 3D views, event vectors are applied only when clicking Apply Filters
-            }
 
             if (!is3D) {
                 // Store initial view after a small delay to ensure Plotly has initialized map / mapbox
@@ -369,13 +356,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     if (magMax) magMax.value = initialStaticDefaults.magMax;
                     if (depMin) depMin.value = initialStaticDefaults.depMin;
                     if (depMax) depMax.value = initialStaticDefaults.depMax;
-
-                    if (eventVectorsCheck) {
-                        eventVectorsCheck.checked = initialStaticDefaults.eventVectors;
-                        if (window.SeismicUI && typeof window.SeismicUI.toggleConsecutiveArrows === 'function') {
-                            window.SeismicUI.toggleConsecutiveArrows(initialStaticDefaults.eventVectors);
-                        }
-                    }
 
                     if (typeof showStatusToast === 'function') {
                         showStatusToast("Filters reset to default values", true);
@@ -673,20 +653,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     limits,
                     { startDate: quakeData.start_date }
                 );
-
-                if (is3D && eventVectorsCheck) {
-                    if (eventVectorsCheck.checked) {
-                        if (window.SeismicUI && typeof window.SeismicUI.toggleConsecutiveArrows === 'function') {
-                            window.SeismicUI.toggleConsecutiveArrows(true);
-                        }
-                    } else {
-                        if (window.SeismicUI && typeof window.SeismicUI.toggleConsecutiveArrows === 'function') {
-                            if (window.SeismicUI._activeConsecutiveArrows) {
-                                window.SeismicUI.toggleConsecutiveArrows(false);
-                            }
-                        }
-                    }
-                }
             }
 
             // Finally hide the loader once everything is ready

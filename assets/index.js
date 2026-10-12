@@ -169,74 +169,19 @@
             }
         }
 
-        if (swarmsCount !== undefined && swarmsCount !== null) {
-            window.currentDatasetSwarmsCount = swarmsCount;
-            localStorage.setItem('hub_swarms_count', swarmsCount);
-            updateSwarmOptionState(swarmsCount);
-            animateCounter(document.getElementById('chip-swarms-val'), swarmsCount);
-        } else {
-            const cachedSwarms = localStorage.getItem('hub_swarms_count');
-            if (cachedSwarms) {
-                const s = parseInt(cachedSwarms, 10);
-                updateSwarmOptionState(s);
-                animateCounter(document.getElementById('chip-swarms-val'), s);
-            }
-        }
-
         document.getElementById('view-picker').classList.remove('active');
         document.getElementById('view-hub').classList.add('active');
-    }
-
-    function updateSwarmOptionState(count) {
-        const swarmRadio = document.getElementById('anim-mode-swarm');
-        const swarmLabel = document.getElementById('swarm-radio-label');
-        const swarmBadge = document.getElementById('swarm-badge');
-        if (!swarmRadio || !swarmLabel || !swarmBadge) return;
-
-        const num = typeof count === 'number' ? count : (window.currentDatasetSwarmsCount ?? 0);
-        window.currentDatasetSwarmsCount = num;
-
-        if (num > 0) {
-            swarmRadio.disabled = false;
-            swarmLabel.style.opacity = '1';
-            swarmLabel.style.pointerEvents = 'auto';
-            swarmLabel.style.cursor = 'pointer';
-            swarmBadge.textContent = `${num} swarms`;
-            swarmBadge.style.background = 'rgba(5,150,105,0.25)';
-            swarmBadge.style.color = '#a7f3d0';
-            swarmBadge.style.borderColor = 'rgba(16,185,129,0.4)';
-            swarmLabel.title = `${num} seismic swarms detected in dataset`;
-        } else {
-            swarmRadio.disabled = true;
-            if (swarmRadio.checked) {
-                const accRadio = document.querySelector('input[name="anim_mode"][value="accumulation"]');
-                if (accRadio) {
-                    accRadio.checked = true;
-                    toggleWindowInput();
-                }
-            }
-            swarmLabel.style.opacity = '0.45';
-            swarmLabel.style.pointerEvents = 'none';
-            swarmLabel.style.cursor = 'not-allowed';
-            swarmBadge.textContent = 'None detected';
-            swarmBadge.style.background = 'rgba(239,68,68,0.15)';
-            swarmBadge.style.color = '#fca5a5';
-            swarmBadge.style.borderColor = 'rgba(239,68,68,0.3)';
-            swarmLabel.title = 'No seismic swarms found in this dataset';
-        }
     }
 
     // Instant Restoration from localStorage
     (function() {
         const cachedBadge = localStorage.getItem('hub_badge');
         const cachedDays = localStorage.getItem('hub_total_days');
-        const cachedSwarms = localStorage.getItem('hub_swarms_count');
         const cachedEvents = localStorage.getItem('hub_event_count');
         if (cachedDays) window.currentDatasetTotalDays = parseInt(cachedDays, 10);
-        if (cachedSwarms) window.currentDatasetSwarmsCount = parseInt(cachedSwarms, 10);
         if (cachedEvents) window.currentDatasetEventCount = parseInt(cachedEvents, 10);
         if (cachedBadge) {
-            showHub(cachedBadge, window.currentDatasetTotalDays, window.currentDatasetSwarmsCount, window.currentDatasetEventCount);
+            showHub(cachedBadge, window.currentDatasetTotalDays, null, window.currentDatasetEventCount);
         } else {
             document.getElementById('view-picker').classList.add('active');
         }
@@ -397,7 +342,6 @@
         pywebview.api.change_file().then(() => {
             localStorage.removeItem('hub_badge');
             localStorage.removeItem('hub_total_days');
-            localStorage.removeItem('hub_swarms_count');
             localStorage.removeItem('hub_event_count');
             showFilePicker();
             refreshRecentFiles();
@@ -478,7 +422,6 @@
     let loading = false;
 
     function openAnimModal() { 
-        updateSwarmOptionState(window.currentDatasetSwarmsCount);
         toggleWindowInput();
         document.getElementById('anim-modal').classList.add('show'); 
     }
@@ -569,7 +512,7 @@
         const winGroup = document.getElementById('window_input_group');
         const stepGroup = document.getElementById('step_input_group');
         const label = document.getElementById('duration_label');
-        if (mode === 'accumulation' || mode === 'swarm') {
+        if (mode === 'accumulation') {
             winGroup.style.display = 'none';
             stepGroup.style.display = 'none';
         } else if (mode === 'window') {
@@ -636,11 +579,7 @@
         const overlay = document.getElementById('overlay');
         const overlayMsg = document.getElementById('overlay-msg');
         if (overlayMsg) {
-            if (style === 2 && anim_mode === 'swarm') {
-                overlayMsg.textContent = 'Rendering INGV Swarm Animation...';
-            } else {
-                overlayMsg.textContent = VIEW_LABELS[style] || 'Loading...';
-            }
+            overlayMsg.textContent = VIEW_LABELS[style] || 'Loading...';
         }
         if (overlay) overlay.classList.add('show');
 

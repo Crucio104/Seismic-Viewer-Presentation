@@ -12,17 +12,6 @@
         </svg>
         <span>Hub</span>
     </button>
-    <div id="swarm-nav" class="glass-panel" style="display:none; align-items:center; gap:0.35rem; padding:0.3rem 0.55rem; border-radius:0.75rem;">
-        <button id="swarm-prev-btn" class="btn-circle-nav" title="Previous Swarm (←)" style="width:1.8rem; height:1.8rem; font-size:0.85rem;">❮</button>
-        <div id="swarm-indicator" style="display:flex; flex-direction:column; align-items:center; padding:0 0.4rem; min-width:6.8rem; user-select:none;">
-            <span id="swarm-title" style="font-size:0.75rem; font-weight:700; color:#fff; white-space:nowrap; letter-spacing:0.02em;">Swarm 1 / 1</span>
-            <span id="swarm-subtitle" style="font-size:0.65rem; color:#94a3b8; white-space:nowrap;">0 events</span>
-        </div>
-        <button id="swarm-next-btn" class="btn-circle-nav" title="Next Swarm (→)" style="width:1.8rem; height:1.8rem; font-size:0.85rem;">❯</button>
-        <button id="swarm-chart-nav-btn" class="btn-circle-nav" title="Export Swarm Magnitude vs. Time Chart (.PNG)" onclick="SeismicUI.openSwarmChartDialog()" style="width:1.8rem; height:1.8rem; font-size:0.85rem; margin-left:0.15rem; display:flex; align-items:center; justify-content:center;">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-        </button>
-    </div>
     <div id="history-controls" class="glass-panel" style="display:none; align-items:center; padding: 0.3rem 0.45rem; border-radius:0.75rem; flex-direction:row; gap:0.35rem;">
         <button id="history-back-btn" class="btn-circle-nav" onclick="historyGoBack()" title="Undo (Go Back)">↺</button>
         <button id="history-forward-btn" class="btn-circle-nav" onclick="historyGoForward()" title="Redo (Go Forward)">↻</button>
@@ -160,7 +149,7 @@
         <line x1="12" y1="8" x2="12.01" y2="8"/>
     </svg>
 </button>
-<button id="overlay-btn" class="hidden-initially" onclick="SeismicUI._overlayActive ? SeismicUI.restoreOriginalMap() : SeismicUI.toggleLayerModal(event)" title="Manage Layers">
+<button id="overlay-btn" class="hidden-initially" onclick="SeismicUI.toggleLayerModal(event)" title="Manage Layers">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:0.95rem;height:0.95rem;">
         <polygon points="12 2 2 7 12 12 22 7 12 2"/>
         <polyline points="2 17 12 22 22 17"/>
@@ -173,16 +162,11 @@
             <circle cx="12" cy="13" r="4"/>
         </svg>
     </button>
-    <label for="overlay-input" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Upload Image Overlay</label>
-    <input type="file" id="overlay-input" accept="image/*" style="display:none" onchange="SeismicUI.handleOverlayUpload(this)">
     <div id="layer-modal" onclick="event.stopPropagation()">
         <div class="label" style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.4rem; font-size: 0.7rem; font-weight: 700; color: #fff;">
             External Layers Management
         </div>
         <div class="layer-buttons-row">
-            <button class="layer-btn" id="btn-layer-map" onclick="SeismicUI.selectLayer('map')" title="Select Map Image">
-                Map
-            </button>
             <button class="layer-btn" id="btn-layer-stations" onclick="SeismicUI.selectLayer('stations')" title="Select Stations CSV">
                 Stations CSV
             </button>
@@ -194,7 +178,6 @@
             </button>
         </div>
         <div class="layer-status-row" id="layer-status-container">
-            <div class="layer-status-item"><span>Map:</span><strong id="status-layer-map" style="color: #94a3b8;">Not selected</strong></div>
             <div class="layer-status-item"><span>Stations:</span><strong id="status-layer-stations" style="color: #94a3b8;">Not selected</strong></div>
             <div class="layer-status-item"><span>GNSS Uplift:</span><strong id="status-layer-uplift" style="color: #94a3b8;">Not selected</strong></div>
             <div class="layer-status-item"><span>Tomography:</span><strong id="status-layer-tomo" style="color: #94a3b8;">Not selected</strong></div>
@@ -232,40 +215,6 @@
         <button class="layer-apply-btn" id="btn-export-clusters" onclick="SeismicUI.exportClustersCSV()" style="margin-top: 0.25rem;">
             Export Clusters
         </button>
-        <button class="layer-apply-btn" id="btn-export-swarm-chart" onclick="SeismicUI.openSwarmChartDialog()" style="display: none; margin-top: 0.25rem;">
-            Export Swarm Chart (.PNG)
-        </button>
-    </div>
-    <!-- Swarm Chart Modal Dialog -->
-    <div id="swarm-chart-dialog" onclick="if (event.target === this) SeismicUI.closeSwarmChartDialog();">
-        <div class="swarm-chart-modal" onclick="event.stopPropagation()">
-            <div class="swarm-chart-header">
-                <div>
-                    <span id="swarm-chart-dialog-title" style="font-size: 0.95rem; font-weight: 700; color: #fff;">Swarm Magnitude vs. Time</span>
-                    <div id="swarm-chart-dialog-sub" style="font-size: 0.72rem; color: rgba(255,255,255,0.6); margin-top: 0.15rem;">Current swarm earthquake distribution</div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 0.6rem;">
-                    <div id="modal-swarm-nav" style="display: none; align-items: center; gap: 0.35rem; background: rgba(255,255,255,0.06); padding: 0.2rem 0.45rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.1);">
-                        <button type="button" class="btn-circle-nav" onclick="SeismicUI.navigateSwarmChart(-1)" title="Previous Swarm" style="width:1.6rem; height:1.6rem; font-size:0.75rem;">❮</button>
-                        <span id="modal-swarm-counter" style="font-size: 0.72rem; color: #cbd5e1; min-width: 4.5rem; text-align: center; user-select: none;">Swarm 1 / 1</span>
-                        <button type="button" class="btn-circle-nav" onclick="SeismicUI.navigateSwarmChart(1)" title="Next Swarm" style="width:1.6rem; height:1.6rem; font-size:0.75rem;">❯</button>
-                    </div>
-                    <button type="button" onclick="SeismicUI.closeSwarmChartDialog()" style="background: transparent; border: none; color: rgba(255,255,255,0.6); font-size: 1.25rem; cursor: pointer; padding: 0.25rem 0.5rem; border-radius: 0.35rem; line-height: 1; transition: color 0.15s ease;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">✕</button>
-                </div>
-            </div>
-            <div class="swarm-chart-body">
-                <img id="swarm-chart-preview-img" class="swarm-chart-img" alt="Swarm Magnitude vs Time Chart Preview">
-            </div>
-            <div class="swarm-chart-footer">
-                <button type="button" class="btn-dialog-secondary" onclick="SeismicUI.closeSwarmChartDialog()">
-                    Cancel
-                </button>
-                <button type="button" class="btn-dialog-primary" onclick="SeismicUI.downloadSwarmChart()">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                    Download
-                </button>
-            </div>
-        </div>
     </div>
     <!-- Screenshot Modal Dialog -->
     <div id="screenshot-preview-dialog" onclick="if (event.target === this) SeismicUI.closeScreenshotPreview();">
@@ -369,10 +318,6 @@
             <span>Auto-rotation (Cinema Mode)</span>
             <span class="shortcut-key">C</span>
         </div>
-        <div class="shortcut-row" id="shortcut-row-vectors">
-            <span>Consecutive Event Vectors</span>
-            <span class="shortcut-key">V</span>
-        </div>
         <div class="shortcut-row" id="shortcut-row-panel">
             <span>Toggle Controls Drawer</span>
             <span class="shortcut-key">F</span>
@@ -418,6 +363,5 @@
 <script src="/assets/viz_socket.js"></script>
 <script src="/assets/viz_common.js"></script>
 <script src="/assets/viz_layers.js"></script>
-<script src="/assets/viz_swarms.js"></script>
 
 

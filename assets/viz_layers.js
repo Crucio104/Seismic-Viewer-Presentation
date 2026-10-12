@@ -9,9 +9,6 @@
         _pendingStationsPath: null,
         _pendingUpliftPath: null,
         _pendingTomoPath: null,
-        _pendingMapFile: null,
-        _originalMapData: null,
-        _overlayActive: false,
 
         toggleLayerModal(e) {
             if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
@@ -33,10 +30,7 @@
         },
 
         selectLayer(layerType) {
-            if (layerType === 'map') {
-                const inp = document.getElementById('overlay-input');
-                if (inp) inp.click();
-            } else if (layerType === 'stations' || layerType === 'uplift' || layerType === 'tomography') {
+            if (layerType === 'stations' || layerType === 'uplift' || layerType === 'tomography') {
                 const api = typeof getBridgeApi === 'function' ? getBridgeApi() : (window.getBridgeApi ? window.getBridgeApi() : null);
                 if (!api || !api.select_layer_file) {
                     if (typeof showStatusToast === 'function') showStatusToast('Bridge API not available', false);
@@ -144,10 +138,6 @@
             const gd = document.querySelector('.plotly-graph-div');
             if (!gd) return;
 
-            // 1. Apply map file if present
-            if (this._pendingMapFile) {
-                this._applyMapFile(this._pendingMapFile);
-            }
 
             const upliftPath = this._pendingUpliftPath || (window.SeismicLayers && window.SeismicLayers._pendingUpliftPath) || (window.SeismicUI && window.SeismicUI._pendingUpliftPath) || "";
             const tomoPath = this._pendingTomoPath || (window.SeismicLayers && window.SeismicLayers._pendingTomoPath) || (window.SeismicUI && window.SeismicUI._pendingTomoPath) || "";
@@ -1545,7 +1535,6 @@
             if (!this._layerScales) {
                 this._layerScales = {
                     earthquakes: 'Viridis',
-                    vectors: 'Vectors',
                     tomo: 'Tomography',
                     uplift: 'Uplift'
                 };
@@ -1558,7 +1547,7 @@
             } else {
                 if (bodyWrapper) bodyWrapper.style.display = 'flex';
                 if (scaleWrapper) scaleWrapper.style.display = 'flex';
-                const activeScale = this._layerScales[nextMode] || (nextMode === 'vectors' ? 'Vectors' : (nextMode === 'tomo' ? 'Tomography' : (nextMode === 'uplift' ? 'Uplift' : 'Viridis')));
+                const activeScale = this._layerScales[nextMode] || (nextMode === 'tomo' ? 'Tomography' : (nextMode === 'uplift' ? 'Uplift' : 'Viridis'));
                 if (scaleToggle) scaleToggle.title = 'Color scale: ' + activeScale;
                 const swatch = document.getElementById('legend-scale-swatch');
                 if (swatch) {
@@ -1575,7 +1564,7 @@
             }
 
             if (!this._layerInverts) {
-                this._layerInverts = { earthquakes: false, vectors: false, tomo: false, uplift: false };
+                this._layerInverts = { earthquakes: false, tomo: false, uplift: false };
             }
             const currentLayerInvert = !!this._layerInverts[nextMode];
             const invertCheck = document.getElementById('invert-scale');
@@ -1598,22 +1587,6 @@
                     const s = window._earthquakeLegendState;
                     updateLegendFn(s.show, s.title, sc, currentLayerInvert, s.limits, s.dateInfo);
                 }
-            } else if (nextMode === 'vectors') {
-                if (container) container.style.display = 'flex';
-                if (clusterList) clusterList.style.display = 'none';
-                if (scaleWrapper) scaleWrapper.style.display = 'flex';
-                if (legend) legend.style.paddingBottom = '2.6rem';
-                const sc = this._layerScales.vectors || 'Vectors';
-                let maxV = (window.SeismicUI && window.SeismicUI._consecutiveVectorCount) || this._consecutiveVectorCount;
-                if (!maxV || maxV <= 1) {
-                    const gd = document.querySelector('.plotly-graph-div');
-                    if (gd && gd.data) {
-                        const vTr = gd.data.find(tr => tr && tr.name === 'Consecutive Event Vectors');
-                        if (vTr && vTr.line && vTr.line.cmax) maxV = vTr.line.cmax;
-                    }
-                }
-                if (!maxV || maxV <= 1) maxV = 100;
-                updateLegendFn(true, 'VECTOR N°', sc, currentLayerInvert, [1, maxV], null);
             } else if (nextMode === 'clusters') {
                 if (container) container.style.display = 'none';
                 if (clusterList) clusterList.style.display = 'flex';
@@ -1663,211 +1636,6 @@
             }
         },
 
-        handleOverlayUpload(input) {
-            try {
-                if (!input.files || !input.files[0]) return;
-                const file = input.files[0];
-                this._pendingMapFile = file;
-                const statusEl = document.getElementById('status-layer-map');
-                if (statusEl) {
-                    statusEl.textContent = file.name;
-                    statusEl.style.color = '#10b981';
-                }
-                const btn = document.getElementById('btn-layer-map');
-                if (btn) btn.classList.add('selected');
-                input.value = '';
-                if (typeof showStatusToast === 'function') showStatusToast(`Map file selected: ${file.name}`, true);
-                return;
-            } catch (err) {
-                console.error('[Overlay] Top-level error:', err);
-                if (typeof showStatusToast === 'function') showStatusToast('Error: ' + err.message, false);
-                const loader = document.getElementById('loader');
-                if (loader) loader.classList.remove('show');
-            }
-        },
-
-        _applyMapFile(file) {
-            try {
-                const btn = document.getElementById('overlay-btn');
-                const loader = document.getElementById('loader');
-
-                const gd = document.querySelector('.plotly-graph-div');
-                if (!gd || !gd.data || !gd.data[0]) {
-                    if (typeof showStatusToast === 'function') showStatusToast('No 3D scene found', false);
-                    return;
-                }
-
-                const traceData = gd._fullData ? gd._fullData[0] : gd.data[0];
-
-                const gridCols = traceData.x ? traceData.x.length : 0;
-                const gridRows = traceData.y ? traceData.y.length : 0;
-
-                if (!gridRows || !gridCols) {
-                    if (typeof showStatusToast === 'function') showStatusToast('Cannot detect surface dimensions', false);
-                    console.error('[Overlay] No x/y dimensions found');
-                    return;
-                }
-
-                if (!this._originalMapData && traceData.surfacecolor) {
-                    try {
-                        this._originalMapData = {
-                            surfacecolor: JSON.parse(JSON.stringify(traceData.surfacecolor)),
-                            colorscale: JSON.parse(JSON.stringify(traceData.colorscale)),
-                            cmin: traceData.cmin,
-                            cmax: traceData.cmax
-                        };
-                    } catch (e) {
-                        console.error('[Overlay] Failed to save original:', e);
-                    }
-                }
-
-                const loaderText = loader ? loader.querySelector('.loader-text') : null;
-                if (loaderText) loaderText.textContent = 'Applying image overlay…';
-                if (loader) loader.classList.add('show');
-
-                const self = this;
-
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const img = new Image();
-                    img.onload = function() {
-                        setTimeout(function() {
-                            try {
-                                const canvas = document.createElement('canvas');
-                                canvas.width = gridCols;
-                                canvas.height = gridRows;
-                                const ctx = canvas.getContext('2d');
-                                ctx.drawImage(img, 0, 0, gridCols, gridRows);
-
-                                const imageData = ctx.getImageData(0, 0, gridCols, gridRows);
-                                const pixels = imageData.data;
-
-                                const matrix = [];
-                                const colorCounts = new Map();
-                                
-                                for (let i = 0; i < pixels.length; i += 4) {
-                                    if (pixels[i+3] < 128) continue;
-                                    const qr = pixels[i] >> 3;
-                                    const qg = pixels[i+1] >> 3;
-                                    const qb = pixels[i+2] >> 3;
-                                    const key = (qr << 10) | (qg << 5) | qb;
-                                    colorCounts.set(key, (colorCounts.get(key) || 0) + 1);
-                                }
-
-                                const sortedColors = Array.from(colorCounts.entries())
-                                    .sort((a, b) => b[1] - a[1])
-                                    .slice(0, 256);
-                                
-                                const palette = sortedColors.map(([key]) => [
-                                    (key >> 10) << 3,
-                                    ((key >> 5) & 31) << 3,
-                                    (key & 31) << 3
-                                ]);
-                                
-                                if (palette.length < 2) palette.push([0,0,0], [255,255,255]);
-
-                                const maxIdx = palette.length - 1;
-                                const colorscale = palette.map((c, i) => [
-                                    i / maxIdx, 
-                                    `rgb(${c[0]},${c[1]},${c[2]})`
-                                ]);
-
-                                for (let row = 0; row < gridRows; row++) {
-                                    const matRow = [];
-                                    for (let col = 0; col < gridCols; col++) {
-                                        const idx = (row * gridCols + col) * 4;
-                                        const r = pixels[idx];
-                                        const g = pixels[idx + 1];
-                                        const b = pixels[idx + 2];
-                                        
-                                        let bestIdx = 0;
-                                        let minDist = Infinity;
-                                        for (let i = 0; i < palette.length; i++) {
-                                            const d = Math.pow(r - palette[i][0], 2) + 
-                                                      Math.pow(g - palette[i][1], 2) + 
-                                                      Math.pow(b - palette[i][2], 2);
-                                            if (d < minDist) {
-                                                minDist = d;
-                                                bestIdx = i;
-                                            }
-                                        }
-                                        matRow.push(bestIdx);
-                                    }
-                                    matrix.push(matRow);
-                                }
-
-                                Plotly.restyle(gd, {
-                                    surfacecolor: [matrix],
-                                    colorscale: [colorscale],
-                                    cmin: [0],
-                                    cmax: [maxIdx]
-                                }, [0]).then(function() {
-                                    if (btn) btn.classList.add('active');
-                                    self._overlayActive = true;
-                                    if (loader) loader.classList.remove('show');
-                                    if (typeof showStatusToast === 'function') showStatusToast('Map overlay applied successfully!', true);
-                                }).catch(function(err) {
-                                    console.error('[Overlay] Restyle failed:', err);
-                                    if (loader) loader.classList.remove('show');
-                                    if (typeof showStatusToast === 'function') showStatusToast('Failed to apply overlay', false);
-                                });
-                            } catch (err) {
-                                console.error('[Overlay] Processing error:', err);
-                                if (loader) loader.classList.remove('show');
-                                if (typeof showStatusToast === 'function') showStatusToast('Error: ' + err.message, false);
-                            }
-                        }, 150);
-                    };
-                    img.onerror = function() {
-                        if (loader) loader.classList.remove('show');
-                        if (typeof showStatusToast === 'function') showStatusToast('Failed to load image', false);
-                    };
-                    img.src = e.target.result;
-                };
-                reader.onerror = function() {
-                    if (loader) loader.classList.remove('show');
-                    if (typeof showStatusToast === 'function') showStatusToast('Failed to read file', false);
-                };
-                reader.readAsDataURL(file);
-                const inp = document.getElementById('overlay-input');
-                if (inp) inp.value = '';
-            } catch (err) {
-                console.error('[Overlay] Top-level error:', err);
-                if (typeof showStatusToast === 'function') showStatusToast('Error: ' + err.message, false);
-                const loader = document.getElementById('loader');
-                if (loader) loader.classList.remove('show');
-            }
-        },
-
-        restoreOriginalMap() {
-            if (!this._originalMapData) return;
-            const gd = document.querySelector('.plotly-graph-div');
-            if (!gd) return;
-
-            const loader = document.getElementById('loader');
-            const loaderText = loader ? loader.querySelector('.loader-text') : null;
-            if (loaderText) loaderText.textContent = 'Restoring original map…';
-            if (loader) loader.classList.add('show');
-
-            const self = this;
-            setTimeout(function() {
-                Plotly.restyle(gd, {
-                    surfacecolor: [self._originalMapData.surfacecolor],
-                    colorscale: [self._originalMapData.colorscale],
-                    cmin: [self._originalMapData.cmin !== undefined ? self._originalMapData.cmin : null],
-                    cmax: [self._originalMapData.cmax !== undefined ? self._originalMapData.cmax : null]
-                }, [0]).then(function() {
-                    const btn = document.getElementById('overlay-btn');
-                    if (btn) btn.classList.remove('active');
-                    self._overlayActive = false;
-                    if (loader) loader.classList.remove('show');
-                    if (typeof showStatusToast === 'function') showStatusToast('Original map restored successfully!', true);
-                }).catch(function() {
-                    if (loader) loader.classList.remove('show');
-                    if (typeof showStatusToast === 'function') showStatusToast('Failed to restore map', false);
-                });
-            }, 100);
-        }
     };
 
     window.SeismicLayers = SeismicLayers;

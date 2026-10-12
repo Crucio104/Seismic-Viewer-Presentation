@@ -109,7 +109,7 @@ async def handle_websocket_messages(websocket: WebSocket, manager: ConnectionMan
             if msg_type == "ping":
                 await manager.send_personal_message({"type": "pong", "id": request_id}, websocket)
             
-            elif msg_type in ("get_cluster_update", "get_structural_planes", "get_animated_clustering", "auto_tune_time_window"):
+            elif msg_type in ("get_cluster_update", "get_structural_planes", "get_animated_clustering"):
                 if not api_ref:
                     await manager.send_personal_message({"type": "rpc_response", "id": request_id, "error": "API bridge not ready"}, websocket)
                     continue
@@ -119,8 +119,6 @@ async def handle_websocket_messages(websocket: WebSocket, manager: ConnectionMan
                         result = await asyncio.to_thread(api_ref.get_cluster_update, p.get("method"), p.get("params"))
                     elif msg_type == "get_structural_planes":
                         result = await asyncio.to_thread(api_ref.get_structural_planes, p.get("radius_km"), p.get("min_pts"), p.get("window_days"), p.get("anim_mode", "accumulation"), p.get("step_days", 7))
-                    elif msg_type == "auto_tune_time_window":
-                        result = await asyncio.to_thread(api_ref.auto_tune_time_window)
                     else:  # get_animated_clustering
                         result = await asyncio.to_thread(api_ref.get_animated_clustering, p.get("method"), p.get("params"), p.get("plane_step", 5))
                     await manager.send_personal_message({"type": "rpc_response", "id": request_id, "result": result}, websocket)

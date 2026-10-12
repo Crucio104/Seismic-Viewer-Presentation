@@ -81,7 +81,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             // Clustering state
             let animClusteringEnabled = false;
-            let appliedEventVectorsEnabled = false;
             let animClustersMap = null; // Mapping date -> {labels: [], planes: []}
             let currentAnimClustMethod = 'dbscan';
             let showAnimClusterPlanes = false;
@@ -91,92 +90,9 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             let startIdx = 0;
             let animId = null;
 
-            const isSwarmMode = (quakeData.anim_mode === 'swarm');
-            const swarmsList = quakeData.swarms || [];
-            let currentSwarmIdx = 0;
-            let currentSwarm = swarmsList.length > 0 ? swarmsList[0] : null;
-
-            window.isSwarmMode = isSwarmMode;
-            window.swarmsList = swarmsList;
-            window.currentSwarmIdx = currentSwarmIdx;
-            window.currentSwarm = currentSwarm;
-
             const dates = quakeData.frame_dates || quakeData.unique_dates || [];
 
-            function updateSwarmNavUI() {
-                if (!isSwarmMode || !currentSwarm) return;
-                const prevBtn = document.getElementById('swarm-prev-btn');
-                const nextBtn = document.getElementById('swarm-next-btn');
-                const titleEl = document.getElementById('swarm-title');
-                const subEl = document.getElementById('swarm-subtitle');
-                if (prevBtn) prevBtn.disabled = (currentSwarmIdx <= 0);
-                if (nextBtn) nextBtn.disabled = (currentSwarmIdx >= swarmsList.length - 1);
-                if (titleEl) titleEl.textContent = `Swarm ${currentSwarmIdx + 1} / ${swarmsList.length}`;
-                if (subEl) subEl.textContent = `${currentSwarm.event_count} events • Max Md ${currentSwarm.max_mag.toFixed(1)}`;
-            }
-
-            async function switchSwarm(newIdx) {
-                if (!isSwarmMode || newIdx < 0 || newIdx >= swarmsList.length) return;
-                if (isPlaying) pause();
-                const filterLoader = document.getElementById('filter-loader');
-                if (filterLoader) filterLoader.classList.add('show');
-                // Give browser thread a tick to paint the blurred backdrop
-                await new Promise(resolve => setTimeout(resolve, 40));
-                try {
-                    currentSwarmIdx = newIdx;
-                    currentSwarm = swarmsList[currentSwarmIdx];
-                    window.currentSwarmIdx = currentSwarmIdx;
-                    window.currentSwarm = currentSwarm;
-                    currentStepIdx = 0;
-                    slider.min = 0;
-                    slider.max = Math.max(0, currentSwarm.event_count - 1);
-                    slider.value = 0;
-                    updateSwarmNavUI();
-                    renderHistogram();
-                    await updateView(0);
-                    if (window._currentLegendMode === 'vectors') {
-                        const vectorScaleName = (window.SeismicUI && window.SeismicUI._layerScales && window.SeismicUI._layerScales.vectors) ? window.SeismicUI._layerScales.vectors : 'Vectors';
-                        const inv = (window.SeismicUI && window.SeismicUI._layerInverts && window.SeismicUI._layerInverts.vectors) || false;
-                        const maxSwarmVectors = Math.max(1, currentSwarm.event_count - 1);
-                        updateGlassLegend(true, 'VECTOR N°', vectorScaleName, inv, [1, maxSwarmVectors], null);
-                    } else {
-                        const initialTitle = currentMode === 'dep' ? 'Depth (KM)' : (currentMode === 'mag' ? 'Magnitude' : 'Date');
-                        const initialLimits = currentMode === 'dep' ? (quakeData.dep_range || [0, 100]) : (currentMode === 'mag' ? (quakeData.mag_range || [0, 10]) : (quakeData.date_range || [0, 1]));
-                        updateGlassLegend(true, initialTitle, currentColorScale, invertScale, initialLimits, { startDate: quakeData.start_date });
-                    }
-                } finally {
-                    if (filterLoader) filterLoader.classList.remove('show');
-                }
-            }
-
-            if (isSwarmMode) {
-                slider.min = 0;
-                slider.max = currentSwarm ? Math.max(0, currentSwarm.event_count - 1) : 0;
-                const jumpBar = document.getElementById('jump-bar');
-                if (jumpBar) jumpBar.style.display = 'none';
-                const swarmNav = document.getElementById('swarm-nav');
-                if (swarmNav) swarmNav.style.display = 'flex';
-                updateSwarmNavUI();
-
-                const swarmPrevBtn = document.getElementById('swarm-prev-btn');
-                const swarmNextBtn = document.getElementById('swarm-next-btn');
-                if (swarmPrevBtn) swarmPrevBtn.onclick = () => switchSwarm(currentSwarmIdx - 1);
-                if (swarmNextBtn) swarmNextBtn.onclick = () => switchSwarm(currentSwarmIdx + 1);
-
-                window.addEventListener('keydown', (e) => {
-                    if (isSwarmMode) {
-                        if (e.key === 'ArrowLeft' && (e.altKey || e.ctrlKey)) {
-                            e.preventDefault();
-                            switchSwarm(currentSwarmIdx - 1);
-                        } else if (e.key === 'ArrowRight' && (e.altKey || e.ctrlKey)) {
-                            e.preventDefault();
-                            switchSwarm(currentSwarmIdx + 1);
-                        }
-                    }
-                });
-            } else {
-                slider.max = dates.length - 1;
-            }
+            slider.max = dates.length - 1;
             if (jumpDate) {
                 jumpDate.value = formatDate(dates[0]);
                 jumpDate.addEventListener('input', (e) => {
@@ -325,266 +241,8 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             let isRendering = false;
             let pendingUpdateIdx = null;
 
-            function updateAnimatedVectors(sliceLon, sliceLat, sliceDep, sliceEventIdx) {
-                const isChecked = !!appliedEventVectorsEnabled;
-
-                let lineIdx = -1;
-                let meshIdx = -1;
-                if (gd && gd.data) {
-                    for (let t = 0; t < gd.data.length; t++) {
-                        if (gd.data[t] && gd.data[t].name === 'Consecutive Event Vectors') lineIdx = t;
-                        else if (gd.data[t] && gd.data[t].name === 'Event Arrowheads') meshIdx = t;
-                    }
-                }
-
-                if (!isChecked) {
-                    if (window._vectorsAlreadyDisabled) return;
-                    if (lineIdx !== -1 && gd.data[lineIdx].visible !== false) {
-                        Plotly.restyle(gd, { visible: false }, [lineIdx]);
-                    }
-                    if (meshIdx !== -1 && gd.data[meshIdx].visible !== false) {
-                        Plotly.restyle(gd, { visible: false }, [meshIdx]);
-                    }
-                    if (window.SeismicUI) {
-                        window.SeismicUI._activeConsecutiveArrows = false;
-                        if (window._currentLegendMode === 'vectors') {
-                            if (animClusteringEnabled) {
-                                window._currentLegendMode = 'clusters';
-                                updateClusterLegend(window._lastPresentLabels || []);
-                            } else {
-                                window._currentLegendMode = 'earthquakes';
-                                if (window._earthquakeLegendState) {
-                                    const s = window._earthquakeLegendState;
-                                    if (typeof updateGlassLegendInternal === 'function') {
-                                        updateGlassLegendInternal(s.show, s.title, s.scaleName, s.invert, s.limits, s.dateInfo);
-                                    }
-                                }
-                            }
-                        }
-                        if (typeof window.SeismicUI.updateSwapLegendVisibility === 'function') {
-                            window.SeismicUI.updateSwapLegendVisibility();
-                        }
-                    }
-                    window._vectorsAlreadyDisabled = true;
-                    return;
-                }
-                window._vectorsAlreadyDisabled = false;
-
-                const totalSwarmCount = (isSwarmMode && currentSwarm) ? currentSwarm.event_count : (quakeData.lon ? quakeData.lon.length : 1);
-                const maxSwarmVectors = Math.max(1, totalSwarmCount - 1);
-
-                if (window.SeismicUI) {
-                    window.SeismicUI._activeConsecutiveArrows = true;
-                    window.SeismicUI._consecutiveVectorCount = maxSwarmVectors;
-                    if (typeof window.SeismicUI.updateSwapLegendVisibility === 'function') {
-                        window.SeismicUI.updateSwapLegendVisibility();
-                    }
-                }
-
-                const xs = sliceLon || [];
-                const ys = sliceLat || [];
-                const zs = sliceDep || [];
-
-                if (xs.length < 2) {
-                    // Not enough points in the current frame yet: hide traces quietly without error or unchecking
-                    if (lineIdx !== -1 && gd.data[lineIdx].visible !== false) {
-                        Plotly.restyle(gd, { visible: false }, [lineIdx]);
-                    }
-                    if (meshIdx !== -1 && gd.data[meshIdx].visible !== false) {
-                        Plotly.restyle(gd, { visible: false }, [meshIdx]);
-                    }
-                    return;
-                }
-
-                const lineX = [], lineY = [], lineZ = [], lineColor = [];
-                const meshX = [], meshY = [], meshZ = [];
-                const meshI = [], meshJ = [], meshK = [];
-                const meshIntensity = [];
-
-                let validPairs = 0;
-                const totalPairs = xs.length - 1;
-
-                for (let i = 0; i < totalPairs; i++) {
-                    const x1 = parseFloat(xs[i]), y1 = parseFloat(ys[i]), z1 = parseFloat(zs[i]);
-                    const x2 = parseFloat(xs[i+1]), y2 = parseFloat(ys[i+1]), z2 = parseFloat(zs[i+1]);
-
-                    if (isNaN(x1) || isNaN(y1) || isNaN(z1) || isNaN(x2) || isNaN(y2) || isNaN(z2)) continue;
-
-                    validPairs++;
-                    const vectorNum = (sliceEventIdx && sliceEventIdx[i + 1] !== undefined)
-                        ? Math.max(1, sliceEventIdx[i + 1])
-                        : validPairs;
-
-                    const midLat = (y1 + y2) * 0.5;
-                    const kmPerDegLon = 111.0 * Math.cos(midLat * Math.PI / 180.0);
-                    const kmPerDegLat = 111.0;
-
-                    const dxKm = (x2 - x1) * kmPerDegLon;
-                    const dyKm = (y2 - y1) * kmPerDegLat;
-                    const dzKm = (z2 - z1);
-                    const distKm = Math.sqrt(dxKm * dxKm + dyKm * dyKm + dzKm * dzKm);
-
-                    let stemEndX = x2, stemEndY = y2, stemEndZ = z2;
-
-                    if (distKm > 1e-4) {
-                        const ux = dxKm / distKm;
-                        const uy = dyKm / distKm;
-                        const uz = dzKm / distKm;
-
-                        const headLenKm = Math.min(Math.max(0.010, 0.18 * distKm), 0.060, 0.5 * distKm);
-                        const headWidthKm = headLenKm * 0.45;
-
-                        let rx = 0, ry = 0, rz = 1;
-                        if (Math.abs(uz) > 0.88) { rx = 0; ry = 1; rz = 0; }
-
-                        let n1x = uy * rz - uz * ry;
-                        let n1y = uz * rx - ux * rz;
-                        let n1z = ux * ry - uy * rx;
-                        const n1Len = Math.sqrt(n1x * n1x + n1y * n1y + n1z * n1z) || 1;
-                        n1x /= n1Len; n1y /= n1Len; n1z /= n1Len;
-
-                        const n2x = uy * n1z - uz * n1y;
-                        const n2y = uz * n1x - ux * n1z;
-                        const n2z = ux * n1y - uy * n1x;
-
-                        const x2Km = x2 * kmPerDegLon;
-                        const y2Km = y2 * kmPerDegLat;
-                        const z2Km = z2;
-
-                        const baseKmX = x2Km - headLenKm * ux;
-                        const baseKmY = y2Km - headLenKm * uy;
-                        const baseKmZ = z2Km - headLenKm * uz;
-
-                        const bx = baseKmX / kmPerDegLon;
-                        const by = baseKmY / kmPerDegLat;
-                        const bz = baseKmZ;
-
-                        stemEndX = (distKm > headLenKm) ? bx : x2;
-                        stemEndY = (distKm > headLenKm) ? by : y2;
-                        stemEndZ = (distKm > headLenKm) ? bz : z2;
-
-                        const K = meshX.length;
-                        const N_SIDES = 6;
-
-                        meshX.push(x2);
-                        meshY.push(y2);
-                        meshZ.push(z2);
-                        meshIntensity.push(vectorNum);
-
-                        for (let s = 0; s < N_SIDES; s++) {
-                            const angle = (2 * Math.PI * s) / N_SIDES;
-                            const cosA = Math.cos(angle);
-                            const sinA = Math.sin(angle);
-                            const pxKm = baseKmX + headWidthKm * (cosA * n1x + sinA * n2x);
-                            const pyKm = baseKmY + headWidthKm * (cosA * n1y + sinA * n2y);
-                            const pzKm = baseKmZ + headWidthKm * (cosA * n1z + sinA * n2z);
-                            meshX.push(pxKm / kmPerDegLon);
-                            meshY.push(pyKm / kmPerDegLat);
-                            meshZ.push(pzKm);
-                            meshIntensity.push(vectorNum);
-                        }
-
-                        meshX.push(bx);
-                        meshY.push(by);
-                        meshZ.push(bz);
-                        meshIntensity.push(vectorNum);
-
-                        for (let s = 0; s < N_SIDES; s++) {
-                            const nextS = (s + 1) % N_SIDES;
-                            meshI.push(K + 0);
-                            meshJ.push(K + 1 + s);
-                            meshK.push(K + 1 + nextS);
-
-                            meshI.push(K + 1 + N_SIDES);
-                            meshJ.push(K + 1 + nextS);
-                            meshK.push(K + 1 + s);
-                        }
-                    }
-
-                    lineX.push(x1, stemEndX, null);
-                    lineY.push(y1, stemEndY, null);
-                    lineZ.push(z1, stemEndZ, null);
-                    lineColor.push(vectorNum, vectorNum, vectorNum);
-                }
-
-                if (validPairs === 0) {
-                    if (lineIdx !== -1) Plotly.restyle(gd, { visible: false }, [lineIdx]);
-                    if (meshIdx !== -1) Plotly.restyle(gd, { visible: false }, [meshIdx]);
-                    return;
-                }
-
-                const vectorScaleName = (window.SeismicUI && window.SeismicUI._layerScales && window.SeismicUI._layerScales.vectors) ? window.SeismicUI._layerScales.vectors : 'Vectors';
-                const pScale = (typeof getPlotlyScale === 'function') ? getPlotlyScale(vectorScaleName) : 'Viridis';
-                const inv = (window.SeismicUI && window.SeismicUI._layerInverts && window.SeismicUI._layerInverts.vectors) || false;
-
-                if (lineIdx !== -1) {
-                    Plotly.restyle(gd, {
-                        x: [lineX], y: [lineY], z: [lineZ],
-                        'line.color': [lineColor],
-                        'line.colorscale': [pScale],
-                        'line.reversescale': [inv],
-                        'line.cmin': [1],
-                        'line.cmax': [maxSwarmVectors],
-                        'line.width': [4],
-                        visible: [true]
-                    }, [lineIdx]);
-                } else {
-                    Plotly.addTraces(gd, {
-                        type: 'scatter3d',
-                        name: 'Consecutive Event Vectors',
-                        x: lineX, y: lineY, z: lineZ,
-                        mode: 'lines',
-                        line: {
-                            color: lineColor,
-                            colorscale: pScale,
-                            reversescale: inv,
-                            cmin: 1,
-                            cmax: maxSwarmVectors,
-                            width: 4
-                        },
-                        hoverinfo: 'skip',
-                        showlegend: false,
-                        visible: true
-                    });
-                }
-
-                if (meshIdx !== -1) {
-                    Plotly.restyle(gd, {
-                        x: [meshX], y: [meshY], z: [meshZ],
-                        i: [meshI], j: [meshJ], k: [meshK],
-                        intensity: [meshIntensity],
-                        colorscale: [pScale],
-                        reversescale: [inv],
-                        cmin: [1],
-                        cmax: [maxSwarmVectors],
-                        visible: [meshX.length > 0]
-                    }, [meshIdx]);
-                } else if (meshX.length > 0) {
-                    Plotly.addTraces(gd, {
-                        type: 'mesh3d',
-                        name: 'Event Arrowheads',
-                        x: meshX, y: meshY, z: meshZ,
-                        i: meshI, j: meshJ, k: meshK,
-                        intensity: meshIntensity,
-                        colorscale: pScale,
-                        reversescale: inv,
-                        cmin: 1,
-                        cmax: maxSwarmVectors,
-                        flatshading: true,
-                        lighting: { ambient: 0.85, diffuse: 0.8, specular: 0.15, roughness: 0.5 },
-                        showscale: false,
-                        hoverinfo: 'skip',
-                        visible: true
-                    });
-                }
-
-                if (window._currentLegendMode === 'vectors' && typeof updateGlassLegendInternal === 'function') {
-                    updateGlassLegendInternal(true, 'VECTOR N°', vectorScaleName, inv, [1, maxSwarmVectors], null);
-                }
-            }
-
             async function updateView(idx) {
-                const totalFrames = (isSwarmMode && currentSwarm) ? currentSwarm.event_count : dates.length;
+                const totalFrames = dates.length;
                 if (idx < 0) idx = 0;
                 if (totalFrames > 0 && idx >= totalFrames) idx = totalFrames - 1;
 
@@ -606,27 +264,13 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             }
 
             async function _doUpdateView(idx) {
-                const totalFrames = (isSwarmMode && currentSwarm) ? currentSwarm.event_count : dates.length;
+                const totalFrames = dates.length;
                 if (idx < 0) idx = 0;
                 if (totalFrames > 0 && idx >= totalFrames) idx = totalFrames - 1;
                 
-                let start = 0, end = 0;
-                const isSwarm = isSwarmMode && currentSwarm;
-                let activeIndices = isSwarm ? [] : null;
-                let swarmLocalIndices = isSwarm ? [] : null;
-                if (isSwarm) {
-                    for (let s = 0; s <= idx; s++) {
-                        const gIdx = currentSwarm.indices[s];
-                        if (gIdx !== undefined && gIdx >= 0 && gIdx < quakeData.lon.length) {
-                            activeIndices.push(gIdx);
-                            swarmLocalIndices.push(s);
-                        }
-                    }
-                } else {
-                    const range = getActiveRange(idx);
-                    start = range[0];
-                    end = range[1];
-                }
+                const range = getActiveRange(idx);
+                const start = range[0];
+                const end = range[1];
 
                 const magMin = appliedMagMin;
                 const magMax = appliedMagMax;
@@ -655,7 +299,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
                 const defaultMag = quakeData.mag_range || quakeData.mag_limit || [-10, 10];
                 const defaultDep = quakeData.dep_range || quakeData.dep_limit || [0, 999];
-                const isFastPath = !isSwarm && !animClusteringEnabled && !appliedEventVectorsEnabled &&
+                const isFastPath = !animClusteringEnabled &&
                     magMin <= defaultMag[0] && magMax >= defaultMag[1] &&
                     depMin <= 0 && depMax >= Math.ceil(Math.max(Math.abs(defaultDep[0]), Math.abs(defaultDep[1])));
 
@@ -679,10 +323,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     if (!window._animDateCache) window._animDateCache = new Map();
                     const animDateCache = window._animDateCache;
 
-                    const totalActive = isSwarm ? activeIndices.length : (end - start);
+                    const totalActive = (end - start);
                     for (let k = 0; k < totalActive; k++) {
-                        const i = isSwarm ? activeIndices[k] : (start + k);
-                        const sLocal = isSwarm ? swarmLocalIndices[k] : k;
+                        const i = (start + k);
+                        const sLocal = k;
                         const m = quakeData.mag[i];
                         const d = quakeData.dep[i];
                         const absD = Math.abs(d);
@@ -919,11 +563,11 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 return Plotly.restyle(gd, bulkUpdate, traceIndices).then(() => {
                     // 2. Mesh traces (from index 4 onwards)
                     if (planeTraces.length === 0) {
-                        // No planes: delete extra plane traces without deleting vector traces
+                        // No planes: delete extra plane traces
                         const indicesToDelete = [];
                         for (let t = gd.data.length - 1; t >= 4; t--) {
                             const tr = gd.data[t];
-                            if (tr && tr.name !== 'Consecutive Event Vectors' && tr.name !== 'Event Arrowheads') {
+                            if (tr) {
                                 if (t > 4) {
                                     indicesToDelete.push(t);
                                 } else if (t === 4 && tr.visible !== false) {
@@ -934,7 +578,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                         if (indicesToDelete.length > 0) {
                             Plotly.deleteTraces(gd, indicesToDelete);
                         }
-                    } else if (planeTraces.length === 1 && gd.data.length === 5 && gd.data[4].type === 'mesh3d' && gd.data[4].name !== 'Consecutive Event Vectors' && gd.data[4].name !== 'Event Arrowheads') {
+                    } else if (planeTraces.length === 1 && gd.data.length === 5 && gd.data[4].type === 'mesh3d') {
                         // Single plane and placeholder exists: update in place without delete/add
                         const pt = planeTraces[0];
                         Plotly.restyle(gd, {
@@ -945,11 +589,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                             visible: true
                         }, [4]);
                     } else {
-                        // Multiple planes or count mismatch: delete extra plane traces (ignoring vector traces) and re-add
+                        // Multiple planes or count mismatch: delete extra plane traces and re-add
                         const indicesToDelete = [];
                         for (let t = gd.data.length - 1; t >= 4; t--) {
-                            const tr = gd.data[t];
-                            if (tr && tr.name !== 'Consecutive Event Vectors' && tr.name !== 'Event Arrowheads') {
+                            if (gd.data[t]) {
                                 indicesToDelete.push(t);
                             }
                         }
@@ -959,71 +602,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                         Plotly.addTraces(gd, planeTraces);
                     }
 
-                    if (isSwarmMode && currentSwarm) {
-                        const evTime = currentSwarm.times[idx] || '';
-                        dateDisplay.textContent = evTime;
-                    } else {
-                        dateDisplay.textContent = formatDate(dates[idx]);
-                        if (jumpDate && document.activeElement !== jumpDate) {
-                            jumpDate.value = formatDate(dates[idx]);
-                        }
-                    }
-                    slider.value = idx;
-
-                    // Update Glass Legend
-                    if (animClusteringEnabled && animClustersMap) {
-                        updateClusterLegend(globalUniqueLabels);
-                    } else {
-                        const container = document.getElementById('legend-container');
-                        const scaleWrapper = document.getElementById('legend-scale-wrapper');
-                        const invertGroup = document.getElementById('legend-invert-group');
-                        if (container) container.style.display = 'flex';
-                        if (clusterList) clusterList.style.display = 'none';
-                        if (swapBtn) swapBtn.style.display = '';
-                        if (scaleWrapper) scaleWrapper.style.display = 'flex';
-                        if (invertGroup) invertGroup.style.display = '';
-                        
-                        updateGlassLegend(
-                            true,
-                            barTitle,
-                            currentColorScale,
-                            invertScale,
-                            limits,
-                            { startDate: quakeData.start_date }
-                        );
-                    }
-
-                    if (isSwarmMode && currentSwarm) {
-                        const sIndices = currentSwarm.indices.slice(0, idx + 1);
-                        const sLen = sIndices.length;
-                        const curMag = new Float32Array(sLen);
-                        const curDep = new Float32Array(sLen);
-                        for (let k = 0; k < sLen; k++) {
-                            const i = sIndices[k];
-                            curMag[k] = quakeData.mag[i];
-                            curDep[k] = quakeData.dep[i];
-                        }
-                        const lastMag = (idx >= 0 && idx < currentSwarm.mags.length) ? [currentSwarm.mags[idx]] : [];
-                        updateHUDArrays(curMag, curDep, lastMag);
-                    } else {
-                        const dayEnd = quakeData.date_to_cum[dates[idx]];
+                    const dayEnd = quakeData.date_to_cum[dates[idx]];
                         const dayStart = (idx > 0) ? quakeData.date_to_cum[dates[idx-1]] : 0;
                         updateHUD(start, end, dayStart, dayEnd);
-                    }
-
-                    // 3. Update Event Vectors
-                    window._lastSliceLon = sliceLon;
-                    window._lastSliceLat = sliceLat;
-                    window._lastSliceDep = sliceDep;
-                    window._lastSliceEventIdx = sliceEventIdx;
-                    updateAnimatedVectors(sliceLon, sliceLat, sliceDep, sliceEventIdx);
-                }).catch(err => {
-                    console.warn("Plotly restyle warning in animation frame:", err);
-                    window._lastSliceLon = sliceLon;
-                    window._lastSliceLat = sliceLat;
-                    window._lastSliceDep = sliceDep;
-                    window._lastSliceEventIdx = sliceEventIdx;
-                    updateAnimatedVectors(sliceLon, sliceLat, sliceDep, sliceEventIdx);
+                    }).catch(err => {
                     // Ensure legend is still rendered even if restyle caught an error
                     updateGlassLegend(
                         true,
@@ -1037,29 +619,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             }
 
             function renderHistogram() {
-                if (isSwarmMode && currentSwarm) {
-                    histogramMap.style.display = 'flex';
-                    histogramMap.style.gap = currentSwarm.event_count > 50 ? '0' : '0.12rem';
-                    histogramMap.innerHTML = '';
-                    const maxM = Math.max(0.1, currentSwarm.max_mag);
-                    for (let i = 0; i < currentSwarm.event_count; i++) {
-                        const m = currentSwarm.mags[i];
-                        const t = currentSwarm.times[i];
-                        const bar = document.createElement('div');
-                        bar.className = 'hist-bar';
-                        const h = Math.max(8, Math.min(100, (Math.max(0, m) / maxM) * 100));
-                        bar.style.height = `${h}%`;
-                        bar.title = `Event ${i + 1}/${currentSwarm.event_count}: ${t} (Md ${m.toFixed(1)})`;
-                        bar.onclick = (e) => {
-                            e.stopPropagation();
-                            pause();
-                            updateView(i);
-                        };
-                        histogramMap.appendChild(bar);
-                    }
-                    return;
-                }
-
                 const counts = quakeData.date_counts;
                 if (!counts || counts.length === 0) return;
                 
@@ -1606,10 +1165,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 let durationMs = 1000;
                 let step = 1;
 
-                if (isSwarmMode) {
-                    durationMs = Math.max(40, Math.round(500 / mult));
-                    step = 1;
-                } else if (quakeData.anim_mode === 'block') {
+                if (quakeData.anim_mode === 'block') {
                     const secPerFrameInput = document.getElementById('sec-per-frame');
                     const baseSec = (secPerFrameInput && parseFloat(secPerFrameInput.value)) ? parseFloat(secPerFrameInput.value) : 1.0;
                     durationMs = Math.max(40, Math.round((baseSec * 1000) / mult));
@@ -1625,7 +1181,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     }
                 }
 
-                const totalFrames = (isSwarmMode && currentSwarm) ? currentSwarm.event_count : dates.length;
+                const totalFrames = dates.length;
                 if (now - lastFrameTime >= durationMs) {
                     if (now - lastFrameTime > durationMs * 2) {
                         lastFrameTime = now;
@@ -1665,8 +1221,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     'camera-controls',
                     'glass-legend', 'legend-container', 'cluster-list', 'btn-swap-legend',
                     'back-btn', 'info-btn', 'overlay-btn', 'screenshot-btn',
-                    'btn-export-clusters',
-                    'swarm-prev-btn', 'swarm-next-btn'
+                    'btn-export-clusters'
                 ];
                 elementsToLock.forEach(id => {
                     const el = document.getElementById(id);
@@ -1688,7 +1243,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 playBtn.classList.add('active');
                 pauseBtn.classList.remove('active');
                 
-                const totalFrames = (isSwarmMode && currentSwarm) ? currentSwarm.event_count : dates.length;
+                const totalFrames = dates.length;
                 if (currentStepIdx >= totalFrames - 1) {
                     currentStepIdx = 0;
                     try {
@@ -1883,10 +1438,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             const calcFramesAnim = document.getElementById('anim-calc-frames');
             const animKmeansParams = document.getElementById('anim-kmeans-params');
             const animDbscanParams = document.getElementById('anim-dbscan-params');
-            const animHdbscanParams = document.getElementById('anim-hdbscan-params');
-            const pHdbMinClusterAnim = document.getElementById('anim-param-hdb-min-cluster');
-            const pHdbMinSamplesAnim = document.getElementById('anim-param-hdb-min-samples');
-            const pHdbEpsAnim = document.getElementById('anim-param-hdb-eps');
             const useCylindersCheck = document.getElementById('anim-use-cylinders');
             const cylinderOptions = document.getElementById('anim-cylinder-options');
             const pCylinderRadius = document.getElementById('anim-cylinder-radius');
@@ -1925,7 +1476,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 animMethodToggle.textContent = item.textContent.split(' ')[0] + ' ▾';
                 animKmeansParams.style.display = currentAnimClustMethod === 'kmeans' ? 'block' : 'none';
                 animDbscanParams.style.display = currentAnimClustMethod === 'dbscan' ? 'block' : 'none';
-                if (animHdbscanParams) animHdbscanParams.style.display = currentAnimClustMethod === 'hdbscan' ? 'block' : 'none';
+                
             });
 
             async function syncAnimatedClustering() {
@@ -1944,10 +1495,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                         kmeans_max_dist: pDistAnim ? pDistAnim.value : 0,
                         dbscan_eps: pEpsAnim ? pEpsAnim.value : 500,
                         dbscan_min_samples: pMinAnim ? pMinAnim.value : 5,
-                        hdbscan_min_cluster_size: pHdbMinClusterAnim ? pHdbMinClusterAnim.value : 5,
-                        hdbscan_min_samples: pHdbMinSamplesAnim ? pHdbMinSamplesAnim.value : 3,
-                        hdbscan_cluster_selection_epsilon: pHdbEpsAnim ? pHdbEpsAnim.value : 0,
-                        hdbscan_eps: pHdbEpsAnim ? pHdbEpsAnim.value : 0,
                         show_cluster_planes: showAnimPlanesCheck.checked || (typeof currentAnimDisplayMode !== 'undefined' && currentAnimDisplayMode !== 'points'),
                         mag_min: magMinVal,
                         mag_max: magMaxVal,
@@ -2035,8 +1582,8 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                         window.animClusteringEnabled = animClusteringEnabled;
                         planesEnabled = showPlanesCheck.checked;
 
-                        const evCheck = document.getElementById('event-vectors-check');
-                        appliedEventVectorsEnabled = !!(evCheck && evCheck.checked);
+                        
+                        
 
                         if (animClusteringEnabled) {
                             window._currentLegendMode = 'clusters';
@@ -2044,11 +1591,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                         } else if (planesEnabled) {
                             await syncPlanes();
                         } else {
-                            // Delete all plane traces (4+), ignoring vector traces
+                            // Delete all plane traces (4+)
                             const ids = [];
                             for (let t = gd.data.length - 1; t >= 4; t--) {
-                                const tr = gd.data[t];
-                                if (tr && tr.name !== 'Consecutive Event Vectors' && tr.name !== 'Event Arrowheads') {
+                                if (gd.data[t]) {
                                     ids.push(t);
                                 }
                             }
@@ -2101,9 +1647,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 clusterMethod: 'dbscan',
                 dbscanEps: pEpsAnim ? pEpsAnim.value : '500',
                 dbscanMinSamples: pMinAnim ? pMinAnim.value : '5',
-                hdbMinCluster: pHdbMinClusterAnim ? pHdbMinClusterAnim.value : '5',
-                hdbMinSamples: pHdbMinSamplesAnim ? pHdbMinSamplesAnim.value : '3',
-                hdbEps: pHdbEpsAnim ? pHdbEpsAnim.value : '0',
                 kmeansClusters: pClustersAnim ? pClustersAnim.value : '3',
                 kmeansDist: pDistAnim ? pDistAnim.value : '0',
                 displayMode: 'wireframe',
@@ -2112,8 +1655,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 useCylinders: false,
                 cylinderRadius: pCylinderRadius ? pCylinderRadius.value : '0.5',
                 cylinderDepth: document.getElementById('anim-cylinder-depth') ? document.getElementById('anim-cylinder-depth').value : '0',
-                eventVectors: false
-            };
+                };
 
             const resetAllBtn = document.getElementById('reset-all-btn');
             if (resetAllBtn) {
@@ -2141,13 +1683,13 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     }
                     if (animKmeansParams) animKmeansParams.style.display = 'none';
                     if (animDbscanParams) animDbscanParams.style.display = 'block';
-                    if (animHdbscanParams) animHdbscanParams.style.display = 'none';
+                    
 
                     if (pEpsAnim) pEpsAnim.value = initialAnimDefaults.dbscanEps;
                     if (pMinAnim) pMinAnim.value = initialAnimDefaults.dbscanMinSamples;
-                    if (pHdbMinClusterAnim) pHdbMinClusterAnim.value = initialAnimDefaults.hdbMinCluster;
-                    if (pHdbMinSamplesAnim) pHdbMinSamplesAnim.value = initialAnimDefaults.hdbMinSamples;
-                    if (pHdbEpsAnim) pHdbEpsAnim.value = initialAnimDefaults.hdbEps;
+                    
+                    
+                    
                     if (pClustersAnim) pClustersAnim.value = initialAnimDefaults.kmeansClusters;
                     if (pDistAnim) pDistAnim.value = initialAnimDefaults.kmeansDist;
 
@@ -2172,9 +1714,6 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                     if (planeCtrl) planeCtrl.style.display = initialAnimDefaults.showPlanes ? 'block' : 'none';
                     const clustCtrl = document.getElementById('anim-clustering-controls');
                     if (clustCtrl) clustCtrl.style.display = initialAnimDefaults.showClustering ? 'block' : 'none';
-
-                    const evCheck = document.getElementById('event-vectors-check');
-                    if (evCheck) evCheck.checked = initialAnimDefaults.eventVectors;
 
                     if (typeof showStatusToast === 'function') {
                         showStatusToast("Parameters reset to default values", true);
@@ -2232,33 +1771,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 if (speedLabel) speedLabel.textContent = 'Seconds per frame';
             }
 
-            const eventVectorsCheck = document.getElementById('event-vectors-check');
-            if (eventVectorsCheck && !eventVectorsCheck._hooked) {
-                eventVectorsCheck._hooked = true;
-                // In animated 3D view, event vectors are applied only when clicking Apply Changes
-            }
 
-            // Override SeismicUI.toggleConsecutiveArrows for animated view to route through Apply Changes
-            if (window.SeismicUI) {
-                window.SeismicUI.toggleConsecutiveArrows = function(forceState = null) {
-                    const chk = document.getElementById('event-vectors-check');
-                    if (!chk) return;
-                    const targetState = (forceState !== null) ? forceState : !chk.checked;
-                    chk.checked = targetState;
-                    const applyBtn = document.getElementById('apply-all-btn');
-                    if (applyBtn) {
-                        applyBtn.click();
-                    } else {
-                        appliedEventVectorsEnabled = targetState;
-                        updateAnimatedVectors(
-                            window._lastSliceLon || [],
-                            window._lastSliceLat || [],
-                            window._lastSliceDep || [],
-                            window._lastSliceEventIdx || []
-                        );
-                    }
-                };
-            }
 
             // Sync UI state and finally hide loader
             hideInitLoader();

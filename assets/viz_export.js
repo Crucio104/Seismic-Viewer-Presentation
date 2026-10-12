@@ -54,7 +54,7 @@
                 '#shortcuts-modal', '#glass-legend', '#info-panel', '#left-panel-wrapper',
                 '#btn-expand-legend', '#btn-expand-camera',
                 '#btn-expand-sidebar', '#filter-bar', '#ws-status', '.timeline-container', '.playback-controls',
-                '#settings-bar', '#swarm-chart-dialog', '#screenshot-preview-dialog', '#cluster-csv-dialog'
+                '#settings-bar', '#screenshot-preview-dialog', '#cluster-csv-dialog'
             ];
 
             const hiddenElements = [];

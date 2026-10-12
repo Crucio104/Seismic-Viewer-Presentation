@@ -822,8 +822,6 @@ def get_3d_animated_figure(
         frame_dates = unique_dates
         frame_counts = vpack.get('date_counts', [])
 
-    swarms = data.get('swarms', []) if data else []
-
     anim_data = {
         'longitude': longitude, 'latitude': latitude, 'depth': depth, 'magnitude': magnitude,
         'dates_num': data.get('dates_num', []) if data else [],
@@ -831,8 +829,6 @@ def get_3d_animated_figure(
         'anim_mode': anim_mode, 'window_days': window_days, 'step_days': step_days, 'mag_range': mag_range,
         'date_range': date_range, 'dep_range': dep_range, 'start_date': times[0][:10] if times else "",
         'date_counts': frame_counts, 'frame_dates': frame_dates, 'bbox': bbox, 'graph_bounds': data.get('graph_bounds') if data else None,
-        'swarms': swarms,
-        'swarms_count': len(swarms),
     }
 
     apply_3d_style(fig, [x_high[0], x_high[-1]], [y_high[-1], y_high[0]], [min_depth, 0])

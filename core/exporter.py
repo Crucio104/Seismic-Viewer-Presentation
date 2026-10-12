@@ -17,11 +17,6 @@ def get_cluster_header_comment(method: str, params: Any) -> str:
             eps = params.get('dbscan_eps') or params.get('eps') or params.get('eps_km', 'N/A')
             min_samp = params.get('dbscan_min_samples') or params.get('min_samples', 'N/A')
             param_str = f"eps={eps}, min_samples={min_samp}"
-        elif m == 'hdbscan':
-            min_size = params.get('hdbscan_min_cluster_size') or params.get('min_cluster_size', 'N/A')
-            min_samp = params.get('hdbscan_min_samples') or params.get('min_samples', 'N/A')
-            eps = params.get('hdbscan_cluster_selection_epsilon') or params.get('cluster_selection_epsilon') or params.get('hdbscan_eps', 0)
-            param_str = f"min_cluster_size={min_size}, min_samples={min_samp}, cluster_selection_epsilon={eps}m"
         elif m == 'kmeans':
             n_clust = params.get('kmeans_clusters') or params.get('n_clusters') or params.get('kmeans_n_clusters', 'N/A')
             max_d = params.get('kmeans_max_dist')
@@ -31,18 +26,6 @@ def get_cluster_header_comment(method: str, params: Any) -> str:
                 param_str = f"n_clusters={n_clust}"
         else:
             param_str = ", ".join(f"{k}={v}" for k, v in params.items())
-
-        if params.get('use_time'):
-            time_win_h = params.get('time_window_hours')
-            if time_win_h is None and 'time_window' in params:
-                time_win_h = params.get('time_window')
-            if time_win_h is not None:
-                param_str += f", spatio_temporal=True, time_window={time_win_h}h"
-            else:
-                time_win_d = params.get('time_window_days', 'N/A')
-                param_str += f", spatio_temporal=True, time_window={time_win_d}d"
-        else:
-            param_str += ", spatio_temporal=False"
     else:
         param_str = str(params)
     return f"# Clustering Method: {str(method).upper()} | Parameters: {param_str}\n"

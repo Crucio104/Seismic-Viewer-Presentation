@@ -226,7 +226,6 @@ window.getClusterColor = function(lbl) {
         _activeUpliftData: null,
         _layerScales: {
             earthquakes: 'Viridis',
-            vectors: 'Vectors',
             tomo: 'Tomography',
             uplift: 'Uplift'
         },
@@ -254,27 +253,6 @@ window.getClusterColor = function(lbl) {
                 available.push('clusters');
             } else {
                 available.push('earthquakes');
-            }
-
-            // Vector detection: check internal flag, global UI flag, DOM checkbox or actual Plotly traces
-            const evCheck = document.getElementById('event-vectors-check');
-            const hasVectorsChecked = Boolean(evCheck && evCheck.checked);
-            const hasVectorsInPlot = Boolean(gd && gd.data && gd.data.some(tr => tr && tr.visible !== false && (
-                tr.name === 'Consecutive Event Vectors' || 
-                tr.name === 'Event Arrowheads' || 
-                (typeof tr.name === 'string' && (tr.name.includes('Vector') || tr.name.includes('Arrow')))
-            )));
-            const vectorsActive = Boolean(
-                this._activeConsecutiveArrows || 
-                (window.SeismicUI && window.SeismicUI._activeConsecutiveArrows) || 
-                hasVectorsChecked || 
-                hasVectorsInPlot
-            );
-
-            if (vectorsActive) {
-                available.push('vectors');
-                this._activeConsecutiveArrows = true;
-                if (window.SeismicUI) window.SeismicUI._activeConsecutiveArrows = true;
             }
 
             // Tomography detection
@@ -313,9 +291,6 @@ window.getClusterColor = function(lbl) {
                 if (legend && clusterList && clusterList.style.display !== 'none') {
                     legend.style.paddingBottom = '0.85rem';
                 }
-                if (window._currentLegendMode === 'vectors') {
-                    window._currentLegendMode = available[0];
-                }
             } else {
                 btn.style.display = 'flex';
                 if (legend) {
@@ -333,7 +308,6 @@ window.getClusterColor = function(lbl) {
                 const modeLabels = {
                     'clusters': 'Clusters',
                     'earthquakes': 'Quakes',
-                    'vectors': 'Vectors',
                     'tomo': 'Tomo',
                     'uplift': 'Uplift'
                 };
@@ -408,7 +382,6 @@ window.getClusterColor = function(lbl) {
             if (!this._layerScales) {
                 this._layerScales = {
                     earthquakes: 'Viridis',
-                    vectors: 'Vectors',
                     tomo: 'Tomography',
                     uplift: 'Uplift'
                 };
@@ -500,26 +473,6 @@ window.getClusterColor = function(lbl) {
                             const s = window._earthquakeLegendState;
                             updateGlassLegendInternal(s.show, s.title, scaleName, s.invert, s.limits, s.dateInfo);
                         }
-                    } else if (currentMode === 'vectors') {
-                        if (gd && gd.data) {
-                            for (let i = 0; i < gd.data.length; i++) {
-                                const tr = gd.data[i];
-                                if (!tr) continue;
-                                if (tr.name === 'Consecutive Event Vectors') {
-                                    if (!tr.line) tr.line = {};
-                                    tr.line.colorscale = pScale;
-                                    tr.line.reversescale = inv;
-                                    try { Plotly.restyle(gd, { 'line.colorscale': [pScale], 'line.reversescale': [inv] }, [i]); } catch (e) {}
-                                } else if (tr.name === 'Event Arrowheads') {
-                                    tr.colorscale = pScale;
-                                    tr.reversescale = inv;
-                                    try { Plotly.restyle(gd, { 'colorscale': [pScale], 'reversescale': [inv] }, [i]); } catch (e) {}
-                                }
-                            }
-                            try { Plotly.redraw(gd); } catch (e) { try { Plotly.react(gd, gd.data, gd.layout); } catch (e2) {} }
-                        }
-                        const maxV = this._consecutiveVectorCount || 100;
-                        updateGlassLegendInternal(true, 'VECTOR N°', scaleName, inv, [1, maxV], null);
                     } else if (currentMode === 'tomo') {
                         if (gd && gd.data) {
                             for (let i = 0; i < gd.data.length; i++) {
@@ -591,7 +544,6 @@ window.getClusterColor = function(lbl) {
             if (!this._layerInverts) {
                 this._layerInverts = {
                     earthquakes: false,
-                    vectors: false,
                     tomo: false,
                     uplift: false
                 };
@@ -639,22 +591,6 @@ window.getClusterColor = function(lbl) {
                                         try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
                                     }
                                 }
-                            } else if (currentMode === 'vectors') {
-                                if (gd && gd.data) {
-                                    for (let i = 0; i < gd.data.length; i++) {
-                                        const tr = gd.data[i];
-                                        if (!tr) continue;
-                                        if (tr.name === 'Consecutive Event Vectors') {
-                                            if (tr.line) tr.line.reversescale = inv;
-                                        } else if (tr.name === 'Event Arrowheads') {
-                                            tr.reversescale = inv;
-                                        }
-                                    }
-                                    try { Plotly.react(gd, gd.data, gd.layout); } catch (e) { try { Plotly.redraw(gd); } catch (e2) {} }
-                                }
-                                const maxV = this._consecutiveVectorCount || 100;
-                                const sc = (this._layerScales && this._layerScales.vectors) ? this._layerScales.vectors : 'Vectors';
-                                updateGlassLegendInternal(true, 'VECTOR N°', sc, inv, [1, maxV], null);
                             } else if (currentMode === 'tomo') {
                                 if (gd && gd.data) {
                                     for (let i = 0; i < gd.data.length; i++) {
@@ -801,10 +737,6 @@ window.getClusterColor = function(lbl) {
                 const shortcutsModal = document.getElementById('shortcuts-modal');
                 if (shortcutsModal) shortcutsModal.classList.remove('active');
             }
-            if (exceptId !== 'swarm-chart-dialog') {
-                const swarmDialog = document.getElementById('swarm-chart-dialog');
-                if (swarmDialog) swarmDialog.classList.remove('active');
-            }
             if (exceptId !== 'screenshot-preview-dialog') {
                 const ssDialog = document.getElementById('screenshot-preview-dialog');
                 if (ssDialog) ssDialog.classList.remove('active');
@@ -865,9 +797,6 @@ window.getClusterColor = function(lbl) {
             }
         },
 
-        _originalMapData: null,
-        _overlayActive: false,
-        _pendingMapFile: null,
         _pendingStationsPath: null,
         _pendingUpliftPath: null,
         _pendingTomoPath: null,
@@ -906,20 +835,6 @@ window.getClusterColor = function(lbl) {
                 }
             }
 
-            const swarmBtn = document.getElementById('btn-export-swarm-chart');
-            if (swarmBtn) {
-                const hasSwarms = (window.quakeData && window.quakeData.swarms && window.quakeData.swarms.length > 0) ||
-                                  (window.swarmsList && window.swarmsList.length > 0) ||
-                                  (typeof window.isSwarmMode !== 'undefined' && window.isSwarmMode) ||
-                                  (window.quakeData && window.quakeData.anim_mode === 'swarm');
-                if (hasSwarms) {
-                    swarmBtn.style.display = 'block';
-                    swarmBtn.title = 'Export Magnitude vs. Time chart of seismic swarms as a PNG image';
-                } else {
-                    swarmBtn.style.display = 'none';
-                }
-            }
-
             if (modal) {
                 if (forceClose === true) {
                     modal.classList.remove('active');
@@ -955,300 +870,7 @@ window.getClusterColor = function(lbl) {
             }
         },
 
-        _activeConsecutiveArrows: false,
-        _consecutiveVectorCount: 0,
 
-        toggleConsecutiveArrows(forceState = null) {
-            if (!window.IS_3D_VIEW || (typeof is3D !== 'undefined' && !is3D)) {
-                showStatusToast("Event vectors are only available in 3D views.", false);
-                return;
-            }
-            const chk = document.getElementById('event-vectors-check');
-            const btn = document.getElementById('btn-consecutive-arrows');
-            const gd = document.querySelector('.plotly-graph-div');
-            if (!gd || !gd.data) return;
-
-            const isCurrentlyActive = this._activeConsecutiveArrows;
-            const targetState = (forceState !== null) ? forceState : !isCurrentlyActive;
-
-            this.removeConsecutiveArrowTraces(gd);
-
-            if (targetState) {
-                let xs = [], ys = [], zs = [];
-                
-                const cfd = window.currentFilteredData || (window.quakeData && window.quakeData.filtered ? window.quakeData.filtered : null);
-                if (cfd && cfd.longitude && cfd.longitude.length > 0) {
-                    xs = cfd.longitude;
-                    ys = cfd.latitude;
-                    zs = cfd.depth;
-                } else {
-                    const qd = window.quakeData || (window.fullData ? window.fullData : null);
-                    if (qd && qd.longitude && qd.longitude.length > 0) {
-                        xs = qd.longitude;
-                        ys = qd.latitude;
-                        zs = qd.depth;
-                    } else {
-                        for (let i = 0; i < gd.data.length; i++) {
-                            const tr = gd.data[i];
-                            if (tr && tr.type === 'scatter3d' && tr.x && tr.x.length > 0) {
-                                const name = tr.name || '';
-                                if (!name.includes('Terrain') && !name.includes('Stations') && !name.includes('Uplift') && !name.includes('Tomography') && !name.includes('Vector') && !name.includes('Arrow') && !name.includes('Centroid') && !name.includes('Hull') && !name.includes('Mesh') && !name.includes('Plane') && !name.includes('Other')) {
-                                    for (let k = 0; k < tr.x.length; k++) {
-                                        xs.push(tr.x[k]);
-                                        ys.push(tr.y[k]);
-                                        zs.push(tr.z[k]);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (xs.length < 2) {
-                    showStatusToast("Not enough 3D points for event vectors.", false);
-                    if (chk) chk.checked = false;
-                    if (btn) btn.classList.remove('active');
-                    this._activeConsecutiveArrows = false;
-                    this.updateSwapLegendVisibility();
-                    return;
-                }
-
-                const lineX = [], lineY = [], lineZ = [], lineColor = [];
-                const meshX = [], meshY = [], meshZ = [];
-                const meshI = [], meshJ = [], meshK = [];
-                const meshIntensity = [];
-
-                let validPairs = 0;
-                const totalPairs = xs.length - 1;
-
-                for (let i = 0; i < totalPairs; i++) {
-                    const x1 = parseFloat(xs[i]), y1 = parseFloat(ys[i]), z1 = parseFloat(zs[i]);
-                    const x2 = parseFloat(xs[i+1]), y2 = parseFloat(ys[i+1]), z2 = parseFloat(zs[i+1]);
-
-                    if (isNaN(x1) || isNaN(y1) || isNaN(z1) || isNaN(x2) || isNaN(y2) || isNaN(z2)) continue;
-
-                    validPairs++;
-                    const vectorNum = validPairs; // 1-indexed vector sequence number
-
-                    // 1. Metric coordinate calculations for direction & solid arrowhead
-                    const midLat = (y1 + y2) * 0.5;
-                    const kmPerDegLon = 111.0 * Math.cos(midLat * Math.PI / 180.0);
-                    const kmPerDegLat = 111.0;
-
-                    const dxKm = (x2 - x1) * kmPerDegLon;
-                    const dyKm = (y2 - y1) * kmPerDegLat;
-                    const dzKm = (z2 - z1);
-                    const distKm = Math.sqrt(dxKm * dxKm + dyKm * dyKm + dzKm * dzKm);
-
-                    let stemEndX = x2, stemEndY = y2, stemEndZ = z2;
-
-                    if (distKm > 1e-4) {
-                        const ux = dxKm / distKm;
-                        const uy = dyKm / distKm;
-                        const uz = dzKm / distKm;
-
-                        // Solid cone dimensions for each arrow (slightly larger, sleek and distinct)
-                        const headLenKm = Math.min(Math.max(0.010, 0.18 * distKm), 0.060, 0.5 * distKm);
-                        const headWidthKm = headLenKm * 0.45;
-
-                        // Perpendicular vector n1
-                        let rx = 0, ry = 0, rz = 1;
-                        if (Math.abs(uz) > 0.88) { rx = 0; ry = 1; rz = 0; }
-
-                        let n1x = uy * rz - uz * ry;
-                        let n1y = uz * rx - ux * rz;
-                        let n1z = ux * ry - uy * rx;
-                        const n1Len = Math.sqrt(n1x * n1x + n1y * n1y + n1z * n1z) || 1;
-                        n1x /= n1Len; n1y /= n1Len; n1z /= n1Len;
-
-                        // Perpendicular vector n2 (u x n1)
-                        const n2x = uy * n1z - uz * n1y;
-                        const n2y = uz * n1x - ux * n1z;
-                        const n2z = ux * n1y - uy * n1x;
-
-                        // Base center point in km
-                        const x2Km = x2 * kmPerDegLon;
-                        const y2Km = y2 * kmPerDegLat;
-                        const z2Km = z2;
-
-                        const baseKmX = x2Km - headLenKm * ux;
-                        const baseKmY = y2Km - headLenKm * uy;
-                        const baseKmZ = z2Km - headLenKm * uz;
-
-                        const bx = baseKmX / kmPerDegLon;
-                        const by = baseKmY / kmPerDegLat;
-                        const bz = baseKmZ;
-
-                        stemEndX = (distKm > headLenKm) ? bx : x2;
-                        stemEndY = (distKm > headLenKm) ? by : y2;
-                        stemEndZ = (distKm > headLenKm) ? bz : z2;
-
-                        // 2. Build Solid 3D Cone Arrowhead Mesh (Figura piena)
-                        const K = meshX.length;
-                        const N_SIDES = 6;
-
-                        // Vertex 0: Arrow tip
-                        meshX.push(x2);
-                        meshY.push(y2);
-                        meshZ.push(z2);
-                        meshIntensity.push(vectorNum);
-
-                        // Vertices 1..N_SIDES: Perimeter around base
-                        for (let s = 0; s < N_SIDES; s++) {
-                            const angle = (2 * Math.PI * s) / N_SIDES;
-                            const cosA = Math.cos(angle);
-                            const sinA = Math.sin(angle);
-                            const pxKm = baseKmX + headWidthKm * (cosA * n1x + sinA * n2x);
-                            const pyKm = baseKmY + headWidthKm * (cosA * n1y + sinA * n2y);
-                            const pzKm = baseKmZ + headWidthKm * (cosA * n1z + sinA * n2z);
-                            meshX.push(pxKm / kmPerDegLon);
-                            meshY.push(pyKm / kmPerDegLat);
-                            meshZ.push(pzKm);
-                            meshIntensity.push(vectorNum);
-                        }
-
-                        // Vertex N_SIDES + 1: Base center (for solid rear cap)
-                        meshX.push(bx);
-                        meshY.push(by);
-                        meshZ.push(bz);
-                        meshIntensity.push(vectorNum);
-
-                        // Triangular faces
-                        for (let s = 0; s < N_SIDES; s++) {
-                            const nextS = (s + 1) % N_SIDES;
-                            // Side face (Tip -> s -> nextS)
-                            meshI.push(K + 0);
-                            meshJ.push(K + 1 + s);
-                            meshK.push(K + 1 + nextS);
-
-                            // Base cap face (Base Center -> nextS -> s)
-                            meshI.push(K + 1 + N_SIDES);
-                            meshJ.push(K + 1 + nextS);
-                            meshK.push(K + 1 + s);
-                        }
-                    }
-
-                    // Arrow stem (from event i to base of arrowhead)
-                    lineX.push(x1, stemEndX, null);
-                    lineY.push(y1, stemEndY, null);
-                    lineZ.push(z1, stemEndZ, null);
-                    lineColor.push(vectorNum, vectorNum, vectorNum);
-                }
-
-                if (validPairs === 0) {
-                    showStatusToast("No valid pairs for event vectors.", false);
-                    if (chk) chk.checked = false;
-                    if (btn) btn.classList.remove('active');
-                    this._activeConsecutiveArrows = false;
-                    this.updateSwapLegendVisibility();
-                    return;
-                }
-
-                this._activeConsecutiveArrows = true;
-                this._consecutiveVectorCount = validPairs;
-                if (chk) chk.checked = true;
-
-                const vectorScale = (this._layerScales && this._layerScales.vectors) ? this._layerScales.vectors : 'Vectors';
-                const lineTrace = {
-                    type: 'scatter3d',
-                    name: 'Consecutive Event Vectors',
-                    x: lineX,
-                    y: lineY,
-                    z: lineZ,
-                    mode: 'lines',
-                    line: {
-                        color: lineColor,
-                        colorscale: getPlotlyScale(vectorScale),
-                        cmin: 1,
-                        cmax: validPairs,
-                        width: 4
-                    },
-                    hoverinfo: 'skip',
-                    showlegend: false
-                };
-
-                const tracesToAdd = [lineTrace];
-
-                if (meshX.length > 0) {
-                    const arrowMeshTrace = {
-                        type: 'mesh3d',
-                        name: 'Event Arrowheads',
-                        x: meshX,
-                        y: meshY,
-                        z: meshZ,
-                        i: meshI,
-                        j: meshJ,
-                        k: meshK,
-                        intensity: meshIntensity,
-                        colorscale: getPlotlyScale(vectorScale),
-                        cmin: 1,
-                        cmax: validPairs,
-                        flatshading: true,
-                        lighting: {
-                            ambient: 0.85,
-                            diffuse: 0.8,
-                            specular: 0.15,
-                            roughness: 0.5
-                        },
-                        showscale: false,
-                        hoverinfo: 'skip'
-                    };
-                    tracesToAdd.push(arrowMeshTrace);
-                }
-
-                Plotly.addTraces(gd, tracesToAdd);
-                if (btn) btn.classList.add('active');
-
-                if (window._currentLegendMode === 'vectors') {
-                    updateGlassLegendInternal(true, 'VECTOR N°', 'Vectors', false, [1, validPairs], null);
-                }
-
-                this.updateSwapLegendVisibility();
-            } else {
-                if (chk) chk.checked = false;
-                if (btn) btn.classList.remove('active');
-                this._activeConsecutiveArrows = false;
-                let isClustering = false;
-                if (typeof window.animClusteringEnabled !== 'undefined' && window.animClusteringEnabled) {
-                    isClustering = true;
-                } else if (typeof window.lockedClusters !== 'undefined') {
-                    isClustering = true;
-                }
-                if (window._currentLegendMode === 'vectors') {
-                    if (isClustering) {
-                        window._currentLegendMode = 'clusters';
-                        if (typeof updateClusterLegend === 'function') {
-                            if (typeof window._lastPresentLabels !== 'undefined') {
-                                updateClusterLegend(window._lastPresentLabels);
-                            } else {
-                                updateClusterLegend();
-                            }
-                        }
-                    } else {
-                        window._currentLegendMode = 'earthquakes';
-                        if (window._earthquakeLegendState) {
-                            const s = window._earthquakeLegendState;
-                            updateGlassLegendInternal(s.show, s.title, s.scaleName, s.invert, s.limits, s.dateInfo);
-                        }
-                    }
-                }
-                this.updateSwapLegendVisibility();
-            }
-        },
-
-        removeConsecutiveArrowTraces(gd) {
-            if (!gd || !gd.data) return;
-            const indicesToRemove = [];
-            for (let i = gd.data.length - 1; i >= 0; i--) {
-                const tr = gd.data[i];
-                if (tr && (tr.name === 'Consecutive Event Vectors' || tr.name === 'Event Arrowheads')) {
-                    indicesToRemove.push(i);
-                }
-            }
-            if (indicesToRemove.length > 0) {
-                Plotly.deleteTraces(gd, indicesToRemove);
-            }
-        },
 
         updateSwapLegendVisibility() {
             this.updateLegendSwapButtonVisibility();
@@ -1295,30 +917,7 @@ window.getClusterColor = function(lbl) {
             this.downloadSelectedClusterCSV();
         },
 
-        // Note: Swarms Subsystem methods are implemented in /assets/viz_swarms.js
-        openSwarmChartDialog(swarmIndex) {
-            if (window.SeismicSwarms && window.SeismicSwarms.openSwarmChartDialog) {
-                return window.SeismicSwarms.openSwarmChartDialog.apply(window.SeismicSwarms, arguments);
-            }
-        },
 
-        closeSwarmChartDialog() {
-            if (window.SeismicSwarms && window.SeismicSwarms.closeSwarmChartDialog) {
-                return window.SeismicSwarms.closeSwarmChartDialog.apply(window.SeismicSwarms, arguments);
-            }
-        },
-
-        downloadSwarmChart() {
-            if (window.SeismicSwarms && window.SeismicSwarms.downloadSwarmChart) {
-                return window.SeismicSwarms.downloadSwarmChart.apply(window.SeismicSwarms, arguments);
-            }
-        },
-
-        navigateSwarmChart(direction) {
-            if (window.SeismicSwarms && window.SeismicSwarms.navigateSwarmChart) {
-                return window.SeismicSwarms.navigateSwarmChart.apply(window.SeismicSwarms, arguments);
-            }
-        },
 
         // Note: External Layers Subsystem methods are implemented in /assets/viz_layers.js
         toggleLayerModal(e) {
@@ -1388,17 +987,6 @@ window.getClusterColor = function(lbl) {
             return Promise.resolve();
         },
 
-        handleOverlayUpload(input) {
-            if (window.SeismicLayers && window.SeismicLayers.handleOverlayUpload) {
-                return window.SeismicLayers.handleOverlayUpload.apply(window.SeismicLayers, arguments);
-            }
-        },
-
-        restoreOriginalMap() {
-            if (window.SeismicLayers && window.SeismicLayers.restoreOriginalMap) {
-                return window.SeismicLayers.restoreOriginalMap.apply(window.SeismicLayers, arguments);
-            }
-        },
 
         captureScreenshot() {
             if (window.SeismicExport) return window.SeismicExport.captureScreenshot();
@@ -1435,8 +1023,6 @@ window.getClusterColor = function(lbl) {
             if (exportModal) exportModal.classList.remove('active');
             const shortcutsModal = document.getElementById('shortcuts-modal');
             if (shortcutsModal) shortcutsModal.classList.remove('active');
-            const swarmChartDialog = document.getElementById('swarm-chart-dialog');
-            if (swarmChartDialog) swarmChartDialog.classList.remove('active');
             const screenshotDialog = document.getElementById('screenshot-preview-dialog');
             if (screenshotDialog) screenshotDialog.classList.remove('active');
             const clusterCsvDialog = document.getElementById('cluster-csv-dialog');
@@ -1560,8 +1146,6 @@ window.getClusterColor = function(lbl) {
                 tick.textContent = `${day}-${month}-${year}`;
             } else if (scaleName === 'Tomography' || title.includes('Tomo')) {
                 tick.textContent = val.toFixed(3);
-            } else if (scaleName === 'Vectors' || (typeof title === 'string' && (title.includes('Sequence') || title.includes('Vector')))) {
-                tick.textContent = Math.round(val);
             } else {
                 tick.textContent = val.toFixed(1);
             }
@@ -1746,8 +1330,6 @@ window.getClusterColor = function(lbl) {
             });
             updatePasteButtonState();
             if (!is3D) {
-                const sRowV = document.getElementById('shortcut-row-vectors');
-                if (sRowV) sRowV.style.display = 'none';
                 const sRowC = document.getElementById('shortcut-row-cinema');
                 if (sRowC) sRowC.style.display = 'none';
                 const sRowS = document.getElementById('shortcut-row-side');
@@ -1965,28 +1547,7 @@ window.getClusterColor = function(lbl) {
                 }
             }
         }
-        // V / v or A / a: Toggle Consecutive Event Vectors
-        else if (e.key === 'v' || e.key === 'V' || e.key === 'a' || e.key === 'A') {
-            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                if (!window.IS_3D_VIEW || (typeof is3D !== 'undefined' && !is3D)) {
-                    showStatusToast("Event vectors are only available in 3D views.", false);
-                    return;
-                }
-                const evCheck = document.getElementById('event-vectors-check');
-                if (evCheck) {
-                    evCheck.checked = !evCheck.checked;
-                    const applyBtn = document.getElementById('apply-filters-btn') || document.getElementById('apply-all-btn');
-                    if (applyBtn) {
-                        applyBtn.click();
-                    } else if (typeof SeismicUI !== 'undefined' && SeismicUI.toggleConsecutiveArrows) {
-                        SeismicUI.toggleConsecutiveArrows(evCheck.checked);
-                    }
-                } else if (typeof SeismicUI !== 'undefined' && SeismicUI.toggleConsecutiveArrows) {
-                    SeismicUI.toggleConsecutiveArrows();
-                }
-            }
-        }
+
         // Numbers 1 - 4: Fast switch between views
         else if (['1', '2', '3', '4'].includes(e.key)) {
             if (!e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -2008,7 +1569,6 @@ window.getClusterColor = function(lbl) {
         else if (e.key === 'Escape') {
             e.preventDefault();
             const dialogModals = [
-                document.getElementById('swarm-chart-dialog'),
                 document.getElementById('screenshot-preview-dialog'),
                 document.getElementById('cluster-csv-dialog'),
                 document.getElementById('shortcuts-modal'),
@@ -2026,7 +1586,6 @@ window.getClusterColor = function(lbl) {
             if (typeof SeismicUI !== 'undefined') {
                 if (SeismicUI.closeScreenshotPreview) SeismicUI.closeScreenshotPreview();
                 if (SeismicUI.closeClusterCsvDialog) SeismicUI.closeClusterCsvDialog();
-                if (SeismicUI.closeSwarmChartDialog) SeismicUI.closeSwarmChartDialog();
             }
             const activePopup = document.querySelector('#info-panel.show, .glass-menu.show');
             if (activePopup) {
