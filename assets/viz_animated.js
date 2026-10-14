@@ -92,23 +92,51 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             const dates = quakeData.frame_dates || quakeData.unique_dates || [];
 
+            function updateCurrentDateDisplay(idx) {
+                if (!dateDisplay || !dates || dates.length === 0) return;
+                const date = dates[idx];
+                if (!date) return;
+
+                if (quakeData.anim_mode === 'window' && quakeData.window_days > 1) {
+                    const cutoffDate = new Date(new Date(date).getTime() - (quakeData.window_days - 1) * 86400000);
+                    const cutoffStr = cutoffDate.toISOString().slice(0, 10);
+                    dateDisplay.textContent = `${formatDate(cutoffStr)} – ${formatDate(date)}`;
+                } else if (quakeData.anim_mode === 'block' && quakeData.window_days > 1) {
+                    const blockStartDate = new Date(date);
+                    const blockEndDate = new Date(blockStartDate.getTime() + quakeData.window_days * 86400000);
+                    const endStr = blockEndDate.toISOString().slice(0, 10);
+                    dateDisplay.textContent = `${formatDate(date)} – ${formatDate(endStr)}`;
+                } else {
+                    dateDisplay.textContent = formatDate(date);
+                }
+            }
+
             slider.max = dates.length - 1;
             if (jumpDate) {
-                jumpDate.value = formatDate(dates[0]);
-                jumpDate.addEventListener('input', (e) => {
-                    let v = e.target.value.replace(/\D/g, '');
-                    if (v.length > 8) v = v.slice(0, 8);
-                    if (v.length > 4) {
-                        e.target.value = `${v.slice(0,2)}/${v.slice(2,4)}/${v.slice(4)}`;
-                    } else if (v.length > 2) {
-                        e.target.value = `${v.slice(0,2)}/${v.slice(2)}`;
+                if (dates.length > 0) {
+                    jumpDate.min = dates[0];
+                    jumpDate.max = dates[dates.length - 1];
+                    jumpDate.value = dates[0];
+                }
+                const handleJump = () => {
+                    const target = jumpDate.value ? jumpDate.value.trim() : '';
+                    if (!target) return;
+                    const idx = dates.findIndex(d => d >= target);
+                    if (idx !== -1) {
+                        pause();
+                        updateView(idx);
                     } else {
-                        e.target.value = v;
+                        pause();
+                        updateView(dates.length - 1);
                     }
-                });
+                };
+                jumpDate.addEventListener('change', handleJump);
                 jumpDate.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' && jumpBtn) jumpBtn.click();
+                    if (e.key === 'Enter') handleJump();
                 });
+                if (jumpBtn) {
+                    jumpBtn.onclick = handleJump;
+                }
             }
 
             let appliedMagMin = -10;
@@ -558,6 +586,11 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
                 }
 
                 currentStepIdx = idx;
+                slider.value = currentStepIdx;
+                updateCurrentDateDisplay(idx);
+                if (jumpDate && dates && dates[idx] && document.activeElement !== jumpDate) {
+                    jumpDate.value = dates[idx];
+                }
 
                 // 1. Update scatter3d trace (points)
                 return Plotly.restyle(gd, bulkUpdate, traceIndices).then(() => {
@@ -1217,7 +1250,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             function setAnimationControlsLock(locked) {
                 const elementsToLock = [
                     'settings-bar', 'apply-all-btn',
-                    'jump-bar', 'jump-date', 'jump-btn',
+                    'jump-bar', 'filter-bar', 'jump-date', 'jump-btn',
                     'camera-controls',
                     'glass-legend', 'legend-container', 'cluster-list', 'btn-swap-legend',
                     'back-btn', 'info-btn', 'overlay-btn', 'screenshot-btn',
@@ -1298,6 +1331,10 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             slider.oninput = () => {
                 pause();
                 const targetIdx = parseInt(slider.value, 10);
+                updateCurrentDateDisplay(targetIdx);
+                if (jumpDate && dates && dates[targetIdx] && document.activeElement !== jumpDate) {
+                    jumpDate.value = dates[targetIdx];
+                }
                 if (sliderRafId) cancelAnimationFrame(sliderRafId);
                 sliderRafId = requestAnimationFrame(() => {
                     sliderRafId = null;
@@ -1380,20 +1417,21 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
             };
             window.updateView = (idx) => updateView(typeof idx !== 'undefined' ? idx : currentStepIdx);
 
-            jumpBtn.onclick = () => {
-                const rawVal = jumpDate.value ? jumpDate.value.trim() : '';
-                const target = fromMMDDYYYY(rawVal);
-                if (!target) return;
-                
-                const idx = dates.findIndex(d => d >= target);
-                if (idx !== -1) {
-                    pause();
-                    updateView(idx);
-                } else {
-                    pause();
-                    updateView(dates.length - 1);
-                }
-            };
+            if (jumpBtn) {
+                jumpBtn.onclick = () => {
+                    const target = jumpDate.value ? jumpDate.value.trim() : '';
+                    if (!target) return;
+                    
+                    const idx = dates.findIndex(d => d >= target);
+                    if (idx !== -1) {
+                        pause();
+                        updateView(idx);
+                    } else {
+                        pause();
+                        updateView(dates.length - 1);
+                    }
+                };
+            }
 
             // Plane Controls
             let lastCheckedAnalysis = null;
@@ -1743,6 +1781,7 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             renderHistogram();
             updateView(0);
+            updateCurrentDateDisplay(0);
 
             // Explicit initial Glass Legend sync for animated view
             setTimeout(() => {

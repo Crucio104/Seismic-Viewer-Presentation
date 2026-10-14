@@ -21,7 +21,6 @@ resources/.ingv_cache/
 *.log
 *.out
 *.toc
-*.csv
 *.fdb_latexmk
 *.fls
 *.synctex.gz
