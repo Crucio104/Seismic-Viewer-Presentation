@@ -5,11 +5,11 @@ SPEECH_NOTES_INFORMAL_ACADEMIC = [
     """[SLIDE 1 | TIME: 0:00 - 0:35 | TARGET: 35 SECONDS]
 
 SPEECH (EN):
-"Hello everyone.
+"Hello everyone, Professor Avola, and Dr. Bailo.
 My name is Alessio Curcio, and today I'm glad to present my internship report titled:
 'Seismic Viewer: Design, Implementation and Evaluation of an Interactive 4D Spatio-Temporal Visualisation System for Seismological Data'.
 
-This work was carried out during my curricular internship at the National Institute of Geophysics and Volcanology."
+This work was carried out during my curricular internship at the National Institute of Geophysics and Volcanology (INGV), in collaboration with Sapienza University of Rome."
 
 [VISUAL ACTION: Smile, welcome the committee, make eye contact, project confidence, advance to Slide 2 at 0:35]""",
 
@@ -31,8 +31,8 @@ However, geophysicists had a major problem: they lacked an interactive tool to e
 
 SPEECH (EN):
 "When we looked at the tools seismologists currently use, we found a clear technological gap:
-First, standard GIS tools like QGIS or ArcGIS are great for 2D cartography, but they really struggle with high-framerate 3D point clouds and dynamic animations.
-Second, scientific 3D packages like ParaView are extremely powerful, but they have a steep learning curve, require heavy desktop installations, and don't connect easily to live web catalogues.
+First, standard GIS tools like QGIS or ArcGIS are great for 2D cartography, but they struggle with high-framerate 3D point clouds and dynamic animations.
+Second, scientific scripting libraries like ObsPy and GMT produce high-quality static figures, but require constant command-line scripting and lack real-time interactive 3D and 4D exploration.
 And third, public web portals only display static 2D maps.
 
 So what geophysicists really needed was a lightweight tool running directly in the browser that unifies 2D maps, 3D point clouds, 4D time playback, and automated fault plane extraction in one place."
@@ -61,12 +61,11 @@ And in Phase 6, we optimized everything with Float32 binary streaming and an asy
 SPEECH (EN):
 "Now, let's dive into the current application features, starting with the 2D Workspace.
 
-On the left panel, users can filter the catalogue in real time by date, depth, and magnitude. All filtering runs instantly directly in JavaScript in the browser, with zero round-trip latency to the server.
-Earthquakes are mapped using OpenStreetMap, with circles scaled by seismic energy and colored by hypocentral depth.
-On the right, live summary cards calculate total event count, maximum magnitude, and cumulative energy release in kilojoules.
-Researchers can immediately isolate swarms around Pozzuoli or the Solfatara crater."
+On the left panel, users can filter the catalogue in real time by date range, focal depth, and magnitude. All filtering runs instantly directly in JavaScript in the browser, with zero round-trip latency to the server.
+Earthquakes are mapped over OpenStreetMap tiles. Users can seamlessly switch between proportional scatter markers—where circle sizes scale with magnitude and colours map to focal depth—and continuous kernel density heatmaps to highlight spatial clustering.
+Researchers can immediately isolate dense swarms around Pozzuoli or the Solfatara crater."
 
-[VISUAL ACTION: Point to the 2D map screenshot on the left and the statistical indicators on the right]""",
+[VISUAL ACTION: Point to the 2D map screenshot on the left and the interactive filter controls on the side drawer]""",
 
     # SLIDE 6
     """[SLIDE 6 | TIME: 3:25 - 4:05 | TARGET: 40 SECONDS]
@@ -74,13 +73,13 @@ Researchers can immediately isolate swarms around Pozzuoli or the Solfatara crat
 SPEECH (EN):
 "Next, switching to the 3D Workspace, earthquakes are rendered in physical space using WebGL.
 
-Now, anyone who has worked with 3D point clouds knows that depth perception on a flat screen can be tricky. To solve this, we introduced three visual cues:
-First, vertical drop lines that project each hypocenter straight down to sea level.
-Second, a clear depth color gradient.
-And third, a 3D bounding box with depth marks in kilometers.
-We also built a dynamic 3D compass in the corner that syncs with camera rotation, so researchers never lose their spatial orientation."
+Anyone who has worked with 3D point clouds knows that depth perception on a 2D screen can be tricky. To preserve accurate geological geometry, we implemented three key mechanisms:
+First, True Depth Scaling: hypocentres are positioned in physical kilometres beneath a semi-transparent OpenStreetMap surface terrain mesh.
+Second, an Aspect Ratio Correction that compensates for meridional convergence using the cosine of the mean latitude, preventing geographic distortion.
+And third, a 3D bounding box with depth coordinates in kilometres coupled with continuous depth colour gradients.
+We also ensure camera persistence across filter updates using Plotly's uirevision, alongside preset cardinal side-view alignments."
 
-[VISUAL ACTION: Point out the orthographic drop lines, the depth color scale, and the 3D compass widget on the screenshot]""",
+[VISUAL ACTION: Point out the physical depth scaling beneath the surface terrain mesh, the aspect ratio correction, and the 3D coordinate bounding box on the screenshot]""",
 
     # SLIDE 7
     """[SLIDE 7 | TIME: 4:05 - 4:45 | TARGET: 40 SECONDS]
@@ -88,11 +87,13 @@ We also built a dynamic 3D compass in the corner that syncs with camera rotation
 SPEECH (EN):
 "Earthquake swarms aren't static — they migrate. Our 4D Animation Engine lets researchers watch this evolution unfold over time.
 
-Users can choose between a cumulative view, which shows seismic buildup, or a moving time window from 1 to 30 days to isolate active migration fronts.
-To make fault propagation clear without cluttering the screen, we created what we call the 'Afterglow' visual effect. New earthquakes burst onto the screen bright and large, while older events exponentially fade out over time.
-This lets geophysicists clearly see the direction and speed of fluid-driven fractures across the caldera."
+Users can select between three analytical playback modes:
+An Accumulation mode, showing cumulative seismic buildup from the first event to track stress accumulation.
+A Sliding Window mode, moving a configurable time frame—from 1 to 30 days—across the sequence to isolate active fault migration fronts without visual clutter.
+And a Discrete Block mode, partitioning the sequence into chronological chunks.
+At the bottom, an interactive timeline histogram allows scrubbing through dates while live readouts track active event count, peak magnitude, and cumulative seismic energy release in kilojoules using Gutenberg-Richter scaling."
 
-[VISUAL ACTION: Describe the Afterglow mechanism and how it reveals fluid migration pathways over time]""",
+[VISUAL ACTION: Point out the temporal playback modes (accumulation vs sliding window) and the live energy readout on the timeline histogram]""",
 
     # SLIDE 8
     """[SLIDE 8 | TIME: 4:45 - 5:30 | TARGET: 45 SECONDS]
@@ -165,10 +166,10 @@ Instead of parsing thousands of JSON objects, the server streams a raw, contiguo
 SPEECH (EN):
 "To validate the system, we carried out extensive benchmarks:
 
-First, in Monte Carlo simulations across 500 synthetic faults with noise and 30% random outliers, our RANSAC-SVD method achieved a Mean Absolute Error under 0.5 degrees for Dip, and under 0.9 degrees for Strike.
-Second, on the real Campi Flegrei catalogue of over 3,200 earthquakes, clustering and plane fitting completed in less than 42 milliseconds.
+First, in Monte Carlo simulations across 500 synthetic faults with noise and 30% random outliers, our RANSAC-SVD method achieved a Mean Absolute Error of 0.51 degrees for Dip, and 0.93 degrees for Strike.
+Second, on the real Campi Flegrei catalogue of 3,225 earthquakes, clustering and plane fitting completed in less than 42 milliseconds.
 Third, in stress tests with 50,000 synthetic hypocenters, WebGL maintained a smooth 55 to 60 frames per second.
-And memory management benchmarks confirmed that our session caching and garbage collection keep RAM usage strictly below 500 megabytes throughout extended sessions."
+And memory management benchmarks confirmed that our session caching and FIFO eviction keep RAM usage strictly below 500 megabytes throughout extended sessions."
 
 [VISUAL ACTION: Point to the validation metrics in the table: Monte Carlo MAE, 42ms clustering, 60 FPS stress test]""",
 

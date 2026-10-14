@@ -18,13 +18,13 @@ This presentation is organized into four core parts following the scientific, te
    - Limits of current tools (2D GIS, heavy scientific 3D packages, static web portals).
    - System requirements (FR/NFR) and the **6-phase iterative implementation timeline** shaped by researcher feedback.
 2. **Part 2: Current Application Features & Algorithmic Rationale** (Slides 5–11, ~5m 00s)
-   - Interactive 2D workspace with zero-latency in-browser filtering and energy release.
-   - 3D workspace with physical depth scaling, orthographic drop lines, and dynamic compass.
-   - 4D spatiotemporal animation engine with cumulative and sliding-window migration plus the **Afterglow** visual decay.
+   - Interactive 2D workspace with zero-latency in-browser filtering, dual-layer scatter/density maps, and magnitude energy scaling.
+   - 3D workspace with physical depth scaling beneath OpenStreetMap surface mesh, aspect ratio correction for meridional convergence, and stateful camera tracking.
+   - 4D spatiotemporal animation engine with accumulation, sliding-window, and discrete block modes plus interactive timeline energy tracking.
    - Multi-layer geophysical co-registration: 3D $V_p/V_s$ seismic tomography with IDW Gaussian baseline blending, GNSS ground uplift with Mogi decay, and seismic station markers.
    - Clustering engine: **Why and how algorithms changed** — why K-Means failed on tectonic faults and forced noise points $\to$ why DBSCAN was adopted with automated Kneedle knee-detection $\to$ MiniBatchKMeans for rapid batch partitioning $\to$ confirmed cluster lock.
    - Mathematical fault plane fitting: **Why RANSAC was applied before SVD** to eliminate diffuse outliers, followed by centered SVD for normal vector extraction ($\vec{n}=v_3$), Strike, Dip, and planarity scoring.
-   - 4D Cylinder slicing for caldera ring faults & **Global Label Matching** (stochastic spatial voting with Hungarian assignment) to stop cluster color flickering across animation frames.
+   - 4D Cylinder slicing for caldera ring faults & **Global Label Matching** (stochastic spatial voting with greedy majority assignment) to stop cluster color flickering across animation frames.
 3. **Part 3: Data Ingestion Pipeline & Architectural Choices** (Slide 12, ~45s)
    - Heterogeneous ingestion: online queries to the INGV GOSSIP REST API and offline CSV file parsing.
    - **Critical design decision**: Handling of missing depths — preserved in 2D views for complete catalogue reporting, but strictly excluded from 3D/4D spatial computations to prevent artificial planar artifacts at $z=0$.
@@ -45,8 +45,8 @@ This presentation is organized into four core parts following the scientific, te
 | **3** | State of Current Tools & Visualisation Gap | 1:20 – 2:00 | 40s | ~90 words | 135 |
 | **4** | Requirements & Iterative Implementation Timeline | 2:00 – 2:45 | 45s | ~110 words | 145 |
 | **5** | 2D Workspace & In-Browser Filtering | 2:45 – 3:25 | 40s | ~85 words | 130 |
-| **6** | 3D Workspace & Underground Cues | 3:25 – 4:05 | 40s | ~85 words | 130 |
-| **7** | 4D Dynamic Migration & Afterglow Effect | 4:05 – 4:45 | 40s | ~90 words | 135 |
+| **6** | 3D Workspace & Physical Depth Scaling | 3:25 – 4:05 | 40s | ~85 words | 130 |
+| **7** | 4D Dynamic Migration & Temporal Playback | 4:05 – 4:45 | 40s | ~90 words | 135 |
 | **8** | Multi-Layer Geophysics (Tomography, Uplift & Stations) | 4:45 – 5:30 | 45s | ~100 words | 135 |
 | **9** | Clustering Engine: Algorithmic Evolution & Rationale | 5:30 – 6:15 | 45s | ~110 words | 145 |
 | **10** | Structural Geology & Fault Plane Fitting (RANSAC + SVD) | 6:15 – 7:00 | 45s | ~105 words | 140 |
@@ -92,8 +92,8 @@ This presentation is organized into four core parts following the scientific, te
 * **Visual Action**: Highlight the comparison table on Slide 3, pointing out the all-green column for Seismic Viewer.
 
 > "When we looked at the tools seismologists currently use, we found a clear technological gap:  
-> First, standard GIS tools like QGIS or ArcGIS are great for 2D cartography, but they really struggle with high-framerate 3D point clouds and dynamic animations.  
-> Second, scientific 3D packages like ParaView are extremely powerful, but they have a steep learning curve, require heavy desktop installations, and don't connect easily to live web catalogues.  
+> First, standard GIS tools like QGIS or ArcGIS are great for 2D cartography, but they struggle with high-framerate 3D point clouds and dynamic animations.  
+> Second, scientific scripting libraries like ObsPy and GMT produce high-quality static figures, but require constant command-line scripting and lack real-time interactive 3D and 4D exploration.  
 > And third, public web portals only display static 2D maps.  
 > 
 > So what geophysicists really needed was a lightweight tool running directly in the browser that unifies 2D maps, 3D point clouds, 4D time playback, and automated fault plane extraction in one place."
@@ -118,40 +118,41 @@ This presentation is organized into four core parts following the scientific, te
 
 ### Slide 5: 2D Application Workspace & In-Browser Filtering
 * **Elapsed Time**: `[2:45 – 3:25]` (40 seconds)
-* **Visual Action**: Point to the 2D map screenshot on the left and the statistical indicators on the right.
+* **Visual Action**: Point to the 2D map screenshot on the left and the interactive filter controls on the side drawer.
 
 > "Now, let's dive into the current application features, starting with the 2D Workspace.  
 > 
-> On the left panel, users can filter the catalogue in real time by date, depth, and magnitude. All filtering runs instantly directly in JavaScript in the browser, with zero round-trip latency to the server.  
-> Earthquakes are mapped using OpenStreetMap, with circles scaled by seismic energy and colored by hypocentral depth.  
-> On the right, live summary cards calculate total event count, maximum magnitude, and cumulative energy release in kilojoules.  
-> Researchers can immediately isolate swarms around Pozzuoli or the Solfatara crater."
+> On the left panel, users can filter the catalogue in real time by date range, focal depth, and magnitude. All filtering runs instantly directly in JavaScript in the browser, with zero round-trip latency to the server.  
+> Earthquakes are mapped over OpenStreetMap tiles. Users can seamlessly switch between proportional scatter markers—where circle sizes scale with magnitude and colours map to focal depth—and continuous kernel density heatmaps to highlight spatial clustering.  
+> Researchers can immediately isolate dense swarms around Pozzuoli or the Solfatara crater."
 
 ---
 
-### Slide 6: 3D Workspace & Underground Cues
+### Slide 6: 3D Workspace & Physical Depth Scaling
 * **Elapsed Time**: `[3:25 – 4:05]` (40 seconds)
-* **Visual Action**: Point out the orthographic drop lines, the depth color scale, and the 3D compass widget on the screenshot.
+* **Visual Action**: Point out the physical depth scaling beneath the surface terrain mesh, the aspect ratio correction, and the 3D coordinate bounding box on the screenshot.
 
 > "Next, switching to the 3D Workspace, earthquakes are rendered in physical space using WebGL.  
 > 
-> Now, anyone who has worked with 3D point clouds knows that depth perception on a flat screen can be tricky. To solve this, we introduced three visual cues:  
-> First, vertical drop lines that project each hypocenter straight down to sea level.  
-> Second, a clear depth color gradient.  
-> And third, a 3D bounding box with depth marks in kilometers.  
-> We also built a dynamic 3D compass in the corner that syncs with camera rotation, so researchers never lose their spatial orientation."
+> Anyone who has worked with 3D point clouds knows that depth perception on a 2D screen can be tricky. To preserve accurate geological geometry, we implemented three key mechanisms:  
+> First, True Depth Scaling: hypocentres are positioned in physical kilometres beneath a semi-transparent OpenStreetMap surface terrain mesh.  
+> Second, an Aspect Ratio Correction that compensates for meridional convergence using the cosine of the mean latitude, preventing geographic distortion.  
+> And third, a 3D bounding box with depth coordinates in kilometres coupled with continuous depth colour gradients.  
+> We also ensure camera persistence across filter updates using Plotly's uirevision, alongside preset cardinal side-view alignments."
 
 ---
 
-### Slide 7: 4D Dynamic Migration & The Afterglow Effect
+### Slide 7: 4D Dynamic Migration & Temporal Playback
 * **Elapsed Time**: `[4:05 – 4:45]` (40 seconds)
-* **Visual Action**: Describe the Afterglow mechanism and how it reveals fluid migration pathways over time.
+* **Visual Action**: Point out the temporal playback modes (accumulation vs sliding window) and the live energy readout on the timeline histogram.
 
 > "Earthquake swarms aren't static — they migrate. Our 4D Animation Engine lets researchers watch this evolution unfold over time.  
 > 
-> Users can choose between a cumulative view, which shows seismic buildup, or a moving time window from 1 to 30 days to isolate active migration fronts.  
-> To make fault propagation clear without cluttering the screen, we created what we call the 'Afterglow' visual effect. New earthquakes burst onto the screen bright and large, while older events exponentially fade out over time.  
-> This lets geophysicists clearly see the direction and speed of fluid-driven fractures across the caldera."
+> Users can select between three analytical playback modes:  
+> An Accumulation mode, showing cumulative seismic buildup from the first event to track stress accumulation.  
+> A Sliding Window mode, moving a configurable time frame—from 1 to 30 days—across the sequence to isolate active fault migration fronts without visual clutter.  
+> And a Discrete Block mode, partitioning the sequence into chronological chunks.  
+> At the bottom, an interactive timeline histogram allows scrubbing through dates while live readouts track active event count, peak magnitude, and cumulative seismic energy release in kilojoules using Gutenberg-Richter scaling."
 
 ---
 
@@ -226,10 +227,10 @@ This presentation is organized into four core parts following the scientific, te
 
 > "To validate the system, we carried out extensive benchmarks:  
 > 
-> First, in Monte Carlo simulations across 500 synthetic faults with noise and 30% random outliers, our RANSAC-SVD method achieved a Mean Absolute Error under 0.5 degrees for Dip, and under 0.9 degrees for Strike.  
-> Second, on the real Campi Flegrei catalogue of over 3,200 earthquakes, clustering and plane fitting completed in less than 42 milliseconds.  
+> First, in Monte Carlo simulations across 500 synthetic faults with noise and 30% random outliers, our RANSAC-SVD method achieved a Mean Absolute Error of 0.51 degrees for Dip, and 0.93 degrees for Strike.  
+> Second, on the real Campi Flegrei catalogue of 3,225 earthquakes, clustering and plane fitting completed in less than 42 milliseconds.  
 > Third, in stress tests with 50,000 synthetic hypocenters, WebGL maintained a smooth 55 to 60 frames per second.  
-> And memory management benchmarks confirmed that our session caching and garbage collection keep RAM usage strictly below 500 megabytes throughout extended sessions."
+> And memory management benchmarks confirmed that our session caching and FIFO eviction keep RAM usage strictly below 500 megabytes throughout extended sessions."
 
 ---
 
