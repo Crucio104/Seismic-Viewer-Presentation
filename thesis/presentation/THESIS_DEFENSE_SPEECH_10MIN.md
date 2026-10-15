@@ -104,9 +104,9 @@ This presentation is organized into four core parts following the scientific, te
 
 > "To guide development, we established core specifications.  
 > Functionally, the system provides multi-modal 2D, 3D, and 4D navigation, automated fault plane extraction, multi-layer geophysical fusion of tomography and GNSS uplift, and dual ingestion via INGV APIs and local CSV files.  
-> Non-functionally, it ensures real-time rendering, sub-second recalculation, robust sanitisation of corrupted depths, and a bounded memory footprint strictly below 500 megabytes.  
+> Non-functionally, it ensures real-time rendering, sub-second recalculation, robust sanitisation of corrupted depths, and a bounded memory footprint.  
 > 
-> Following an iterative workflow with INGV and Roma Tre researchers, development progressed through six phases: from early 3D prototypes and K-Means in Phases 1 and 2, to INGV API integration in Phase 3, DBSCAN auto-tuning and cylinder grid slicing in Phase 4, geophysical layer fusion in Phase 5, and high-throughput Float32 binary streaming in Phase 6."
+> Following an iterative workflow with INGV and Roma Tre researchers, development progressed through six phases: from early 3D prototypes and K-Means in Phases 1 and 2, to INGV API integration in Phase 3, DBSCAN auto-tuning and cylinder grid slicing in Phase 4, geophysical layer implementation in Phase 5, and high-throughput Float32 binary streaming in Phase 6."
 
 ---
 
@@ -116,8 +116,8 @@ This presentation is organized into four core parts following the scientific, te
 
 > "Starting with the 2D Application Workspace:  
 > 
-> All filtering on date range, magnitude, and focal depth runs directly in JavaScript in the browser, providing zero-latency local filtering without requiring backend server requests.  
-> Earthquakes are projected over OpenStreetMap tiles. Users can toggle between proportional scatter markers—where radius scales with magnitude and colour maps to depth—and continuous kernel density heatmaps to quickly identify spatial swarm concentrations.  
+> All filters on date range, magnitude, and focal depth runs directly in JavaScript in the browser, providing zero-latency local filtering without requiring backend server requests.  
+> Earthquakes are projected over OpenStreetMap tiles. Users can toggle between proportional scatter markers—where radius scales with magnitude—and continuous kernel density heatmaps to quickly identify spatial swarm concentrations.  
 > This allows analysts to immediately isolate dense seismic swarms across Pozzuoli and the Solfatara crater."
 
 ---
@@ -128,10 +128,10 @@ This presentation is organized into four core parts following the scientific, te
 
 > "Switching to the 3D Workspace, hypocentres are rendered in physical space via WebGL.  
 > 
-> To ensure genuine geological accuracy rather than arbitrary scaling, the system incorporates three design principles:  
+> To ensure geological accuracy, the system incorporates three design principles:  
 > First, True Depth Scaling: events are positioned in true physical kilometres beneath an OpenStreetMap surface tile mesh.  
 > Second, an Aspect Ratio Correction that compensates for meridional convergence using an auto-equatorial factor and the mean catalogue latitude.  
-> And third, Stateful Camera Retention: the user's camera viewpoint and orientation are strictly preserved across filter updates using Plotly's `uirevision` property, supported by instant preset cardinal views."
+> And third, Stateful Camera Retention: the user's camera viewpoint and orientation are strictly preserved across filter updates using Plotly's `uirevision` property."
 
 ---
 
@@ -142,8 +142,8 @@ This presentation is organized into four core parts following the scientific, te
 > "Because earthquake sequences migrate through time, the 4D Temporal Engine provides dynamic sequence slicing across three analytical playback modes:  
 > An Accumulation Mode, tracking cumulative seismic buildup from the initial event to monitor stress release;  
 > A Sliding Window Mode, moving a defined temporal window to isolate active hypocentral migration fronts;  
-> And a Discrete Block Mode, partitioning the timeline into non-overlapping chronological chunks for comparative analysis.  
-> At the bottom, an interactive timeline histogram couples chronological navigation with real-time tracking of active event counts, peak magnitude, and cumulative seismic energy release."
+> And a Discrete Block Mode, partitioning the timeline into chunks for comparative analysis.  
+> At the bottom, an interactive timeline histogram couples chronological navigation with real-time tracking of active event counts, peak magnitude, and cumulative seismic energy release in an informative box at the top right of the screen."
 
 ---
 
@@ -151,11 +151,11 @@ This presentation is organized into four core parts following the scientific, te
 * **Elapsed Time**: `[4:45 – 5:30]` (45 seconds)
 * **Visual Action**: Point to the 3D tomography mesh, the GNSS ground uplift columns, and the surface monitoring stations.
 
-> "To provide geological context, Seismic Viewer co-registers multiple auxiliary geophysical layers directly within the 3D scene.  
+> "To provide geological context, Seismic Viewer can register multiple auxiliary geophysical layers directly within the 3D scene.  
 > 
-> First, 3D Vp/Vs Seismic Tomography: raw velocity ratios are interpolated onto a regular volumetric grid using 3D Inverse Distance Weighting, with Gaussian decay smoothly blending toward the regional crustal baseline of 1.75 outside surveyed points.  
+> First, 3D Seismic Tomography: raw velocity ratios are interpolated onto a regular volumetric grid using 3D Inverse Distance Weighting, with Gaussian decay smoothly blending toward the regional crustal baseline of 1.75.  
 > Second, GNSS Ground Uplift Columns: vertical deformation vectors from continuous GPS stations are rendered directly on the surface, correlating ground swelling with underlying seismic swarms.  
-> Combined with surface seismic station markers, this enables direct spatial correlation between deep magmatic-hydrothermal fluid pockets and surface bradyseism."
+> And finally seismic station markers. These factors enable direct spatial correlation between deep magmatic-hydrothermal fluid pockets and surface bradyseism."
 
 ---
 
@@ -167,7 +167,7 @@ This presentation is organized into four core parts following the scientific, te
 > 
 > DBSCAN was chosen because it detects arbitrary, non-planar fault geometries without requiring a predefined cluster count, while isolating background noise as label minus one. We automated radius tuning by estimating epsilon from the k-nearest-neighbour knee using the Kneedle algorithm.  
 > MiniBatchKMeans provides instant parameter slider response for large datasets by sampling mini-batches of 1024 points, adapted with a maximum distance cutoff to filter forced outliers.  
-> Cylinder Grid partitioning divides the volume into regular vertical cylinders of 0.5-kilometre radius, breaking complex regional structures into planar segments.  
+> Cylinder Grid partitioning divides the volume into regular vertical cylinders, breaking complex regional structures into planar segments.  
 > Finally, a Hierarchical Sub-Clustering and Lock mechanism allows researchers to freeze confirmed geological faults and re-cluster only unresolved swarms with refined parameters."
 
 ---
@@ -203,9 +203,9 @@ This presentation is organized into four core parts following the scientific, te
 > "Looking at the data engineering pipeline:  
 > 
 > Stages 1 and 2 handle multi-source loading via dynamic CSV header alias detection and segmented yearly queries to the INGV GOSSIP API.  
-> A critical design decision was Sentinel Depth Handling: earthquakes with missing focal depths are retained in 2D views for complete catalogue reporting, but strictly excluded from 3D views and clustering to prevent artificial horizontal planes at sea level.  
-> Stages 3 and 4 enforce physical bounds checks between minus 10 and 800 kilometres, while standardizing all UTM Zone 33N tomography coordinates to WGS84 so all layers overlap with geographic precision.  
-> Finally, in Stage 5, we replaced bulky JSON payloads with a Float32 contiguous binary streaming protocol. Packing coordinates into binary buffers reduced payload size by 80% and slashed browser decode time from nearly 40 milliseconds to under 0.01 milliseconds."
+> A critical design decision was Depth Handling: earthquakes with missing focal depths are retained in 2D views for complete catalogue reporting, but strictly excluded from 3D views and clustering to prevent artificial horizontal planes at sea level.  
+> Stages 3 and 4 enforce physical bounds checks between minus 10 and 800 kilometres, while standardizing all tomography coordinates to WGS84 so all layers overlap with geographic precision.  
+> Finally, in Stage 5, we replaced bulky JSON payloads with a Float32 contiguous binary streaming protocol. Packing coordinates into binary buffers reduced payload size by 80% and slashed browser decode time to under 0.01 milliseconds."
 
 ---
 
@@ -213,7 +213,7 @@ This presentation is organized into four core parts following the scientific, te
 * **Elapsed Time**: `[8:30 – 9:15]` (45 seconds)
 * **Visual Action**: Highlight the Monte Carlo MAE (<0.51° Dip, <0.93° Strike), real catalogue 42 ms speed, and 50,000-event stress test at 55–60 FPS.
 
-> "We evaluated the system through extensive benchmarks across accuracy, throughput, and memory scaling:  
+> "We evaluated the system through benchmarks across accuracy, throughput, and memory scaling:  
 > 
 > In Synthetic Monte Carlo Validation across 500 independent trials under Gaussian noise up to 100 metres and 30% random outlier contamination, our RANSAC-SVD pipeline achieved a Mean Absolute Error under 0.51 degrees for Dip, and under 0.93 degrees for Strike.  
 > In Real Catalogue Testing on 3,225 INGV earthquakes from Campi Flegrei, complete clustering and plane extraction executed in under 42 milliseconds.  
@@ -228,9 +228,9 @@ This presentation is organized into four core parts following the scientific, te
 
 > "To conclude, Seismic Viewer delivers a lightweight, responsive desktop system that combines 4D spatio-temporal visualization, automated structural plane fitting, and a high-throughput binary pipeline validated in collaboration with INGV researchers.  
 > 
-> Looking forward, future work will target real-time WebSocket and SeedLink streaming for active surveillance rooms, transitioning the graphics engine to WebGPU or Deck.gl for zero-install cloud deployment, and integrating 3D focal mechanism overlays to directly display fault slip directions.  
+> Looking forward, future work will target real-time WebSocket streaming for active surveillance rooms, transitioning the graphics engine to WebGPU or Deck.gl for zero-install cloud deployment, and integrating 3D focal mechanism overlays to directly display fault slip directions.  
 > 
-> Thank you very much for your attention. I am happy to answer any questions."
+> Thank you very much for your attention."
 
 ---
 
