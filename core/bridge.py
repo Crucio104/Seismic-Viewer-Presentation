@@ -130,7 +130,7 @@ class Api:
         """Open native file dialog to select a dataset (CSV, GeoJSON, JSON)."""
         try:
             result = self._window().create_file_dialog(
-                webview.FileDialog.OPEN,
+                webview.OPEN_DIALOG,
                 directory=str(BASE_DIR),
                 allow_multiple=False,
                 file_types=(
@@ -154,7 +154,7 @@ class Api:
         try:
             # Open save file dialog
             result = self._window().create_file_dialog(
-                webview.FileDialog.SAVE,
+                webview.SAVE_DIALOG,
                 directory=str(Path.home()),
                 save_filename=filename,
                 file_types=('PNG Image (*.png)',),
@@ -203,7 +203,7 @@ class Api:
                 file_types = ('CSV Files (*.csv)', 'All Files (*.*)')
 
             result = self._window().create_file_dialog(
-                webview.FileDialog.SAVE,
+                webview.SAVE_DIALOG,
                 directory=str(Path.home()),
                 save_filename=original_filename,
                 file_types=file_types,
@@ -576,8 +576,19 @@ class Api:
                 return {'error': 'No events found in selected date range'}
 
             mags, deps = np.array(d['magnitude'][start_idx:end_idx]), np.abs(d['depth'][start_idx:end_idx])
-            viz_mask = (mags >= float(params.get('mag_min', 0))) & (mags <= float(params.get('mag_max', 10))) & \
-                       (deps >= float(params.get('dep_min', 0))) & (deps <= float(params.get('dep_max', 10000)))
+            
+            def _safe_float(val: Any, default: float) -> float:
+                if val is None or val == "":
+                    return default
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    return default
+
+            viz_mask = (mags >= _safe_float(params.get('mag_min'), 0.0)) & \
+                       (mags <= _safe_float(params.get('mag_max'), 10.0)) & \
+                       (deps >= _safe_float(params.get('dep_min'), 0.0)) & \
+                       (deps <= _safe_float(params.get('dep_max'), 10000.0))
 
             target_mask = None
             if 'subcluster_target_indices' in params:
@@ -689,7 +700,7 @@ class Api:
         try:
             file_types = ('CSV Files (*.csv)',) if layer_type in ('uplift', 'tomography', 'stations') else ('Image Files (*.jpg;*.png;*.jpeg)',)
             result = self._window().create_file_dialog(
-                webview.FileDialog.OPEN,
+                webview.OPEN_DIALOG,
                 directory=str(BASE_DIR),
                 allow_multiple=False,
                 file_types=file_types,
@@ -781,7 +792,7 @@ class Api:
             params = payload.get('params', {})
 
             result = self._window().create_file_dialog(
-                webview.FileDialog.SAVE,
+                webview.SAVE_DIALOG,
                 directory=str(Path.home()),
                 save_filename=save_default,
                 file_types=file_types,
@@ -827,7 +838,7 @@ class Api:
                 default_zip = "seismic_clusters_csv.zip"
 
             result = self._window().create_file_dialog(
-                webview.FileDialog.SAVE,
+                webview.SAVE_DIALOG,
                 directory=str(Path.home()),
                 save_filename=default_zip,
                 file_types=('ZIP Archives (*.zip)',),

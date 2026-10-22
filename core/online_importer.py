@@ -146,6 +146,18 @@ def _fetch_year(year: int, network: str, on_progress: Callable[[str], None] | No
             f"INGV server (terremoti.ov.ingv.it) timed out for year {year}. "
             "The observatory server is temporarily slow or overloaded; please retry shortly."
         ) from te
+    except requests.exceptions.ConnectionError as ce:
+        if cache_file.exists():
+            logger.warning(f"Connection error on year {year}, falling back to local cache: {ce}")
+            if on_progress:
+                on_progress(f"INGV server offline: using local cache for {year}...")
+            return _read_json_file(cache_file)
+        logger.error(f"Connection error fetching data for year {year}: {ce}")
+        raise ConnectionError(
+            f"Unable to connect to INGV server (terremoti.ov.ingv.it): Connection refused. "
+            "The INGV server is currently offline or unreachable. "
+            "Please use a local dataset (e.g. from 'Additional_layers/2022-2025.csv') or retry later."
+        ) from ce
     except Exception as e:
         if cache_file.exists():
             logger.warning(f"Error on year {year}, falling back to local cache: {e}")
@@ -168,9 +180,21 @@ def fetch_ingv_dataframe(params: dict[str, Any], on_progress: Callable[[str], No
     if not start_dt or not end_dt:
         raise ValueError("Invalid start or end date format.")
 
-    min_mag = float(params.get('minmag', 0.0))
-    max_mag = float(params.get('maxmag', 10.0))
-    level = int(params.get('level', 0))
+    def _to_float(v, default):
+        try:
+            return float(v) if v not in (None, "") else default
+        except (ValueError, TypeError):
+            return default
+
+    def _to_int(v, default):
+        try:
+            return int(v) if v not in (None, "") else default
+        except (ValueError, TypeError):
+            return default
+
+    min_mag = _to_float(params.get('minmag'), 0.0)
+    max_mag = _to_float(params.get('maxmag'), 10.0)
+    level = _to_int(params.get('level'), 0)
     only_located = params.get('located', DEFAULT_LOCATED_ONLY)
     exclude_missing = params.get('excludeMissing', DEFAULT_EXCLUDE_MISSING)
 

@@ -23,6 +23,22 @@ def _init_worker(pts_km: np.ndarray) -> None:
     """Initialize worker process with shared data once to avoid per-task serialization."""
     _worker_data['pts_km'] = pts_km
 
+def _safe_float(val: Any, default: float) -> float:
+    if val is None or val == "":
+        return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+def _safe_int(val: Any, default: int) -> int:
+    if val is None or val == "":
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
 # --- Geological Math ---
 
 def get_strike_dip(normal: np.ndarray) -> tuple[float, float, float]:
@@ -306,9 +322,10 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[
     features = pts_km
 
     centroids = None
+    params = params or {}
     if method == 'dbscan':
-        eps_km = float(params.get('dbscan_eps', 500)) / 1000.0
-        min_samples = int(params.get('dbscan_min_samples', 5))
+        eps_km = _safe_float(params.get('dbscan_eps'), 500.0) / 1000.0
+        min_samples = _safe_int(params.get('dbscan_min_samples'), 5)
         db = DBSCAN(eps=eps_km, min_samples=min_samples, metric='euclidean').fit(features)
         labels = db.labels_
         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
@@ -317,7 +334,7 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[
         if n_clusters > 0:
             centroids = np.array([np.mean(pts_km[labels == i], axis=0) if np.any(labels == i) else np.zeros(pts_km.shape[1]) for i in range(n_clusters)])
     else:
-        n_clusters_req = int(params.get('kmeans_clusters', 3))
+        n_clusters_req = _safe_int(params.get('kmeans_clusters'), 3)
         if len(features) >= n_clusters_req:
             init_val = 'k-means++'
             n_init_val = 'auto'
@@ -335,8 +352,9 @@ def perform_clustering(pts_km: np.ndarray, method: str = 'dbscan', params: dict[
             centroids = np.array([np.mean(pts_km, axis=0)]) if len(pts_km) > 0 else None
 
     display_labels = labels.copy()
-    if method == 'kmeans' and float(params.get('kmeans_max_dist', 0)) > 0:
-        max_d = float(params.get('kmeans_max_dist', 0)) / 1000.0
+    max_dist_val = _safe_float(params.get('kmeans_max_dist'), 0.0)
+    if method == 'kmeans' and max_dist_val > 0:
+        max_d = max_dist_val / 1000.0
         for i in range(n_clusters):
             idx = (labels == i)
             if not np.any(idx):
@@ -777,7 +795,7 @@ def _process_frame_worker(idx: int, data: dict[str, Any]) -> tuple:
 
     if use_cylinders:
         curr_pt_cylinder_map = pt_cylinder_map[start_idx:end_idx][mask]
-        depth_step = float(params.get('cylinder_depth_step', 0))
+        depth_step = _safe_float(params.get('cylinder_depth_step'), 0.0)
         
         if depth_step > 0:
             # Partition by depth as well

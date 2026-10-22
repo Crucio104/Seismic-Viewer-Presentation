@@ -173,20 +173,28 @@ const DATA_URL = (window.SEISMIC_CONFIG && window.SEISMIC_CONFIG.dataUrl) || '__
 
             function applyCombinedFilters() {
                 appliedShowPlanes = document.getElementById('show-planes') ? document.getElementById('show-planes').checked : false;
+                const parseNumSafe = (el, def) => {
+                    if (!el || el.value === undefined || el.value === null) return def;
+                    const trimmed = String(el.value).trim();
+                    if (trimmed === '') return def;
+                    const val = parseFloat(trimmed);
+                    return isNaN(val) ? def : val;
+                };
+
                 const params = {
-                    kmeans_clusters: pClusters.value,
-                    kmeans_max_dist: pDist.value,
-                    dbscan_eps: pEps.value,
-                    dbscan_min_samples: pMin.value,
+                    kmeans_clusters: parseNumSafe(pClusters, 3),
+                    kmeans_max_dist: parseNumSafe(pDist, 0),
+                    dbscan_eps: parseNumSafe(pEps, 500),
+                    dbscan_min_samples: parseNumSafe(pMin, 5),
                     display_mode: currentDisplayMode,
                     show_cluster_planes: appliedShowPlanes,
                     point_size_mode: currentSizeMode,
-                    mag_min: magMin ? magMin.value : 0,
-                    mag_max: magMax ? magMax.value : 10,
-                    dep_min: depMin ? depMin.value : 0,
-                    dep_max: depMax ? depMax.value : 1000,
-                    start_date: startInput ? startInput.value : '',
-                    end_date: endInput ? endInput.value : ''
+                    mag_min: parseNumSafe(magMin, 0),
+                    mag_max: parseNumSafe(magMax, 10),
+                    dep_min: parseNumSafe(depMin, 0),
+                    dep_max: parseNumSafe(depMax, 1000),
+                    start_date: startInput ? startInput.value.trim() : '',
+                    end_date: endInput ? endInput.value.trim() : ''
                 };
 
                 if (quakeData.subcluster_target_indices) {
