@@ -1,0 +1,647 @@
+==============================
+SLIDE 1
+==============================
+[NOTES]:
+[SLIDE 1 | TIME: 0:00 - 0:30 | TARGET: 30 SECONDS]
+
+SPEECH (EN):
+"Hello everyone, my name is Alessio Curcio, and today I am pleased to present my internship project titled:
+'Seismic Viewer: Design, Implementation and Evaluation of an Interactive 4D Spatio-Temporal Visualisation System for Seismological Data'.
+
+This work was carried out during my curricular internship at the National Institute of Geophysics and Volcanology (INGV), under the supervision of Prof. Danilo Avola from Sapienza and Dr. Daniele Bailo from INGV."
+
+[VISUAL ACTION: Stand upright, smile, make warm eye contact with the Committee, project confidence]
+
+[Google Shape;87;p13]:
+Seismic Viewer
+---
+[Google Shape;88;p13]:
+Design, Implementation and Evaluation of an Interactive 4D Spatio-Temporal Visualisation System for Seismological Data
+---
+[Google Shape;89;p13]:
+SAPIENZA UNIVERSITY OF ROME
+---
+[Google Shape;90;p13]:
+Faculty of Information Engineering, Computer Science and Statistics • ACSAI • A.Y. 2025/2026
+---
+[Google Shape;91;p13]:
+Candidate
+---
+[Google Shape;92;p13]:
+Alessio Curcio
+---
+[Google Shape;93;p13]:
+ID: 2120317
+---
+[Google Shape;94;p13]:
+Academic Supervisor
+---
+[Google Shape;95;p13]:
+Prof. Danilo Avola
+---
+[Google Shape;96;p13]:
+Co-Supervisor
+---
+[Google Shape;97;p13]:
+Dr. Daniele Bailo
+
+==============================
+SLIDE 2
+==============================
+[NOTES]:
+[SLIDE 2 | TIME: 0:30 - 1:15 | TARGET: 45 SECONDS]
+
+SPEECH (EN):
+"To understand the motivation of this project, we look at the ongoing volcanic unrest at Campi Flegrei near Naples.
+Since 2005, continuous ground uplift accompanied by dense earthquake swarms has required multi-parametric monitoring.
+
+Recently, in 2025, a landmark study published in Nature Communications Earth & Environment by Dr. Guido Giordano and Dr. Lucilla Alfonsi showed that these earthquakes aren't just diffuse clusters: they outline active, growing planar fault structures.
+
+During my internship, I worked in direct collaboration with Giordano and Alfonsi.
+Our goal was to solve an operational need at INGV: building an interactive desktop system that bridges raw earthquake catalogues, subsurface tomography, and automated fault plane extraction in one responsive workspace."
+
+[VISUAL ACTION: Point to Active Volcanic Unrest on Card 1, highlight the Giordano & Alfonsi Nature 2025 study on Card 2, and point to INGV Operational Need on Card 3]
+
+[Google Shape;111;p14]:
+DOMAIN CONTEXT & RESEARCH MOTIVATION
+---
+[Google Shape;112;p14]:
+The Campi Flegrei Caldera context
+---
+[Google Shape;113;p14]:
+Active Volcanic Unrest
+---
+[Google Shape;114;p14]:
+Ongoing bradyseismic uplift and dense swarm seismicity since 2005 demand continuous, multi-parametric spatial monitoring.
+---
+[Google Shape;115;p14]:
+Planar Fault Structures
+---
+[Google Shape;116;p14]:
+Recent studies (Giordano, Alfonsi, Nature Comm. 2025) demonstrate that hypocentres delineate growing planar faults rather than diffuse isotropic clusters.
+---
+[Google Shape;117;p14]:
+INGV Operational Need
+---
+[Google Shape;118;p14]:
+Geophysicists require an interactive system bridging raw catalogues, tomography/uplift models, and automated fault plane extraction.
+
+==============================
+SLIDE 3
+==============================
+[NOTES]:
+[SLIDE 3 | TIME: 1:15 - 1:55 | TARGET: 40 SECONDS]
+
+SPEECH (EN):
+"When we analyzed existing seismological tools, we found a clear functional gap:
+
+First, General GIS platforms like QGIS and ArcGIS have a 2D projection bias that flattens depth into static plan-views. When navigating dense 3D point clouds over 10,000 events, they suffer major frame drops and lack native 4D time playback.
+Second, Scientific Code like ObsPy and GMT produces static image files in batch mode without real-time interaction, requiring continuous scripting. Even 3D tools like ParaView involve complex manual pipelines and lack direct seismological integrations.
+
+Seismic Viewer bridges this gap: providing hardware-accelerated 2D, 3D, and 4D WebGL navigation, automated fault plane fitting, and an easy standalone application without heavy GIS overhead."
+
+[VISUAL ACTION: Walk through the three columns on Slide 3: GIS platforms, Scientific Code (ObsPy/GMT/ParaView), and our solution Seismic Viewer]
+
+[Google Shape;126;p15]:
+STATE OF THE ART & TOOLING COMPARISON
+---
+[Google Shape;127;p15]:
+Functional Limitation in Current Seismological Software
+---
+[Google Shape;128;p15]:
+GENERAL GIS PLATFORMS
+---
+[Google Shape;129;p15]:
+QGIS & ArcGIS
+---
+[Google Shape;130;p15]:
+SCIENTIFIC CODE
+---
+[Google Shape;131;p15]:
+ObsPy, GMT, ParaView
+---
+[Google Shape;134;p15]:
+2D Projection Bias: Flattens the hypocentral depth dimension into static plan-views.
+3D Point Cloud Latency: Frame drops when navigating >10.000 hypocentres via plugins.
+No Dynamic 4D Tracking: Lacks native temporal playback and automated fault plane extraction.
+---
+[Google Shape;137;p15]:
+Static Batch Output: GMT and ObsPy produce fixed image files (PNG/PDF) with no real-time interaction.
+High Workflow Friction: Requires continuous Python/bash scripting
+Domain Gap (ParaView): Require complex manual pipelines and lack direct seismological integrations such as live catalogue streaming or automated fault plane analysis.
+
+==============================
+SLIDE 4
+==============================
+[NOTES]:
+[SLIDE 4 | TIME: 1:55 - 2:40 | TARGET: 45 SECONDS]
+
+SPEECH (EN):
+"We defined three core functional pillars:
+Hardware-accelerated Interactive Visualisations in 2D, 3D, and 4D;
+Automated Structural Analysis combining spatial clustering with RANSAC-SVD plane fitting;
+and Multi-Layer Geophysical Fusion combining tomography, ground uplift, and seismic stations.
+
+Working closely with researchers Giordano and Alfonsi, development progressed through six iterative phases:
+starting with 3D prototypes and CSV parsing in Phase 1,
+testing K-Means and the Python-WebView bridge in Phase 2,
+building the analytical dashboard and querying the INGV GOSSIP API in Phase 3,
+introducing DBSCAN with knee tuning, 4D cylinders, and cluster locking in Phase 4,
+integrating Vp/Vs tomography and GNSS surface deformation in Phase 5,
+and finalizing high-speed Float32 binary streaming in Phase 6."
+
+[VISUAL ACTION: Point to the three functional pillars on Card 1, then follow the 6-Phase Timeline from Phase 1 to Phase 6 on Card 2]
+
+[TextBox 170]:
+SYSTEM DESIGN & SPECIFICATIONS
+---
+[TextBox 171]:
+System Requirements & Implementation Timeline
+---
+[TextBox 176]:
+INTERNSHIP DEVELOPMENT TIMELINE
+---
+[Oval 178]:
+1
+---
+[TextBox 179]:
+PHASE 1
+3D Prototype & CSV
+Hypocentre 3D cloud & local CSV parser.
+---
+[Oval 180]:
+2
+---
+[TextBox 181]:
+PHASE 2
+K-Means & Bridge
+Spatial clustering & Python-WebView bridge.
+---
+[Oval 182]:
+3
+---
+[TextBox 183]:
+PHASE 3
+UI & GOSSIP API
+Analytical dashboard & INGV queries.
+---
+[Oval 184]:
+4
+---
+[TextBox 185]:
+PHASE 4
+DBSCAN & Cylinders
+Knee tuning, 4D cylinder slicing & cluster locking.
+---
+[Oval 186]:
+5
+---
+[TextBox 187]:
+PHASE 5
+Geophysical Layers
+Vp/Vs tomography, GNSS surface & stations.
+---
+[Oval 188]:
+6
+---
+[TextBox 189]:
+PHASE 6
+Streaming & Async
+Float32 binary streaming & worker pool.
+---
+[Google Shape;253;p21]:
+Multi-Layer Geophysical Fusion
+---
+[Google Shape;254;p21]:
+Implementation of 2D/3D velocity tomography, GNSS surface uplift, and monitoring stations locations.
+---
+[Google Shape;255;p21]:
+Hardware-accelerated 2D/3D navigation coupled with dynamic time-slider animation to track active swarm migration.
+---
+[Google Shape;257;p21]:
+Data-driven spatial clustering (DBSCAN / K-Means) integrated with fault plane fitting (RANSAC + SVD).
+---
+[Google Shape;261;p21]:
+Interactive Visualisations
+---
+[Google Shape;262;p21]:
+Automated Structural Analysis
+
+==============================
+SLIDE 5
+==============================
+[NOTES]:
+[SLIDE 5 | TIME: 2:40 - 3:20 | TARGET: 40 SECONDS]
+
+SPEECH (EN):
+"Starting with the 2D Application Workspace:
+
+All event filtering across Magnitude, Depth, and Date ranges runs entirely in JavaScript inside the browser. This eliminates HTTP roundtrips during parameter adjustments, providing instant, zero-latency filtering without re-fetching raw catalogues.
+For spatial representation, we provide a bi-modal display:
+Users can toggle between Proportional Scatter Markers—where marker radius scales with earthquake magnitude—and a Continuous Kernel Density heatmap that aggregates hypocentres into Gaussian density fields.
+This allows geophysicists to immediately highlight dense swarm concentrations across Pozzuoli and the Solfatara crater."
+
+[VISUAL ACTION: Point to the interactive drawer filters on the left and show the switch between Proportional Scatter Markers and Continuous Kernel Density]
+
+[Google Shape;178;p17]:
+APPLICATION WORKSPACE • 2D MODE
+---
+[Google Shape;179;p17]:
+2D Geospatial Map & In-Browser Filtering
+---
+[Google Shape;180;p17]:
+Zero-Latency In-Browser Filtering
+Event filtering across Magnitude, Depth, and Date ranges runs entirely in JavaScript, thus eliminating HTTP roundtrips during parameter adjustments and without re-fetching raw catalogues.
+---
+[Google Shape;182;p17]:
+Bi-modal Spatial Representation
+Proportional Scatter Markers: Marker radius scales with seismic magnitude
+Continuous Kernel Density: Gaussian heatmap layer aggregating hypocentres into continuous density fields to reveal seismogenic swarms across the caldera.
+
+==============================
+SLIDE 6
+==============================
+[NOTES]:
+[SLIDE 6 | TIME: 3:20 - 4:00 | TARGET: 40 SECONDS]
+
+SPEECH (EN):
+"Switching to the 3D Workspace, hypocentres are rendered in physical space via WebGL.
+To guarantee scientific fidelity, we implemented three key mechanisms:
+
+First, Geographic Coordinate Retention: horizontal axes preserve standard geographic degrees alongside physical focal depth measured in kilometres.
+Second, Aspect Ratio Correction: to prevent distortion caused by Earth's sphericity, the system scales the 3D bounding box so that 1 kilometre along X, Y, and Z renders with identical physical proportions.
+And third, Viewpoint Persistence: camera azimuth, elevation, and zoom coordinates are strictly preserved across filter updates using Plotly's uirevision property."
+
+[VISUAL ACTION: Highlight Geographic Coordinate Retention, Aspect Ratio Correction (1 km metric proportionality), and Viewpoint Persistence on the cards]
+
+[Google Shape;194;p18]:
+APPLICATION WORKSPACE • 3D MODE
+---
+[Google Shape;195;p18]:
+3D Static Hypocentral Point Cloud
+---
+[Google Shape;196;p18]:
+Geographic Coordinate Retention (Degrees)
+Horizontal axes preserve standard geographic degrees alongside depth measured in km.
+---
+[Google Shape;198;p18]:
+Aspect Ratio Correction
+Prevents angular distortion caused by Earth's sphericity Enforces metric proportionality directly on the 3D bounding box through aspect ratio scaling.
+1 km along X, Y, and Z renders with identical physical proportions.
+---
+[Google Shape;200;p18]:
+Viewpoint Persistence 
+Maintains azimuth, elevation, and zoom coordinates across filter and parameter updates via:
+Plotly uirevision = 'constant'.
+
+==============================
+SLIDE 7
+==============================
+[NOTES]:
+[SLIDE 7 | TIME: 4:00 - 4:45 | TARGET: 45 SECONDS]
+
+SPEECH (EN):
+"A central contribution of Seismic Viewer is fusing multiple geophysical layers in the exact same 3D coordinate space.
+
+First, 3D Vp/Vs Seismic Tomography: we convert tomographic velocity ratios into a 3D volumetric grid using Inverse Distance Weighting with 16 nearest neighbours, applying a Gaussian spatial decay that smoothly blends toward the regional crustal baseline outside sampled points.
+Second, GNSS Ground Uplift Columns: we ingest GPS deformation time-series across Campi Flegrei, rendering explicit 3D vertical displacement columns directly at station locations.
+By seeing these layers together, researchers can directly correlate surface ground swelling with underlying fluid pockets and earthquake swarms."
+
+[VISUAL ACTION: Point to the 3D Vp/Vs tomography volume on Card 1 and the GNSS vertical uplift columns on Card 2]
+
+[Google Shape;233;p20]:
+MULTI-LAYER GEOPHYSICS
+---
+[Google Shape;234;p20]:
+3D Tomography & Ground Uplift
+---
+[Google Shape;235;p20]:
+Vp/Vs Seismic Tomography
+---
+[Google Shape;236;p20]:
+Converts tomographic data into a 3D grid via Inverse Distance Weighting (p=2 and k=16 nearest neighbours)  volumetric grid with Gaussian decay blending toward crustal baseline .
+---
+[Google Shape;237;p20]:
+GNSS Ground Uplift Columns
+---
+[Google Shape;238;p20]:
+Ingests historical GPS deformation time-series across Campi Flegrei and Interpolates vertical displacements onto a grid (p=2.5) or renders explicit 3D deformation columns at station sites.
+
+==============================
+SLIDE 8
+==============================
+[NOTES]:
+[SLIDE 8 | TIME: 4:45 - 5:25 | TARGET: 40 SECONDS]
+
+SPEECH (EN):
+"Earthquake swarms migrate dynamically over time. Our 4D engine provides sequence slicing across three distinct analytical playback modes:
+
+Accumulation Mode, showing cumulative seismic buildup from the first event to track stress release over time;
+Sliding Window Mode, which moves a window of width W across time—typically one frame per day—to isolate active hypocentral migration fronts;
+and Block Mode, moving a window with a custom step to allow flexible temporal downsampling and multi-day epoch comparisons.
+At the bottom, an Interactive Timeline Histogram couples chronological navigation with real-time tracking of active event counts, peak magnitude, and cumulative seismic energy release."
+
+[VISUAL ACTION: Walk through the three modes (Accumulation, Sliding Window, Block Mode) and point to the interactive timeline histogram and energy meter at the bottom]
+
+[Google Shape;214;p19]:
+APPLICATION WORKSPACE • 4D MODE
+---
+[Google Shape;215;p19]:
+4D Temporal Animation & Sequence Slicing
+---
+[Google Shape;216;p19]:
+Shows seismic buildup from initial event to current timestamp, tracking cumulative stress release.
+---
+[Google Shape;217;p19]:
+Moves a window of width W across time (one frame per occurrence day), isolating active hypocentral migration fronts.
+---
+[Google Shape;218;p19]:
+Moves a window of width W across time with a custom step. Allows flexible temporal downsampling and multi-day epoch comparisons
+---
+[Google Shape;219;p19]:
+Interactive Timeline Histogram & Energy Meter
+---
+[Google Shape;220;p19]:
+Real-time timeline navigation coupled with simultaneous cumulative seismic energy tracking and peak magnitude.
+---
+[Google Shape;221;p19]:
+Accumulation Mode
+---
+[Google Shape;222;p19]:
+Sliding Window
+---
+[Google Shape;223;p19]:
+Block Mode
+
+==============================
+SLIDE 9
+==============================
+[NOTES]:
+[SLIDE 9 | TIME: 5:25 - 6:05 | TARGET: 40 SECONDS]
+
+SPEECH (EN):
+"Next, we solved two practical algorithmic challenges:
+
+First, Why Cylinder Partitioning? Caldera ring faults curve along the volcanic perimeter, so attempting to fit a single global plane produces large geometric errors. Working directly with Giordano and Alfonsi, we replicated their spatial segmentation methodology, partitioning the crust into vertical cylindrical columns to isolate locally planar fault segments and validate our automated fitting against their published results.
+Second, Global Label Matching: in 4D animations, standard clustering randomly reassigns cluster IDs between time steps, causing chaotic color flickering. We developed a historical majority voting algorithm that maintains stable cluster identities across frames.
+Finally, an asynchronous worker pool of 8 threads parallelizes cylinder fitting across animation steps."
+
+[VISUAL ACTION: Point to Why Cylinder Partitioning on Card 1, Global Label Matching on Card 2, and the 8-worker thread pool on Card 3]
+
+[Google Shape;289;p23]:
+ALGORITHMIC INNOVATION
+---
+[Google Shape;290;p23]:
+Cylinder Partitioning & Temporal Label Stability
+---
+[Google Shape;291;p23]:
+Why Cylinder Partitioning?
+---
+[Google Shape;292;p23]:
+Caldera ring faults curve along the volcanic perimeter, attempting to fit a single global plane produces geometric errors.
+It partitions the 3D crustal volume into vertical cylindrical columns this  replicates the spatial segmentation methodology of Giordano & Alfonsi (2025).
+---
+[Google Shape;293;p23]:
+Global Label Matching
+---
+[Google Shape;294;p23]:
+Historical majority voting eliminates cluster colour flickering across sequential animation frames.
+---
+[Google Shape;295;p23]:
+An asynchronous worker thread pool (ThreadPoolExecutor, 8 workers) to parallelize cylinder fitting across frames.
+
+==============================
+SLIDE 10
+==============================
+[NOTES]:
+[SLIDE 10 | TIME: 6:05 - 6:50 | TARGET: 45 SECONDS]
+
+SPEECH (EN):
+"To automatically isolate fault structures from thousands of earthquakes, we designed a flexible clustering engine.
+
+We initially evaluated K-Means, but it fails in seismology: it forces every point into a cluster and assumes spherical shapes. In reality, geological faults are elongated, and tectonic background noise surrounds them.
+Therefore, we adopted DBSCAN: it detects arbitrary, non-planar fault shapes without requiring a predefined cluster count, and correctly isolates background noise as label minus one. We automated radius tuning by estimating epsilon from the k-nearest-neighbour knee using the Kneedle algorithm.
+We also retained MiniBatchKMeans for rapid centroid preview, and introduced a Hierarchical Cluster Lock mechanism: researchers can selectively lock confirmed faults and re-cluster only unresolved swarms with refined local parameters."
+
+[VISUAL ACTION: Explain why K-Means failed and DBSCAN succeeded, then highlight the Hierarchical Sub-Clustering and Cluster Lock mechanism on the main card]
+
+[Google Shape;251;p21]:
+MACHINE LEARNING ENGINE
+---
+[Google Shape;252;p21]:
+Spatial Clustering Paradigms & Hyperparameter Tuning
+---
+[Google Shape;253;p21]:
+Hierarchical Sub-Clustering & Lock Mechanism
+---
+[Google Shape;254;p21]:
+Researchers can selectively "Lock" confirmed seismogenic faults, freezing their geometry and colours.
+
+Isolated Re-Clustering: Re-partitions only unresolved or complex swarms with refined local density parameters.
+---
+[Google Shape;255;p21]:
+It detects non-planar, arbitrary fault shapes without prior K cluster count, isolates background noise (label -1).
+---
+[Google Shape;261;p21]:
+DBSCAN
+---
+[Google Shape;262;p21]:
+MiniBatchKMeans
+
+==============================
+SLIDE 11
+==============================
+[NOTES]:
+[SLIDE 11 | TIME: 6:50 - 7:35 | TARGET: 45 SECONDS]
+
+SPEECH (EN):
+"From clustered hypocentres, the system mathematically reconstructs 3D fault planes in two steps:
+
+Why not just fit a plane using SVD directly? Because outlier points or secondary micro-cracks will pull the plane off its true orientation.
+So, Step 1 is RANSAC Inlier Consensus: it tests random 3-point combinations over 100 iterations to find the planar consensus and discard non-planar noise.
+Step 2 applies Singular Value Decomposition strictly to those centered inliers. The fault normal vector comes directly from the eigenvector of the smallest singular value.
+From this normal vector, the system calculates geological Strike, Dip, Dip Direction, and Planarity, rendering interactive 3D rectangular plane meshes with hover vectors."
+
+[VISUAL ACTION: Walk through Step 1 (RANSAC Inlier Consensus), Step 2 (SVD & Geological Angles), and point to the Strike, Dip, and Planarity outputs]
+
+[Google Shape;273;p22]:
+STRUCTURAL GEOLOGY & MATHEMATICS
+---
+[Google Shape;274;p22]:
+Automated Fault Plane Estimation: RANSAC + SVD
+---
+[Google Shape;275;p22]:
+Step 1: RANSAC Inlier Consensus
+---
+[Google Shape;277;p22]:
+Step 2: SVD & Geological Angles
+---
+[CasellaDiTesto 14]:
+Planarity: 
+Dip:
+Dip Direction: 
+Strike:
+
+==============================
+SLIDE 12
+==============================
+[NOTES]:
+[SLIDE 12 | TIME: 7:35 - 8:20 | TARGET: 45 SECONDS]
+
+SPEECH (EN):
+"Looking at the data engineering pipeline:
+
+Stage 1 handles Heterogeneous Ingestion: querying the INGV GOSSIP REST API in yearly chunks alongside local offline CSV parsing, supported by automatic alias detection for column headers.
+Stage 2 enforces Quality Sanitisation and our Missing Depth Principle: earthquakes without a recorded depth are retained in 2D views for catalogue completeness, but strictly excluded from 3D views and clustering to prevent artificial planes at sea level. Physical bounds checks restrict depths between minus 10 and 800 kilometres.
+Finally, in the bottom hero card, we replaced heavy JSON with our High-Performance Float32 Binary Protocol.
+Streaming raw contiguous binary buffers slashed payload size by nearly 80%—from 4.75 megabytes to 976 kilobytes—and dropped browser decode time to less than 0.01 milliseconds."
+
+[VISUAL ACTION: Trace through the 4 top cards (Ingestion, Missing Depth Principle, Physical Bounds, WGS84) and highlight the -80% size and <0.01ms badges on the bottom card]
+
+[Google Shape;305;p24]:
+DATA ENGINEERING PIPELINE
+---
+[Google Shape;306;p24]:
+Geospatial Ingestion, Quality Sanitisation & Binary Streaming Protocol
+---
+[Google Shape;312;p24]:
+Heterogeneous Catalogue Ingestion
+---
+[Google Shape;313;p24]:
+Segmented queries to the INGV GOSSIP REST API (partitioned by yearly chunks) alongside local offline CSV parsing.
+Alias detection mapping for standard naming (lat, latitude, prof, depth_km, mag).
+---
+[Google Shape;314;p24]:
+Quality Sanitisation & Missing Depth Principle
+---
+[Google Shape;316;p24]:
+High-Performance Float32 Binary Protocol
+
+==============================
+SLIDE 13
+==============================
+[NOTES]:
+[SLIDE 13 | TIME: 8:20 - 9:05 | TARGET: 45 SECONDS]
+
+SPEECH (EN):
+"We evaluated the system thoroughly across four benchmark dimensions:
+
+First, Structural Accuracy in Monte Carlo simulations across 500 synthetic faults with noise up to 100 metres and 30% outlier contamination: our RANSAC-SVD pipeline achieved a Mean Absolute Error under 0.51 degrees for Dip, and under 0.93 degrees for Strike.
+Second, Real Catalogue Testing on 3,225 INGV events from Campi Flegrei executed clustering and plane extraction in under 42 milliseconds.
+Third, Algorithmic Throughput: cylinder grid partitioning runs in 36.5 milliseconds, and stress tests with 50,000 synthetic hypocentres maintained 55 to 60 frames per second.
+And fourth, Serialization & Memory: browser decode dropped from 39.7 to under 0.01 milliseconds, and FIFO session management holds RAM strictly below 500 megabytes."
+
+[VISUAL ACTION: Walk through the 4 benchmark cards: Monte Carlo MAE badges (<0.51° Dip, <0.93° Strike), Real Catalogue 42ms speed, 60 FPS stress test, and <500 MB RAM]
+
+[Google Shape;331;p25]:
+RESULTS & QUANTITATIVE VALIDATION
+---
+[Google Shape;332;p25]:
+Benchmarks: Algorithmic Precision, Data Streaming & System Scalability
+---
+[Google Shape;333;p25]:
+Structural Accuracy (500 runs)
+---
+[Google Shape;335;p25]:
+Throughput & Scaling
+---
+[Google Shape;337;p25]:
+Streaming & Memory
+---
+[Google Shape;340;p25]:
+< 0.51°
+---
+[Google Shape;341;p25]:
+< 0.93°
+---
+[Google Shape;345;p25]:
+Dip MAE (100m, 30% outliers)
+---
+[Google Shape;346;p25]:
+Strike MAE (100m, 30% outliers)
+---
+[CasellaDiTesto 1]:
+∆d
+---
+[CasellaDiTesto 4]:
+∆s
+
+==============================
+SLIDE 14
+==============================
+[NOTES]:
+[SLIDE 14 | TIME: 9:05 - 9:35 | TARGET: 30 SECONDS]
+
+SPEECH (EN):
+"To conclude, Seismic Viewer delivers on three validated contributions:
+A High-Performance Architecture pairing a pywebview client with an asynchronous FastAPI server and Float32 streaming;
+Multi-Layer Visualisation integrating 4D animations with 3D tomography and GNSS uplift;
+and Robust Structural Analysis benchmarked with sub-degree angular accuracy.
+
+Looking forward, future extensions will focus on Real-Time Surveillance Feeds with WebSockets and SeedLink, WebGPU compute shaders for client-side DBSCAN re-clustering, and 3D focal mechanism 'beachballs' for kinematic seismotectonics."
+
+[VISUAL ACTION: Highlight the 3 Validated Contributions on the left, the 3 Future Extensions on the right, and then transition to Slide 15]
+
+[Google Shape;358;p26]:
+SAPIENZA UNIVERSITY OF ROME
+---
+[Google Shape;360;p26]:
+Conclusions & Future Work
+---
+[Google Shape;361;p26]:
+Thank you for your attention
+---
+[Google Shape;364;p26]:
+Validated Contributions
+---
+[Google Shape;365;p26]:
+High-Performance Architecture: lightweight pywebview client with an asynchronous FastAPI server and Float32 binary streaming protocol.
+Multi-Layer Visualisation: Dynamic spatio-temporal animation engine, hypocentres visualization with seismic tomography, GNSS uplift, and monitoring stations.
+Robust Structural Analysis: Automated RANSAC-SVD mathematical pipeline extracting fault strike, dip, and planarity.
+---
+[Google Shape;366;p26]:
+Future Extensions
+---
+[Google Shape;367;p26]:
+Real-Time Surveillance Feeds: Extending WebSockets with SeedLink live event streaming for observatory control rooms.
+WebGPU & Deck.gl Migration: Implementing WebGPU compute shaders for client-side DBSCAN re-clustering and browser deployment.
+Kinematic Seismotectonics: Integrating 3D focal mechanism "beachball".
+
+==============================
+SLIDE 15
+==============================
+[NOTES]:
+[SLIDE 15 | TIME: 9:35 - 9:45 | TARGET: 10 SECONDS]
+
+SPEECH (EN):
+"Thank you very much for your time and attention.
+I would be glad to answer any questions from the Committee."
+
+[VISUAL ACTION: Smile warmly, acknowledge Professor Avola and Dr. Bailo, thank the entire committee, and open the floor for questions]
+
+[Google Shape;358;p26]:
+SAPIENZA UNIVERSITY OF ROME
+---
+[Google Shape;361;p26]:
+Thank you for your attention
+---
+[Google Shape;91;p13]:
+Candidate
+---
+[Google Shape;92;p13]:
+Alessio Curcio
+---
+[Google Shape;93;p13]:
+ID: 2120317
+---
+[Google Shape;94;p13]:
+Academic Supervisor
+---
+[Google Shape;95;p13]:
+Prof. Danilo Avola
+---
+[Google Shape;96;p13]:
+Co-Supervisor
+---
+[Google Shape;97;p13]:
+Dr. Daniele Bailo
